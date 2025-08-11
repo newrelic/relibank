@@ -6,9 +6,6 @@ docker compose up --build --force-recreate
 
 send requests from postman w/ collection
 
-docker compose logs -f bill-pay-consumer
-- Use this to view logs if they don't show in docker compose
-
 # rebuild
 docker compose down
 docker compose up --build

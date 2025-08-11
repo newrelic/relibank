@@ -282,11 +282,13 @@ async def get_transaction(bill_id: str):
     """
     Retrieves a single transaction by its BillID.
     """
+
     if not db_connection:
         raise HTTPException(status_code=503, detail="Database connection failed.")
     
     try:
-        cursor = db_connection.cursor()
+        cnxn = get_db_connection()
+        cursor = cnxn.cursor()
         cursor.execute("SELECT TOP 1 * FROM Transactions WHERE BillID = ?", bill_id)
         row = cursor.fetchone()
         if not row:

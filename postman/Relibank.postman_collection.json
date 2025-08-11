@@ -1,0 +1,198 @@
+{
+	"info": {
+		"_postman_id": "f89246eb-19a5-43d4-bdbb-d06625977944",
+		"name": "Relibank",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+		"_exporter_id": "20788652"
+	},
+	"item": [
+		{
+			"name": "bill pay",
+			"item": [
+				{
+					"name": "pay",
+					"request": {
+						"method": "POST",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"billId\": \"BILL-PAY-001\",\n    \"amount\": 75.25,\n    \"currency\": \"USD\",\n    \"accountId\": \"873467890\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "http://0.0.0.0:5000/pay",
+							"protocol": "http",
+							"host": [
+								"0",
+								"0",
+								"0",
+								"0"
+							],
+							"port": "5000",
+							"path": [
+								"pay"
+							],
+							"query": [
+								{
+									"key": "billId",
+									"value": "BILL-PAY-001",
+									"disabled": true
+								},
+								{
+									"key": "amount",
+									"value": "75.25",
+									"disabled": true
+								},
+								{
+									"key": "currency",
+									"value": "USD",
+									"disabled": true
+								},
+								{
+									"key": "accountId",
+									"value": "ACC-FINSERV-123",
+									"disabled": true
+								}
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "cancel payment",
+					"request": {
+						"method": "POST",
+						"header": [],
+						"url": {
+							"raw": "http://localhost:5000/cancel/BILL-PAY-001?user_id=fin_serv_user_1",
+							"protocol": "http",
+							"host": [
+								"localhost"
+							],
+							"port": "5000",
+							"path": [
+								"cancel",
+								"BILL-PAY-001"
+							],
+							"query": [
+								{
+									"key": "user_id",
+									"value": "fin_serv_user_1"
+								}
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "recurring",
+					"request": {
+						"method": "POST",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"billId\": \"BILL-RECUR-001\",\n    \"amount\": 150.00,\n    \"currency\": \"EUR\",\n    \"accountId\": \"873467890\",\n    \"frequency\": \"monthly\",\n    \"startDate\": \"2025-08-01\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "http://localhost:5000/recurring",
+							"protocol": "http",
+							"host": [
+								"localhost"
+							],
+							"port": "5000",
+							"path": [
+								"recurring"
+							],
+							"query": [
+								{
+									"key": "billId",
+									"value": "BILL-RECUR-002",
+									"disabled": true
+								},
+								{
+									"key": "amount",
+									"value": "150",
+									"disabled": true
+								},
+								{
+									"key": "currency",
+									"value": "EUR",
+									"disabled": true
+								},
+								{
+									"key": "accountId",
+									"value": "ACC-FINSERV-456",
+									"disabled": true
+								},
+								{
+									"key": "frequency",
+									"value": "monthly",
+									"disabled": true
+								},
+								{
+									"key": "startDate",
+									"value": "2025-08-01",
+									"disabled": true
+								}
+							]
+						}
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "transaction service",
+			"item": [
+				{
+					"name": "get transactions",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "http://localhost:5001/transactions",
+							"protocol": "http",
+							"host": [
+								"localhost"
+							],
+							"port": "5001",
+							"path": [
+								"transactions"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "get transaction by id",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "http://localhost:5001/transaction/BILL-TEST-001",
+							"protocol": "http",
+							"host": [
+								"localhost"
+							],
+							"port": "5001",
+							"path": [
+								"transaction",
+								"BILL-TEST-001"
+							]
+						}
+					},
+					"response": []
+				}
+			]
+		}
+	]
+}
