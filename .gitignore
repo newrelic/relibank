@@ -1,0 +1,7 @@
+.idea/*
+**/.terraform
+terraform-initial-setup/terraform.tfstate
+act-secrets.env
+**/.DS_Store
+**/keys.txt
+**/*.log*
