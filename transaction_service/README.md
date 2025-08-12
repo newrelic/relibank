@@ -1,4 +1,4 @@
-Relibank Transaction Service
+# Relibank Transaction Service
 This service is a core component of the Relibank FinServ application. It acts as a transactional data layer, consuming event-driven messages from a Kafka message queue and persisting them into a Microsoft SQL Server (MSSQL) database. It also exposes a RESTful API for querying transaction data.
 
 🚀 Key Features

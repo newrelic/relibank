@@ -1,4 +1,4 @@
-Relibank Notifications Service
+# Relibank Notifications Service
 This service is a crucial component of the Relibank event-driven architecture, designed to provide real-time updates to users via email and SMS. It acts as a dedicated consumer, reacting to a variety of payment-related events published to the Kafka message queue.
 
 🚀 Key Features

@@ -1,4 +1,4 @@
-Relibank Bill Pay Service
+# Relibank Bill Pay Service
 This service is a core component of the Relibank FinServ application. Its primary function is to handle customer-initiated payment requests and cancellations. It acts as a producer in our event-driven architecture, validating requests and publishing events to a Kafka message queue for other services to consume.
 
 🚀 Key Features

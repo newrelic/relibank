@@ -1,4 +1,4 @@
-Relibank Event Scheduler Service
+# Relibank Event Scheduler Service
 This service is a crucial component of the Relibank event-driven architecture, designed to act as a scheduler and trigger events for recurring payments. It reads payment schedules from the MSSQL database and publishes events to the Kafka message queue at the appropriate time.
 
 🚀 Key Features
