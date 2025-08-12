@@ -7,7 +7,8 @@ WORKDIR /app
 # Install build dependencies required for C extensions
 RUN apt-get update && apt-get install -y --no-install-recommends \
     build-essential \
-    zlib1g-dev
+    zlib1g-dev \
+    unixodbc-dev
 
 # Copy the requirements file into the container
 COPY requirements.txt .
@@ -16,10 +17,7 @@ COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
 # Copy the application code file
-COPY bill_pay_service.py .
+COPY notifications_service.py .
 
-# Expose the port the FastAPI app will run on
-EXPOSE 5000
-
-# Command to run the application using Uvicorn
-CMD ["uvicorn", "bill_pay_service:app", "--host", "0.0.0.0", "--port", "5000", "--workers", "1"]
+# Command to run the consumer script
+CMD ["python", "notifications_service.py"]

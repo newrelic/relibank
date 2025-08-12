@@ -67,15 +67,25 @@ class BillPaymentCancelled(BaseModel):
     user_id: str = Field(min_length=1)
     timestamp: float
 
+class PaymentDueNotificationEvent(BaseModel):
+    eventType: str = "PaymentDueNotificationEvent"
+    billId: str = Field(min_length=1)
+    accountId: int
+    amount: float = Field(gt=0)
+    currency: str = Field(min_length=3)
+    timestamp: float
+
 EVENT_MODELS = {
     "BillPaymentInitiated": BillPaymentInitiated,
     "RecurringPaymentScheduled": RecurringPaymentScheduled,
-    "BillPaymentCancelled": BillPaymentCancelled
+    "BillPaymentCancelled": BillPaymentCancelled,
+    "PaymentDueNotificationEvent": PaymentDueNotificationEvent
 }
 
 # Global database connection, Kafka producer, and consumer task
 producer = None
 consumer_task = None
+db_connection = None
 
 def get_db_connection():
     """
@@ -112,6 +122,7 @@ async def start_kafka_consumer():
                 'bill_payments',
                 'recurring_payments',
                 'payment_cancellations',
+                'payment_due_notifications', # Now listens to this new topic
                 bootstrap_servers=kafka_broker,
                 group_id='transaction-consumer-group',
                 auto_offset_reset='earliest'
@@ -128,8 +139,7 @@ async def start_kafka_consumer():
         return
 
     try:
-        cnxn = get_db_connection()
-        cursor = cnxn.cursor()
+        cursor = db_connection.cursor()
         async for message in consumer:
             message_value = json.loads(message.value.decode('utf-8'))
             event_type = message_value.get('eventType')
@@ -165,8 +175,25 @@ async def start_kafka_consumer():
                         UPDATE Transactions SET EventType = ?, CancellationUserID = ?, CancellationTimestamp = ?
                         WHERE BillID = ?
                     """, event_model.eventType, event_model.user_id, event_model.timestamp, event_model.billId)
-                
-                cnxn.commit()
+                elif event_type == 'PaymentDueNotificationEvent':
+                    # This event signals that a recurring payment is due
+                    logging.info(f"Received 'PaymentDueNotificationEvent' for bill ID {event_model.billId}. Simulating payment initiation...")
+                    
+                    # Publish a new event to the `bill_payments` topic
+                    # This event will be consumed by this service again to be recorded as a regular payment
+                    payment_init_event = {
+                        "eventType": "BillPaymentInitiated",
+                        "billId": event_model.billId,
+                        "amount": event_model.amount,
+                        "currency": event_model.currency,
+                        "accountId": event_model.accountId,
+                        "timestamp": time.time()
+                    }
+                    message_bytes = json.dumps(payment_init_event).encode('utf-8')
+                    # Send the new event to the Kafka topic
+                    await producer.send_and_wait("bill_payments", message_bytes)
+
+                db_connection.commit()
                 logging.info(f"Database write successful for event {event_model.eventType}.")
             except Exception as e:
                 logging.error(f"Database write error: {e}")
@@ -178,9 +205,6 @@ async def start_kafka_consumer():
     finally:
         if consumer:
             await consumer.stop()
-        if cnxn:
-            cnxn.close()
-        logging.info("Consumer and database connection stopped.")
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -276,19 +300,19 @@ async def get_transactions():
     except Exception as e:
         logging.error(f"Error retrieving transactions: {e}")
         raise HTTPException(status_code=500, detail="Error retrieving transactions.")
+    finally:
+        pass
 
 @app.get("/transaction/{bill_id}", response_model=TransactionRecord)
 async def get_transaction(bill_id: str):
     """
     Retrieves a single transaction by its BillID.
     """
-
     if not db_connection:
         raise HTTPException(status_code=503, detail="Database connection failed.")
     
     try:
-        cnxn = get_db_connection()
-        cursor = cnxn.cursor()
+        cursor = db_connection.cursor()
         cursor.execute("SELECT TOP 1 * FROM Transactions WHERE BillID = ?", bill_id)
         row = cursor.fetchone()
         if not row:
@@ -304,37 +328,9 @@ async def get_transaction(bill_id: str):
         logging.error(f"Error retrieving transaction: {e}")
         raise HTTPException(status_code=500, detail="Error retrieving transaction.")
     finally:
-        cnxn.close()
+        pass
 
-@app.post("/transaction", status_code=201)
-async def create_transaction(transaction_details: CreateTransaction):
-    """
-    Creates a new transaction by publishing an event to Kafka.
-    """
-    if not producer:
-        raise HTTPException(status_code=503, detail="Kafka producer is not connected.")
-
-    logging.info(f"Received API request to create transaction for billId: {transaction_details.billId}")
-
-    try:
-        kafka_message = {
-            "eventType": "BillPaymentInitiated",
-            "billId": transaction_details.billId,
-            "amount": transaction_details.amount,
-            "currency": transaction_details.currency,
-            "accountId": transaction_details.accountId,
-            "timestamp": time.time()
-        }
-        message_bytes = json.dumps(kafka_message).encode('utf-8')
-        await producer.send_and_wait("bill_payments", message_bytes)
-        logging.info("Transaction initiation event successfully published to Kafka.")
-    except Exception as e:
-        logging.error(f"Failed to publish message to Kafka: {e}")
-        raise HTTPException(status_code=500, detail="Failed to publish transaction event.")
-    
-    return {"status": "success", "message": "Transaction event published successfully."}
-
-@app.get("/health")
+app.get("/health")
 async def health_check():
     """Simple health check endpoint."""
     return {"status": "healthy"}

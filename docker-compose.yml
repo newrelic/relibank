@@ -25,7 +25,7 @@ services:
     environment:
       - KAFKA_BROKER_ID=1
       - KAFKA_CFG_ZOOKEEPER_CONNECT=zookeeper:2181
-      - KAFKA_CFD_ADVERTISED_LISTENERS=PLAINTEXT://kafka:29092,EXTERNAL://localhost:9092
+      - KAFKA_CFG_ADVERTISED_LISTENERS=PLAINTEXT://kafka:29092,EXTERNAL://localhost:9092
       - KAFKA_CFG_LISTENER_SECURITY_PROTOCOL_MAP=PLAINTEXT:PLAINTEXT,EXTERNAL:PLAINTEXT
       - KAFKA_CFG_LISTENERS=PLAINTEXT://:29092,EXTERNAL://:9092
       - ALLOW_PLAINTEXT_LISTENER=yes
@@ -42,7 +42,7 @@ services:
       - ACCEPT_EULA=Y
     platform: linux/amd64
     healthcheck:
-      test: ["CMD-SHELL", "/opt/mssql-tools/bin/sqlcmd -S localhost -U SA -P \"YourStrong@Password!\" -Q \"SELECT 1 FROM sys.databases WHERE name='RelibankDB'\" || exit 1"]
+      test: ["CMD-SHELL", "/opt/mssql-tools/bin/sqlcmd -S localhost -U SA -P \"YourStrong@Password!\" -Q \"SELECT 1\" || exit 1"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -60,16 +60,18 @@ services:
     volumes:
       - ./transaction_service/mssql/init.sql:/usr/config/init.sql
 
-  bill-pay:
+  bill-pay-service:
     build:
       context: ./bill_pay
-    container_name: bill-pay
+    container_name: bill-pay-service
     ports:
       - "5000:5000"
     depends_on:
       - kafka
+      - transaction-service
     environment:
       KAFKA_BROKER: kafka:29092
+      TRANSACTION_SERVICE_URL: http://transaction-service:5000
 
   transaction-service:
     build:
@@ -90,6 +92,41 @@ services:
       DB_DATABASE: RelibankDB
       DB_USERNAME: SA
       DB_PASSWORD: YourStrong@Password!
+      
+  notifications-service:
+    build:
+      context: ./notifications_service
+      dockerfile: Dockerfile
+    container_name: notifications-service
+    depends_on:
+      kafka:
+        condition: service_healthy
+    command: ["python", "notifications_service.py"]
+    environment:
+      KAFKA_BROKER: kafka:29092
+      # Azure Communication Services credentials
+      AZURE_ACS_CONNECTION_STRING: ""
+      AZURE_ACS_SMS_PHONE_NUMBER: "+15551234567"
+      AZURE_ACS_EMAIL_ENDPOINT: "https://your-acs-resource-name.azurecomm.net"
+      AZURE_ACS_EMAIL_SENDER: "DoNotReply@xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx.azurecomm.net"
+      # Old credentials (uncomment to use)
+      # TWILIO_ACCOUNT_SID: "ACxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+      # TWILIO_AUTH_TOKEN: "your_auth_token"
+      # TWILIO_PHONE_NUMBER: "+15551234567"
+      # SENDGRID_API_KEY: "SG.xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+      # SENDGRID_SENDER_EMAIL: "sender@example.com"
+
+  scheduler-service:
+    build:
+      context: ./event_scheduler
+      dockerfile: Dockerfile
+    container_name: scheduler-service
+    depends_on:
+      kafka:
+        condition: service_healthy
+    command: ["python", "scheduler_service.py"]
+    environment:
+      KAFKA_BROKER: kafka:29092
 
 volumes:
   mssql-data:

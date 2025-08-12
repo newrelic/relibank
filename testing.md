@@ -7,7 +7,8 @@ docker compose up --build --force-recreate
 send requests from postman w/ collection
 
 # rebuild
-docker compose down
+docker compose down --volumes
+- This also destroys the database, if you need to restart it for testing
 docker compose up --build
 
 # test individual services
