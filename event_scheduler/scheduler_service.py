@@ -18,6 +18,8 @@ DB_PASSWORD = os.getenv("DB_PASSWORD", "YourStrong@Password!")
 CONNECTION_STRING = f"DRIVER={{ODBC Driver 18 for SQL Server}};SERVER={DB_SERVER};DATABASE={DB_DATABASE};UID={DB_USERNAME};PWD={DB_PASSWORD};TrustServerCertificate=yes"
 CONNECTION_STRING_MASTER = f"DRIVER={{ODBC Driver 18 for SQL Server}};SERVER={DB_SERVER};DATABASE=master;UID={DB_USERNAME};PWD={DB_PASSWORD};TrustServerCertificate=yes"
 
+# TODO "you have an upcoming payment due in 2 days", track future payment dates
+
 # Global Kafka producer and database connection
 producer = None
 db_connection = None

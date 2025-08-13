@@ -26,6 +26,10 @@ AZURE_ACS_EMAIL_ENDPOINT = os.getenv("AZURE_ACS_EMAIL_ENDPOINT")
 AZURE_ACS_SMS_PHONE_NUMBER = os.getenv("AZURE_ACS_SMS_PHONE_NUMBER")
 AZURE_ACS_EMAIL_SENDER = os.getenv("AZURE_ACS_EMAIL_SENDER")
 
+# TODO add an endpoint to be used by mobile to do a popup
+# TODO add values to ignore a % of good/successful notifications, 
+# but keep all bad/failed notifications for demo scenario purposes
+
 async def send_sms_notification(to_number: str, body: str):
 
     """
