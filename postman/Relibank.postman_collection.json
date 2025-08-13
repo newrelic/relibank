@@ -67,8 +67,17 @@
 					"request": {
 						"method": "POST",
 						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"user_id\": \"fin_serv_user_1\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
 						"url": {
-							"raw": "http://localhost:5000/cancel/BILL-PAY-001?user_id=fin_serv_user_1",
+							"raw": "http://localhost:5000/cancel/BILL-PAY-001",
 							"protocol": "http",
 							"host": [
 								"localhost"
@@ -77,12 +86,6 @@
 							"path": [
 								"cancel",
 								"BILL-PAY-001"
-							],
-							"query": [
-								{
-									"key": "user_id",
-									"value": "fin_serv_user_1"
-								}
 							]
 						}
 					},
