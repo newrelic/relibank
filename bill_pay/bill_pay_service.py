@@ -10,6 +10,7 @@ import json
 from contextlib import asynccontextmanager
 from aiokafka import AIOKafkaProducer
 import httpx
+import uuid
 
 # Configure logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
@@ -64,13 +65,15 @@ class PaymentDetails(BaseModel):
     billId: str
     amount: float
     currency: str
-    accountId: int
+    fromAccountId: int
+    toAccountId: Optional[int] = 0
 
 class PaymentSchedule(BaseModel):
     billId: str
     amount: float
     currency: str
-    accountId: int
+    fromAccountId: int
+    toAccountId: Optional[int] = 0
     frequency: str # e.g., "monthly", "weekly"
     startDate: str # e.g., "2024-08-06"
 
@@ -99,26 +102,43 @@ async def publish_message(topic: str, message: dict):
 async def process_bill_payment(payment_details: PaymentDetails):
     """
     Processes a bill payment request that has already been authenticated.
-    - Publishes a message to a real Kafka topic.
+    - Publishes two messages to a real Kafka topic, one for each account.
     """
     logging.info(f"Received payment request for: {payment_details.billId}")
     logging.info("Authentication handled by upstream service. Proceeding with payment.")
     
-    kafka_message = {
-        "eventType": "BillPaymentInitiated",
+    transaction_uuid = str(uuid.uuid4())
+
+    # Debit event for the source account
+    debit_event = {
+        "eventType": "BillPaymentInitiatedFromAcct",
+        "transactionId": transaction_uuid,
         "billId": payment_details.billId,
         "amount": payment_details.amount,
         "currency": payment_details.currency,
-        "accountId": payment_details.accountId,
+        "accountId": payment_details.fromAccountId,
         "timestamp": time.time()
     }
-    await publish_message("bill_payments", kafka_message)
+
+    # Credit event for the destination account
+    credit_event = {
+        "eventType": "BillPaymentInitiatedToAcct",
+        "transactionId": transaction_uuid,
+        "billId": payment_details.billId,
+        "amount": payment_details.amount,
+        "currency": payment_details.currency,
+        "accountId": payment_details.toAccountId,
+        "timestamp": time.time()
+    }
+    
+    await publish_message("bill_payments", debit_event)
+    await publish_message("bill_payments", credit_event)
     
     logging.info(f"Bill payment for {payment_details.billId} successfully initiated.")
     return {
         "status": "success",
         "message": "Bill payment initiated successfully",
-        "transactionId": f"TXN-{int(time.time() * 1000)}"
+        "transactionId": transaction_uuid
     }
 
 @app.post("/recurring")
@@ -134,9 +154,10 @@ async def process_recurring_payment(payment_schedule: PaymentSchedule):
         "billId": payment_schedule.billId,
         "amount": payment_schedule.amount,
         "currency": payment_schedule.currency,
-        "accountId": payment_schedule.accountId,
+        "accountId": payment_schedule.fromAccountId,
         "frequency": payment_schedule.frequency,
         "startDate": payment_schedule.startDate,
+        "toAccountId": payment_schedule.toAccountId,
         "timestamp": time.time()
     }
     await publish_message("recurring_payments", kafka_message)
@@ -144,7 +165,7 @@ async def process_recurring_payment(payment_schedule: PaymentSchedule):
     return {
         "status": "success",
         "message": "Recurring payment scheduled successfully",
-        "recurringId": f"RECURRING-{int(time.time() * 1000)}"
+        "recurringId": f"RECURRING-{str(uuid.uuid4())}"
     }
 
 @app.post("/cancel/{bill_id}")

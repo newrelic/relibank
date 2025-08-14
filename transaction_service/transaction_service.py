@@ -75,8 +75,32 @@ class PaymentDueNotificationEvent(BaseModel):
     currency: str = Field(min_length=3)
     timestamp: float
 
+class LedgerRecord(BaseModel):
+    account_id: int
+    current_balance: float
+
+class BillPaymentInitiatedFromAcct(BaseModel):
+    eventType: str = "BillPaymentInitiatedFromAcct"
+    transactionId: str
+    billId: str = Field(min_length=1)
+    amount: float = Field(gt=0)
+    currency: str = Field(min_length=3)
+    accountId: int
+    timestamp: float
+
+class BillPaymentInitiatedToAcct(BaseModel):
+    eventType: str = "BillPaymentInitiatedToAcct"
+    transactionId: str
+    billId: str = Field(min_length=1)
+    amount: float = Field(gt=0)
+    currency: str = Field(min_length=3)
+    accountId: int
+    timestamp: float
+
 EVENT_MODELS = {
     "BillPaymentInitiated": BillPaymentInitiated,
+    "BillPaymentInitiatedFromAcct": BillPaymentInitiatedFromAcct,
+    "BillPaymentInitiatedToAcct": BillPaymentInitiatedToAcct,
     "RecurringPaymentScheduled": RecurringPaymentScheduled,
     "BillPaymentCancelled": BillPaymentCancelled,
     "PaymentDueNotificationEvent": PaymentDueNotificationEvent
@@ -122,7 +146,7 @@ async def start_kafka_consumer():
                 'bill_payments',
                 'recurring_payments',
                 'payment_cancellations',
-                'payment_due_notifications', # Now listens to this new topic
+                'payment_due_notifications',
                 bootstrap_servers=kafka_broker,
                 group_id='transaction-consumer-group',
                 auto_offset_reset='earliest'
@@ -157,24 +181,58 @@ async def start_kafka_consumer():
                 continue
 
             try:
-                if event_type == 'BillPaymentInitiated':
+                if event_type == 'BillPaymentInitiatedFromAcct':
+                    # Log the debit to the ledger
+                    cursor.execute("""
+                        UPDATE Ledger SET CurrentBalance = CurrentBalance - ? WHERE AccountID = ?
+                        IF @@ROWCOUNT = 0
+                        INSERT INTO Ledger (AccountID, CurrentBalance) VALUES (?, ?)
+                    """, event_model.amount, event_model.accountId, event_model.accountId, -event_model.amount)
+                    db_connection.commit()
+                    logging.info(f"Debited {event_model.amount} from account {event_model.accountId} in Ledger.")
+
+                    # Insert into Transactions table
                     cursor.execute("""
                         INSERT INTO Transactions (EventType, BillID, Amount, Currency, AccountID, Timestamp)
                         VALUES (?, ?, ?, ?, ?, ?)
                     """, event_model.eventType, event_model.billId, event_model.amount,
                        event_model.currency, event_model.accountId, event_model.timestamp)
+                    db_connection.commit()
+                    logging.info(f"Debit transaction {event_model.billId} recorded in Transactions table.")
+                elif event_type == 'BillPaymentInitiatedToAcct':
+                    # Log the credit to the ledger
+                    cursor.execute("""
+                        UPDATE Ledger SET CurrentBalance = CurrentBalance + ? WHERE AccountID = ?
+                        IF @@ROWCOUNT = 0
+                        INSERT INTO Ledger (AccountID, CurrentBalance) VALUES (?, ?)
+                    """, event_model.amount, event_model.accountId, event_model.accountId, event_model.amount)
+                    db_connection.commit()
+                    logging.info(f"Credited {event_model.amount} to account {event_model.accountId} in Ledger.")
+
+                    # Insert into Transactions table
+                    cursor.execute("""
+                        INSERT INTO Transactions (EventType, BillID, Amount, Currency, AccountID, Timestamp)
+                        VALUES (?, ?, ?, ?, ?, ?)
+                    """, event_model.eventType, event_model.billId, event_model.amount,
+                       event_model.currency, event_model.accountId, event_model.timestamp)
+                    db_connection.commit()
+                    logging.info(f"Credit transaction {event_model.billId} recorded in Transactions table.")
                 elif event_type == 'RecurringPaymentScheduled':
                     cursor.execute("""
                         INSERT INTO Transactions (EventType, BillID, Amount, Currency, AccountID, Timestamp)
                         VALUES (?, ?, ?, ?, ?, ?)
                     """, event_model.eventType, event_model.billId, event_model.amount,
                        event_model.currency, event_model.accountId, event_model.timestamp)
+                    db_connection.commit()
+                    logging.info(f"Recurring payment scheduled for bill ID {event_model.billId} and inserted.")
                 elif event_type == 'BillPaymentCancelled':
                     # Update the existing transaction record
                     cursor.execute("""
                         UPDATE Transactions SET EventType = ?, CancellationUserID = ?, CancellationTimestamp = ?
                         WHERE BillID = ?
                     """, event_model.eventType, event_model.user_id, event_model.timestamp, event_model.billId)
+                    db_connection.commit()
+                    logging.info(f"Payment for bill ID {event_model.billId} cancelled and updated.")
                 elif event_type == 'PaymentDueNotificationEvent':
                     # This event signals that a recurring payment is due
                     logging.info(f"Received 'PaymentDueNotificationEvent' for bill ID {event_model.billId}. Simulating payment initiation...")
@@ -182,7 +240,7 @@ async def start_kafka_consumer():
                     # Publish a new event to the `bill_payments` topic
                     # This event will be consumed by this service again to be recorded as a regular payment
                     payment_init_event = {
-                        "eventType": "BillPaymentInitiated",
+                        "eventType": "BillPaymentInitiatedFromAcct",
                         "billId": event_model.billId,
                         "amount": event_model.amount,
                         "currency": event_model.currency,
@@ -193,11 +251,9 @@ async def start_kafka_consumer():
                     # Send the new event to the Kafka topic
                     await producer.send_and_wait("bill_payments", message_bytes)
 
-                db_connection.commit()
                 logging.info(f"Database write successful for event {event_model.eventType}.")
             except Exception as e:
                 logging.error(f"Database write error: {e}")
-                # In a real-world scenario, you might send this to a DLQ topic.
                 continue
 
     except Exception as e:
@@ -300,8 +356,6 @@ async def get_transactions():
     except Exception as e:
         logging.error(f"Error retrieving transactions: {e}")
         raise HTTPException(status_code=500, detail="Error retrieving transactions.")
-    finally:
-        pass
 
 @app.get("/transaction/{bill_id}", response_model=TransactionRecord)
 async def get_transaction(bill_id: str):
@@ -327,10 +381,36 @@ async def get_transaction(bill_id: str):
     except Exception as e:
         logging.error(f"Error retrieving transaction: {e}")
         raise HTTPException(status_code=500, detail="Error retrieving transaction.")
-    finally:
-        pass
+    
+@app.get("/ledger/{account_id}", response_model=LedgerRecord)
+async def get_ledger_balance(account_id: int):
+    """
+    Retrieves the current balance for a specific account from the Ledger table.
+    """
+    if not db_connection:
+        raise HTTPException(status_code=503, detail="Database connection failed.")
+    
+    try:
+        cursor = db_connection.cursor()
+        cursor.execute("SELECT AccountID AS account_id, CurrentBalance AS current_balance FROM Ledger WHERE AccountID = ?", account_id)
+        row = cursor.fetchone()
+        if not row:
+            raise HTTPException(status_code=404, detail="Account not found in ledger.")
+        
+        # Manually create a dictionary to match the Pydantic model structure
+        balance_record = {
+            "account_id": row[0],
+            "current_balance": float(row[1])
+        }
+        logging.info(f"Retrieved ledger balance for account {account_id}")
+        return LedgerRecord(**balance_record)
+    except HTTPException:
+        raise
+    except Exception as e:
+        logging.error(f"Error retrieving ledger balance: {e}")
+        raise HTTPException(status_code=500, detail="Error retrieving ledger balance.")
 
-app.get("/health")
+@app.get("/health")
 async def health_check():
     """Simple health check endpoint."""
     return {"status": "healthy"}

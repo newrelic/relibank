@@ -15,13 +15,13 @@ direct deposit?
 
 ## accounts - accounts DB
 
-### example user info
-id (uuid16), name, alert_preferences, phone, email, address, income, preferred_language, marketing_preferences, privacy_preferences
+### user info - user account table
+id (uuid16), name, alert_preferences, phone, email, address, income, preferred_language, marketing_preferences (blob), privacy_preferences (blob)
 
-#### example accounts (checking/debit, savings)
-id (uuid16), name, balance, routing, interest, last_statement_date
+#### checking account, savings account
+id (uuid16), name, balance, routing, interest rate, last_statement_date
 
-#### example accounts payable (credit, loans)
+#### loan account, credit account
 id (uuid16), name, balance, outstanding_balance, routing, interest rate, last_statement_date, payment_schedule, last_payment_date, automatic_pay
 
 ### account_user (relationship table)

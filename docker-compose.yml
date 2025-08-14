@@ -30,6 +30,40 @@ services:
       - KAFKA_CFG_LISTENERS=PLAINTEXT://:29092,EXTERNAL://:9092
       - ALLOW_PLAINTEXT_LISTENER=yes
 
+  accounts-db:
+    image: postgres:15
+    container_name: accounts-db
+    ports:
+      - "5432:5432"
+    environment:
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=your_password
+      - POSTGRES_DB=accountsdb
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d accountsdb && PGPASSWORD=your_password psql -U postgres -d accountsdb -c 'SELECT 1 FROM user_account'"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    volumes:
+      - accounts-data:/var/lib/postgresql/data
+      - ./accounts_service/postgres/init.sql:/docker-entrypoint-initdb.d/init.sql
+
+  accounts-service:
+    build:
+      context: ./accounts_service
+      dockerfile: Dockerfile
+    container_name: accounts-service
+    ports:
+      - "5002:5000"
+    depends_on:
+      accounts-db:
+        condition: service_healthy
+    environment:
+      DB_HOST: accounts-db
+      DB_NAME: accountsdb
+      DB_USER: postgres
+      DB_PASSWORD: your_password
+
   mssql:
     build:
       context: ./transaction_service/mssql
@@ -67,8 +101,10 @@ services:
     ports:
       - "5000:5000"
     depends_on:
-      - kafka
-      - transaction-service
+      kafka:
+        condition: service_healthy
+      transaction-service:
+        condition: service_healthy
     environment:
       KAFKA_BROKER: kafka:29092
       TRANSACTION_SERVICE_URL: http://transaction-service:5000
@@ -85,7 +121,12 @@ services:
         condition: service_healthy
       mssql-init:
         condition: service_completed_successfully
-    command: ["sh", "-c", "sleep 30s && uvicorn transaction_service:app --host 0.0.0.0 --port 5000 --workers 1"]
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5000/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    command: ["sh", "-c", "uvicorn transaction_service:app --host 0.0.0.0 --port 5000 --workers 1 --log-level error"]
     environment:
       KAFKA_BROKER: kafka:29092
       DB_SERVER: mssql
@@ -130,3 +171,4 @@ services:
 
 volumes:
   mssql-data:
+  accounts-data:
