@@ -1,0 +1,266 @@
+{
+	"info": {
+		"_postman_id": "f89246eb-19a5-43d4-bdbb-d06625977944",
+		"name": "Relibank",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+		"_exporter_id": "20788652"
+	},
+	"item": [
+		{
+			"name": "bill pay",
+			"item": [
+				{
+					"name": "pay",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"billId\": \"BILL-TEST-001\",\n    \"amount\": 75.25,\n    \"currency\": \"USD\",\n    \"fromAccountId\": 12345,\n    \"toAccountId\": 56789\n}"
+						},
+						"url": {
+							"raw": "http://localhost:5000/pay",
+							"protocol": "http",
+							"host": [
+								"localhost"
+							],
+							"port": "5000",
+							"path": [
+								"pay"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "cancel payment",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"user_id\": \"alice.j@relibank.com\"\n}"
+						},
+						"url": {
+							"raw": "http://localhost:5000/cancel/BILL-TEST-001",
+							"protocol": "http",
+							"host": [
+								"localhost"
+							],
+							"port": "5000",
+							"path": [
+								"cancel",
+								"BILL-TEST-001"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "recurring",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"billId\": \"BILL-RECUR-002\",\n    \"amount\": 150.00,\n    \"currency\": \"EUR\",\n    \"fromAccountId\": 12345,\n    \"toAccountId\": 56789,\n    \"frequency\": \"monthly\",\n    \"startDate\": \"2025-08-01\"\n}"
+						},
+						"url": {
+							"raw": "http://localhost:5000/recurring",
+							"protocol": "http",
+							"host": [
+								"localhost"
+							],
+							"port": "5000",
+							"path": [
+								"recurring"
+							]
+						}
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "transaction service",
+			"item": [
+				{
+					"name": "get transactions",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "http://localhost:5001/transactions",
+							"protocol": "http",
+							"host": [
+								"localhost"
+							],
+							"port": "5001",
+							"path": [
+								"transactions"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "get transaction by id",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "http://localhost:5001/transaction/BILL-TEST-001",
+							"protocol": "http",
+							"host": [
+								"localhost"
+							],
+							"port": "5001",
+							"path": [
+								"transaction",
+								"BILL-TEST-001"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "get ledger balance",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "http://localhost:5001/ledger/12345",
+							"protocol": "http",
+							"host": [
+								"localhost"
+							],
+							"port": "5001",
+							"path": [
+								"ledger",
+								"12345"
+							]
+						}
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "accounts service",
+			"item": [
+				{
+					"name": "add a new user",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"id\": \"2d94a11c-9b88-46c5-a4b3-568b200b3967\",\n    \"name\": \"Jane Doe\",\n    \"alert_preferences\": {\n        \"email_notifications\": true,\n        \"sms_notifications\": false\n    },\n    \"phone\": \"+15551234567\",\n    \"email\": \"jane.doe@example.com\",\n    \"address\": \"123 Main St, Anytown, USA\",\n    \"income\": 75000.00,\n    \"preferred_language\": \"en-US\",\n    \"marketing_preferences\": {},\n    \"privacy_preferences\": {}\n}"
+						},
+						"url": {
+							"raw": "http://localhost:5002/users",
+							"protocol": "http",
+							"host": [
+								"localhost"
+							],
+							"port": "5002",
+							"path": [
+								"users"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "add a checking account",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"id\": 12345,\n    \"name\": \"Primary Checking\",\n    \"balance\": 1500.50,\n    \"routing_number\": \"0123456789\",\n    \"interest_rate\": 0.001,\n    \"last_statement_date\": \"2025-07-31\",\n    \"account_type\": \"checking\"\n}"
+						},
+						"url": {
+							"raw": "http://localhost:5002/accounts/alice.j@relibank.com",
+							"protocol": "http",
+							"host": [
+								"localhost"
+							],
+							"port": "5002",
+							"path": [
+								"accounts",
+								"alice.j@relibank.com"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "get user accounts",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "http://localhost:5002/accounts/alice.j@relibank.com",
+							"protocol": "http",
+							"host": [
+								"localhost"
+							],
+							"port": "5002",
+							"path": [
+								"accounts",
+								"alice.j@relibank.com"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "get user by email",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "http://localhost:5002/users/alice.j@relibank.com",
+							"protocol": "http",
+							"host": [
+								"localhost"
+							],
+							"port": "5002",
+							"path": [
+								"users",
+								"alice.j@relibank.com"
+							]
+						}
+					},
+					"response": []
+				}
+			]
+		}
+	]
+}

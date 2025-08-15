@@ -1,0 +1,174 @@
+services:
+  zookeeper:
+    image: bitnami/zookeeper:3.8
+    container_name: zookeeper
+    hostname: zookeeper
+    ports:
+      - "2181:2181"
+    environment:
+      - ALLOW_ANONYMOUS_LOGIN=yes
+      - ZOO_MY_ID=1
+
+  kafka:
+    image: bitnami/kafka:3.5
+    container_name: kafka
+    hostname: kafka
+    ports:
+      - "9092:9092"
+    depends_on:
+      - zookeeper
+    healthcheck:
+      test: ["CMD", "kafka-topics.sh", "--bootstrap-server", "localhost:9092", "--list"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    environment:
+      - KAFKA_BROKER_ID=1
+      - KAFKA_CFG_ZOOKEEPER_CONNECT=zookeeper:2181
+      - KAFKA_CFG_ADVERTISED_LISTENERS=PLAINTEXT://kafka:29092,EXTERNAL://localhost:9092
+      - KAFKA_CFG_LISTENER_SECURITY_PROTOCOL_MAP=PLAINTEXT:PLAINTEXT,EXTERNAL:PLAINTEXT
+      - KAFKA_CFG_LISTENERS=PLAINTEXT://:29092,EXTERNAL://:9092
+      - ALLOW_PLAINTEXT_LISTENER=yes
+
+  accounts-db:
+    image: postgres:15
+    container_name: accounts-db
+    ports:
+      - "5432:5432"
+    environment:
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=your_password
+      - POSTGRES_DB=accountsdb
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d accountsdb && PGPASSWORD=your_password psql -U postgres -d accountsdb -c 'SELECT 1 FROM user_account'"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    volumes:
+      - accounts-data:/var/lib/postgresql/data
+      - ./accounts_service/postgres/init.sql:/docker-entrypoint-initdb.d/init.sql
+
+  accounts-service:
+    build:
+      context: ./accounts_service
+      dockerfile: Dockerfile
+    container_name: accounts-service
+    ports:
+      - "5002:5000"
+    depends_on:
+      accounts-db:
+        condition: service_healthy
+    environment:
+      DB_HOST: accounts-db
+      DB_NAME: accountsdb
+      DB_USER: postgres
+      DB_PASSWORD: your_password
+
+  mssql:
+    build:
+      context: ./transaction_service/mssql
+      dockerfile: Dockerfile
+    container_name: mssql
+    ports:
+      - "1433:1433"
+    environment:
+      - SA_PASSWORD=YourStrong@Password!
+      - ACCEPT_EULA=Y
+    platform: linux/amd64
+    healthcheck:
+      test: ["CMD-SHELL", "/opt/mssql-tools/bin/sqlcmd -S localhost -U SA -P \"YourStrong@Password!\" -Q \"SELECT 1\" || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    volumes:
+      - mssql-data:/var/opt/mssql
+
+  mssql-init:
+    image: mcr.microsoft.com/mssql/server:2019-CU18-ubuntu-20.04
+    container_name: mssql-init
+    platform: linux/amd64
+    depends_on:
+      mssql:
+        condition: service_healthy
+    command: /opt/mssql-tools/bin/sqlcmd -S mssql -U SA -P "YourStrong@Password!" -i /usr/config/init.sql
+    volumes:
+      - ./transaction_service/mssql/init.sql:/usr/config/init.sql
+
+  bill-pay-service:
+    build:
+      context: ./bill_pay
+    container_name: bill-pay-service
+    ports:
+      - "5000:5000"
+    depends_on:
+      kafka:
+        condition: service_healthy
+      transaction-service:
+        condition: service_healthy
+    environment:
+      KAFKA_BROKER: kafka:29092
+      TRANSACTION_SERVICE_URL: http://transaction-service:5000
+
+  transaction-service:
+    build:
+      context: ./transaction_service
+      dockerfile: Dockerfile
+    container_name: transaction-service
+    ports:
+      - "5001:5000"
+    depends_on:
+      kafka:
+        condition: service_healthy
+      mssql-init:
+        condition: service_completed_successfully
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5000/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    command: ["sh", "-c", "uvicorn transaction_service:app --host 0.0.0.0 --port 5000 --workers 1 --log-level error"]
+    environment:
+      KAFKA_BROKER: kafka:29092
+      DB_SERVER: mssql
+      DB_DATABASE: RelibankDB
+      DB_USERNAME: SA
+      DB_PASSWORD: YourStrong@Password!
+      
+  notifications-service:
+    build:
+      context: ./notifications_service
+      dockerfile: Dockerfile
+    container_name: notifications-service
+    depends_on:
+      kafka:
+        condition: service_healthy
+    command: ["python", "notifications_service.py"]
+    environment:
+      KAFKA_BROKER: kafka:29092
+      # Azure Communication Services credentials
+      AZURE_ACS_CONNECTION_STRING: ""
+      AZURE_ACS_SMS_PHONE_NUMBER: "+15551234567"
+      AZURE_ACS_EMAIL_ENDPOINT: "https://your-acs-resource-name.azurecomm.net"
+      AZURE_ACS_EMAIL_SENDER: "DoNotReply@xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx.azurecomm.net"
+      # Old credentials (uncomment to use)
+      # TWILIO_ACCOUNT_SID: "ACxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+      # TWILIO_AUTH_TOKEN: "your_auth_token"
+      # TWILIO_PHONE_NUMBER: "+15551234567"
+      # SENDGRID_API_KEY: "SG.xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+      # SENDGRID_SENDER_EMAIL: "sender@example.com"
+
+  scheduler-service:
+    build:
+      context: ./event_scheduler
+      dockerfile: Dockerfile
+    container_name: scheduler-service
+    depends_on:
+      kafka:
+        condition: service_healthy
+    command: ["python", "scheduler_service.py"]
+    environment:
+      KAFKA_BROKER: kafka:29092
+
+volumes:
+  mssql-data:
+  accounts-data:
