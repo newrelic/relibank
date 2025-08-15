@@ -12,6 +12,8 @@ This service is a core component of the **Relibank** FinServ application. Its pr
 
 * **Kafka Producer**: Publishes payment-related events to dedicated Kafka topics: `bill_payments`, `recurring_payments`, and `payment_cancellations`.
 
+* **Service-to-Service Communication**: Makes a synchronous API call to the `transaction-service` to check for the existence of a `billId` before processing a payment or cancellation. This ensures data consistency and prevents duplicate transactions.
+
 * **Asynchronous Processing**: All payments are handled asynchronously by publishing events, allowing for a highly responsive user experience.
 
 ---
@@ -20,12 +22,12 @@ This service is a core component of the **Relibank** FinServ application. Its pr
 
 The service exposes the following API endpoints, which are designed to be consumed by the customer portal or other upstream services.
 
-| Endpoint | Method | Description |
-| :--- | :--- | :--- |
-| `/pay` | `POST` | Initiates a one-time bill payment. |
-| `/recurring` | `POST` | Schedules a recurring bill payment. |
-| `/cancel/{bill_id}` | `POST` | Cancels a pending or recurring payment. |
-| `/health` | `GET` | A health check endpoint that returns a status of `healthy`. |
+| Endpoint | Method | Description | Request Body |
+| :--- | :--- | :--- | :--- |
+| `/pay` | `POST` | Initiates a one-time bill payment. | `fromAccountId`, `toAccountId`, `amount`, `currency`, `billId` |
+| `/recurring` | `POST` | Schedules a recurring bill payment. | `fromAccountId`, `toAccountId`, `amount`, `currency`, `billId`, `frequency`, `startDate` |
+| `/cancel/{bill_id}` | `POST` | Cancels a pending or recurring payment after verifying it exists. | `user_id` |
+| `/health` | `GET` | A health check endpoint that returns a status of `healthy`. | None |
 
 ---
 

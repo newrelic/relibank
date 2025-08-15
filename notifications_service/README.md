@@ -40,7 +40,6 @@ This service is designed to be run using Docker Compose as part of the larger **
    ```bash
    docker compose up --build
    
-   
    ```
 
    This command will start the `mssql` and `kafka` containers first, wait for them to become healthy, and then start the `notifications-service` and other services.

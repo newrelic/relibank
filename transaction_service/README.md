@@ -20,11 +20,11 @@ This service is a core component of the **Relibank** FinServ application. It act
 
 The service exposes the following API endpoints, which are designed to be consumed by other microservices.
 
-| Endpoint | Method | Description | 
- | ----- | ----- | ----- | 
-| `/transactions` | `GET` | Retrieves a list of all transactions from the database. | 
-| `/transaction/{bill_id}` | `GET` | Retrieves a single transaction record by its `bill_id`. | 
-| `/health` | `GET` | A health check endpoint that returns a status of `healthy`. | 
+| Endpoint | Method | Description |
+| :--- | :--- | :--- |
+| `/transactions` | `GET` | Retrieves a list of all transactions from the database. |
+| `/transaction/{bill_id}` | `GET` | Retrieves a single transaction record by its `bill_id`. |
+| `/health` | `GET` | A health check endpoint that returns a status of `healthy`. |
 
 ---
 
@@ -32,15 +32,14 @@ The service exposes the following API endpoints, which are designed to be consum
 
 This service is designed to be run using Docker Compose as part of the larger **Relibank** application stack.
 
-1. **Ensure Docker Compose is Installed**: Make sure you have Docker and Docker Compose installed and running on your system.
+1.  **Ensure Docker Compose is Installed**: Make sure you have Docker and Docker Compose installed and running on your system.
 
-2. **Navigate to the Root Directory**: Open a terminal and navigate to the root directory of the `relibank` repository, where the `docker-compose.yml` file is located.
+2.  **Navigate to the Root Directory**: Open a terminal and navigate to the root directory of the `relibank` repository, where the `docker-compose.yml` file is located.
 
-3. **Start the Stack**: Run the following command to build the service images and start all containers. The `--build` flag is crucial for applying any code or dependency changes.
+3.  **Start the Stack**: Run the following command to build the service images and start all containers. The `--build` flag is crucial for applying any code or dependency changes.
 
-   ```bash
-   docker compose up --build
-   
-   ```
+    ```bash
+    docker compose up --build
+    ```
 
-   This command will start the `mssql` and `kafka` containers first, wait for them to become healthy, and then start the `transaction-service`.
+    This command will start the `mssql` and `kafka` containers first, wait for them to become healthy, and then start the `transaction-service`.
