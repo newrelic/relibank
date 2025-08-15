@@ -10,6 +10,7 @@ import json
 from contextlib import asynccontextmanager
 from aiokafka import AIOKafkaProducer
 import httpx
+from httpx import HTTPStatusError, RequestError
 import uuid
 
 # Configure logging
@@ -107,6 +108,25 @@ async def process_bill_payment(payment_details: PaymentDetails):
     logging.info(f"Received payment request for: {payment_details.billId}")
     logging.info("Authentication handled by upstream service. Proceeding with payment.")
     
+    # --- Check for duplicate billId ---
+    transaction_service_url = os.getenv("TRANSACTION_SERVICE_URL", "http://transaction-service:5000")
+    async with httpx.AsyncClient() as client:
+        try:
+            logging.info(f"Checking for existing transaction with BillID: {payment_details.billId}")
+            response = await client.get(f"{transaction_service_url}/transaction/{payment_details.billId}")
+            if response.status_code == 200:
+                logging.error(f"Transaction with BillID '{payment_details.billId}' already exists.")
+                raise HTTPException(status_code=409, detail=f"Transaction with BillID '{payment_details.billId}' already exists.")
+        except HTTPStatusError as e:
+            if e.response.status_code == 404:
+                logging.info(f"Transaction with BillID '{payment_details.billId}' not found. OK to proceed.")
+            else:
+                logging.error(f"Unexpected error from transaction service: {e}")
+                raise HTTPException(status_code=500, detail="An unexpected error occurred.")
+        except RequestError as e:
+            logging.error(f"Failed to connect to transaction service: {e}")
+            raise HTTPException(status_code=503, detail="Transaction service is unavailable.")
+
     transaction_uuid = str(uuid.uuid4())
 
     # Debit event for the source account

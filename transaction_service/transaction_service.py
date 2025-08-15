@@ -9,6 +9,8 @@ from typing import Optional, List, Any
 from contextlib import asynccontextmanager
 from fastapi import FastAPI, HTTPException
 import time
+import httpx
+from httpx import HTTPStatusError, RequestError
 
 # Configure logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
@@ -97,6 +99,11 @@ class BillPaymentInitiatedToAcct(BaseModel):
     accountId: int
     timestamp: float
 
+# This is a model for the response from the accounts service
+class AccountType(BaseModel):
+    id: int
+    account_type: str
+
 EVENT_MODELS = {
     "BillPaymentInitiated": BillPaymentInitiated,
     "BillPaymentInitiatedFromAcct": BillPaymentInitiatedFromAcct,
@@ -113,21 +120,35 @@ db_connection = None
 
 def get_db_connection():
     """
-    Returns a new database connection with retry logic.
+    Returns a new database connection.
     """
-    retries = 5
-    delay = 5
-    for i in range(retries):
+    try:
+        cnxn = pyodbc.connect(CONNECTION_STRING, autocommit=True)
+        logging.info("Successfully connected to MSSQL database.")
+        return cnxn
+    except Exception as e:
+        raise ConnectionError(f"Failed to connect to {DB_DATABASE} database: {e}")
+
+async def get_account_type(account_id: int):
+    """
+    Makes an API call to the accounts service to get the account type.
+    """
+    accounts_service_url = os.getenv("ACCOUNTS_SERVICE_URL", "http://accounts-service:5000")
+    async with httpx.AsyncClient() as client:
         try:
-            cnxn = pyodbc.connect(CONNECTION_STRING, autocommit=True)
-            logging.info("Successfully connected to MSSQL database.")
-            return cnxn
-        except Exception as e:
-            logging.error(f"Database connection error: {e}. Retrying in {delay} seconds...")
-            time.sleep(delay)
-            delay *= 2
-    
-    raise ConnectionError("Failed to connect to MSSQL database after multiple retries.")
+            response = await client.get(f"{accounts_service_url}/account/type/{account_id}")
+            response.raise_for_status()
+            return AccountType(**response.json()).account_type
+        except HTTPStatusError as e:
+            if e.response.status_code == 404:
+                logging.error(f"Account with ID '{account_id}' not found in accounts service.")
+                raise HTTPException(status_code=404, detail=f"Account with ID '{account_id}' not found in accounts service.")
+            else:
+                logging.error(f"Unexpected error from accounts service: {e}")
+                raise HTTPException(status_code=500, detail="An unexpected error occurred.")
+        except RequestError as e:
+            logging.error(f"Failed to connect to accounts service: {e}")
+            raise HTTPException(status_code=503, detail="Accounts service is unavailable.")
 
 async def start_kafka_consumer():
     """
@@ -200,14 +221,25 @@ async def start_kafka_consumer():
                     db_connection.commit()
                     logging.info(f"Debit transaction {event_model.billId} recorded in Transactions table.")
                 elif event_type == 'BillPaymentInitiatedToAcct':
-                    # Log the credit to the ledger
-                    cursor.execute("""
-                        UPDATE Ledger SET CurrentBalance = CurrentBalance + ? WHERE AccountID = ?
-                        IF @@ROWCOUNT = 0
-                        INSERT INTO Ledger (AccountID, CurrentBalance) VALUES (?, ?)
-                    """, event_model.amount, event_model.accountId, event_model.accountId, event_model.amount)
-                    db_connection.commit()
-                    logging.info(f"Credited {event_model.amount} to account {event_model.accountId} in Ledger.")
+                    account_type = await get_account_type(event_model.accountId)
+                    if account_type in ['loan', 'credit']:
+                        # Payment to a loan/credit account is a debit to the balance
+                        cursor.execute("""
+                            UPDATE Ledger SET CurrentBalance = CurrentBalance - ? WHERE AccountID = ?
+                            IF @@ROWCOUNT = 0
+                            INSERT INTO Ledger (AccountID, CurrentBalance) VALUES (?, ?)
+                        """, event_model.amount, event_model.accountId, event_model.accountId, -event_model.amount)
+                        db_connection.commit()
+                        logging.info(f"Debited {event_model.amount} from loan/credit account {event_model.accountId} in Ledger.")
+                    else:
+                        # Payment to a checking/savings account is a credit
+                        cursor.execute("""
+                            UPDATE Ledger SET CurrentBalance = CurrentBalance + ? WHERE AccountID = ?
+                            IF @@ROWCOUNT = 0
+                            INSERT INTO Ledger (AccountID, CurrentBalance) VALUES (?, ?)
+                        """, event_model.amount, event_model.accountId, event_model.accountId, event_model.amount)
+                        db_connection.commit()
+                        logging.info(f"Credited {event_model.amount} to account {event_model.accountId} in Ledger.")
 
                     # Insert into Transactions table
                     cursor.execute("""
@@ -397,7 +429,6 @@ async def get_ledger_balance(account_id: int):
         if not row:
             raise HTTPException(status_code=404, detail="Account not found in ledger.")
         
-        # Manually create a dictionary to match the Pydantic model structure
         balance_record = {
             "account_id": row[0],
             "current_balance": float(row[1])
@@ -409,6 +440,8 @@ async def get_ledger_balance(account_id: int):
     except Exception as e:
         logging.error(f"Error retrieving ledger balance: {e}")
         raise HTTPException(status_code=500, detail="Error retrieving ledger balance.")
+    finally:
+        pass
 
 @app.get("/health")
 async def health_check():

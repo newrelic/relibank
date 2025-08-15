@@ -4,3 +4,4 @@ python-multipart==0.0.9
 pyodbc==5.1.0
 pydantic==2.8.2
 aiokafka==0.10.0
+httpx

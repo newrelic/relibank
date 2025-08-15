@@ -47,6 +47,10 @@ class Account(BaseModel):
     last_statement_date: Optional[str]
     account_type: str
 
+class AccountType(BaseModel):
+    id: int
+    account_type: str
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """
@@ -159,6 +163,36 @@ async def get_accounts(email: str):
     except Exception as e:
         logging.error(f"Error retrieving accounts: {e}")
         raise HTTPException(status_code=500, detail="Error retrieving accounts.")
+    
+@app.get("/account/type/{account_id}", response_model=AccountType)
+async def get_account_type(account_id: int):
+    """
+    Retrieves the type of a specific account by its ID.
+    """
+    try:
+        with app.state.db_connection.cursor() as cursor:
+            # Check checking accounts
+            cursor.execute("SELECT id, 'checking' AS account_type FROM checking_accounts WHERE id = %s", (account_id,))
+            account_data = cursor.fetchone()
+            if account_data:
+                return AccountType(id=account_data[0], account_type=account_data[1])
+
+            # Check savings accounts
+            cursor.execute("SELECT id, 'savings' AS account_type FROM savings_accounts WHERE id = %s", (account_id,))
+            account_data = cursor.fetchone()
+            if account_data:
+                return AccountType(id=account_data[0], account_type=account_data[1])
+
+            # Check credit accounts
+            cursor.execute("SELECT id, 'credit' AS account_type FROM credit_accounts WHERE id = %s", (account_id,))
+            account_data = cursor.fetchone()
+            if account_data:
+                return AccountType(id=account_data[0], account_type=account_data[1])
+
+            raise HTTPException(status_code=404, detail="Account not found.")
+    except Exception as e:
+        logging.error(f"Error retrieving account type: {e}")
+        raise HTTPException(status_code=500, detail="Error retrieving account type.")
 
 @app.post("/users")
 async def create_user(user: User):
