@@ -169,6 +169,18 @@ services:
     environment:
       KAFKA_BROKER: kafka:29092
 
+  chatbot-service:
+    build:
+      context: ./chatbot_service
+    container_name: chatbot-service
+    ports:
+      - "5003:5000"
+    depends_on:
+      - kafka
+    command: ["sh", "-c", "uvicorn chatbot_service:app --host 0.0.0.0 --port 5000 --workers 1 --log-level error"]
+    environment:
+      KAFKA_BROKER: kafka:29092
+
 volumes:
   mssql-data:
   accounts-data:
