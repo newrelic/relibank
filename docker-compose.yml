@@ -177,9 +177,19 @@ services:
       - "5003:5000"
     depends_on:
       - kafka
-    command: ["sh", "-c", "uvicorn chatbot_service:app --host 0.0.0.0 --port 5000 --workers 1 --log-level error"]
+    env_file:
+      - .env
     environment:
       KAFKA_BROKER: kafka:29092
+    networks:
+      - default
+      - internet
+
+networks:
+  internet:
+    external: true
+  default:
+    external: false
 
 volumes:
   mssql-data:
