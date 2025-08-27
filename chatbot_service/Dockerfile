@@ -14,7 +14,7 @@ RUN pip install --no-cache-dir -r requirements.txt
 COPY chatbot_service.py .
 
 # Expose the port the FastAPI app will run on
-EXPOSE 5000
+EXPOSE 5003
 
 # Command to run the application using Uvicorn
-CMD ["uvicorn", "chatbot_service:app", "--host", "0.0.0.0", "--port", "5000", "--workers", "1"]
+CMD ["uvicorn", "chatbot_service:app", "--host", "0.0.0.0", "--port", "5003", "--workers", "1"]
