@@ -9,7 +9,6 @@ from openai import APIConnectionError, APIStatusError, AuthenticationError
 import httpx
 
 
-truststore.inject_into_ssl()
 # Configure logging to be a bit more detailed
 logging.basicConfig(
     level=logging.INFO,
