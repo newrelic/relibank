@@ -2,26 +2,38 @@ import os
 import logging
 import json
 from contextlib import asynccontextmanager
-from typing import Any
+from typing import Optional
 from fastapi import FastAPI, HTTPException
 from openai import AsyncOpenAI, APIConnectionError, AuthenticationError
+from openai.types.chat import (
+    ChatCompletionMessageParam,
+    ChatCompletionUserMessageParam,
+    ChatCompletionToolMessageParam,
+)
+from pydantic import BaseModel
 
 from .mcp_client import get_tools, execute_mcp_tool, convert_mcp_tools_to_openai_format
 
 # --- Logging Configuration ---
 logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+    level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
 )
 logger = logging.getLogger(__name__)
 
 
+# --- Request/Response Models ---
+class ChatResponse(BaseModel):
+    response: str
+
+
+class HealthResponse(BaseModel):
+    status: str
+
+
 # --- Global State ---
-# The global client and readiness flag
-client = None
-is_ready = False
-# The MCP endpoint is now a global variable to be set during lifespan
-model_id = "gpt-4o-mini" # A good choice for this type of application
+client: Optional[AsyncOpenAI] = None
+is_ready: bool = False
+MODEL_ID = "gpt-4o-mini"  # Use constant naming convention
 
 
 # --- FastAPI Application ---
@@ -38,7 +50,9 @@ async def lifespan(app: FastAPI):
     openai_base_url = os.getenv("BASE_URL")
 
     if not openai_api_key:
-        logger.error("OPENAI_API_KEY environment variable not set. Application will not start.")
+        logger.error(
+            "OPENAI_API_KEY environment variable not set. Application will not start."
+        )
         raise RuntimeError("OpenAI API key is required for startup.")
 
     try:
@@ -47,7 +61,9 @@ async def lifespan(app: FastAPI):
         is_ready = True
         logger.info("OpenAI client initialized successfully.")
     except Exception as e:
-        logger.critical(f"Failed to initialize OpenAI client: {e}. Application will not serve requests.")
+        logger.critical(
+            f"Failed to initialize OpenAI client: {e}. Application will not serve requests."
+        )
         is_ready = False
 
     yield
@@ -58,26 +74,33 @@ async def lifespan(app: FastAPI):
         await client.close()
         logger.info("OpenAI client connection closed.")
 
+
 app = FastAPI(
     title="Relibank AI Chatbot Service",
     description="Provides a conversational AI experience using OpenAI with MCP tools.",
     version="0.1.0",
-    lifespan=lifespan
+    lifespan=lifespan,
 )
 
-@app.post("/chat")
-async def chat_with_model(prompt: str) -> dict[str, Any]:
+
+@app.post("/chat", response_model=ChatResponse)
+async def chat_with_model(prompt: str) -> ChatResponse:
     """
     Chat with the OpenAI model and handle tool calls from an MCP server.
     """
     if not is_ready or not client:
-        raise HTTPException(status_code=503, detail="AI service is not ready. Check logs for connection errors during startup.")
+        raise HTTPException(
+            status_code=503,
+            detail="AI service is not ready. Check logs for connection errors during startup.",
+        )
 
     try:
         logger.info(f"Received prompt: '{prompt}'")
-        messages = [{"role": "user", "content": prompt}]
+        messages: list[ChatCompletionMessageParam] = [
+            ChatCompletionUserMessageParam(content=prompt, role="user")
+        ]
 
-        # Get and convert MCP tools if an endpoint is configured
+        # Get and convert MCP tools
         openai_functions = []
         try:
             mcp_tools = await get_tools()
@@ -86,45 +109,63 @@ async def chat_with_model(prompt: str) -> dict[str, Any]:
         except Exception as e:
             logger.error(f"Failed to discover MCP tools: {e}")
 
-        first_completion_params = {
-            "model": model_id,
+        # Prepare completion parameters
+        completion_params = {
+            "model": MODEL_ID,
             "messages": messages,
         }
 
         if openai_functions:
-            first_completion_params["tools"] = openai_functions
-            first_completion_params["tool_choice"] = "auto"
+            completion_params["tools"] = openai_functions
+            completion_params["tool_choice"] = "auto"
 
-        first_completion = await client.chat.completions.create(**first_completion_params)
+        # Get initial response from model
+        first_completion = await client.chat.completions.create(**completion_params)
         first_response_message = first_completion.choices[0].message
 
-        # Handle tool calls
-        if first_response_message.tool_calls and mcp_endpoint:
+        # Handle tool calls if present
+        if first_response_message.tool_calls:
             messages.append(first_response_message)
+
             for tool_call in first_response_message.tool_calls:
-                tool_output = await execute_mcp_tool(
-                    mcp_endpoint,
-                    tool_call.function.name,
-                    json.loads(tool_call.function.arguments)
-                )
-                messages.append({
-                    "tool_call_id": tool_call.id,
-                    "role": "tool",
-                    "name": tool_call.function.name,
-                    "content": json.dumps(tool_output)
-                })
+                try:
+                    arguments = json.loads(tool_call.function.arguments)
+                    tool_output = await execute_mcp_tool(
+                        tool_call.function.name, arguments
+                    )
+                    messages.append(
+                        ChatCompletionToolMessageParam(
+                            content=json.dumps(tool_output),
+                            tool_call_id=tool_call.id,
+                            role="tool",
+                        )
+                    )
+                except json.JSONDecodeError as e:
+                    logger.error(f"Failed to parse tool arguments: {e}")
+                    messages.append(
+                        ChatCompletionToolMessageParam(
+                            content=json.dumps({"error": "Invalid tool arguments"}),
+                            tool_call_id=tool_call.id,
+                            role="tool",
+                        )
+                    )
 
             # Get final response from model after tool execution
             second_completion = await client.chat.completions.create(
-                model=model_id,
+                model=MODEL_ID,
                 messages=messages,
             )
             response_text = second_completion.choices[0].message.content
         else:
             response_text = first_response_message.content
 
+        if not response_text:
+            response_text = (
+                "I apologize, but I couldn't generate a response. Please try again."
+            )
+
         logger.info(f"Generated response: '{response_text}'")
-        return {"response": response_text}
+        return ChatResponse(response=response_text)
 
     except APIConnectionError as e:
         logger.error(f"Failed to connect to OpenAI API: {e}")
@@ -136,11 +177,11 @@ async def chat_with_model(prompt: str) -> dict[str, Any]:
         logger.error(f"An unexpected error occurred: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail="Error generating response.")
 
-@app.get("/health")
-async def health_check():
+
+@app.get("/health", response_model=HealthResponse)
+async def health_check() -> HealthResponse:
     """Simple health check endpoint."""
-    global is_ready
     if is_ready:
-        return {"status": "healthy"}
+        return HealthResponse(status="healthy")
     else:
         raise HTTPException(status_code=503, detail="AI service is not ready.")

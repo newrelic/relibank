@@ -6,8 +6,7 @@ from mcp.types import Tool
 
 # --- Logging Configuration ---
 logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+    level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
 )
 logger = logging.getLogger(__name__)
 
@@ -15,12 +14,13 @@ server_config = {
     "mcpServers": {
         "cloudflare": {
             "transport": "sse",
-            "url": "https://docs.mcp.cloudflare.com/sse"
+            "url": "https://docs.mcp.cloudflare.com/sse",
         },
     }
 }
 
 client = Client(server_config)
+
 
 async def get_tools() -> list[Tool]:
     """
@@ -29,6 +29,7 @@ async def get_tools() -> list[Tool]:
     async with client:
         tools = await client.list_tools()
         return tools
+
 
 async def execute_mcp_tool(tool_name: str, arguments: dict[str, Any]) -> dict[str, Any]:
     """
@@ -53,7 +54,7 @@ def convert_mcp_tools_to_openai_format(mcp_tools: list[Tool]) -> list[dict[str, 
                 "name": tool.name,
                 "description": tool.description,
                 "parameters": tool.inputSchema,
-            }
+            },
         }
         openai_functions.append(openai_function)
 
