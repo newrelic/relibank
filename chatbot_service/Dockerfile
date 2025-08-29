@@ -4,18 +4,15 @@ FROM python:3.12-slim
 # Set the working directory in the container
 WORKDIR /app
 
-# Copy the requirements file into the container
-COPY requirements.txt .
+# Copy all necessary files to the container
+COPY . .
 
 # Install Python dependencies
-RUN pip install --no-cache-dir -r requirements.txt
-
-# Copy the application code file
-COPY chatbot_service.py .
-COPY logging.conf .
+RUN pip install -U pip && pip install uv
+RUN uv sync
 
 # Expose the port the FastAPI app will run on
 EXPOSE 5003
 
 # Command to run the application using Uvicorn
-CMD ["uvicorn", "chatbot_service:app", "--host", "0.0.0.0", "--port", "5003", "--workers", "1", "--log-config", "logging.conf"]
+CMD uv run gunicorn -w 1 -k uvicorn.workers.UvicornWorker chatbot_service:app --bind 0.0.0.0:5003 --log-config=logging.conf
