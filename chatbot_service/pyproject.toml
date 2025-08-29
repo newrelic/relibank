@@ -1,19 +1,20 @@
 [project]
-name = "relibank-chatbot-service"
-version = "0.2.0"
+name = "chatbot-service"
+version = "1.0.0"
 description = "AI chatbot service with MCP tool integration"
 authors = [
     {name = "Relibank Team", email = "team@relibank.com"}
 ]
 readme = "README.md"
+
 requires-python = ">=3.12"
 dependencies = [
-    "fastapi>=0.111.0",
-    "uvicorn[standard]>=0.30.1",
-    "openai>=1.0.0",
-    "httpx>=0.27.0",
-    "fastmcp>=0.1.0",
-    "pydantic>=2.0.0",
+    "fastapi>=0.116.1",
+    "uvicorn[standard]>=0.35.0",
+    "openai>=1.102.0",
+    "httpx>=0.28.1",
+    "fastmcp>=2.11.3",
+    "pydantic>=2.12.0a1",
     "gunicorn>=23.0.0,<24",
 ]
 

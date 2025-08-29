@@ -1,12 +1,13 @@
-import asyncio
 import os
 import logging
 import json
-import httpx
 from contextlib import asynccontextmanager
-from typing import Dict, Any, Optional, List
-from fastapi import FastAPI, HTTPException
-from openai import AsyncOpenAI, APIConnectionError, APIStatusError, AuthenticationError
+from typing import Any, Optional, List
+from fastapi import FastAPI, HTTPException, Depends
+from openai import AsyncOpenAI, APIConnectionError, AuthenticationError
+from openai.types.chat import ChatCompletionMessageParam, ChatCompletionUserMessageParam, ChatCompletionAssistantMessageParam, ChatCompletionToolMessageParam
+
+from mcp_client import get_tools, execute_mcp_tool, convert_mcp_tools_to_openai_format
 
 # --- Logging Configuration ---
 logging.basicConfig(
@@ -15,150 +16,176 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-# --- Global State ---
-# The global client and readiness flag
-client = None
-is_ready = False
-# The MCP endpoint is now a global variable to be set during lifespan
-mcp_endpoint = "https://docs.mcp.cloudflare.com/sse" # Using a known good unauthenticated demo server
-model_id = "gpt-4o-mini" # A good choice for this type of application
 
-# --- Helper Functions from Your Script ---
-async def get_mcp_tools(mcp_url: str) -> List[Dict[str, Any]]:
-    """Fetch available tools from MCP server with proper headers."""
-    async with httpx.AsyncClient(timeout=30.0) as http_client:
+class ChatbotService:
+    """Service class to manage OpenAI client and chatbot functionality."""
+
+    def __init__(self):
+        self.client: Optional[AsyncOpenAI] = None
+        self.model_id = "gpt-4o-mini"
+        self.is_ready = False
+
+    async def initialize(self):
+        """Initialize the OpenAI client."""
+        openai_api_key = os.getenv("OPENAI_API_KEY")
+        openai_base_url = os.getenv("BASE_URL")
+
+        if not openai_api_key:
+            logger.error("OPENAI_API_KEY environment variable not set.")
+            raise RuntimeError("OpenAI API key is required for startup.")
+
         try:
-            # Use a POST request with a JSON-RPC payload for tool discovery
-            response = await http_client.post(
-                mcp_url,
-                json={
-                    "jsonrpc": "2.0",
-                    "id": "tools_list_1",
-                    "method": "tools/list",
-                    "params": {}
-                },
-                headers={
-                    "Content-Type": "application/json",
-                    "Accept": "application/json",
-                    "User-Agent": "OpenAI-MCP-Client/1.0"
-                }
+            self.client = AsyncOpenAI(api_key=openai_api_key, base_url=openai_base_url)
+            self.is_ready = True
+            logger.info("OpenAI client initialized successfully.")
+        except Exception as e:
+            logger.critical(f"Failed to initialize OpenAI client: {e}")
+            self.is_ready = False
+            raise
+
+    async def shutdown(self):
+        """Clean shutdown of the service."""
+        if self.client:
+            await self.client.close()
+            logger.info("OpenAI client connection closed.")
+
+    def check_readiness(self):
+        """Check if the service is ready to handle requests."""
+        if not self.is_ready or not self.client:
+            raise HTTPException(
+                status_code=503,
+                detail="AI service is not ready. Check logs for connection errors during startup."
             )
 
-            # Check for a successful HTTP status code
-            response.raise_for_status()
+    async def simple_chat(self, prompt: str) -> str:
+        """Simple chat without MCP tools."""
+        self.check_readiness()
 
-            # Attempt to decode the JSON response
+        try:
+            messages: List[ChatCompletionMessageParam] = [
+                ChatCompletionUserMessageParam(role="user", content=prompt)
+            ]
+
+            response = await self.client.chat.completions.create(
+                model=self.model_id,
+                messages=messages
+            )
+            return response.choices[0].message.content
+        except Exception as e:
+            logger.error(f"Error in simple chat: {e}")
+            raise HTTPException(status_code=500, detail="Error generating response.")
+
+    async def chat_with_tools(self, prompt: str) -> str:
+        """Chat with MCP tools support."""
+        self.check_readiness()
+
+        try:
+            logger.info(f"Received prompt: '{prompt}'")
+            messages: List[ChatCompletionMessageParam] = [
+                ChatCompletionUserMessageParam(role="user", content=prompt)
+            ]
+
+            # Get and convert MCP tools
+            openai_functions = []
             try:
-                data = response.json()
-                if "result" in data and "tools" in data["result"]:
-                    logger.info(f"Successfully fetched MCP tools from {mcp_url}.")
-                    return data["result"]["tools"]
-            except json.JSONDecodeError as e:
-                logger.error(f"Error decoding JSON response from {mcp_url}: {e}")
-        
-        except httpx.HTTPStatusError as e:
-            logger.error(f"HTTP error fetching MCP tools from {mcp_url}: {e}")
-        except Exception as e:
-            logger.error(f"Error fetching MCP tools from {mcp_url}: {e}")
+                mcp_tools = await get_tools()
+                openai_functions = convert_mcp_tools_to_openai_format(mcp_tools)
+                logger.info(f"Discovered {len(openai_functions)} MCP tools.")
+            except Exception as e:
+                logger.error(f"Failed to discover MCP tools: {e}")
 
-    logger.error("Failed to fetch MCP tools from configured endpoint.")
-    return []
-
-
-def convert_mcp_tools_to_openai_format(mcp_tools: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
-    """Convert MCP tool definitions to OpenAI function calling format."""
-    openai_functions = []
-
-    for tool in mcp_tools:
-        openai_function = {
-            "type": "function",
-            "function": {
-                "name": tool.get("name", ""),
-                "description": tool.get("description", ""),
-                "parameters": tool.get("inputSchema", {
-                    "type": "object",
-                    "properties": {},
-                    "required": []
-                })
-            }
-        }
-        openai_functions.append(openai_function)
-
-    return openai_functions
-
-
-async def execute_mcp_tool(mcp_url: str, tool_name: str, arguments: Dict[str, Any]) -> Dict[str, Any]:
-    """Execute a tool on the MCP server with proper error handling."""
-    async with httpx.AsyncClient(timeout=30.0) as http_client:
-        try:
-            # MCPs that support tool execution typically use a POST request
-            endpoint = f"{mcp_url}"
-            
-            payload = {
-                "jsonrpc": "2.0",
-                "id": f"tool_call_{tool_name}",
-                "method": "tools/call",
-                "params": {
-                    "name": tool_name,
-                    "arguments": arguments
-                }
+            first_completion_params = {
+                "model": self.model_id,
+                "messages": messages,
             }
 
-            response = await http_client.post(
-                endpoint,
-                json=payload,
-                headers={
-                    "Content-Type": "application/json",
-                    "Accept": "application/json",
-                    "User-Agent": "OpenAI-MCP-Client/1.0"
-                }
-            )
+            if openai_functions:
+                first_completion_params["tools"] = openai_functions
+                first_completion_params["tool_choice"] = "auto"
 
-            response.raise_for_status()
-            result = response.json()
-            return result.get("result", {})
+            first_completion = await self.client.chat.completions.create(**first_completion_params)
+            first_response_message = first_completion.choices[0].message
 
-        except httpx.HTTPStatusError as e:
-            logger.error(f"HTTP error executing tool {tool_name} on {mcp_url}: {e}")
-            return {"error": f"MCP server returned status {e.response.status_code}"}
+            # Handle tool calls
+            if first_response_message.tool_calls:
+                # Add the assistant's response with tool calls
+                # Convert tool calls to the proper format for message parameters
+                tool_calls_for_message = []
+                for tool_call in first_response_message.tool_calls:
+                    tool_calls_for_message.append({
+                        "id": tool_call.id,
+                        "type": tool_call.type,
+                        "function": {
+                            "name": tool_call.function.name,
+                            "arguments": tool_call.function.arguments
+                        }
+                    })
+
+                messages.append(ChatCompletionAssistantMessageParam(
+                    role="assistant",
+                    content=first_response_message.content,
+                    tool_calls=tool_calls_for_message
+                ))
+
+                for tool_call in first_response_message.tool_calls:
+                    tool_output = await execute_mcp_tool(
+                        tool_call.function.name,
+                        json.loads(tool_call.function.arguments)
+                    )
+                    messages.append(ChatCompletionToolMessageParam(
+                        tool_call_id=tool_call.id,
+                        role="tool",
+                        content=json.dumps(tool_output)
+                    ))
+
+                # Get final response from model after tool execution
+                second_completion = await self.client.chat.completions.create(
+                    model=self.model_id,
+                    messages=messages,
+                )
+                response_text = second_completion.choices[0].message.content
+            else:
+                response_text = first_response_message.content
+
+            logger.info(f"Generated response: '{response_text}'")
+            return response_text
+
+        except APIConnectionError as e:
+            logger.error(f"Failed to connect to OpenAI API: {e}")
+            raise HTTPException(status_code=503, detail="Failed to connect to OpenAI API.")
+        except AuthenticationError as e:
+            logger.error(f"Authentication failed: {e}")
+            raise HTTPException(status_code=401, detail="Invalid OpenAI API key.")
         except Exception as e:
-            logger.error(f"Error executing MCP tool {tool_name} on {mcp_url}: {e}")
-            return {"error": f"Failed to execute tool {tool_name}"}
+            logger.error(f"An unexpected error occurred: {e}", exc_info=True)
+            raise HTTPException(status_code=500, detail="Error generating response.")
+
+
+# Create a single instance of the service
+chatbot_service = ChatbotService()
+
+
+# --- Dependency injection ---
+async def get_chatbot_service() -> ChatbotService:
+    """Dependency to get the chatbot service instance."""
+    return chatbot_service
 
 
 # --- FastAPI Application ---
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    """
-    Context manager to handle startup and shutdown events.
-    Initializes the OpenAI client and checks for MCP server readiness.
-    """
-    global client, is_ready
-    
-    # Environment variable retrieval
-    openai_api_key = os.getenv("OPENAI_API_KEY")
-    openai_base_url = os.getenv("BASE_URL")
-
-    if not openai_api_key:
-        logger.error("OPENAI_API_KEY environment variable not set. Application will not start.")
-        raise RuntimeError("OpenAI API key is required for startup.")
-
+    """Context manager to handle startup and shutdown events."""
     try:
-        # Initialize OpenAI client with the provided base URL
-        client = AsyncOpenAI(api_key=openai_api_key, base_url=openai_base_url)
-        is_ready = True
-        logger.info("OpenAI client initialized successfully.")
+        await chatbot_service.initialize()
     except Exception as e:
-        logger.critical(f"Failed to initialize OpenAI client: {e}. Application will not serve requests.")
-        is_ready = False
+        logger.critical(f"Failed to initialize service: {e}")
+        raise
 
     yield
 
-    # Shutdown logic
+    await chatbot_service.shutdown()
     logger.info("Shutting down AI chatbot service.")
-    if client:
-        await client.close()
-        logger.info("OpenAI client connection closed.")
+
 
 app = FastAPI(
     title="Relibank AI Chatbot Service",
@@ -167,82 +194,33 @@ app = FastAPI(
     lifespan=lifespan
 )
 
+
+@app.post("/chatresponse")
+async def chat_response_test(
+    prompt: str,
+    service: ChatbotService = Depends(get_chatbot_service)
+) -> dict[str, Any]:
+    """Test endpoint for basic chat functionality without MCP tools."""
+    response = await service.simple_chat(prompt)
+    return {"response": response}
+
+
 @app.post("/chat")
-async def chat_with_model(prompt: str) -> Dict[str, Any]:
-    """
-    Chat with the OpenAI model and handle tool calls from an MCP server.
-    """
-    global client, is_ready, mcp_endpoint
-    if not is_ready or not client:
-        raise HTTPException(status_code=503, detail="AI service is not ready. Check logs for connection errors during startup.")
+async def chat_with_model(
+    prompt: str,
+    service: ChatbotService = Depends(get_chatbot_service)
+) -> dict[str, Any]:
+    """Chat with the OpenAI model and handle tool calls from an MCP server."""
+    response = await service.chat_with_tools(prompt)
+    return {"response": response}
 
-    try:
-        logger.info(f"Received prompt: '{prompt}'")
-        messages = [{"role": "user", "content": prompt}]
-        
-        # Get and convert MCP tools if an endpoint is configured
-        openai_functions = []
-        if mcp_endpoint:
-            mcp_tools = await get_mcp_tools(mcp_endpoint)
-            openai_functions = convert_mcp_tools_to_openai_format(mcp_tools)
-            logger.info(f"Discovered {len(openai_functions)} MCP tools.")
-            
-        first_completion_params = {
-            "model": model_id,
-            "messages": messages,
-        }
-
-        if openai_functions:
-            first_completion_params["tools"] = openai_functions
-            first_completion_params["tool_choice"] = "auto"
-        
-        first_completion = await client.chat.completions.create(**first_completion_params)
-        first_response_message = first_completion.choices[0].message
-        
-        # Handle tool calls
-        if first_response_message.tool_calls and mcp_endpoint:
-            messages.append(first_response_message)
-            for tool_call in first_response_message.tool_calls:
-                tool_output = await execute_mcp_tool(
-                    mcp_endpoint,
-                    tool_call.function.name,
-                    json.loads(tool_call.function.arguments)
-                )
-                messages.append({
-                    "tool_call_id": tool_call.id,
-                    "role": "tool",
-                    "name": tool_call.function.name,
-                    "content": json.dumps(tool_output)
-                })
-
-            # Get final response from model after tool execution
-            second_completion = await client.chat.completions.create(
-                model=model_id,
-                messages=messages,
-            )
-            response_text = second_completion.choices[0].message.content
-        else:
-            response_text = first_response_message.content
-
-        logger.info(f"Generated response: '{response_text}'")
-        return {"response": response_text}
-
-    except APIConnectionError as e:
-        logger.error(f"Failed to connect to OpenAI API: {e}")
-        raise HTTPException(status_code=503, detail="Failed to connect to OpenAI API.")
-    except AuthenticationError as e:
-        logger.error(f"Authentication failed: {e}")
-        raise HTTPException(status_code=401, detail="Invalid OpenAI API key.")
-    except Exception as e:
-        logger.error(f"An unexpected error occurred: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail="Error generating response.")
 
 @app.get("/health")
-async def health_check():
+async def health_check(
+    service: ChatbotService = Depends(get_chatbot_service)
+):
     """Simple health check endpoint."""
-    global is_ready
-    if is_ready:
+    if service.is_ready:
         return {"status": "healthy"}
     else:
         raise HTTPException(status_code=503, detail="AI service is not ready.")
-
