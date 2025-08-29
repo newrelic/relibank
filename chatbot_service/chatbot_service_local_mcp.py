@@ -19,8 +19,8 @@ logger = logging.getLogger(__name__)
 # The global client and readiness flag
 client = None
 is_ready = False
-# The MCP endpoint is now a global variable to be set during lifespan
-mcp_endpoint = "https://docs.mcp.cloudflare.com/sse" # Using a known good unauthenticated demo server
+# The MCP endpoint is now a local URL since we're using a local server
+mcp_endpoint = os.getenv("MCP_ENDPOINT_LOCAL")
 model_id = "gpt-4o-mini" # A good choice for this type of application
 
 # --- Helper Functions from Your Script ---

@@ -179,28 +179,34 @@ services:
       DB_PASSWORD: YourStrong@Password!
     platform: linux/arm64/v8
       
+  # yfinance-mcp:
+  #   build:
+  #     context: ./chatbot_service/mcp_server/yahoo-finance-mcp
+  #   container_name: yfinance-mcp
+  #   ports:
+  #     - "8000:8000"
+  #   platform: linux/arm64/v8
+
+  # yfinance-mcp:
+  #   build:
+  #     context: ./chatbot_service/mcp_server/yfinance-fastapi-mcp
+  #   container_name: yfinance-mcp
+  #   ports:
+  #     - "8000:8000"
+  #   platform: linux/arm64/v8
+
   chatbot-service:
     build:
       context: ./chatbot_service
     container_name: chatbot-service
     ports:
-      - "5003:5003"
+      - "5003:5000"
     depends_on:
       - kafka
     env_file:
       - .env
     environment:
       KAFKA_BROKER: kafka:29092
-    # network_mode: "host"
-#     networks:
-#       - default
-#       - internet
-
-# networks:
-#   internet:
-#     external: true
-#   default:
-#     external: false
 
 volumes:
   mssql-data:
