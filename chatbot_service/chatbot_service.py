@@ -15,9 +15,7 @@ from pydantic import BaseModel
 from .mcp_client import get_tools, execute_mcp_tool, convert_mcp_tools_to_openai_format
 
 # --- Logging Configuration ---
-logging.basicConfig(
-    level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
-)
+logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s")
 logger = logging.getLogger(__name__)
 
 
@@ -50,9 +48,7 @@ async def lifespan(app: FastAPI):
     openai_base_url = os.getenv("BASE_URL")
 
     if not openai_api_key:
-        logger.error(
-            "OPENAI_API_KEY environment variable not set. Application will not start."
-        )
+        logger.error("OPENAI_API_KEY environment variable not set. Application will not start.")
         raise RuntimeError("OpenAI API key is required for startup.")
 
     try:
@@ -61,9 +57,7 @@ async def lifespan(app: FastAPI):
         is_ready = True
         logger.info("OpenAI client initialized successfully.")
     except Exception as e:
-        logger.critical(
-            f"Failed to initialize OpenAI client: {e}. Application will not serve requests."
-        )
+        logger.critical(f"Failed to initialize OpenAI client: {e}. Application will not serve requests.")
         is_ready = False
 
     yield
@@ -96,9 +90,7 @@ async def chat_with_model(prompt: str) -> ChatResponse:
 
     try:
         logger.info(f"Received prompt: '{prompt}'")
-        messages: list[ChatCompletionMessageParam] = [
-            ChatCompletionUserMessageParam(content=prompt, role="user")
-        ]
+        messages: list[ChatCompletionMessageParam] = [ChatCompletionUserMessageParam(content=prompt, role="user")]
 
         # Get and convert MCP tools
         openai_functions = []
@@ -130,9 +122,7 @@ async def chat_with_model(prompt: str) -> ChatResponse:
             for tool_call in first_response_message.tool_calls:
                 try:
                     arguments = json.loads(tool_call.function.arguments)
-                    tool_output = await execute_mcp_tool(
-                        tool_call.function.name, arguments
-                    )
+                    tool_output = await execute_mcp_tool(tool_call.function.name, arguments)
                     messages.append(
                         ChatCompletionToolMessageParam(
                             content=json.dumps(tool_output),
@@ -160,9 +150,7 @@ async def chat_with_model(prompt: str) -> ChatResponse:
             response_text = first_response_message.content
 
         if not response_text:
-            response_text = (
-                "I apologize, but I couldn't generate a response. Please try again."
-            )
+            response_text = "I apologize, but I couldn't generate a response. Please try again."
 
         logger.info(f"Generated response: '{response_text}'")
         return ChatResponse(response=response_text)

@@ -13,7 +13,7 @@ import uuid
 import httpx
 
 # Configure logging
-logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
 
 # Database connection details from environment variables
 DB_HOST = os.getenv("DB_HOST", "accounts-db")
@@ -24,6 +24,7 @@ CONNECTION_STRING = f"host={DB_HOST} dbname={DB_NAME} user={DB_USER} password={D
 
 # Transaction service API URL
 TRANSACTION_SERVICE_URL = os.getenv("TRANSACTION_SERVICE_URL", "http://transaction-service:5000")
+
 
 # Pydantic models for user and account data
 class User(BaseModel):
@@ -38,6 +39,7 @@ class User(BaseModel):
     marketing_preferences: Optional[dict]
     privacy_preferences: Optional[dict]
 
+
 class Account(BaseModel):
     id: int
     name: str
@@ -47,9 +49,11 @@ class Account(BaseModel):
     last_statement_date: Optional[str]
     account_type: str
 
+
 class AccountType(BaseModel):
     id: int
     account_type: str
+
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -62,7 +66,7 @@ async def lifespan(app: FastAPI):
     delay = 3
     for i in range(retries):
         try:
-            logging.info(f"Attempting to connect to database (attempt {i+1}/{retries})...")
+            logging.info(f"Attempting to connect to database (attempt {i + 1}/{retries})...")
             db_connection = psycopg2.connect(CONNECTION_STRING)
             logging.info("Database connection successful.")
             break
@@ -79,12 +83,14 @@ async def lifespan(app: FastAPI):
     app.state.db_connection.close()
     logging.info("Database connection closed.")
 
+
 app = FastAPI(
     title="Relibank Accounts Service",
     description="Manages user and account data.",
     version="0.1.0",
-    lifespan=lifespan
+    lifespan=lifespan,
 )
+
 
 @app.get("/users/{email}")
 async def get_user(email: str):
@@ -100,6 +106,7 @@ async def get_user(email: str):
         logging.error(f"Error retrieving user: {e}")
         raise HTTPException(status_code=500, detail="Error retrieving user.")
 
+
 @app.get("/accounts/{email}")
 async def get_accounts(email: str):
     """Retrieves all accounts for a given user email."""
@@ -111,59 +118,71 @@ async def get_accounts(email: str):
             user = cursor.fetchone()
             if not user:
                 raise HTTPException(status_code=404, detail="User not found.")
-            user_id = user['id']
+            user_id = user["id"]
 
             # Query checking accounts
-            cursor.execute("""
+            cursor.execute(
+                """
                 SELECT ca.id, ca.name, ca.routing_number, ca.interest_rate, ca.last_statement_date, 'checking' AS account_type FROM checking_accounts ca
                 JOIN account_user au ON ca.id = au.account_id
                 WHERE au.user_id = %s
-            """, (user_id,))
+            """,
+                (user_id,),
+            )
             checking_accounts = cursor.fetchall()
-            
+
             # Query savings accounts
-            cursor.execute("""
+            cursor.execute(
+                """
                 SELECT sa.id, sa.name, sa.routing_number, sa.interest_rate, sa.last_statement_date, 'savings' AS account_type FROM savings_accounts sa
                 JOIN account_user au ON sa.id = au.account_id
                 WHERE au.user_id = %s
-            """, (user_id,))
+            """,
+                (user_id,),
+            )
             savings_accounts = cursor.fetchall()
-            
+
             # Query credit accounts
-            cursor.execute("""
+            cursor.execute(
+                """
                 SELECT cra.id, cra.name, cra.routing_number, cra.interest_rate, cra.last_statement_date, cra.payment_schedule, cra.last_payment_date, cra.automatic_pay, 'credit' AS account_type FROM credit_accounts cra
                 JOIN account_user au ON cra.id = au.account_id
                 WHERE au.user_id = %s
-            """, (user_id,))
+            """,
+                (user_id,),
+            )
             credit_accounts = cursor.fetchall()
 
             all_accounts = checking_accounts + savings_accounts + credit_accounts
-            
+
             if not all_accounts:
                 raise HTTPException(status_code=404, detail="No accounts found for user.")
-            
+
             # Fetch current balance from transaction-service for each account
             async with httpx.AsyncClient() as client:
                 for account in all_accounts:
                     # Correctly handling UUID as a string
-                    account_id_int = int(account['id'])
+                    account_id_int = int(account["id"])
                     try:
                         # Correctly passing a string UUID to the transaction service
                         response = await client.get(f"{TRANSACTION_SERVICE_URL}/ledger/{account_id_int}")
                         response.raise_for_status()
-                        account['balance'] = response.json()['current_balance']
+                        account["balance"] = response.json()["current_balance"]
                     except httpx.HTTPStatusError as e:
-                        logging.warning(f"Ledger balance for account {account_id_int} not found. Defaulting to 0. Error: {e.response.status_code}")
-                        account['balance'] = 0.0
+                        logging.warning(
+                            f"Ledger balance for account {account_id_int} not found. Defaulting to 0. Error: {e.response.status_code}"
+                        )
+                        account["balance"] = 0.0
                     except Exception as e:
                         logging.error(f"Error fetching ledger balance for account {account_id_int}: {e}")
-                        account['balance'] = 0.0
+                        account["balance"] = 0.0
 
             return [Account(**account) for account in all_accounts]
     except Exception as e:
         logging.error(f"Error retrieving accounts: {e}")
         raise HTTPException(status_code=500, detail="Error retrieving accounts.")
-    
+
+
 @app.get("/account/type/{account_id}", response_model=AccountType)
 async def get_account_type(account_id: int):
     """
@@ -172,19 +191,28 @@ async def get_account_type(account_id: int):
     try:
         with app.state.db_connection.cursor() as cursor:
             # Check checking accounts
-            cursor.execute("SELECT id, 'checking' AS account_type FROM checking_accounts WHERE id = %s", (account_id,))
+            cursor.execute(
+                "SELECT id, 'checking' AS account_type FROM checking_accounts WHERE id = %s",
+                (account_id,),
+            )
             account_data = cursor.fetchone()
             if account_data:
                 return AccountType(id=account_data[0], account_type=account_data[1])
 
             # Check savings accounts
-            cursor.execute("SELECT id, 'savings' AS account_type FROM savings_accounts WHERE id = %s", (account_id,))
+            cursor.execute(
+                "SELECT id, 'savings' AS account_type FROM savings_accounts WHERE id = %s",
+                (account_id,),
+            )
             account_data = cursor.fetchone()
             if account_data:
                 return AccountType(id=account_data[0], account_type=account_data[1])
 
             # Check credit accounts
-            cursor.execute("SELECT id, 'credit' AS account_type FROM credit_accounts WHERE id = %s", (account_id,))
+            cursor.execute(
+                "SELECT id, 'credit' AS account_type FROM credit_accounts WHERE id = %s",
+                (account_id,),
+            )
             account_data = cursor.fetchone()
             if account_data:
                 return AccountType(id=account_data[0], account_type=account_data[1])
@@ -194,20 +222,36 @@ async def get_account_type(account_id: int):
         logging.error(f"Error retrieving account type: {e}")
         raise HTTPException(status_code=500, detail="Error retrieving account type.")
 
+
 @app.post("/users")
 async def create_user(user: User):
     """Creates a new user account."""
     try:
         with app.state.db_connection.cursor() as cursor:
-            cursor.execute("""
+            cursor.execute(
+                """
                 INSERT INTO user_account (id, name, alert_preferences, phone, email, address, income, preferred_language, marketing_preferences, privacy_preferences)
                 VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
-            """, (user.id, user.name, json.dumps(user.alert_preferences), user.phone, user.email, user.address, user.income, user.preferred_language, json.dumps(user.marketing_preferences), json.dumps(user.privacy_preferences)))
+            """,
+                (
+                    user.id,
+                    user.name,
+                    json.dumps(user.alert_preferences),
+                    user.phone,
+                    user.email,
+                    user.address,
+                    user.income,
+                    user.preferred_language,
+                    json.dumps(user.marketing_preferences),
+                    json.dumps(user.privacy_preferences),
+                ),
+            )
             app.state.db_connection.commit()
             return {"status": "success", "message": "User created successfully."}
     except Exception as e:
         logging.error(f"Error creating user: {e}")
         raise HTTPException(status_code=500, detail="Error creating user.")
+
 
 @app.post("/accounts/{email}")
 async def create_account(email: str, account: Account):
@@ -221,33 +265,74 @@ async def create_account(email: str, account: Account):
                 raise HTTPException(status_code=404, detail="User not found.")
             user_id = user[0]
 
-            if account.account_type == 'checking':
-                cursor.execute("""
+            if account.account_type == "checking":
+                cursor.execute(
+                    """
                     INSERT INTO checking_accounts (id, name, balance, routing_number, interest_rate, last_statement_date)
                     VALUES (%s, %s, %s, %s, %s, %s)
-                """, (account.id, account.name, account.balance, account.routing_number, account.interest_rate, account.last_statement_date))
-            elif account.account_type == 'savings':
-                cursor.execute("""
+                """,
+                    (
+                        account.id,
+                        account.name,
+                        account.balance,
+                        account.routing_number,
+                        account.interest_rate,
+                        account.last_statement_date,
+                    ),
+                )
+            elif account.account_type == "savings":
+                cursor.execute(
+                    """
                     INSERT INTO savings_accounts (id, name, balance, routing_number, interest_rate, last_statement_date)
                     VALUES (%s, %s, %s, %s, %s, %s)
-                """, (account.id, account.name, account.balance, account.routing_number, account.interest_rate, account.last_statement_date))
-            elif account.account_type == 'credit':
+                """,
+                    (
+                        account.id,
+                        account.name,
+                        account.balance,
+                        account.routing_number,
+                        account.interest_rate,
+                        account.last_statement_date,
+                    ),
+                )
+            elif account.account_type == "credit":
                 # Correctly handling the nullable fields for a credit account
-                cursor.execute("""
+                cursor.execute(
+                    """
                     INSERT INTO credit_accounts (id, name, balance, outstanding_balance, routing_number, interest_rate, last_statement_date, payment_schedule, last_payment_date, automatic_pay)
                     VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
-                """, (account.id, account.name, account.balance, 0, account.routing_number, account.interest_rate, account.last_statement_date, None, None, False))
-            
-            cursor.execute("""
+                """,
+                    (
+                        account.id,
+                        account.name,
+                        account.balance,
+                        0,
+                        account.routing_number,
+                        account.interest_rate,
+                        account.last_statement_date,
+                        None,
+                        None,
+                        False,
+                    ),
+                )
+
+            cursor.execute(
+                """
                 INSERT INTO account_user (account_id, user_id)
                 VALUES (%s, %s)
-            """, (account.id, user_id))
+            """,
+                (account.id, user_id),
+            )
 
             app.state.db_connection.commit()
-            return {"status": "success", "message": f"{account.account_type} account created and linked to user."}
+            return {
+                "status": "success",
+                "message": f"{account.account_type} account created and linked to user.",
+            }
     except Exception as e:
         logging.error(f"Error creating account: {e}")
         raise HTTPException(status_code=500, detail="Error creating account.")
+
 
 @app.get("/health")
 async def health_check():
