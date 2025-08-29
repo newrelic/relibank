@@ -12,7 +12,7 @@ from openai.types.chat import (
 )
 from pydantic import BaseModel
 
-from .mcp_client import get_tools, execute_mcp_tool, convert_mcp_tools_to_openai_format
+from mcp_client import get_tools, execute_mcp_tool, convert_mcp_tools_to_openai_format
 
 # --- Logging Configuration ---
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s")
