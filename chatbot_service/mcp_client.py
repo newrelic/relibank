@@ -14,7 +14,7 @@ logger = logging.getLogger(__name__)
 server_config = {
     "mcpServers": {
         "cloudflare": {
-            "transport": "http",
+            "transport": "sse",
             "url": "https://docs.mcp.cloudflare.com/sse"
         },
     }
