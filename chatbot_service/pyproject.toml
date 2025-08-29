@@ -32,10 +32,17 @@ build-backend = "hatchling.build"
 [tool.hatch.build.targets.wheel]
 packages = ["chatbot_service"]
 
-[tool.black]
+[tool.ruff]
 line-length = 120
-target-version = ['py312']
+indent-width = 4
+show-fixes = true
+fix = true
+output-format = "grouped"
 
-[tool.isort]
-profile = "black"
-multi_line_output = 3
+target-version = "py312"
+
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
+line-ending = "auto"
