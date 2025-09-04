@@ -104,6 +104,17 @@ spec:
           value: "PLAINTEXT://:29092,EXTERNAL://:9092"
         - name: ALLOW_PLAINTEXT_LISTENER
           value: "yes"
+        - name: KAFKA_CFG_ZOOKEEPER_SESSION_TIMEOUT_MS
+          value: "6000"
+        - name: KAFKA_CFG_ZOOKEEPER_CONNECTION_TIMEOUT_MS
+          value: "6000"
+        - name: KAFKA_CFG_BROKER_ID_GENERATION_ENABLE
+          value: "false"
+        - name: KAFKA_CFG_RESERVED_BROKER_MAX_ID
+          value: "1000"
+        volumeMounts:
+        - name: kafka-data
+          mountPath: /bitnami/kafka
         resources:
           requests:
             memory: "1Gi"
@@ -112,14 +123,12 @@ spec:
             memory: "2Gi"
             cpu: "1"
         livenessProbe:
-          exec:
-            command:
-            - kafka-topics.sh
-            - --bootstrap-server
-            - localhost:9092
-            - --list
+          tcpSocket:
+            port: 9092
           initialDelaySeconds: 60
           periodSeconds: 30
+          timeoutSeconds: 10
+          failureThreshold: 3
         readinessProbe:
           exec:
             command:
@@ -129,6 +138,18 @@ spec:
             - --list
           initialDelaySeconds: 30
           periodSeconds: 10
+          timeoutSeconds: 10
+          failureThreshold: 3
+        startupProbe:
+          tcpSocket:
+            port: 9092
+          initialDelaySeconds: 10
+          periodSeconds: 10
+          timeoutSeconds: 5
+          failureThreshold: 30
+      volumes:
+      - name: kafka-data
+        emptyDir: {}
 ---
 apiVersion: v1
 kind: Service

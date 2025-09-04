@@ -149,54 +149,74 @@ spec:
         - containerPort: 1433
         env:
         - name: SA_PASSWORD
-          valueFrom:
-            secretKeyRef:
-              name: relibank-secrets
-              key: SA_PASSWORD
+          value: "YourStrong@Password!"
         - name: ACCEPT_EULA
           value: "Y"
+        - name: MSSQL_PID
+          value: "Express"
         volumeMounts:
         - name: mssql-data
           mountPath: /var/opt/mssql
+        - name: init-scripts
+          mountPath: /usr/config
         resources:
           requests:
             memory: "2Gi"
             cpu: "500m"
           limits:
             memory: "4Gi"
-            cpu: "2"
+            cpu: "1"
         livenessProbe:
           exec:
             command:
-            - /opt/mssql-tools/bin/sqlcmd
-            - -S
-            - localhost
-            - -U
-            - SA
-            - -P
-            - $(SA_PASSWORD)
-            - -Q
-            - "SELECT 1"
+            - /bin/bash
+            - -c
+            - "/opt/mssql-tools/bin/sqlcmd -S localhost -U SA -P \"YourStrong@Password!\" -Q \"SELECT 1\" || exit 1"
           initialDelaySeconds: 60
           periodSeconds: 30
+          timeoutSeconds: 10
+          failureThreshold: 3
         readinessProbe:
           exec:
             command:
-            - /opt/mssql-tools/bin/sqlcmd
-            - -S
-            - localhost
-            - -U
-            - SA
-            - -P
-            - $(SA_PASSWORD)
-            - -Q
-            - "SELECT 1"
+            - /bin/bash
+            - -c
+            - "/opt/mssql-tools/bin/sqlcmd -S localhost -U SA -P \"YourStrong@Password!\" -Q \"SELECT 1\" || exit 1"
           initialDelaySeconds: 30
           periodSeconds: 10
+          timeoutSeconds: 10
+          failureThreshold: 3
+      initContainers:
+      - name: mssql-init
+        image: mcr.microsoft.com/mssql/server:2019-CU18-ubuntu-20.04
+        command:
+        - /bin/bash
+        - -c
+        - |
+          # Wait for SQL Server to be ready
+          until /opt/mssql-tools/bin/sqlcmd -S localhost -U SA -P "YourStrong@Password!" -Q "SELECT 1" > /dev/null 2>&1; do
+            echo "Waiting for SQL Server to start..."
+            sleep 5
+          done
+          echo "SQL Server is ready, running initialization script..."
+          /opt/mssql-tools/bin/sqlcmd -S localhost -U SA -P "YourStrong@Password!" -i /usr/config/init.sql
+        volumeMounts:
+        - name: mssql-data
+          mountPath: /var/opt/mssql
+        - name: init-scripts
+          mountPath: /usr/config
+        env:
+        - name: SA_PASSWORD
+          value: "YourStrong@Password!"
+        - name: ACCEPT_EULA
+          value: "Y"
       volumes:
       - name: mssql-data
-        persistentVolumeClaim:
-          claimName: mssql-data-pvc
+        emptyDir:
+          sizeLimit: 10Gi
+      - name: init-scripts
+        configMap:
+          name: mssql-init-scripts
 ---
 apiVersion: v1
 kind: Service
@@ -214,13 +234,59 @@ spec:
   type: ClusterIP
 ---
 apiVersion: v1
-kind: PersistentVolumeClaim
+kind: ConfigMap
 metadata:
-  name: mssql-data-pvc
+  name: mssql-init-scripts
   namespace: relibank
-spec:
-  accessModes:
-  - ReadWriteOnce
-  resources:
-    requests:
-      storage: 20Gi
+data:
+  init.sql: |
+    -- Check if the database already exists
+    IF NOT EXISTS (SELECT * FROM sys.databases WHERE name = 'RelibankDB')
+    BEGIN
+        CREATE DATABASE RelibankDB;
+    END;
+    GO
+
+    -- Wait until the database is truly available
+    DECLARE @count INT = 0;
+    WHILE @count < 10
+    BEGIN
+        IF EXISTS (SELECT * FROM sys.databases WHERE name = 'RelibankDB' AND state_desc = 'ONLINE')
+        BEGIN
+            BREAK;
+        END
+        WAITFOR DELAY '00:00:02';
+        SET @count = @count + 1;
+    END;
+    GO
+
+    -- Switch to the new database
+    USE RelibankDB;
+    GO
+
+    -- Create the Transactions table
+    IF NOT EXISTS (SELECT * FROM sysobjects WHERE name='Transactions' and xtype='U')
+    BEGIN
+        CREATE TABLE Transactions (
+            TransactionID INT IDENTITY(1,1) PRIMARY KEY,
+            EventType VARCHAR(50) NOT NULL,
+            BillID VARCHAR(50) NOT NULL,
+            Amount DECIMAL(19, 4) NOT NULL,
+            Currency VARCHAR(10) NOT NULL,
+            AccountID INT NOT NULL,
+            Timestamp FLOAT NOT NULL,
+            CancellationUserID VARCHAR(50),
+            CancellationTimestamp FLOAT
+        );
+    END;
+    GO
+
+    -- Create the new Ledger table for double-entry accounting
+    IF NOT EXISTS (SELECT * FROM sysobjects WHERE name='Ledger' and xtype='U')
+    BEGIN
+        CREATE TABLE Ledger (
+            AccountID INT PRIMARY KEY,
+            CurrentBalance DECIMAL(19, 4) NOT NULL
+        );
+    END;
+    GO

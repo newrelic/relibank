@@ -60,6 +60,9 @@ deploy:
     hooks:
       before:
       - host:
+          command: ["kubectl", "apply", "-f", "k8s/namespace.yaml"]
+          dir: "."
+      - host:
           command: ["sh", "-c", "export $(cat skaffold.env | xargs) && envsubst < k8s/secrets.yaml | kubectl apply -f -"]
           dir: "."
       - host:
