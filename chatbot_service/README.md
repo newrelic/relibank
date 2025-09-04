@@ -5,5 +5,4 @@
 - HuggingFace Mistral
 - Existing OpenAI license
 
-docker network create internet
 export OPENAI_API_KEY=key

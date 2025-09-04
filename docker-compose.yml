@@ -113,6 +113,8 @@ services:
     environment:
       KAFKA_BROKER: kafka:29092
       TRANSACTION_SERVICE_URL: http://transaction-service:5000
+    env_file:
+      - .env
     platform: linux/arm64/v8
 
   transaction-service:

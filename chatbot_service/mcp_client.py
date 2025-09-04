@@ -17,6 +17,8 @@ server_config = {
     }
 }
 
+# https://mcp.deepwiki.com/sse
+
 client = Client(server_config)
 
 
