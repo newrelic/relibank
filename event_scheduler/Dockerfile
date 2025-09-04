@@ -1,5 +1,5 @@
 # Use a slim Python image as the base for running
-FROM python:3.12
+FROM python:3.12-slim
 
 # Set the working directory in the container
 WORKDIR /app
@@ -8,17 +8,20 @@ WORKDIR /app
 RUN apt-get update && apt-get install -y --no-install-recommends \
     build-essential \
     zlib1g-dev \
-    unixodbc-dev \
-    libodbc2
+    && rm -rf /var/lib/apt/lists/*
 
-# Copy the requirements file into the container
-COPY requirements.txt .
+RUN pip install -U pip && pip install uv
+
+# Copy the project configuration
+COPY pyproject.toml .
+COPY uv.lock .
 
 # Install Python dependencies
-RUN pip install --no-cache-dir -r requirements.txt
+RUN uv sync --frozen
 
 # Copy the application code file
 COPY scheduler_service.py .
 
 # Command to run the scheduler script
-CMD ["python", "scheduler_service.py"]
+CMD ["uv", "run", "scheduler_service.py"]
+

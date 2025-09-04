@@ -1,0 +1,49 @@
+apiVersion: chaos_mesh.org/v1alpha1
+kind: NetworkChaos
+metadata:
+  name: relibank-service-partition
+  namespace: relibank
+spec:
+  action: partition
+  mode: all
+  selector:
+    namespaces:
+      - relibank
+    labelSelectors:
+      "app": "bill-pay-service"
+  direction: to
+  target:
+    mode: all
+    selector:
+      namespaces:
+        - relibank
+      labelSelectors:
+        "app": "transaction-service"
+  duration: "30s"
+  scheduler:
+    cron: "@every 12m"
+---
+apiVersion: chaos_mesh.org/v1alpha1
+kind: NetworkChaos
+metadata:
+  name: relibank-database-partition
+  namespace: relibank
+spec:
+  action: partition
+  mode: all
+  selector:
+    namespaces:
+      - relibank
+    labelSelectors:
+      "tier": "application"
+  direction: to
+  target:
+    mode: all
+    selector:
+      namespaces:
+        - relibank
+      labelSelectors:
+        "tier": "database"
+  duration: "45s"
+  scheduler:
+    cron: "@every 15m"

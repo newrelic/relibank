@@ -1,0 +1,41 @@
+apiVersion: chaos_mesh.org/v1alpha1
+kind: NetworkChaos
+metadata:
+  name: relibank-network-delay
+  namespace: relibank
+spec:
+  action: delay
+  mode: one
+  selector:
+    namespaces:
+      - relibank
+    labelSelectors:
+      "app": "transaction-service"
+  delay:
+    latency: "100ms"
+    correlation: "100"
+    jitter: "0ms"
+  duration: "60s"
+  scheduler:
+    cron: "@every 5m"
+---
+apiVersion: chaos_mesh.org/v1alpha1
+kind: NetworkChaos
+metadata:
+  name: relibank-kafka-latency
+  namespace: relibank
+spec:
+  action: delay
+  mode: all
+  selector:
+    namespaces:
+      - relibank
+    labelSelectors:
+      "app": "kafka"
+  delay:
+    latency: "200ms"
+    correlation: "100"
+    jitter: "50ms"
+  duration: "90s"
+  scheduler:
+    cron: "@every 8m"

@@ -1,0 +1,50 @@
+apiVersion: skaffold/v2beta28
+kind: Config
+metadata:
+  name: relibank
+build:
+  artifacts:
+  - image: relibank/accounts-service
+    context: accounts_service
+  - image: relibank/transaction-service
+    context: transaction_service
+  - image: relibank/bill-pay-service
+    context: bill_pay
+  - image: relibank/notifications-service
+    context: notifications_service
+  - image: relibank/scheduler-service
+    context: event_scheduler
+deploy:
+  kubectl:
+    manifests:
+    - k8s/namespace.yaml
+    - k8s/configmap.yaml
+    - k8s/secrets.yaml
+    - k8s/infrastructure/*.yaml
+    - k8s/databases/*.yaml
+    - k8s/services/*.yaml
+profiles:
+- name: dev
+  build:
+    local:
+      push: false
+  deploy:
+    kubectl:
+      flags:
+        global: ["--context=minikube"]
+portForward:
+- resourceType: service
+  resourceName: accounts-service
+  namespace: relibank
+  port: 5000
+  localPort: 5002
+- resourceType: service
+  resourceName: transaction-service
+  namespace: relibank
+  port: 5000
+  localPort: 5001
+- resourceType: service
+  resourceName: bill-pay-service
+  namespace: relibank
+  port: 5000
+  localPort: 5000

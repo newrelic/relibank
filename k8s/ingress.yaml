@@ -1,0 +1,91 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: chaos-dashboard-ingress
+  namespace: chaos-system
+  annotations:
+    nginx.ingress.kubernetes.io/rewrite-target: /
+    nginx.ingress.kubernetes.io/ssl-redirect: "false"
+spec:
+  ingressClassName: nginx
+  rules:
+  - host: chaos.relibank.local
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: chaos-dashboard
+            port:
+              number: 2333
+  - host: localhost
+    http:
+      paths:
+      - path: /chaos
+        pathType: Prefix
+        backend:
+          service:
+            name: chaos-dashboard
+            port:
+              number: 2333
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: relibank-services-ingress
+  namespace: relibank
+  annotations:
+    nginx.ingress.kubernetes.io/rewrite-target: /$2
+    nginx.ingress.kubernetes.io/ssl-redirect: "false"
+spec:
+  ingressClassName: nginx
+  rules:
+  - host: relibank.local
+    http:
+      paths:
+      - path: /accounts(/|$)(.*)
+        pathType: ImplementationSpecific
+        backend:
+          service:
+            name: accounts-service
+            port:
+              number: 5000
+      - path: /transactions(/|$)(.*)
+        pathType: ImplementationSpecific
+        backend:
+          service:
+            name: transaction-service
+            port:
+              number: 5000
+      - path: /billpay(/|$)(.*)
+        pathType: ImplementationSpecific
+        backend:
+          service:
+            name: bill-pay-service
+            port:
+              number: 5000
+  - host: localhost
+    http:
+      paths:
+      - path: /accounts(/|$)(.*)
+        pathType: ImplementationSpecific
+        backend:
+          service:
+            name: accounts-service
+            port:
+              number: 5000
+      - path: /transactions(/|$)(.*)
+        pathType: ImplementationSpecific
+        backend:
+          service:
+            name: transaction-service
+            port:
+              number: 5000
+      - path: /billpay(/|$)(.*)
+        pathType: ImplementationSpecific
+        backend:
+          service:
+            name: bill-pay-service
+            port:
+              number: 5000

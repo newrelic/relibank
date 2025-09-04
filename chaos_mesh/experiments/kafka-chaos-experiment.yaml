@@ -1,0 +1,38 @@
+apiVersion: chaos_mesh.org/v1alpha1
+kind: PodChaos
+metadata:
+  name: relibank-kafka-chaos
+  namespace: relibank
+spec:
+  action: pod-kill
+  mode: one
+  duration: "45s"
+  selector:
+    namespaces:
+      - relibank
+    labelSelectors:
+      "app": "kafka"
+  scheduler:
+    cron: "@every 8m"
+---
+apiVersion: chaos_mesh.org/v1alpha1
+kind: NetworkChaos
+metadata:
+  name: relibank-kafka-network-delay
+  namespace: relibank
+spec:
+  action: delay
+  mode: all
+  selector:
+    namespaces:
+      - relibank
+    labelSelectors:
+      "app": "kafka"
+  delay:
+    latency: "200ms"
+    correlation: "100"
+    jitter: "50ms"
+  duration: "90s"
+  scheduler:
+    cron: "@every 12m"
+

@@ -1,0 +1,34 @@
+apiVersion: chaos_mesh.org/v1alpha1
+kind: PodChaos
+metadata:
+  name: relibank-database-failure
+  namespace: relibank
+spec:
+  action: pod-failure
+  mode: one
+  duration: "60s"
+  selector:
+    namespaces:
+      - relibank
+    labelSelectors:
+      "app": "accounts-db"
+  scheduler:
+    cron: "@every 15m"
+---
+apiVersion: chaos_mesh.org/v1alpha1
+kind: PodChaos
+metadata:
+  name: relibank-mssql-failure
+  namespace: relibank
+spec:
+  action: pod-failure
+  mode: one
+  duration: "45s"
+  selector:
+    namespaces:
+      - relibank
+    labelSelectors:
+      "app": "mssql"
+  scheduler:
+    cron: "@every 20m"
+

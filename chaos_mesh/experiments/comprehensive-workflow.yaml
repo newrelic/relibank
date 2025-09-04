@@ -1,0 +1,147 @@
+apiVersion: chaos_mesh.org/v1alpha1
+kind: Workflow
+metadata:
+  name: relibank-comprehensive-chaos
+  namespace: relibank
+spec:
+  entry: entry
+  templates:
+    - name: entry
+      templateType: Serial
+      deadline: 600s
+      children:
+        - database-stress
+        - network-issues
+        - service-failures
+        - recovery-test
+
+    - name: database-stress
+      templateType: Parallel
+      deadline: 180s
+      children:
+        - db-io-delay
+        - db-connection-loss
+
+    - name: db-io-delay
+      templateType: IOChaos
+      deadline: 120s
+      ioChaos:
+        action: delay
+        mode: one
+        selector:
+          namespaces:
+            - relibank
+          labelSelectors:
+            "app": "accounts-db"
+        volumePath: /var/lib/postgresql/data
+        path: "**/*"
+        delay: "200ms"
+        percent: 70
+
+    - name: db-connection-loss
+      templateType: NetworkChaos
+      deadline: 90s
+      networkChaos:
+        action: loss
+        mode: all
+        selector:
+          namespaces:
+            - relibank
+          labelSelectors:
+            "app": "accounts-service"
+        direction: to
+        target:
+          mode: all
+          selector:
+            namespaces:
+              - relibank
+            labelSelectors:
+              "app": "accounts-db"
+        loss:
+          loss: "20"
+          correlation: "50"
+
+    - name: network-issues
+      templateType: Parallel
+      deadline: 120s
+      children:
+        - service-latency
+        - kafka-partition
+
+    - name: service-latency
+      templateType: NetworkChaos
+      deadline: 90s
+      networkChaos:
+        action: delay
+        mode: all
+        selector:
+          namespaces:
+            - relibank
+          labelSelectors:
+            "app": "transaction-service"
+        delay:
+          latency: "150ms"
+          correlation: "100"
+          jitter: "50ms"
+
+    - name: kafka-partition
+      templateType: NetworkChaos
+      deadline: 60s
+      networkChaos:
+        action: partition
+        mode: all
+        selector:
+          namespaces:
+            - relibank
+          labelSelectors:
+            "app": "bill-pay-service"
+        direction: to
+        target:
+          mode: all
+          selector:
+            namespaces:
+              - relibank
+            labelSelectors:
+              "app": "kafka"
+
+    - name: service-failures
+      templateType: Serial
+      deadline: 180s
+      children:
+        - kill-transaction-service
+        - stress-accounts-service
+
+    - name: kill-transaction-service
+      templateType: PodChaos
+      deadline: 60s
+      podChaos:
+        action: pod-kill
+        mode: one
+        selector:
+          namespaces:
+            - relibank
+          labelSelectors:
+            "app": "transaction-service"
+
+    - name: stress-accounts-service
+      templateType: StressChaos
+      deadline: 90s
+      stressChaos:
+        mode: one
+        selector:
+          namespaces:
+            - relibank
+          labelSelectors:
+            "app": "accounts-service"
+        stressors:
+          cpu:
+            workers: 2
+            load: 90
+          memory:
+            workers: 1
+            size: "512MB"
+
+    - name: recovery-test
+      templateType: Suspend
+      deadline: 60s
+

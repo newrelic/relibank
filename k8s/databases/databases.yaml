@@ -1,0 +1,227 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: accounts-db
+  namespace: relibank
+  labels:
+    app: accounts-db
+    tier: database
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: accounts-db
+  template:
+    metadata:
+      labels:
+        app: accounts-db
+        tier: database
+        chaos-mesh.org/inject: enabled
+    spec:
+      containers:
+      - name: postgres
+        image: postgres:15
+        ports:
+        - containerPort: 5432
+        env:
+        - name: POSTGRES_USER
+          valueFrom:
+            configMapKeyRef:
+              name: relibank-config
+              key: DB_USER
+        - name: POSTGRES_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: relibank-secrets
+              key: DB_PASSWORD
+        - name: POSTGRES_DB
+          valueFrom:
+            configMapKeyRef:
+              name: relibank-config
+              key: DB_NAME
+        volumeMounts:
+        - name: postgres-data
+          mountPath: /var/lib/postgresql/data
+        - name: init-sql
+          mountPath: /docker-entrypoint-initdb.d
+        resources:
+          requests:
+            memory: "512Mi"
+            cpu: "250m"
+          limits:
+            memory: "1Gi"
+            cpu: "500m"
+        livenessProbe:
+          exec:
+            command:
+            - pg_isready
+            - -U
+            - postgres
+            - -d
+            - accountsdb
+          initialDelaySeconds: 30
+          periodSeconds: 10
+        readinessProbe:
+          exec:
+            command:
+            - pg_isready
+            - -U
+            - postgres
+            - -d
+            - accountsdb
+          initialDelaySeconds: 5
+          periodSeconds: 5
+      volumes:
+      - name: postgres-data
+        persistentVolumeClaim:
+          claimName: accounts-db-pvc
+      - name: init-sql
+        configMap:
+          name: accounts-init-sql
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: accounts-db
+  namespace: relibank
+  labels:
+    app: accounts-db
+spec:
+  selector:
+    app: accounts-db
+  ports:
+  - port: 5432
+    targetPort: 5432
+  type: ClusterIP
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: accounts-db-pvc
+  namespace: relibank
+spec:
+  accessModes:
+  - ReadWriteOnce
+  resources:
+    requests:
+      storage: 10Gi
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: accounts-init-sql
+  namespace: relibank
+data:
+  init.sql: |
+    -- Add your PostgreSQL init script here
+    -- This should match the content of accounts_service/postgres/init.sql
+    CREATE TABLE IF NOT EXISTS user_account (
+      id SERIAL PRIMARY KEY,
+      username VARCHAR(255) UNIQUE NOT NULL,
+      email VARCHAR(255) UNIQUE NOT NULL,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    );
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: mssql
+  namespace: relibank
+  labels:
+    app: mssql
+    tier: database
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: mssql
+  template:
+    metadata:
+      labels:
+        app: mssql
+        tier: database
+        chaos-mesh.org/inject: enabled
+    spec:
+      containers:
+      - name: mssql
+        image: mcr.microsoft.com/mssql/server:2019-CU18-ubuntu-20.04
+        ports:
+        - containerPort: 1433
+        env:
+        - name: SA_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: relibank-secrets
+              key: SA_PASSWORD
+        - name: ACCEPT_EULA
+          value: "Y"
+        volumeMounts:
+        - name: mssql-data
+          mountPath: /var/opt/mssql
+        resources:
+          requests:
+            memory: "2Gi"
+            cpu: "500m"
+          limits:
+            memory: "4Gi"
+            cpu: "2"
+        livenessProbe:
+          exec:
+            command:
+            - /opt/mssql-tools/bin/sqlcmd
+            - -S
+            - localhost
+            - -U
+            - SA
+            - -P
+            - $(SA_PASSWORD)
+            - -Q
+            - "SELECT 1"
+          initialDelaySeconds: 60
+          periodSeconds: 30
+        readinessProbe:
+          exec:
+            command:
+            - /opt/mssql-tools/bin/sqlcmd
+            - -S
+            - localhost
+            - -U
+            - SA
+            - -P
+            - $(SA_PASSWORD)
+            - -Q
+            - "SELECT 1"
+          initialDelaySeconds: 30
+          periodSeconds: 10
+      volumes:
+      - name: mssql-data
+        persistentVolumeClaim:
+          claimName: mssql-data-pvc
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: mssql
+  namespace: relibank
+  labels:
+    app: mssql
+spec:
+  selector:
+    app: mssql
+  ports:
+  - port: 1433
+    targetPort: 1433
+  type: ClusterIP
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: mssql-data-pvc
+  namespace: relibank
+spec:
+  accessModes:
+  - ReadWriteOnce
+  resources:
+    requests:
+      storage: 20Gi
+

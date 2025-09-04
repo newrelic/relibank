@@ -1,0 +1,151 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: zookeeper
+  namespace: relibank
+  labels:
+    app: zookeeper
+    tier: infrastructure
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: zookeeper
+  template:
+    metadata:
+      labels:
+        app: zookeeper
+        tier: infrastructure
+        chaos-mesh.org/inject: enabled
+    spec:
+      containers:
+      - name: zookeeper
+        image: bitnami/zookeeper:3.8
+        ports:
+        - containerPort: 2181
+          name: client
+        env:
+        - name: ALLOW_ANONYMOUS_LOGIN
+          value: "yes"
+        - name: ZOO_MY_ID
+          value: "1"
+        resources:
+          requests:
+            memory: "512Mi"
+            cpu: "250m"
+          limits:
+            memory: "1Gi"
+            cpu: "500m"
+        livenessProbe:
+          tcpSocket:
+            port: 2181
+          initialDelaySeconds: 30
+          periodSeconds: 10
+        readinessProbe:
+          tcpSocket:
+            port: 2181
+          initialDelaySeconds: 5
+          periodSeconds: 5
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: zookeeper
+  namespace: relibank
+  labels:
+    app: zookeeper
+spec:
+  selector:
+    app: zookeeper
+  ports:
+  - port: 2181
+    targetPort: 2181
+    name: client
+  type: ClusterIP
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: kafka
+  namespace: relibank
+  labels:
+    app: kafka
+    tier: infrastructure
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: kafka
+  template:
+    metadata:
+      labels:
+        app: kafka
+        tier: infrastructure
+        chaos-mesh.org/inject: enabled
+    spec:
+      containers:
+      - name: kafka
+        image: bitnami/kafka:3.5
+        ports:
+        - containerPort: 9092
+          name: external
+        - containerPort: 29092
+          name: internal
+        env:
+        - name: KAFKA_BROKER_ID
+          value: "1"
+        - name: KAFKA_CFG_ZOOKEEPER_CONNECT
+          value: "zookeeper.relibank.svc.cluster.local:2181"
+        - name: KAFKA_CFG_ADVERTISED_LISTENERS
+          value: "PLAINTEXT://kafka.relibank.svc.cluster.local:29092,EXTERNAL://localhost:9092"
+        - name: KAFKA_CFG_LISTENER_SECURITY_PROTOCOL_MAP
+          value: "PLAINTEXT:PLAINTEXT,EXTERNAL:PLAINTEXT"
+        - name: KAFKA_CFG_LISTENERS
+          value: "PLAINTEXT://:29092,EXTERNAL://:9092"
+        - name: ALLOW_PLAINTEXT_LISTENER
+          value: "yes"
+        resources:
+          requests:
+            memory: "1Gi"
+            cpu: "500m"
+          limits:
+            memory: "2Gi"
+            cpu: "1"
+        livenessProbe:
+          exec:
+            command:
+            - kafka-topics.sh
+            - --bootstrap-server
+            - localhost:9092
+            - --list
+          initialDelaySeconds: 60
+          periodSeconds: 30
+        readinessProbe:
+          exec:
+            command:
+            - kafka-topics.sh
+            - --bootstrap-server
+            - localhost:9092
+            - --list
+          initialDelaySeconds: 30
+          periodSeconds: 10
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: kafka
+  namespace: relibank
+  labels:
+    app: kafka
+spec:
+  selector:
+    app: kafka
+  ports:
+  - port: 9092
+    targetPort: 9092
+    name: external
+  - port: 29092
+    targetPort: 29092
+    name: internal
+  type: ClusterIP
+

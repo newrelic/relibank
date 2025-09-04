@@ -1,0 +1,15 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: relibank
+  labels:
+    name: relibank
+    chaos-mesh.org/inject: enabled
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: chaos-system
+  labels:
+    name: chaos-system
+

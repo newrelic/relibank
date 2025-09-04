@@ -1,0 +1,28 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: relibank-config
+  namespace: relibank
+data:
+  # Kafka Configuration
+  KAFKA_BROKER: "kafka.relibank.svc.cluster.local:9092"
+  KAFKA_INTERNAL_BROKER: "kafka.relibank.svc.cluster.local:29092"
+
+  # Database Configuration
+  DB_HOST: "accounts-db.relibank.svc.cluster.local"
+  DB_NAME: "accountsdb"
+  DB_USER: "postgres"
+
+  # MSSQL Configuration
+  DB_SERVER: "mssql.relibank.svc.cluster.local"
+  DB_DATABASE: "RelibankDB"
+  DB_USERNAME: "SA"
+
+  # Service URLs
+  TRANSACTION_SERVICE_URL: "http://transaction-service.relibank.svc.cluster.local:5000"
+  ACCOUNTS_SERVICE_URL: "http://accounts-service.relibank.svc.cluster.local:5000"
+
+  # Azure Communication Services (placeholders)
+  AZURE_ACS_SMS_PHONE_NUMBER: "+15551234567"
+  AZURE_ACS_EMAIL_ENDPOINT: "https://your-acs-resource-name.azurecomm.net"
+
