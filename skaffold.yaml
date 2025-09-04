@@ -52,21 +52,7 @@ build:
 deploy:
   kubectl:
     manifests:
-    - k8s/namespace.yaml
-    - k8s/configmap.yaml
-    - k8s/secrets.yaml
-    - k8s/infrastructure/*.yaml
-    - k8s/databases/*.yaml
-    - k8s/services/*.yaml
-    hooks:
-      before:
-      - host:
-          command: ["./k8s/manage-config.sh", "show"]
-      after:
-      - host:
-          command: ["kubectl", "wait", "--for=condition=Ready", "pods", "-l", "tier=infrastructure", "-n", "relibank", "--timeout=300s"]
-      - host:
-          command: ["kubectl", "wait", "--for=condition=Ready", "pods", "-l", "tier=database", "-n", "relibank", "--timeout=300s"]
+    - k8s/overlays/dev
 
 # Port forwarding configuration
 portForward:
@@ -85,16 +71,6 @@ portForward:
   namespace: relibank
   port: 5000
   localPort: 5000
-- resourceType: service
-  resourceName: notifications-service
-  namespace: relibank
-  port: 5000
-  localPort: 5003
-- resourceType: service
-  resourceName: chaos-dashboard
-  namespace: chaos-system
-  port: 2333
-  localPort: 2333
 
 # Multiple profiles for different environments and use cases
 profiles:
@@ -135,13 +111,10 @@ profiles:
     local:
       push: false
       useDockerCLI: true
-    tagPolicy:
-      gitCommit:
-        variant: AbbrevCommitSha
   deploy:
-    kustomize:
-      paths: ["k8s/overlays/dev"]
     kubectl:
+      manifests:
+      - k8s/overlays/dev
       flags:
         global: ["--context=minikube"]
   activation:
@@ -152,21 +125,15 @@ profiles:
 # ===========================================
 - name: staging
   build:
-    cluster:
-      namespace: relibank
-      dockerConfig:
-        secretName: docker-registry-secret
-    tagPolicy:
-      gitCommit:
-        variant: CommitSha
+    local:
+      push: false
+      useDockerCLI: true
   deploy:
-    kustomize:
-      paths: ["k8s/overlays/staging"]
     kubectl:
+      manifests:
+      - k8s/overlays/staging
       flags:
-        global: ["--context=staging-cluster"]
-  activation:
-  - env: SKAFFOLD_PROFILE=staging
+        global: ["--context=minikube"]
 
 # ===========================================
 # PRODUCTION PROFILE
