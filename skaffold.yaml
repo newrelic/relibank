@@ -3,7 +3,6 @@ kind: Config
 metadata:
   name: relibank
 build:
-  # Build configuration for all services
   artifacts:
   - image: relibank/accounts-service
     context: accounts_service
@@ -47,28 +46,40 @@ build:
         dest: /app
   tagPolicy:
     sha256: {}
+  local:
+    useBuildkit: true
 
-# Default deployment configuration
+# Deployment configuration
 deploy:
   kubectl:
     manifests:
     - k8s/namespace.yaml
-    - k8s/configmap.yaml
-    - k8s/secrets.yaml
     - k8s/infrastructure/*.yaml
     - k8s/databases/*.yaml
     - k8s/services/*.yaml
     hooks:
       before:
       - host:
-          command: ["./k8s/manage-config.sh", "show"]
+          command: ["sh", "-c", "export $(cat skaffold.env | xargs) && envsubst < k8s/secrets.yaml | kubectl apply -f -"]
+          dir: "."
+      - host:
+          command: ["sh", "-c", "export $(cat skaffold.env | xargs) && envsubst < k8s/configmap.yaml | kubectl apply -f -"]
           dir: "."
       after:
       - host:
-          command: ["kubectl", "wait", "--for=condition=Ready", "pods", "-l", "tier=infrastructure", "-n", "relibank", "--timeout=300s"]
+          command: ["kubectl", "wait", "--for=condition=Ready", "pods", "-l", "app=zookeeper", "-n", "relibank", "--timeout=300s"]
+          dir: "."
+      - host:
+          command: ["kubectl", "wait", "--for=condition=Ready", "pods", "-l", "app=kafka", "-n", "relibank", "--timeout=300s"]
           dir: "."
       - host:
           command: ["kubectl", "wait", "--for=condition=Ready", "pods", "-l", "tier=database", "-n", "relibank", "--timeout=300s"]
+          dir: "."
+      - host:
+          command: ["sleep", "30"]
+          dir: "."
+      - host:
+          command: ["echo", "🚀 Infrastructure and databases are ready!"]
           dir: "."
 
 # Port forwarding configuration
@@ -107,42 +118,40 @@ profiles:
     tagPolicy:
       envTemplate:
         template: "{{.IMAGE_NAME}}:local-{{.SHA}}"
-  deploy:
-    kubectl:
-      manifests:
-      - k8s/namespace.yaml
-      - k8s/configmap.yaml
-      - k8s/secrets.yaml
-      - k8s/infrastructure/*.yaml
-      - k8s/databases/*.yaml
-      - k8s/services/*.yaml
-      flags:
-        global: ["--context=minikube"]
-      hooks:
-        before:
-        - host:
-            command: ["minikube", "start", "--driver=docker", "--cpus=4", "--memory=8192"]
-            dir: "."
-        - host:
-            command: ["minikube", "addons", "enable", "ingress"]
-            dir: "."
-        - host:
-            command: ["./k8s/manage-config.sh", "show"]
-            dir: "."
-        after:
-        - host:
-            command: ["kubectl", "wait", "--for=condition=Ready", "pods", "-l", "tier=infrastructure", "-n", "relibank", "--timeout=300s"]
-            dir: "."
+  patches:
+  - op: replace
+    path: /build/local/useBuildkit
+    value: false
   activation:
   - env: SKAFFOLD_PROFILE=local
 
 # ===========================================
-# CHAOS TESTING PROFILE
+# DEBUG PROFILE
 # ===========================================
-- name: chaos
-  build:
-    local:
-      push: false
+- name: debug
+  patches:
+  - op: add
+    path: /build/artifacts/0/docker/buildArgs/DEBUG
+    value: "true"
+  - op: add
+    path: /build/artifacts/1/docker/buildArgs/DEBUG
+    value: "true"
+  - op: add
+    path: /build/artifacts/2/docker/buildArgs/DEBUG
+    value: "true"
+  - op: add
+    path: /build/artifacts/3/docker/buildArgs/DEBUG
+    value: "true"
+  - op: add
+    path: /build/artifacts/4/docker/buildArgs/DEBUG
+    value: "true"
+  activation:
+  - command: debug
+
+# ===========================================
+# CHAOS INFRASTRUCTURE PROFILE
+# ===========================================
+- name: chaos-infra
   deploy:
     helm:
       releases:
@@ -159,29 +168,53 @@ profiles:
           dashboard.create: true
           controllerManager.replicaCount: 1
         wait: true
-    kubectl:
-      manifests:
-      - k8s/namespace.yaml
-      - k8s/configmap.yaml
-      - k8s/secrets.yaml
-      - k8s/infrastructure/*.yaml
-      - k8s/databases/*.yaml
-      - k8s/services/*.yaml
-      - chaos_mesh/experiments/*.yaml
       hooks:
-        before:
-        - host:
-            command: ["minikube", "start", "--driver=docker", "--cpus=4", "--memory=8192"]
-            dir: "."
-        - host:
-            command: ["minikube", "addons", "enable", "ingress"]
-            dir: "."
         after:
         - host:
             command: ["kubectl", "wait", "--for=condition=Ready", "pods", "-l", "app.kubernetes.io/name=chaos-mesh", "-n", "chaos-system", "--timeout=300s"]
             dir: "."
         - host:
-            command: ["echo", "🔬 Chaos Mesh installed! Dashboard: http://localhost:2333"]
+            command: ["sleep", "10"]
+            dir: "."
+        - host:
+            command: ["kubectl", "wait", "--for=condition=Established", "crd", "podchaos.chaos-mesh.org", "--timeout=120s"]
+            dir: "."
+        - host:
+            command: ["kubectl", "wait", "--for=condition=Established", "crd", "networkchaos.chaos-mesh.org", "--timeout=120s"]
+            dir: "."
+        - host:
+            command: ["kubectl", "wait", "--for=condition=Established", "crd", "iochaos.chaos-mesh.org", "--timeout=120s"]
+            dir: "."
+        - host:
+            command: ["kubectl", "wait", "--for=condition=Established", "crd", "stresschaos.chaos-mesh.org", "--timeout=120s"]
+            dir: "."
+        - host:
+            command: ["kubectl", "wait", "--for=condition=Established", "crd", "workflows.chaos-mesh.org", "--timeout=120s"]
+            dir: "."
+        - host:
+            command: ["echo", "🔬 Chaos Mesh infrastructure ready! Dashboard: http://localhost:2333"]
             dir: "."
   activation:
-  - command: chaos
+  - command: chaos-infra
+
+---
+apiVersion: skaffold/v2beta28
+kind: Config
+metadata:
+  name: relibank-chaos
+requires:
+- configs:
+  - relibank
+deploy:
+  kubectl:
+    manifests:
+    - chaos_mesh/experiments/*.yaml
+    hooks:
+      before:
+      - host:
+          command: ["kubectl", "get", "crd", "podchaos.chaos-mesh.org"]
+          dir: "."
+      after:
+      - host:
+          command: ["echo", "🧪 Chaos experiments deployed!"]
+          dir: "."

@@ -54,23 +54,23 @@ spec:
         livenessProbe:
           exec:
             command:
-            - pg_isready
-            - -U
-            - postgres
-            - -d
-            - accountsdb
+            - sh
+            - -c
+            - pg_isready -U postgres -d accountsdb && PGPASSWORD=$POSTGRES_PASSWORD psql -U postgres -d accountsdb -c 'SELECT 1'
           initialDelaySeconds: 30
           periodSeconds: 10
+          timeoutSeconds: 5
+          failureThreshold: 3
         readinessProbe:
           exec:
             command:
-            - pg_isready
-            - -U
-            - postgres
-            - -d
-            - accountsdb
-          initialDelaySeconds: 5
+            - sh
+            - -c
+            - pg_isready -U postgres -d accountsdb && PGPASSWORD=$POSTGRES_PASSWORD psql -U postgres -d accountsdb -c 'SELECT 1'
+          initialDelaySeconds: 10
           periodSeconds: 5
+          timeoutSeconds: 5
+          failureThreshold: 3
       volumes:
       - name: postgres-data
         persistentVolumeClaim:
@@ -224,4 +224,3 @@ spec:
   resources:
     requests:
       storage: 20Gi
-

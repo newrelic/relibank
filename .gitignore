@@ -5,3 +5,4 @@ act-secrets.env
 **/.DS_Store
 **/keys.txt
 **/*.log*
+*.env

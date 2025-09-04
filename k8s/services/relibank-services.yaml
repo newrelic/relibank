@@ -269,6 +269,29 @@ spec:
         tier: application
         chaos-mesh.org/inject: enabled
     spec:
+      initContainers:
+      - name: wait-for-kafka
+        image: busybox:1.35
+        command: ['sh', '-c']
+        args:
+        - |
+          echo "Waiting for Kafka to be ready..."
+          until nc -z $KAFKA_HOST $KAFKA_PORT; do
+            echo "Kafka not ready at $KAFKA_HOST:$KAFKA_PORT, waiting 5 seconds..."
+            sleep 5
+          done
+          echo "Kafka is ready at $KAFKA_HOST:$KAFKA_PORT!"
+        env:
+        - name: KAFKA_HOST
+          valueFrom:
+            configMapKeyRef:
+              name: relibank-config
+              key: KAFKA_HOST
+        - name: KAFKA_PORT
+          valueFrom:
+            configMapKeyRef:
+              name: relibank-config
+              key: KAFKA_PORT
       containers:
       - name: notifications-service
         image: relibank/notifications-service
@@ -296,14 +319,26 @@ spec:
           httpGet:
             path: /health
             port: 5000
-          initialDelaySeconds: 30
+          initialDelaySeconds: 60
           periodSeconds: 10
+          timeoutSeconds: 5
+          failureThreshold: 3
         readinessProbe:
           httpGet:
             path: /health
             port: 5000
-          initialDelaySeconds: 5
+          initialDelaySeconds: 30
           periodSeconds: 5
+          timeoutSeconds: 5
+          failureThreshold: 3
+        startupProbe:
+          httpGet:
+            path: /health
+            port: 5000
+          initialDelaySeconds: 45
+          periodSeconds: 10
+          timeoutSeconds: 5
+          failureThreshold: 6
 ---
 apiVersion: v1
 kind: Service
@@ -393,4 +428,3 @@ spec:
     targetPort: 8080
     protocol: TCP
   type: ClusterIP
-
