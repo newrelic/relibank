@@ -1,0 +1,53 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+# Base resources
+resources:
+- ../../namespace.yaml
+- ../../configmap.yaml
+- ../../secrets.yaml
+- ../../infrastructure
+- ../../databases
+- ../../services
+
+# Production environment customizations (using current syntax)
+patches:
+- path: configmap-patch.yaml
+- path: resource-limits-patch.yaml
+
+# Add production-specific labels (using current syntax)
+labels:
+- pairs:
+    environment: production
+    managed-by: skaffold
+
+# Add production annotations
+commonAnnotations:
+  deployment.env: production
+  skaffold.dev/run-id: "production"
+
+# Image tag for production
+images:
+- name: relibank/accounts-service
+  newTag: stable
+- name: relibank/transaction-service
+  newTag: stable
+- name: relibank/bill-pay-service
+  newTag: stable
+- name: relibank/notifications-service
+  newTag: stable
+- name: relibank/scheduler-service
+  newTag: stable
+
+# Production-specific replicas
+replicas:
+- name: accounts-service
+  count: 3
+- name: transaction-service
+  count: 3
+- name: bill-pay-service
+  count: 2
+- name: notifications-service
+  count: 2
+- name: scheduler-service
+  count: 1

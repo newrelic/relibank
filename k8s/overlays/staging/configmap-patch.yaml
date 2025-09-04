@@ -1,0 +1,17 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: relibank-config
+  namespace: relibank
+data:
+  # Staging environment overrides
+  ENVIRONMENT: "staging"
+  LOG_LEVEL: "INFO"
+  DEBUG: "false"
+
+  # Staging-specific resource settings
+  DEFAULT_CPU_REQUEST: "200m"
+  DEFAULT_CPU_LIMIT: "400m"
+  DEFAULT_MEMORY_REQUEST: "256Mi"
+  DEFAULT_MEMORY_LIMIT: "512Mi"
+

@@ -1,0 +1,17 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: relibank-config
+  namespace: relibank
+data:
+  # Production environment overrides
+  ENVIRONMENT: "production"
+  LOG_LEVEL: "WARNING"
+  DEBUG: "false"
+
+  # Production-specific resource settings
+  DEFAULT_CPU_REQUEST: "500m"
+  DEFAULT_CPU_LIMIT: "1000m"
+  DEFAULT_MEMORY_REQUEST: "512Mi"
+  DEFAULT_MEMORY_LIMIT: "1Gi"
+

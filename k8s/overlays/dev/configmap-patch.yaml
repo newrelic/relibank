@@ -1,0 +1,17 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: relibank-config
+  namespace: relibank
+data:
+  # Development environment overrides
+  ENVIRONMENT: "development"
+  LOG_LEVEL: "DEBUG"
+  DEBUG: "true"
+
+  # Development-specific resource settings
+  DEFAULT_CPU_REQUEST: "100m"
+  DEFAULT_CPU_LIMIT: "200m"
+  DEFAULT_MEMORY_REQUEST: "128Mi"
+  DEFAULT_MEMORY_LIMIT: "256Mi"
+

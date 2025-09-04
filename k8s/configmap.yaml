@@ -4,25 +4,56 @@ metadata:
   name: relibank-config
   namespace: relibank
 data:
-  # Kafka Configuration
-  KAFKA_BROKER: "kafka.relibank.svc.cluster.local:9092"
-  KAFKA_INTERNAL_BROKER: "kafka.relibank.svc.cluster.local:29092"
+  # ===========================================
+  # CENTRALIZED RELIBANK CONFIGURATION
+  # All non-sensitive environment variables
+  # ===========================================
 
-  # Database Configuration
+  # ========== KAFKA CONFIGURATION ==========
+  KAFKA_BROKER: "kafka.relibank.svc.cluster.local:29092"
+  KAFKA_INTERNAL_BROKER: "kafka.relibank.svc.cluster.local:29092"
+  KAFKA_EXTERNAL_BROKER: "kafka.relibank.svc.cluster.local:9092"
+
+  # ========== POSTGRESQL CONFIGURATION ==========
+  # Used by accounts-service
   DB_HOST: "accounts-db.relibank.svc.cluster.local"
   DB_NAME: "accountsdb"
   DB_USER: "postgres"
+  DB_PORT: "5432"
 
-  # MSSQL Configuration
+  # ========== MSSQL CONFIGURATION ==========
+  # Used by transaction-service and scheduler-service
   DB_SERVER: "mssql.relibank.svc.cluster.local"
   DB_DATABASE: "RelibankDB"
   DB_USERNAME: "SA"
+  MSSQL_PORT: "1433"
 
-  # Service URLs
-  TRANSACTION_SERVICE_URL: "http://transaction-service.relibank.svc.cluster.local:5000"
+  # ========== SERVICE URLS ==========
+  # Internal service communication
   ACCOUNTS_SERVICE_URL: "http://accounts-service.relibank.svc.cluster.local:5000"
+  TRANSACTION_SERVICE_URL: "http://transaction-service.relibank.svc.cluster.local:5000"
+  BILL_PAY_SERVICE_URL: "http://bill-pay-service.relibank.svc.cluster.local:5000"
+  NOTIFICATIONS_SERVICE_URL: "http://notifications-service.relibank.svc.cluster.local:5000"
+  SCHEDULER_SERVICE_URL: "http://scheduler-service.relibank.svc.cluster.local:8080"
 
-  # Azure Communication Services (placeholders)
+  # ========== AZURE COMMUNICATION SERVICES ==========
+  # Non-sensitive ACS configuration
+  AZURE_ACS_EMAIL_ENDPOINT: "https://your-acs-resource-name.communication.azure.com"
   AZURE_ACS_SMS_PHONE_NUMBER: "+15551234567"
-  AZURE_ACS_EMAIL_ENDPOINT: "https://your-acs-resource-name.azurecomm.net"
 
+  # ========== APPLICATION CONFIGURATION ==========
+  # Application-level settings
+  LOG_LEVEL: "INFO"
+  ENVIRONMENT: "production"
+  DEBUG: "false"
+
+  # ========== HEALTH CHECK CONFIGURATION ==========
+  HEALTH_CHECK_INTERVAL: "30"
+  READINESS_PROBE_DELAY: "5"
+  LIVENESS_PROBE_DELAY: "30"
+
+  # ========== RESOURCE LIMITS ==========
+  DEFAULT_CPU_REQUEST: "250m"
+  DEFAULT_CPU_LIMIT: "500m"
+  DEFAULT_MEMORY_REQUEST: "256Mi"
+  DEFAULT_MEMORY_LIMIT: "512Mi"

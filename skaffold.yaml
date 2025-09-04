@@ -1,19 +1,54 @@
-apiVersion: skaffold/v2beta28
+apiVersion: skaffold/v4beta11
 kind: Config
 metadata:
   name: relibank
 build:
+  # Build configuration for all services
   artifacts:
   - image: relibank/accounts-service
     context: accounts_service
+    docker:
+      dockerfile: Dockerfile
+    sync:
+      manual:
+      - src: "**/*.py"
+        dest: /app
   - image: relibank/transaction-service
     context: transaction_service
+    docker:
+      dockerfile: Dockerfile
+    sync:
+      manual:
+      - src: "**/*.py"
+        dest: /app
   - image: relibank/bill-pay-service
     context: bill_pay
+    docker:
+      dockerfile: Dockerfile
+    sync:
+      manual:
+      - src: "**/*.py"
+        dest: /app
   - image: relibank/notifications-service
     context: notifications_service
+    docker:
+      dockerfile: Dockerfile
+    sync:
+      manual:
+      - src: "**/*.py"
+        dest: /app
   - image: relibank/scheduler-service
     context: event_scheduler
+    docker:
+      dockerfile: Dockerfile
+    sync:
+      manual:
+      - src: "**/*.py"
+        dest: /app
+  tagPolicy:
+    sha256: {}
+
+# Default deployment configuration
 deploy:
   kubectl:
     manifests:
@@ -23,15 +58,17 @@ deploy:
     - k8s/infrastructure/*.yaml
     - k8s/databases/*.yaml
     - k8s/services/*.yaml
-profiles:
-- name: dev
-  build:
-    local:
-      push: false
-  deploy:
-    kubectl:
-      flags:
-        global: ["--context=minikube"]
+    hooks:
+      before:
+      - host:
+          command: ["./k8s/manage-config.sh", "show"]
+      after:
+      - host:
+          command: ["kubectl", "wait", "--for=condition=Ready", "pods", "-l", "tier=infrastructure", "-n", "relibank", "--timeout=300s"]
+      - host:
+          command: ["kubectl", "wait", "--for=condition=Ready", "pods", "-l", "tier=database", "-n", "relibank", "--timeout=300s"]
+
+# Port forwarding configuration
 portForward:
 - resourceType: service
   resourceName: accounts-service
@@ -48,3 +85,235 @@ portForward:
   namespace: relibank
   port: 5000
   localPort: 5000
+- resourceType: service
+  resourceName: notifications-service
+  namespace: relibank
+  port: 5000
+  localPort: 5003
+- resourceType: service
+  resourceName: chaos-dashboard
+  namespace: chaos-system
+  port: 2333
+  localPort: 2333
+
+# Multiple profiles for different environments and use cases
+profiles:
+# ===========================================
+# LOCAL DEVELOPMENT PROFILE
+# ===========================================
+- name: local
+  build:
+    local:
+      push: false
+      useDockerCLI: true
+    tagPolicy:
+      envTemplate:
+        template: "{{.IMAGE_NAME}}:local-{{.SHA}}"
+  deploy:
+    kubectl:
+      flags:
+        global: ["--context=minikube"]
+      hooks:
+        before:
+        - host:
+            command: ["minikube", "start", "--driver=docker", "--cpus=4", "--memory=8192"]
+        - host:
+            command: ["minikube", "addons", "enable", "ingress"]
+        - host:
+            command: ["./k8s/manage-config.sh", "show"]
+        after:
+        - host:
+            command: ["kubectl", "wait", "--for=condition=Ready", "pods", "-l", "tier=infrastructure", "-n", "relibank", "--timeout=300s"]
+  activation:
+  - env: SKAFFOLD_PROFILE=local
+
+# ===========================================
+# DEVELOPMENT PROFILE
+# ===========================================
+- name: dev
+  build:
+    local:
+      push: false
+      useDockerCLI: true
+    tagPolicy:
+      gitCommit:
+        variant: AbbrevCommitSha
+  deploy:
+    kustomize:
+      paths: ["k8s/overlays/dev"]
+    kubectl:
+      flags:
+        global: ["--context=minikube"]
+  activation:
+  - env: SKAFFOLD_PROFILE=dev
+
+# ===========================================
+# STAGING PROFILE
+# ===========================================
+- name: staging
+  build:
+    cluster:
+      namespace: relibank
+      dockerConfig:
+        secretName: docker-registry-secret
+    tagPolicy:
+      gitCommit:
+        variant: CommitSha
+  deploy:
+    kustomize:
+      paths: ["k8s/overlays/staging"]
+    kubectl:
+      flags:
+        global: ["--context=staging-cluster"]
+  activation:
+  - env: SKAFFOLD_PROFILE=staging
+
+# ===========================================
+# PRODUCTION PROFILE
+# ===========================================
+- name: production
+  build:
+    cluster:
+      namespace: relibank
+      dockerConfig:
+        secretName: docker-registry-secret
+    tagPolicy:
+      gitCommit:
+        variant: CommitSha
+  deploy:
+    kustomize:
+      paths: ["k8s/overlays/production"]
+    kubectl:
+      flags:
+        global: ["--context=production-cluster"]
+  activation:
+  - env: SKAFFOLD_PROFILE=production
+
+# ===========================================
+# CHAOS TESTING PROFILE
+# ===========================================
+- name: chaos
+  build:
+    local:
+      push: false
+  deploy:
+    helm:
+      releases:
+      - name: chaos-mesh
+        repo: https://charts.chaos-mesh.org
+        remoteChart: chaos-mesh
+        namespace: chaos-system
+        createNamespace: true
+        version: "2.6.2"
+        valuesFiles: []
+        setValues:
+          chaosDaemon.runtime: containerd
+          chaosDaemon.socketPath: /run/containerd/containerd.sock
+          dashboard.securityMode: false
+          dashboard.create: true
+          controllerManager.replicaCount: 1
+        wait: true
+    kubectl:
+      manifests:
+      - k8s/namespace.yaml
+      - k8s/configmap.yaml
+      - k8s/secrets.yaml
+      - k8s/infrastructure/*.yaml
+      - k8s/databases/*.yaml
+      - k8s/services/*.yaml
+      - chaos_mesh/experiments/*.yaml
+      hooks:
+        before:
+        - host:
+            command: ["minikube", "start", "--driver=docker", "--cpus=4", "--memory=8192"]
+        - host:
+            command: ["minikube", "addons", "enable", "ingress"]
+        after:
+        - host:
+            command: ["kubectl", "wait", "--for=condition=Ready", "pods", "-l", "app.kubernetes.io/name=chaos-mesh", "-n", "chaos-system", "--timeout=300s"]
+        - host:
+            command: ["echo", "🔬 Chaos Mesh installed! Dashboard: http://chaos.relibank.local or http://localhost:2333"]
+  activation:
+  - command: chaos
+
+# ===========================================
+# DEBUG PROFILE
+# ===========================================
+- name: debug
+  build:
+    local:
+      push: false
+    artifacts:
+    - image: relibank/accounts-service
+      context: accounts_service
+      docker:
+        dockerfile: Dockerfile
+        buildArgs:
+          DEBUG: "true"
+    - image: relibank/transaction-service
+      context: transaction_service
+      docker:
+        dockerfile: Dockerfile
+        buildArgs:
+          DEBUG: "true"
+    - image: relibank/bill-pay-service
+      context: bill_pay
+      docker:
+        dockerfile: Dockerfile
+        buildArgs:
+          DEBUG: "true"
+    - image: relibank/notifications-service
+      context: notifications_service
+      docker:
+        dockerfile: Dockerfile
+        buildArgs:
+          DEBUG: "true"
+    - image: relibank/scheduler-service
+      context: event_scheduler
+      docker:
+        dockerfile: Dockerfile
+        buildArgs:
+          DEBUG: "true"
+  deploy:
+    kubectl:
+      flags:
+        global: ["--context=minikube"]
+  activation:
+  - command: debug
+
+---
+# ===========================================
+# CHAOS MESH HELM VALUES
+# ===========================================
+apiVersion: skaffold/v4beta11
+kind: Config
+metadata:
+  name: chaos-mesh-config
+deploy:
+  helm:
+    releases:
+    - name: chaos-mesh
+      repo: https://charts.chaos-mesh.org
+      remoteChart: chaos-mesh
+      namespace: chaos-system
+      createNamespace: true
+      version: "2.6.2"
+      valuesFiles: []
+      setValues:
+        # Production-ready configuration
+        chaosDaemon.runtime: containerd
+        chaosDaemon.socketPath: /run/containerd/containerd.sock
+        dashboard.securityMode: false
+        dashboard.create: true
+        controllerManager.replicaCount: 3
+        dashboard.replicaCount: 2
+        # Resource limits for production
+        controllerManager.resources.limits.cpu: "500m"
+        controllerManager.resources.limits.memory: "1Gi"
+        controllerManager.resources.requests.cpu: "250m"
+        controllerManager.resources.requests.memory: "512Mi"
+        dashboard.resources.limits.cpu: "200m"
+        dashboard.resources.limits.memory: "256Mi"
+        dashboard.resources.requests.cpu: "100m"
+        dashboard.resources.requests.memory: "128Mi"
+      wait: true
