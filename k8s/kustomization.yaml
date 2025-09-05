@@ -5,39 +5,38 @@ namespace: relibank
 
 resources:
 # Namespace
-- relibank-namespace.yaml
+- namespaces/relibank-namespace.yaml
 
 # Secrets and ConfigMaps
-- mssql-secret.yaml
-- accounts-db-credentials-secret.yaml
-- accounts-db-cm1-configmap.yaml
-- mssql-init-cm0-configmap.yaml
+- secrets/mssql-secret.yaml
+- secrets/accounts-db-credentials-secret.yaml
+- configmaps/accounts-db-cm1-configmap.yaml
+- configmaps/mssql-init-cm0-configmap.yaml
 
-# Persistent Volume Claims (only for accounts-db, mssql uses volumeClaimTemplates)
-- accounts-data-persistentvolumeclaim.yaml
-- mssql-data-persistentvolumeclaim.yaml
+# Persistent Volume Claims
+- storage/accounts-data-persistentvolumeclaim.yaml
 
 # Database Deployments
-- accounts-db-deployment.yaml
-- accounts-db-service.yaml
-- mssql-deployment.yaml
-- mssql-service.yaml
-- mssql-init-deployment.yaml
+- databases/accounts-db-deployment.yaml
+- databases/accounts-db-service.yaml
+- databases/mssql-deployment.yaml
+- databases/mssql-service.yaml
+- databases/mssql-init-deployment.yaml
 
 # Application Services
-- accounts-service-deployment.yaml
-- accounts-service-service.yaml
-- bill-pay-service-deployment.yaml
-- bill-pay-service-service.yaml
-- notifications-service-deployment.yaml
-- notifications-service-service.yaml
-- scheduler-service-deployment.yaml
-- scheduler-service-service.yaml
-- transaction-service-deployment.yaml
-- transaction-service-service.yaml
+- services/accounts-service-deployment.yaml
+- services/accounts-service-service.yaml
+- services/bill-pay-service-deployment.yaml
+- services/bill-pay-service-service.yaml
+- services/notifications-service-deployment.yaml
+- services/notifications-service-service.yaml
+- services/scheduler-service-deployment.yaml
+- services/scheduler-service-service.yaml
+- services/transaction-service-deployment.yaml
+- services/transaction-service-service.yaml
 
-# Kafka/Zookeeper
-- zookeeper-deployment.yaml
-- zookeeper-service.yaml
-- kafka-deployment.yaml
-- kafka-service.yaml
+# Infrastructure (Kafka/Zookeeper)
+- infrastructure/zookeeper-deployment.yaml
+- infrastructure/zookeeper-service.yaml
+- infrastructure/kafka-deployment.yaml
+- infrastructure/kafka-service.yaml
