@@ -20,7 +20,8 @@ spec:
         fsGroup: 10001
       containers:
       - name: mssql
-        image: mcr.microsoft.com/mssql/server:2022-latest
+        image: mssql-custom:latest
+        imagePullPolicy: Never
         ports:
         - containerPort: 1433
           name: tcpsql

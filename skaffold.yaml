@@ -49,6 +49,10 @@ build:
       manual:
       - src: "**/*.py"
         dest: /app
+  - image: mssql-custom
+    context: transaction_service/mssql
+    docker:
+      dockerfile: Dockerfile
 
 # Manifests configuration - use Kustomize to handle image name mapping and resources
 manifests:

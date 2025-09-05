@@ -6,28 +6,22 @@ metadata:
   labels:
     app: mssql-init
 spec:
+  backoffLimit: 3
   template:
     metadata:
       labels:
         app: mssql-init
     spec:
-      restartPolicy: Never
+      restartPolicy: OnFailure
       containers:
       - name: mssql-init
-        image: mcr.microsoft.com/mssql/server:2022-latest
+        image: mssql-custom:latest
+        imagePullPolicy: Never
         command: ["/bin/bash"]
-        args: ["-c", "sleep 30 && /opt/mssql-tools/bin/sqlcmd -S mssql -U SA -P $SA_PASSWORD -i /usr/config/init.sql"]
+        args: ["-c", "echo 'Waiting for MSSQL server to be ready...' && sleep 45 && echo 'Connecting to MSSQL server...' && /opt/mssql-tools18/bin/sqlcmd -S mssql,1433 -U SA -P \"$MSSQL_SA_PASSWORD\" -C -i /usr/config/init.sql && echo 'Database initialization completed successfully'"]
         env:
-        - name: SA_PASSWORD
+        - name: MSSQL_SA_PASSWORD
           valueFrom:
             secretKeyRef:
               name: mssql-secret
               key: MSSQL_SA_PASSWORD
-        volumeMounts:
-        - name: init-script
-          mountPath: /usr/config/init.sql
-          subPath: init.sql
-      volumes:
-      - name: init-script
-        configMap:
-          name: mssql-init-cm0
