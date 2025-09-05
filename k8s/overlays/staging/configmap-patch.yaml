@@ -11,7 +11,29 @@ data:
 
   # Staging-specific resource settings
   DEFAULT_CPU_REQUEST: "200m"
-  DEFAULT_CPU_LIMIT: "400m"
+  DEFAULT_CPU_LIMIT: "500m"
   DEFAULT_MEMORY_REQUEST: "256Mi"
   DEFAULT_MEMORY_LIMIT: "512Mi"
 
+  # Database configuration - PostgreSQL for accounts
+  DB_HOST: "accounts-db.relibank.svc.cluster.local"
+  DB_NAME: "accountsdb"
+  DB_USER: "postgres"
+
+  # MSSQL configuration for transactions
+  DB_SERVER: "mssql.relibank.svc.cluster.local"
+  DB_DATABASE: "RelibankDB"
+  DB_USERNAME: "SA"
+  DB_PORT: "1433"
+
+  # Kafka configuration
+  KAFKA_HOST: "kafka.relibank.svc.cluster.local"
+  KAFKA_PORT: "9092"
+  KAFKA_INTERNAL_PORT: "9092"
+  KAFKA_EXTERNAL_PORT: "9094"
+  KAFKA_INTERNAL_BROKER: "kafka.relibank.svc.cluster.local:9092"
+  KAFKA_EXTERNAL_BROKER: "kafka.relibank.svc.cluster.local:9094"
+
+  # Service URLs
+  TRANSACTION_SERVICE_URL: "http://transaction-service.relibank.svc.cluster.local:5000"
+  ACCOUNTS_SERVICE_URL: "http://accounts-service.relibank.svc.cluster.local:5000"

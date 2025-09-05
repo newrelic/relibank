@@ -18,11 +18,21 @@ spec:
         tier: application
         chaos-mesh.org/inject: enabled
     spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65534
+        fsGroup: 65534
       containers:
       - name: accounts-service
         image: relibank/accounts-service
         ports:
         - containerPort: 5000
+        securityContext:
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: false  # Allow writes for application temp files
+          capabilities:
+            drop:
+            - ALL
         env:
         - name: DB_HOST
           valueFrom:
@@ -49,6 +59,11 @@ spec:
             configMapKeyRef:
               name: relibank-config
               key: KAFKA_INTERNAL_BROKER
+        volumeMounts:
+        - name: tmp
+          mountPath: /tmp
+        - name: app-tmp
+          mountPath: /app/tmp
         resources:
           requests:
             memory: "256Mi"
@@ -68,6 +83,11 @@ spec:
             port: 5000
           initialDelaySeconds: 5
           periodSeconds: 5
+      volumes:
+      - name: tmp
+        emptyDir: {}
+      - name: app-tmp
+        emptyDir: {}
 ---
 apiVersion: v1
 kind: Service
@@ -105,11 +125,21 @@ spec:
         tier: application
         chaos-mesh.org/inject: enabled
     spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65534
+        fsGroup: 65534
       containers:
       - name: transaction-service
         image: relibank/transaction-service
         ports:
         - containerPort: 5000
+        securityContext:
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: true
+          capabilities:
+            drop:
+            - ALL
         env:
         - name: DB_SERVER
           valueFrom:
@@ -192,11 +222,21 @@ spec:
         tier: application
         chaos-mesh.org/inject: enabled
     spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65534
+        fsGroup: 65534
       containers:
       - name: bill-pay-service
         image: relibank/bill-pay-service
         ports:
         - containerPort: 5000
+        securityContext:
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: false  # Allow writes for application temp files
+          capabilities:
+            drop:
+            - ALL
         env:
         - name: TRANSACTION_SERVICE_URL
           valueFrom:
@@ -213,6 +253,11 @@ spec:
             configMapKeyRef:
               name: relibank-config
               key: KAFKA_INTERNAL_BROKER
+        volumeMounts:
+        - name: tmp
+          mountPath: /tmp
+        - name: app-tmp
+          mountPath: /app/tmp
         resources:
           requests:
             memory: "256Mi"
@@ -224,14 +269,23 @@ spec:
           httpGet:
             path: /health
             port: 5000
-          initialDelaySeconds: 30
+          initialDelaySeconds: 60
           periodSeconds: 10
+          timeoutSeconds: 5
+          failureThreshold: 3
         readinessProbe:
           httpGet:
             path: /health
             port: 5000
-          initialDelaySeconds: 5
-          periodSeconds: 5
+          initialDelaySeconds: 30
+          periodSeconds: 10
+          timeoutSeconds: 5
+          failureThreshold: 3
+      volumes:
+      - name: tmp
+        emptyDir: {}
+      - name: app-tmp
+        emptyDir: {}
 ---
 apiVersion: v1
 kind: Service

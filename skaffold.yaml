@@ -48,42 +48,12 @@ build:
     sha256: {}
   local:
     useBuildkit: true
-
-# Deployment configuration
 deploy:
-  kubectl:
-    manifests:
-    - k8s/namespace.yaml
-    - k8s/infrastructure/*.yaml
-    - k8s/databases/*.yaml
-    - k8s/services/*.yaml
-    hooks:
-      before:
-      - host:
-          command: ["kubectl", "apply", "-f", "k8s/namespace.yaml"]
-          dir: "."
-      - host:
-          command: ["sh", "-c", "export $(cat skaffold.env | xargs) && envsubst < k8s/secrets.yaml | kubectl apply -f -"]
-          dir: "."
-      - host:
-          command: ["sh", "-c", "export $(cat skaffold.env | xargs) && envsubst < k8s/configmap.yaml | kubectl apply -f -"]
-          dir: "."
-      after:
-      - host:
-          command: ["kubectl", "wait", "--for=condition=Ready", "pods", "-l", "app=zookeeper", "-n", "relibank", "--timeout=300s"]
-          dir: "."
-      - host:
-          command: ["kubectl", "wait", "--for=condition=Ready", "pods", "-l", "app=kafka", "-n", "relibank", "--timeout=300s"]
-          dir: "."
-      - host:
-          command: ["kubectl", "wait", "--for=condition=Ready", "pods", "-l", "tier=database", "-n", "relibank", "--timeout=300s"]
-          dir: "."
-      - host:
-          command: ["sleep", "30"]
-          dir: "."
-      - host:
-          command: ["echo", "🚀 Infrastructure and databases are ready!"]
-          dir: "."
+  kustomize:
+    paths:
+    - k8s/overlays/dev
+    buildArgs:
+    - --load-restrictor=LoadRestrictionsNone
 
 # Port forwarding configuration
 portForward:

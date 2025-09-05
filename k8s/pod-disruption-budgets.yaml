@@ -1,0 +1,55 @@
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: accounts-service-pdb
+  namespace: relibank
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app: accounts-service
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: transaction-service-pdb
+  namespace: relibank
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app: transaction-service
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: bill-pay-service-pdb
+  namespace: relibank
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app: bill-pay-service
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: kafka-pdb
+  namespace: relibank
+spec:
+  maxUnavailable: 0
+  selector:
+    matchLabels:
+      app: kafka
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: zookeeper-pdb
+  namespace: relibank
+spec:
+  maxUnavailable: 0
+  selector:
+    matchLabels:
+      app: zookeeper
+

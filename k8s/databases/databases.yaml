@@ -18,11 +18,24 @@ spec:
         tier: database
         chaos-mesh.org/inject: enabled
     spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 999  # postgres user
+        runAsGroup: 999
+        fsGroup: 999
+        fsGroupChangePolicy: "OnRootMismatch"
       containers:
       - name: postgres
         image: postgres:15
         ports:
         - containerPort: 5432
+        securityContext:
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop:
+            - ALL
+          runAsNonRoot: true
+          runAsUser: 999
         env:
         - name: POSTGRES_USER
           valueFrom:
@@ -39,11 +52,17 @@ spec:
             configMapKeyRef:
               name: relibank-config
               key: DB_NAME
+        - name: PGDATA
+          value: /var/lib/postgresql/data/pgdata
         volumeMounts:
         - name: postgres-data
           mountPath: /var/lib/postgresql/data
         - name: init-sql
           mountPath: /docker-entrypoint-initdb.d
+        - name: tmp
+          mountPath: /tmp
+        - name: run
+          mountPath: /var/run/postgresql
         resources:
           requests:
             memory: "512Mi"
@@ -78,6 +97,10 @@ spec:
       - name: init-sql
         configMap:
           name: accounts-init-sql
+      - name: tmp
+        emptyDir: {}
+      - name: run
+        emptyDir: {}
 ---
 apiVersion: v1
 kind: Service
@@ -142,21 +165,34 @@ spec:
         tier: database
         chaos-mesh.org/inject: enabled
     spec:
+      securityContext:
+        fsGroup: 10001
       containers:
       - name: mssql
-        image: mcr.microsoft.com/mssql/server:2019-CU18-ubuntu-20.04
+        image: mcr.microsoft.com/mssql/server:2022-latest
         ports:
         - containerPort: 1433
         env:
         - name: SA_PASSWORD
-          value: "YourStrong@Password!"
+          valueFrom:
+            secretKeyRef:
+              name: relibank-secrets
+              key: MSSQL_SA_PASSWORD
         - name: ACCEPT_EULA
           value: "Y"
         - name: MSSQL_PID
-          value: "Express"
+          value: "Developer"
+        - name: MSSQL_AGENT_ENABLED
+          value: "true"
+        securityContext:
+          allowPrivilegeEscalation: false
+          runAsNonRoot: true
+          runAsUser: 10001
         volumeMounts:
         - name: mssql-data
           mountPath: /var/opt/mssql
+        - name: mssql-log
+          mountPath: /var/opt/mssql/log
         - name: init-scripts
           mountPath: /usr/config
         resources:
@@ -165,14 +201,40 @@ spec:
             cpu: "500m"
           limits:
             memory: "4Gi"
-            cpu: "1"
+            cpu: "2000m"
+        lifecycle:
+          postStart:
+            exec:
+              command:
+              - /bin/bash
+              - -c
+              - |
+                # Wait for SQL Server to be ready, then run initialization
+                sleep 60
+                until /opt/mssql-tools/bin/sqlcmd -S localhost -U SA -P "$SA_PASSWORD" -Q "SELECT 1" > /dev/null 2>&1; do
+                  echo "Waiting for SQL Server to start..."
+                  sleep 10
+                done
+                echo "SQL Server is ready, running initialization script..."
+                /opt/mssql-tools/bin/sqlcmd -S localhost -U SA -P "$SA_PASSWORD" -i /usr/config/init.sql
+                echo "Database initialization completed!"
+        startupProbe:
+          exec:
+            command:
+            - /bin/bash
+            - -c
+            - "/opt/mssql-tools/bin/sqlcmd -S localhost -U SA -P \"$SA_PASSWORD\" -Q \"SELECT 1\" || exit 1"
+          initialDelaySeconds: 60
+          periodSeconds: 10
+          timeoutSeconds: 5
+          failureThreshold: 30
         livenessProbe:
           exec:
             command:
             - /bin/bash
             - -c
-            - "/opt/mssql-tools/bin/sqlcmd -S localhost -U SA -P \"YourStrong@Password!\" -Q \"SELECT 1\" || exit 1"
-          initialDelaySeconds: 60
+            - "/opt/mssql-tools/bin/sqlcmd -S localhost -U SA -P \"$SA_PASSWORD\" -Q \"SELECT 1\" || exit 1"
+          initialDelaySeconds: 120
           periodSeconds: 30
           timeoutSeconds: 10
           failureThreshold: 3
@@ -181,39 +243,18 @@ spec:
             command:
             - /bin/bash
             - -c
-            - "/opt/mssql-tools/bin/sqlcmd -S localhost -U SA -P \"YourStrong@Password!\" -Q \"SELECT 1\" || exit 1"
-          initialDelaySeconds: 30
+            - "/opt/mssql-tools/bin/sqlcmd -S localhost -U SA -P \"$SA_PASSWORD\" -Q \"SELECT 1\" || exit 1"
+          initialDelaySeconds: 90
           periodSeconds: 10
           timeoutSeconds: 10
           failureThreshold: 3
-      initContainers:
-      - name: mssql-init
-        image: mcr.microsoft.com/mssql/server:2019-CU18-ubuntu-20.04
-        command:
-        - /bin/bash
-        - -c
-        - |
-          # Wait for SQL Server to be ready
-          until /opt/mssql-tools/bin/sqlcmd -S localhost -U SA -P "YourStrong@Password!" -Q "SELECT 1" > /dev/null 2>&1; do
-            echo "Waiting for SQL Server to start..."
-            sleep 5
-          done
-          echo "SQL Server is ready, running initialization script..."
-          /opt/mssql-tools/bin/sqlcmd -S localhost -U SA -P "YourStrong@Password!" -i /usr/config/init.sql
-        volumeMounts:
-        - name: mssql-data
-          mountPath: /var/opt/mssql
-        - name: init-scripts
-          mountPath: /usr/config
-        env:
-        - name: SA_PASSWORD
-          value: "YourStrong@Password!"
-        - name: ACCEPT_EULA
-          value: "Y"
       volumes:
       - name: mssql-data
         emptyDir:
-          sizeLimit: 10Gi
+          sizeLimit: 20Gi
+      - name: mssql-log
+        emptyDir:
+          sizeLimit: 5Gi
       - name: init-scripts
         configMap:
           name: mssql-init-scripts

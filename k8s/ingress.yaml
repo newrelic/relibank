@@ -33,11 +33,14 @@ spec:
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
-  name: relibank-services-ingress
+  name: relibank-ingress
   namespace: relibank
   annotations:
     nginx.ingress.kubernetes.io/rewrite-target: /$2
     nginx.ingress.kubernetes.io/ssl-redirect: "false"
+    nginx.ingress.kubernetes.io/cors-allow-origin: "*"
+    nginx.ingress.kubernetes.io/cors-allow-methods: "GET, POST, PUT, DELETE, OPTIONS"
+    nginx.ingress.kubernetes.io/cors-allow-headers: "DNT,User-Agent,X-Requested-With,If-Modified-Since,Cache-Control,Content-Type,Range,Authorization"
 spec:
   ingressClassName: nginx
   rules:
@@ -45,47 +48,68 @@ spec:
     http:
       paths:
       - path: /accounts(/|$)(.*)
-        pathType: ImplementationSpecific
+        pathType: Prefix
         backend:
           service:
             name: accounts-service
             port:
               number: 5000
       - path: /transactions(/|$)(.*)
-        pathType: ImplementationSpecific
+        pathType: Prefix
         backend:
           service:
             name: transaction-service
             port:
               number: 5000
-      - path: /billpay(/|$)(.*)
-        pathType: ImplementationSpecific
+      - path: /bill-pay(/|$)(.*)
+        pathType: Prefix
         backend:
           service:
             name: bill-pay-service
             port:
               number: 5000
+      - path: /notifications(/|$)(.*)
+        pathType: Prefix
+        backend:
+          service:
+            name: notifications-service
+            port:
+              number: 5000
+      - path: /scheduler(/|$)(.*)
+        pathType: Prefix
+        backend:
+          service:
+            name: scheduler-service
+            port:
+              number: 8080
   - host: localhost
     http:
       paths:
-      - path: /accounts(/|$)(.*)
-        pathType: ImplementationSpecific
+      - path: /api/accounts(/|$)(.*)
+        pathType: Prefix
         backend:
           service:
             name: accounts-service
             port:
               number: 5000
-      - path: /transactions(/|$)(.*)
-        pathType: ImplementationSpecific
+      - path: /api/transactions(/|$)(.*)
+        pathType: Prefix
         backend:
           service:
             name: transaction-service
             port:
               number: 5000
-      - path: /billpay(/|$)(.*)
-        pathType: ImplementationSpecific
+      - path: /api/bill-pay(/|$)(.*)
+        pathType: Prefix
         backend:
           service:
             name: bill-pay-service
+            port:
+              number: 5000
+      - path: /api/notifications(/|$)(.*)
+        pathType: Prefix
+        backend:
+          service:
+            name: notifications-service
             port:
               number: 5000

@@ -1,31 +1,34 @@
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 
-# Base resources
+# Base resources - referencing specific files to avoid circular dependency
 resources:
 - ../../namespace.yaml
 - ../../configmap.yaml
-- ../../secrets.yaml
-- ../../infrastructure
-- ../../databases
-- ../../services
+- ../../secrets-values.yaml
+- ../../infrastructure/kafka.yaml
+- ../../databases/databases.yaml
+- ../../services/relibank-services.yaml
 
 # Development environment customizations
-patchesStrategicMerge:
-- configmap-patch.yaml
-- resource-limits-patch.yaml
+patches:
+- path: configmap-patch.yaml
+  target:
+    kind: ConfigMap
+    name: relibank-config
+- path: resource-limits-patch.yaml
 
 # Add development-specific labels
-commonLabels:
-  environment: dev
-  managed-by: skaffold
+labels:
+- pairs:
+    environment: dev
+    managed-by: skaffold
 
 # Add development annotations
 commonAnnotations:
   deployment.env: development
-  skaffold.dev/run-id: "dev"
 
-# Image tag suffix for development
+# Image configurations for development
 images:
 - name: relibank/accounts-service
   newTag: dev
