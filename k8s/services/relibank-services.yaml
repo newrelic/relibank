@@ -18,6 +18,19 @@ spec:
         tier: application
         chaos-mesh.org/inject: enabled
     spec:
+      initContainers:
+      - name: wait-for-accounts-db
+        image: busybox:1.35
+        command:
+        - sh
+        - -c
+        - |
+          echo "Waiting for PostgreSQL accounts-db to be ready..."
+          until nc -z accounts-db.relibank.svc.cluster.local 5432; do
+            echo "PostgreSQL not ready yet, waiting..."
+            sleep 2
+          done
+          echo "PostgreSQL accounts-db is ready!"
       securityContext:
         runAsNonRoot: true
         runAsUser: 65534
@@ -125,6 +138,31 @@ spec:
         tier: application
         chaos-mesh.org/inject: enabled
     spec:
+      initContainers:
+      - name: wait-for-kafka
+        image: busybox:1.35
+        command:
+        - sh
+        - -c
+        - |
+          echo "Waiting for Kafka to be ready..."
+          until nc -z kafka.relibank.svc.cluster.local 29092; do
+            echo "Kafka not ready yet, waiting..."
+            sleep 2
+          done
+          echo "Kafka is ready!"
+      - name: wait-for-mssql
+        image: busybox:1.35
+        command:
+        - sh
+        - -c
+        - |
+          echo "Waiting for MSSQL to be ready..."
+          until nc -z mssql.relibank.svc.cluster.local 1433; do
+            echo "MSSQL not ready yet, waiting..."
+            sleep 2
+          done
+          echo "MSSQL is ready!"
       securityContext:
         runAsNonRoot: true
         runAsUser: 65534
@@ -222,6 +260,31 @@ spec:
         tier: application
         chaos-mesh.org/inject: enabled
     spec:
+      initContainers:
+      - name: wait-for-kafka
+        image: busybox:1.35
+        command:
+        - sh
+        - -c
+        - |
+          echo "Waiting for Kafka to be ready..."
+          until nc -z kafka.relibank.svc.cluster.local 29092; do
+            echo "Kafka not ready yet, waiting..."
+            sleep 2
+          done
+          echo "Kafka is ready!"
+      - name: wait-for-transaction-service
+        image: busybox:1.35
+        command:
+        - sh
+        - -c
+        - |
+          echo "Waiting for transaction-service to be ready..."
+          until nc -z transaction-service.relibank.svc.cluster.local 5000; do
+            echo "Transaction service not ready yet, waiting..."
+            sleep 2
+          done
+          echo "Transaction service is ready!"
       securityContext:
         runAsNonRoot: true
         runAsUser: 65534
@@ -430,6 +493,31 @@ spec:
         tier: application
         chaos-mesh.org/inject: enabled
     spec:
+      initContainers:
+      - name: wait-for-kafka
+        image: busybox:1.35
+        command:
+        - sh
+        - -c
+        - |
+          echo "Waiting for Kafka to be ready..."
+          until nc -z kafka.relibank.svc.cluster.local 29092; do
+            echo "Kafka not ready yet, waiting..."
+            sleep 2
+          done
+          echo "Kafka is ready!"
+      - name: wait-for-mssql
+        image: busybox:1.35
+        command:
+        - sh
+        - -c
+        - |
+          echo "Waiting for MSSQL to be ready..."
+          until nc -z mssql.relibank.svc.cluster.local 1433; do
+            echo "MSSQL not ready yet, waiting..."
+            sleep 2
+          done
+          echo "MSSQL is ready!"
       containers:
       - name: scheduler-service
         image: relibank/scheduler-service

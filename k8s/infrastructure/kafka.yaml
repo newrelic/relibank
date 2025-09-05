@@ -83,6 +83,19 @@ spec:
         tier: infrastructure
         chaos-mesh.org/inject: enabled
     spec:
+      initContainers:
+      - name: wait-for-zookeeper
+        image: busybox:1.35
+        command:
+        - sh
+        - -c
+        - |
+          echo "Waiting for ZooKeeper to be ready..."
+          until nc -z zookeeper.relibank.svc.cluster.local 2181; do
+            echo "ZooKeeper not ready yet, waiting..."
+            sleep 2
+          done
+          echo "ZooKeeper is ready!"
       containers:
       - name: kafka
         image: bitnami/kafka:3.5
