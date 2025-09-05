@@ -2,9 +2,14 @@ apiVersion: skaffold/v4beta13
 kind: Config
 metadata:
   name: relibank
+
 build:
+  tagPolicy:
+    sha256: {}
+  local:
+    useBuildkit: true
   artifacts:
-  - image: relibank/accounts-service
+  - image: accounts-service
     context: accounts_service
     docker:
       dockerfile: Dockerfile
@@ -12,7 +17,7 @@ build:
       manual:
       - src: "**/*.py"
         dest: /app
-  - image: relibank/transaction-service
+  - image: transaction-service
     context: transaction_service
     docker:
       dockerfile: Dockerfile
@@ -20,7 +25,7 @@ build:
       manual:
       - src: "**/*.py"
         dest: /app
-  - image: relibank/bill-pay-service
+  - image: bill-pay-service
     context: bill_pay
     docker:
       dockerfile: Dockerfile
@@ -28,7 +33,7 @@ build:
       manual:
       - src: "**/*.py"
         dest: /app
-  - image: relibank/notifications-service
+  - image: notifications-service
     context: notifications_service
     docker:
       dockerfile: Dockerfile
@@ -36,7 +41,7 @@ build:
       manual:
       - src: "**/*.py"
         dest: /app
-  - image: relibank/scheduler-service
+  - image: scheduler-service
     context: event_scheduler
     docker:
       dockerfile: Dockerfile
@@ -44,33 +49,36 @@ build:
       manual:
       - src: "**/*.py"
         dest: /app
-  tagPolicy:
-    sha256: {}
-  local:
-    useBuildkit: true
 
-# Manifests configuration - use Kustomize to handle image name mapping and CloudNativePG resources
+# Manifests configuration - use Kustomize to handle image name mapping and resources
 manifests:
   kustomize:
     paths:
     - "k8s"
 
 deploy:
-  statusCheckDeadlineSeconds: 600  # Increased for CloudNativePG cluster startup
+  kubectl:
+    hooks:
+      before:
+      - host:
+          command: ["echo", "🚀 Starting Relibank deployment"]
+          dir: "."
+      - host:
+          command: ["kubectl", "create", "namespace", "relibank", "--dry-run=client", "-o", "yaml"]
+          dir: "."
+      - host:
+          command: ["kubectl", "apply", "-f", "k8s/relibank-namespace.yaml"]
+          dir: "."
+      - host:
+          command: ["kubectl", "apply", "-f", "k8s/mssql-secret.yaml"]
+          dir: "."
+      - host:
+          command: ["echo", "🔐 MSSQL secret created, proceeding with deployment"]
+          dir: "."
+  statusCheckDeadlineSeconds: 600
   tolerateFailuresUntilDeadline: true
   logs:
     prefix: auto
-  hooks:
-    before:
-    - host:
-        command: ["kubectl", "apply", "-f", "https://raw.githubusercontent.com/cloudnative-pg/cloudnative-pg/release-1.24/releases/cnpg-1.24.0.yaml"]
-        dir: "."
-    - host:
-        command: ["kubectl", "wait", "--for=condition=Available", "deployment/cnpg-controller-manager", "-n", "cnpg-system", "--timeout=300s"]
-        dir: "."
-    - host:
-        command: ["echo", "🐘 CloudNativePG operator installed and ready"]
-        dir: "."
 
 # Port forwarding configuration
 portForward:
@@ -99,103 +107,5 @@ profiles:
   build:
     local:
       push: false
-      useDockerCLI: true
-    tagPolicy:
-      envTemplate:
-        template: "{{.IMAGE_NAME}}:local-{{.SHA}}"
-  patches:
-  - op: replace
-    path: /build/local/useBuildkit
-    value: false
-  activation:
-  - env: SKAFFOLD_PROFILE=local
-
-# ===========================================
-# DEBUG PROFILE
-# ===========================================
-- name: debug
-  patches:
-  - op: add
-    path: /build/artifacts/0/docker/buildArgs/DEBUG
-    value: "true"
-  - op: add
-    path: /build/artifacts/1/docker/buildArgs/DEBUG
-    value: "true"
-  - op: add
-    path: /build/artifacts/2/docker/buildArgs/DEBUG
-    value: "true"
-  - op: add
-    path: /build/artifacts/3/docker/buildArgs/DEBUG
-    value: "true"
-  - op: add
-    path: /build/artifacts/4/docker/buildArgs/DEBUG
-    value: "true"
-  activation:
-  - command: debug
-
-# ===========================================
-# CHAOS MESH SETUP (INFRASTRUCTURE + EXPERIMENTS)
-# ===========================================
-- name: chaos-mesh
-  build:
-    artifacts: [] # No builds needed
   deploy:
-    statusCheckDeadlineSeconds: 600
-    helm:
-      releases:
-      - name: chaos-mesh
-        remoteChart: chaos-mesh
-        repo: https://charts.chaos-mesh.org
-        namespace: chaos-system
-        createNamespace: true
-        version: "2.7.2"
-        setValues:
-          chaosDaemon.runtime: containerd
-          chaosDaemon.socketPath: /run/containerd/containerd.sock
-          dashboard.securityMode: false
-          dashboard.create: true
-          controllerManager.replicaCount: 1
-          controllerManager.chaosdSecurityMode: false
-        wait: true
-      hooks:
-        after:
-        - host:
-            command: ["kubectl", "wait", "--for=condition=Ready", "pods", "-l", "app.kubernetes.io/name=chaos-mesh", "-n", "chaos-system", "--timeout=300s"]
-            dir: "."
-        - host:
-            command: ["kubectl", "wait", "--for=condition=Established", "crd", "podchaos.chaos-mesh.org", "--timeout=120s"]
-            dir: "."
-        - host:
-            command: ["kubectl", "wait", "--for=condition=Established", "crd", "networkchaos.chaos-mesh.org", "--timeout=120s"]
-            dir: "."
-        - host:
-            command: ["kubectl", "wait", "--for=condition=Established", "crd", "iochaos.chaos-mesh.org", "--timeout=120s"]
-            dir: "."
-        - host:
-            command: ["kubectl", "wait", "--for=condition=Established", "crd", "stresschaos.chaos-mesh.org", "--timeout=120s"]
-            dir: "."
-        - host:
-            command: ["kubectl", "wait", "--for=condition=Established", "crd", "workflows.chaos-mesh.org", "--timeout=120s"]
-            dir: "."
-        - host:
-            command: ["echo", "🔬 Chaos Mesh infrastructure ready!"]
-            dir: "."
-        # Deploy chaos experiments after infrastructure is ready
-        - host:
-            command: ["kubectl", "apply", "-f", "chaos_mesh/experiments/"]
-            dir: "."
-        - host:
-            command: ["echo", "🧪 Chaos experiments deployed!"]
-            dir: "."
-        - host:
-            command: ["echo", "🎯 Chaos Dashboard available at: http://localhost:2333"]
-            dir: "."
-  # Port forwarding for chaos dashboard
-  portForward:
-  - resourceType: service
-    resourceName: chaos-dashboard
-    namespace: chaos-system
-    port: 2333
-    localPort: 2333
-  activation:
-  - command: chaos-mesh
+    kubectl: {}

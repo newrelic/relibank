@@ -16,49 +16,55 @@ spec:
       labels:
         app: mssql
     spec:
-      terminationGracePeriodSeconds: 60
+      securityContext:
+        fsGroup: 10001
       containers:
+      - name: mssql
+        image: mcr.microsoft.com/mssql/server:2022-latest
+        ports:
+        - containerPort: 1433
+          name: tcpsql
+        env:
+        - name: ACCEPT_EULA
+          value: "Y"
+        - name: MSSQL_ENABLE_HADR
+          value: "1"
+        - name: MSSQL_AGENT_ENABLED
+          value: "1"
+        - name: MSSQL_SA_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: mssql-secret
+              key: SA_PASSWORD
+        resources:
+          requests:
+            memory: "2Gi"
+            cpu: "1000m"
+          limits:
+            memory: "2Gi"
+            cpu: "1000m"
+        volumeMounts:
         - name: mssql
-          image: mcr.microsoft.com/mssql/server:2019-latest
-          ports:
-            - containerPort: 1433
-              name: mssql
-          env:
-            - name: ACCEPT_EULA
-              value: "Y"
-            - name: SA_PASSWORD
-              value: YourStrong@Password!
-            - name: MSSQL_PID
-              value: "Express"
-          resources:
-            requests:
-              memory: "2Gi"
-              cpu: "1000m"
-            limits:
-              memory: "4Gi"
-              cpu: "2000m"
-          livenessProbe:
-            tcpSocket:
-              port: 1433
-            initialDelaySeconds: 60
-            periodSeconds: 30
-            timeoutSeconds: 10
-            failureThreshold: 3
-          readinessProbe:
-            tcpSocket:
-              port: 1433
-            initialDelaySeconds: 30
-            periodSeconds: 10
-            timeoutSeconds: 5
-            failureThreshold: 3
-          volumeMounts:
-            - name: mssql-data
-              mountPath: /var/opt/mssql
+          mountPath: "/var/opt/mssql"
+        livenessProbe:
+          tcpSocket:
+            port: 1433
+          initialDelaySeconds: 45
+          periodSeconds: 20
+          timeoutSeconds: 10
+        readinessProbe:
+          tcpSocket:
+            port: 1433
+          initialDelaySeconds: 30
+          periodSeconds: 10
+          timeoutSeconds: 5
+      terminationGracePeriodSeconds: 30
   volumeClaimTemplates:
   - metadata:
-      name: mssql-data
+      name: mssql
     spec:
-      accessModes: [ "ReadWriteOnce" ]
+      accessModes:
+      - ReadWriteOnce
       resources:
         requests:
-          storage: 10Gi
+          storage: 8Gi

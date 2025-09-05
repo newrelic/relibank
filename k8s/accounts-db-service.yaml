@@ -5,7 +5,7 @@ metadata:
     kompose.cmd: kompose convert --namespace relibank --out k8s/
     kompose.version: 1.37.0 (HEAD)
   labels:
-    io.kompose.service: accounts-db
+    app: accounts-db
   name: accounts-db
   namespace: relibank
 spec:
@@ -13,5 +13,7 @@ spec:
     - name: "5432"
       port: 5432
       targetPort: 5432
+      protocol: TCP
   selector:
-    io.kompose.service: accounts-db
+    app: accounts-db
+  type: ClusterIP

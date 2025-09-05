@@ -5,58 +5,61 @@ metadata:
     kompose.cmd: kompose convert --namespace relibank --out k8s/
     kompose.version: 1.37.0 (HEAD)
   labels:
-    io.kompose.service: accounts-db
+    app: accounts-db
   name: accounts-db
   namespace: relibank
 spec:
   replicas: 1
   selector:
     matchLabels:
-      io.kompose.service: accounts-db
-  strategy:
-    type: Recreate
+      app: accounts-db
   template:
     metadata:
-      annotations:
-        kompose.cmd: kompose convert --namespace relibank --out k8s/
-        kompose.version: 1.37.0 (HEAD)
       labels:
-        io.kompose.service: accounts-db
+        app: accounts-db
     spec:
       containers:
         - env:
             - name: POSTGRES_DB
               value: accountsdb
             - name: POSTGRES_PASSWORD
-              value: your_password
+              valueFrom:
+                secretKeyRef:
+                  key: password
+                  name: accounts-db-credentials
             - name: POSTGRES_USER
-              value: postgres
+              valueFrom:
+                secretKeyRef:
+                  key: username
+                  name: accounts-db-credentials
+            - name: PGDATA
+              value: /var/lib/postgresql/data/pgdata
           image: postgres:15
           livenessProbe:
             exec:
               command:
-                - pg_isready -U postgres -d accountsdb && PGPASSWORD=your_password psql -U postgres -d accountsdb -c 'SELECT 1 FROM user_account'
-            failureThreshold: 5
-            periodSeconds: 10
+                - pg_isready
+                - -U
+                - postgres
+            initialDelaySeconds: 30
             timeoutSeconds: 5
           name: accounts-db
           ports:
             - containerPort: 5432
               protocol: TCP
+          readinessProbe:
+            exec:
+              command:
+                - pg_isready
+                - -U
+                - postgres
+            initialDelaySeconds: 5
+            timeoutSeconds: 1
           volumeMounts:
             - mountPath: /var/lib/postgresql/data
-              name: accounts-data
-            - mountPath: /docker-entrypoint-initdb.d/init.sql
-              name: accounts-db-cm1
-              subPath: init.sql
+              name: postgres-storage
       restartPolicy: Always
       volumes:
-        - name: accounts-data
+        - name: postgres-storage
           persistentVolumeClaim:
             claimName: accounts-data
-        - configMap:
-            items:
-              - key: init.sql
-                path: init.sql
-            name: accounts-db-cm1
-          name: accounts-db-cm1
