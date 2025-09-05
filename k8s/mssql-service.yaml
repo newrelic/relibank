@@ -6,7 +6,7 @@ metadata:
   labels:
     app: mssql
 spec:
-  clusterIP: None  # Headless service for StatefulSet
+  type: ClusterIP  # Regular ClusterIP service instead of headless
   selector:
     app: mssql
   ports:

@@ -13,7 +13,7 @@ resources:
 - accounts-db-cm1-configmap.yaml
 - mssql-init-cm0-configmap.yaml
 
-# Persistent Volume Claims
+# Persistent Volume Claims (only for accounts-db, mssql uses volumeClaimTemplates)
 - accounts-data-persistentvolumeclaim.yaml
 - mssql-data-persistentvolumeclaim.yaml
 
