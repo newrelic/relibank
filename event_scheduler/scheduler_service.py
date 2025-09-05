@@ -3,10 +3,9 @@ import os
 import json
 import logging
 import time
+import pyodbc
 from datetime import datetime
 from aiokafka import AIOKafkaProducer
-from sqlalchemy import create_engine, text
-from sqlalchemy.exc import SQLAlchemyError
 
 # Configure logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
@@ -17,9 +16,9 @@ DB_DATABASE = os.getenv("DB_DATABASE", "RelibankDB")
 DB_USERNAME = os.getenv("DB_USERNAME", "SA")
 DB_PASSWORD = os.getenv("DB_PASSWORD", "YourStrong@Password!")
 
-# SQLAlchemy connection string for pymssql (no ODBC drivers needed)
-CONNECTION_STRING = f"mssql+pymssql://{DB_USERNAME}:{DB_PASSWORD}@{DB_SERVER}/{DB_DATABASE}"
-CONNECTION_STRING_MASTER = f"mssql+pymssql://{DB_USERNAME}:{DB_PASSWORD}@{DB_SERVER}/master"
+# pyodbc connection string for SQL Server
+CONNECTION_STRING = f"DRIVER={{ODBC Driver 18 for SQL Server}};SERVER={DB_SERVER};DATABASE={DB_DATABASE};UID={DB_USERNAME};PWD={DB_PASSWORD};TrustServerCertificate=yes"
+CONNECTION_STRING_MASTER = f"DRIVER={{ODBC Driver 18 for SQL Server}};SERVER={DB_SERVER};DATABASE=master;UID={DB_USERNAME};PWD={DB_PASSWORD};TrustServerCertificate=yes"
 
 # TODO "you have an upcoming payment due in 2 days", track future payment dates
 
@@ -33,10 +32,9 @@ def get_db_connection():
     This function is now a simple wrapper for pyodbc.connect.
     """
     try:
-        engine = create_engine(CONNECTION_STRING)
-        connection = engine.raw_connection()
+        cnxn = pyodbc.connect(CONNECTION_STRING)
         logging.info("Successfully connected to MSSQL database.")
-        return connection
+        return cnxn
     except Exception as e:
         raise ConnectionError(f"Failed to connect to {DB_DATABASE} database: {e}")
 
@@ -58,11 +56,11 @@ async def check_and_trigger_payments():
             today_str = datetime.now().strftime('%Y-%m-%d')
             logging.info(f"Checking for recurring payments due today: {today_str}")
 
-            cursor.execute(text("""
+            cursor.execute("""
                            SELECT BillID, Amount, Currency, AccountID
                            FROM Transactions
-                           WHERE EventType = 'RecurringPaymentScheduled' AND StartDate = :today_str
-                           """), {"today_str": today_str})
+                           WHERE EventType = 'RecurringPaymentScheduled' AND StartDate = ?
+                           """, today_str)
 
             for row in cursor.fetchall():
                 billId, amount, currency, accountId = row
@@ -97,16 +95,17 @@ async def main():
     for i in range(retries):
         try:
             logging.info(f"Attempting to connect to 'master' database (attempt {i+1}/{retries})...")
-            cnxn_master = create_engine(CONNECTION_STRING_MASTER)
-            with cnxn_master.connect() as connection:
-                result = connection.execute(text(f"SELECT name FROM sys.databases WHERE name = '{DB_DATABASE}'"))
-                if result.fetchone():
-                    db_connection = get_db_connection()
-                    break
-                else:
-                    logging.warning(f"Database '{DB_DATABASE}' not yet created. Retrying in {delay} seconds...")
-                    time.sleep(delay)
-                    delay *= 1.5
+            cnxn_master = pyodbc.connect(CONNECTION_STRING_MASTER)
+            cursor = cnxn_master.cursor()
+            cursor.execute(f"SELECT name FROM sys.databases WHERE name = '{DB_DATABASE}'")
+            if cursor.fetchone():
+                cnxn_master.close()
+                db_connection = get_db_connection()
+                break
+            else:
+                logging.warning(f"Database '{DB_DATABASE}' not yet created. Retrying in {delay} seconds...")
+                time.sleep(delay)
+                delay *= 1.5
         except Exception as e:
             logging.error(f"Master database connection error: {e}. Retrying in {delay} seconds...")
             time.sleep(delay)

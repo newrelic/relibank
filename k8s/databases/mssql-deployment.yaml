@@ -35,7 +35,7 @@ spec:
           valueFrom:
             secretKeyRef:
               name: mssql-secret
-              key: SA_PASSWORD
+              key: MSSQL_SA_PASSWORD
         resources:
           requests:
             memory: "2Gi"

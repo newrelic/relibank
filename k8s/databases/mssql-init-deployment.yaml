@@ -1,50 +1,33 @@
-apiVersion: apps/v1
-kind: Deployment
+apiVersion: batch/v1
+kind: Job
 metadata:
-  annotations:
-    kompose.cmd: kompose convert --namespace relibank --out k8s/
-    kompose.version: 1.37.0 (HEAD)
-  labels:
-    io.kompose.service: mssql-init
   name: mssql-init
   namespace: relibank
+  labels:
+    app: mssql-init
 spec:
-  replicas: 1
-  selector:
-    matchLabels:
-      io.kompose.service: mssql-init
-  strategy:
-    type: Recreate
   template:
     metadata:
-      annotations:
-        kompose.cmd: kompose convert --namespace relibank --out k8s/
-        kompose.version: 1.37.0 (HEAD)
       labels:
-        io.kompose.service: mssql-init
+        app: mssql-init
     spec:
+      restartPolicy: Never
       containers:
-        - args:
-            - /opt/mssql-tools/bin/sqlcmd
-            - -S
-            - mssql
-            - -U
-            - SA
-            - -P
-            - YourStrong@Password!
-            - -i
-            - /usr/config/init.sql
-          image: mcr.microsoft.com/mssql/server:2019-CU18-ubuntu-20.04
-          name: mssql-init
-          volumeMounts:
-            - mountPath: /usr/config/init.sql
-              name: mssql-init-cm0
-              subPath: init.sql
-      restartPolicy: Always
+      - name: mssql-init
+        image: mcr.microsoft.com/mssql/server:2022-latest
+        command: ["/bin/bash"]
+        args: ["-c", "sleep 30 && /opt/mssql-tools/bin/sqlcmd -S mssql -U SA -P $SA_PASSWORD -i /usr/config/init.sql"]
+        env:
+        - name: SA_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: mssql-secret
+              key: MSSQL_SA_PASSWORD
+        volumeMounts:
+        - name: init-script
+          mountPath: /usr/config/init.sql
+          subPath: init.sql
       volumes:
-        - configMap:
-            items:
-              - key: init.sql
-                path: init.sql
-            name: mssql-init-cm0
+      - name: init-script
+        configMap:
           name: mssql-init-cm0
