@@ -1,0 +1,41 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  annotations:
+    kompose.cmd: kompose convert --namespace relibank --out k8s/
+    kompose.version: 1.37.0 (HEAD)
+  labels:
+    io.kompose.service: scheduler-service
+  name: scheduler-service
+  namespace: relibank
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      io.kompose.service: scheduler-service
+  template:
+    metadata:
+      annotations:
+        kompose.cmd: kompose convert --namespace relibank --out k8s/
+        kompose.version: 1.37.0 (HEAD)
+      labels:
+        io.kompose.service: scheduler-service
+    spec:
+      containers:
+        - args:
+            - python
+            - scheduler_service.py
+          env:
+            - name: KAFKA_BROKER
+              value: kafka:29092
+            - name: DB_SERVER
+              value: mssql
+            - name: DB_DATABASE
+              value: RelibankDB
+            - name: DB_USERNAME
+              value: SA
+            - name: DB_PASSWORD
+              value: YourStrong@Password!
+          image: scheduler-service
+          name: scheduler-service
+      restartPolicy: Always

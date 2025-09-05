@@ -1,0 +1,17 @@
+apiVersion: v1
+kind: Service
+metadata:
+  annotations:
+    kompose.cmd: kompose convert --namespace relibank --out k8s/
+    kompose.version: 1.37.0 (HEAD)
+  labels:
+    io.kompose.service: transaction-service
+  name: transaction-service
+  namespace: relibank
+spec:
+  ports:
+    - name: "5001"
+      port: 5001
+      targetPort: 5000
+  selector:
+    io.kompose.service: transaction-service

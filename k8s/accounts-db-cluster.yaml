@@ -1,0 +1,53 @@
+apiVersion: postgresql.cnpg.io/v1
+kind: Cluster
+metadata:
+  name: accounts-db
+  namespace: relibank
+  labels:
+    app: accounts-db
+spec:
+  instances: 3
+
+  postgresql:
+    parameters:
+      # Optimize for small cluster
+      shared_buffers: "128MB"
+      max_connections: "100"
+      # Enable logging for debugging
+      log_statement: "all"
+      log_min_duration_statement: "1000"
+
+  # Use the official PostgreSQL image
+  imageName: ghcr.io/cloudnative-pg/postgresql:15
+
+  # Database initialization
+  bootstrap:
+    initdb:
+      database: accountsdb
+      owner: postgres
+      secret:
+        name: accounts-db-credentials
+      postInitSQL:
+        - "CREATE TABLE IF NOT EXISTS user_account (id SERIAL PRIMARY KEY, username VARCHAR(50) UNIQUE NOT NULL, email VARCHAR(100) UNIQUE NOT NULL, password_hash VARCHAR(255) NOT NULL, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP);"
+
+  # Storage configuration
+  storage:
+    size: 5Gi
+    storageClass: standard
+
+  # Resource management
+  resources:
+    requests:
+      memory: "512Mi"
+      cpu: "500m"
+    limits:
+      memory: "1Gi"
+      cpu: "1000m"
+
+  # Monitoring
+  monitoring:
+    enablePodMonitor: true
+
+  # High availability settings
+  minSyncReplicas: 1
+  maxSyncReplicas: 2

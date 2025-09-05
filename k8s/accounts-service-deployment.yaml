@@ -1,0 +1,39 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  annotations:
+    kompose.cmd: kompose convert --namespace relibank --out k8s/
+    kompose.version: 1.37.0 (HEAD)
+  labels:
+    io.kompose.service: accounts-service
+  name: accounts-service
+  namespace: relibank
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      io.kompose.service: accounts-service
+  template:
+    metadata:
+      annotations:
+        kompose.cmd: kompose convert --namespace relibank --out k8s/
+        kompose.version: 1.37.0 (HEAD)
+      labels:
+        io.kompose.service: accounts-service
+    spec:
+      containers:
+        - env:
+            - name: DB_HOST
+              value: accounts-db
+            - name: DB_NAME
+              value: accountsdb
+            - name: DB_PASSWORD
+              value: your_password
+            - name: DB_USER
+              value: postgres
+          image: accounts-service
+          name: accounts-service
+          ports:
+            - containerPort: 5000
+              protocol: TCP
+      restartPolicy: Always

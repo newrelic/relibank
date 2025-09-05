@@ -1,0 +1,54 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  annotations:
+    kompose.cmd: kompose convert --namespace relibank --out k8s/
+    kompose.version: 1.37.0 (HEAD)
+  labels:
+    io.kompose.service: transaction-service
+  name: transaction-service
+  namespace: relibank
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      io.kompose.service: transaction-service
+  template:
+    metadata:
+      annotations:
+        kompose.cmd: kompose convert --namespace relibank --out k8s/
+        kompose.version: 1.37.0 (HEAD)
+      labels:
+        io.kompose.service: transaction-service
+    spec:
+      containers:
+        - args:
+            - sh
+            - -c
+            - uvicorn transaction_service:app --host 0.0.0.0 --port 5000 --workers 1 --log-level error
+          env:
+            - name: DB_DATABASE
+              value: RelibankDB
+            - name: DB_PASSWORD
+              value: YourStrong@Password!
+            - name: DB_SERVER
+              value: mssql
+            - name: DB_USERNAME
+              value: SA
+            - name: KAFKA_BROKER
+              value: kafka:29092
+          image: transaction-service
+          livenessProbe:
+            exec:
+              command:
+                - curl
+                - -f
+                - http://localhost:5000/health
+            failureThreshold: 5
+            periodSeconds: 10
+            timeoutSeconds: 5
+          name: transaction-service
+          ports:
+            - containerPort: 5000
+              protocol: TCP
+      restartPolicy: Always

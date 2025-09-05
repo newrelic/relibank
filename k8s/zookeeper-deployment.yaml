@@ -1,0 +1,36 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  annotations:
+    kompose.cmd: kompose convert --namespace relibank --out k8s/
+    kompose.version: 1.37.0 (HEAD)
+  labels:
+    io.kompose.service: zookeeper
+  name: zookeeper
+  namespace: relibank
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      io.kompose.service: zookeeper
+  template:
+    metadata:
+      annotations:
+        kompose.cmd: kompose convert --namespace relibank --out k8s/
+        kompose.version: 1.37.0 (HEAD)
+      labels:
+        io.kompose.service: zookeeper
+    spec:
+      containers:
+        - env:
+            - name: ALLOW_ANONYMOUS_LOGIN
+              value: "yes"
+            - name: ZOO_MY_ID
+              value: "1"
+          image: bitnami/zookeeper:3.8
+          name: zookeeper
+          ports:
+            - containerPort: 2181
+              protocol: TCP
+      hostname: zookeeper
+      restartPolicy: Always

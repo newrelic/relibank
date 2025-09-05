@@ -1,0 +1,40 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  annotations:
+    kompose.cmd: kompose convert --namespace relibank --out k8s/
+    kompose.version: 1.37.0 (HEAD)
+  labels:
+    io.kompose.service: notifications-service
+  name: notifications-service
+  namespace: relibank
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      io.kompose.service: notifications-service
+  template:
+    metadata:
+      annotations:
+        kompose.cmd: kompose convert --namespace relibank --out k8s/
+        kompose.version: 1.37.0 (HEAD)
+      labels:
+        io.kompose.service: notifications-service
+    spec:
+      containers:
+        - args:
+            - python
+            - notifications_service.py
+          env:
+            - name: AZURE_ACS_CONNECTION_STRING
+            - name: AZURE_ACS_EMAIL_ENDPOINT
+              value: https://your-acs-resource-name.azurecomm.net
+            - name: AZURE_ACS_EMAIL_SENDER
+              value: DoNotReply@xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx.azurecomm.net
+            - name: AZURE_ACS_SMS_PHONE_NUMBER
+              value: "+15551234567"
+            - name: KAFKA_BROKER
+              value: kafka:29092
+          image: notifications-service
+          name: notifications-service
+      restartPolicy: Always

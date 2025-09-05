@@ -1,4 +1,4 @@
-apiVersion: skaffold/v2beta28
+apiVersion: skaffold/v4beta13
 kind: Config
 metadata:
   name: relibank
@@ -48,35 +48,47 @@ build:
     sha256: {}
   local:
     useBuildkit: true
-deploy:
+
+# Manifests configuration - use Kustomize to handle image name mapping and CloudNativePG resources
+manifests:
   kustomize:
     paths:
-    - k8s/overlays/dev
-    buildArgs:
-    - --load-restrictor=LoadRestrictionsNone
+    - "k8s"
+
+deploy:
+  statusCheckDeadlineSeconds: 600  # Increased for CloudNativePG cluster startup
+  tolerateFailuresUntilDeadline: true
+  logs:
+    prefix: auto
+  hooks:
+    before:
+    - host:
+        command: ["kubectl", "apply", "-f", "https://raw.githubusercontent.com/cloudnative-pg/cloudnative-pg/release-1.24/releases/cnpg-1.24.0.yaml"]
+        dir: "."
+    - host:
+        command: ["kubectl", "wait", "--for=condition=Available", "deployment/cnpg-controller-manager", "-n", "cnpg-system", "--timeout=300s"]
+        dir: "."
+    - host:
+        command: ["echo", "🐘 CloudNativePG operator installed and ready"]
+        dir: "."
 
 # Port forwarding configuration
 portForward:
 - resourceType: service
   resourceName: accounts-service
   namespace: relibank
-  port: 5000
+  port: 5002
   localPort: 5002
 - resourceType: service
   resourceName: transaction-service
   namespace: relibank
-  port: 5000
+  port: 5001
   localPort: 5001
 - resourceType: service
   resourceName: bill-pay-service
   namespace: relibank
   port: 5000
   localPort: 5000
-- resourceType: service
-  resourceName: notifications-service
-  namespace: relibank
-  port: 5000
-  localPort: 5003
 
 # Multiple profiles for different environments and use cases
 profiles:
@@ -122,10 +134,13 @@ profiles:
   - command: debug
 
 # ===========================================
-# CHAOS INFRASTRUCTURE PROFILE
+# CHAOS MESH SETUP (INFRASTRUCTURE + EXPERIMENTS)
 # ===========================================
-- name: chaos-infra
+- name: chaos-mesh
+  build:
+    artifacts: [] # No builds needed
   deploy:
+    statusCheckDeadlineSeconds: 600
     helm:
       releases:
       - name: chaos-mesh
@@ -140,14 +155,12 @@ profiles:
           dashboard.securityMode: false
           dashboard.create: true
           controllerManager.replicaCount: 1
+          controllerManager.chaosdSecurityMode: false
         wait: true
       hooks:
         after:
         - host:
             command: ["kubectl", "wait", "--for=condition=Ready", "pods", "-l", "app.kubernetes.io/name=chaos-mesh", "-n", "chaos-system", "--timeout=300s"]
-            dir: "."
-        - host:
-            command: ["sleep", "10"]
             dir: "."
         - host:
             command: ["kubectl", "wait", "--for=condition=Established", "crd", "podchaos.chaos-mesh.org", "--timeout=120s"]
@@ -165,29 +178,24 @@ profiles:
             command: ["kubectl", "wait", "--for=condition=Established", "crd", "workflows.chaos-mesh.org", "--timeout=120s"]
             dir: "."
         - host:
-            command: ["echo", "🔬 Chaos Mesh infrastructure ready! Dashboard: http://localhost:2333"]
+            command: ["echo", "🔬 Chaos Mesh infrastructure ready!"]
             dir: "."
+        # Deploy chaos experiments after infrastructure is ready
+        - host:
+            command: ["kubectl", "apply", "-f", "chaos_mesh/experiments/"]
+            dir: "."
+        - host:
+            command: ["echo", "🧪 Chaos experiments deployed!"]
+            dir: "."
+        - host:
+            command: ["echo", "🎯 Chaos Dashboard available at: http://localhost:2333"]
+            dir: "."
+  # Port forwarding for chaos dashboard
+  portForward:
+  - resourceType: service
+    resourceName: chaos-dashboard
+    namespace: chaos-system
+    port: 2333
+    localPort: 2333
   activation:
-  - command: chaos-infra
-
----
-apiVersion: skaffold/v2beta28
-kind: Config
-metadata:
-  name: relibank-chaos
-requires:
-- configs:
-  - relibank
-deploy:
-  kubectl:
-    manifests:
-    - chaos_mesh/experiments/*.yaml
-    hooks:
-      before:
-      - host:
-          command: ["kubectl", "get", "crd", "podchaos.chaos-mesh.org"]
-          dir: "."
-      after:
-      - host:
-          command: ["echo", "🧪 Chaos experiments deployed!"]
-          dir: "."
+  - command: chaos-mesh

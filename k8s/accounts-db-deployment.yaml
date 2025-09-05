@@ -1,0 +1,62 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  annotations:
+    kompose.cmd: kompose convert --namespace relibank --out k8s/
+    kompose.version: 1.37.0 (HEAD)
+  labels:
+    io.kompose.service: accounts-db
+  name: accounts-db
+  namespace: relibank
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      io.kompose.service: accounts-db
+  strategy:
+    type: Recreate
+  template:
+    metadata:
+      annotations:
+        kompose.cmd: kompose convert --namespace relibank --out k8s/
+        kompose.version: 1.37.0 (HEAD)
+      labels:
+        io.kompose.service: accounts-db
+    spec:
+      containers:
+        - env:
+            - name: POSTGRES_DB
+              value: accountsdb
+            - name: POSTGRES_PASSWORD
+              value: your_password
+            - name: POSTGRES_USER
+              value: postgres
+          image: postgres:15
+          livenessProbe:
+            exec:
+              command:
+                - pg_isready -U postgres -d accountsdb && PGPASSWORD=your_password psql -U postgres -d accountsdb -c 'SELECT 1 FROM user_account'
+            failureThreshold: 5
+            periodSeconds: 10
+            timeoutSeconds: 5
+          name: accounts-db
+          ports:
+            - containerPort: 5432
+              protocol: TCP
+          volumeMounts:
+            - mountPath: /var/lib/postgresql/data
+              name: accounts-data
+            - mountPath: /docker-entrypoint-initdb.d/init.sql
+              name: accounts-db-cm1
+              subPath: init.sql
+      restartPolicy: Always
+      volumes:
+        - name: accounts-data
+          persistentVolumeClaim:
+            claimName: accounts-data
+        - configMap:
+            items:
+              - key: init.sql
+                path: init.sql
+            name: accounts-db-cm1
+          name: accounts-db-cm1

@@ -1,0 +1,41 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: relibank
+
+resources:
+  - relibank-namespace.yaml
+  - zookeeper-deployment.yaml
+  - zookeeper-service.yaml
+  - accounts-db-credentials-secret.yaml
+  - accounts-db-cluster.yaml
+  - accounts-service-deployment.yaml
+  - accounts-service-service.yaml
+  - transaction-service-deployment.yaml
+  - transaction-service-service.yaml
+  - bill-pay-service-deployment.yaml
+  - bill-pay-service-service.yaml
+  - notifications-service-deployment.yaml
+  - notifications-service-service.yaml
+  - scheduler-service-deployment.yaml
+  - scheduler-service-service.yaml
+  - mssql-data-persistentvolumeclaim.yaml
+  - mssql-deployment.yaml
+  - mssql-service.yaml
+  - mssql-init-deployment.yaml
+  - mssql-init-cm0-configmap.yaml
+  - kafka-deployment.yaml
+  - kafka-service.yaml
+
+# Map bare image names to the relibank/ prefixed names that Skaffold builds
+images:
+  - name: accounts-service
+    newName: relibank/accounts-service
+  - name: transaction-service
+    newName: relibank/transaction-service
+  - name: bill-pay-service
+    newName: relibank/bill-pay-service
+  - name: notifications-service
+    newName: relibank/notifications-service
+  - name: scheduler-service
+    newName: relibank/scheduler-service

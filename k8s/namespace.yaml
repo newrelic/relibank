@@ -1,8 +1,0 @@
-apiVersion: v1
-kind: Namespace
-metadata:
-  name: relibank
-  labels:
-    name: relibank
-    chaos-mesh.org/inject: enabled
-    kubernetes.io/metadata.name: relibank
