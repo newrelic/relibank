@@ -28,11 +28,15 @@ ENV NEW_RELIC_DISTRIBUTED_TRACING_ENABLED=true
 
 # ENV NEW_RELIC_CONFIG_FILE="newrelic.ini"
 
-COPY . .
+# Copy the dependency management file into the container
+COPY pyproject.toml .
 
 # Install Python dependencies
 # RUN pip install --no-cache-dir -r requirements.txt
-RUN pip install -U pip && pip install uv && uv sync
+RUN pip install uv && uv sync
+
+# Copy the application code file
+COPY bill_pay_service.py .
 
 # Expose the port the FastAPI app will run on
 EXPOSE 5000

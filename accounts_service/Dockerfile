@@ -23,11 +23,15 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libpq-dev \
     gcc
 
-COPY . .
+# Copy the dependency management file into the container
+COPY pyproject.toml .
 
 # Install Python dependencies
 # RUN pip install --no-cache-dir -r requirements.txt
-RUN pip install -U pip && pip install uv && uv sync
+RUN pip install uv && uv sync
+
+# Copy the application code file
+COPY accounts_service.py .
 
 # Expose the port the FastAPI app will run on
 EXPOSE 5000
