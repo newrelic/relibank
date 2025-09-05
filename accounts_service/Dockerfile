@@ -4,22 +4,33 @@ FROM python:3.12-slim
 # Set the working directory in the container
 WORKDIR /app
 
+ARG NEW_RELIC_APP_NAME="Jared - Accounts Service"
+ENV NEW_RELIC_APP_NAME=$NEW_RELIC_APP_NAME
+
+ARG NEW_RELIC_USER_API_KEY
+ENV NEW_RELIC_API_KEY=$NEW_RELIC_USER_API_KEY
+
+ARG NEW_RELIC_ACCOUNT_ID
+ENV NEW_RELIC_ACCOUNT_ID=$NEW_RELIC_ACCOUNT_ID
+
+ARG NEW_RELIC_LICENSE_KEY
+ENV NEW_RELIC_LICENSE_KEY=$NEW_RELIC_LICENSE_KEY
+
+ENV NEW_RELIC_DISTRIBUTED_TRACING_ENABLED=true
+
 # Install build dependencies required for psycopg2-binary
 RUN apt-get update && apt-get install -y --no-install-recommends \
     libpq-dev \
     gcc
 
-# Copy the requirements file into the container
-COPY requirements.txt .
+COPY . .
 
 # Install Python dependencies
-RUN pip install --no-cache-dir -r requirements.txt
-
-# Copy the application code file
-COPY accounts_service.py .
+# RUN pip install --no-cache-dir -r requirements.txt
+RUN pip install -U pip && pip install uv && uv sync
 
 # Expose the port the FastAPI app will run on
 EXPOSE 5000
 
 # Command to run the application using Uvicorn
-CMD ["uvicorn", "accounts_service:app", "--host", "0.0.0.0", "--port", "5000", "--workers", "1"]
+CMD ["uv", "run", "newrelic-admin", "run-program", "uvicorn", "accounts_service:app", "--host", "0.0.0.0", "--port", "5000", "--workers", "1"]

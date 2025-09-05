@@ -11,8 +11,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 
 # New Relic environment variables, these will be overwritten by the ini if they're defined in both places
-# ARG NEW_RELIC_APP_NAME="Bill Pay Service - ${APP_NAME}"
-ARG NEW_RELIC_APP_NAME="Bill Pay Service - Jared"
+# ARG NEW_RELIC_APP_NAME="${APP_NAME} - Bill Pay Service"
+ARG NEW_RELIC_APP_NAME="Jared - Bill Pay Service"
 ENV NEW_RELIC_APP_NAME=$NEW_RELIC_APP_NAME
 
 ARG NEW_RELIC_USER_API_KEY
@@ -24,19 +24,18 @@ ENV NEW_RELIC_ACCOUNT_ID=$NEW_RELIC_ACCOUNT_ID
 ARG NEW_RELIC_LICENSE_KEY
 ENV NEW_RELIC_LICENSE_KEY=$NEW_RELIC_LICENSE_KEY
 
+ENV NEW_RELIC_DISTRIBUTED_TRACING_ENABLED=true
+
+# ENV NEW_RELIC_CONFIG_FILE="newrelic.ini"
+
 COPY . .
 
 # Install Python dependencies
-RUN pip install --no-cache-dir -r requirements.txt
+# RUN pip install --no-cache-dir -r requirements.txt
+RUN pip install -U pip && pip install uv && uv sync
 
 # Expose the port the FastAPI app will run on
 EXPOSE 5000
 
-# curl -Ls https://download.newrelic.com/install/newrelic-cli/scripts/install.sh | bash && sudo NEW_RELIC_API_KEY=NRAK- NEW_RELIC_ACCOUNT_ID=4182956 /usr/local/bin/newrelic install -n logs-integration
-
-ENV NEW_RELIC_CONFIG_FILE=newrelic.ini
-
 # Command to run the application using Uvicorn
-CMD ["newrelic-admin", "run-program", "uvicorn", "bill_pay_service:app", "--host", "0.0.0.0", "--port", "5000", "--workers", "1"]
-# CMD NEW_RELIC_CONFIG_FILE=newrelic.ini newrelic-admin run-program $YOUR_COMMAND_OPTIONS uvicorn bill_pay_service:app --host 0.0.0.0 --port 5000 --workers 1
-
+CMD ["uv", "run", "newrelic-admin", "run-program", "uvicorn", "bill_pay_service:app", "--host", "0.0.0.0", "--port", "5000", "--workers", "1"]

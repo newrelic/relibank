@@ -11,6 +11,7 @@ from openai.types.chat import (
     ChatCompletionToolMessageParam,
 )
 from pydantic import BaseModel
+import newrelic.agent
 
 from mcp_client import get_tools, execute_mcp_tool, convert_mcp_tools_to_openai_format
 
@@ -18,6 +19,7 @@ from mcp_client import get_tools, execute_mcp_tool, convert_mcp_tools_to_openai_
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s")
 logger = logging.getLogger(__name__)
 
+newrelic.agent.initialize('newrelic.ini', log_file='/app/newrelic.log', log_level=logging.DEBUG)
 
 # --- Request/Response Models ---
 class ChatResponse(BaseModel):

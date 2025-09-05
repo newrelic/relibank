@@ -109,7 +109,7 @@ services:
         condition: service_healthy
       transaction-service:
         condition: service_healthy
-    command: ["sh", "-c", "uvicorn bill_pay_service:app --host 0.0.0.0 --port 5000 --workers 1 --log-level error"]
+    # command: ["sh", "-c", "uvicorn bill_pay_service:app --host 0.0.0.0 --port 5000 --workers 1 --log-level error"]
     environment:
       KAFKA_BROKER: kafka:29092
       TRANSACTION_SERVICE_URL: http://transaction-service:5000
@@ -134,7 +134,7 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
-    command: ["sh", "-c", "uvicorn transaction_service:app --host 0.0.0.0 --port 5000 --workers 1 --log-level error"]
+    # command: ["sh", "-c", "uvicorn transaction_service:app --host 0.0.0.0 --port 5000 --workers 1 --log-level error"]
     environment:
       KAFKA_BROKER: kafka:29092
       DB_SERVER: mssql
@@ -151,7 +151,7 @@ services:
     depends_on:
       kafka:
         condition: service_healthy
-    command: ["python", "notifications_service.py"]
+    # command: ["python", "notifications_service.py"]
     env_file:
       - .env
     environment:
@@ -164,7 +164,7 @@ services:
   
   scheduler-service:
     build:
-      context: ./event_scheduler
+      context: ./scheduler_service
       dockerfile: Dockerfile
     container_name: scheduler-service
     depends_on:
@@ -172,7 +172,7 @@ services:
         condition: service_healthy
       mssql-init:
         condition: service_completed_successfully
-    command: ["python", "scheduler_service.py"]
+    # command: ["python", "scheduler_service.py"]
     environment:
       KAFKA_BROKER: kafka:29092
       DB_SERVER: mssql

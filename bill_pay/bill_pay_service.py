@@ -12,6 +12,7 @@ from aiokafka import AIOKafkaProducer
 import httpx
 from httpx import HTTPStatusError, RequestError
 import uuid
+import newrelic.agent
 
 # Configure logging
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
@@ -19,6 +20,7 @@ logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(
 # Global Kafka producer instance
 producer = None
 
+newrelic.agent.initialize(log_file='/app/newrelic.log', log_level=logging.DEBUG)
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):

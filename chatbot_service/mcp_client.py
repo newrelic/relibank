@@ -3,10 +3,13 @@ from typing import Any
 
 from fastmcp import Client
 from mcp.types import Tool
+import newrelic.agent
 
 # --- Logging Configuration ---
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s")
 logger = logging.getLogger(__name__)
+
+newrelic.agent.initialize('newrelic.ini', log_file='/app/newrelic.log', log_level=logging.DEBUG)
 
 server_config = {
     "mcpServers": {

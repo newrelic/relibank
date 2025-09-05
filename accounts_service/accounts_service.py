@@ -11,9 +11,12 @@ from fastapi import FastAPI, HTTPException
 import time
 import uuid
 import httpx
+import newrelic.agent
 
 # Configure logging
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
+
+newrelic.agent.initialize(log_file='/app/newrelic.log', log_level=logging.DEBUG)
 
 # Database connection details from environment variables
 DB_HOST = os.getenv("DB_HOST", "accounts-db")

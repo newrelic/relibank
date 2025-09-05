@@ -13,11 +13,19 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     curl \
     gnupg
 
-# Copy the requirements file into the container
-COPY requirements.txt .
+ARG NEW_RELIC_APP_NAME="Jared - Event Scheduler Service"
+ENV NEW_RELIC_APP_NAME=$NEW_RELIC_APP_NAME
 
-# Install Python dependencies
-RUN pip install --no-cache-dir -r requirements.txt
+ARG NEW_RELIC_USER_API_KEY
+ENV NEW_RELIC_API_KEY=$NEW_RELIC_USER_API_KEY
+
+ARG NEW_RELIC_ACCOUNT_ID
+ENV NEW_RELIC_ACCOUNT_ID=$NEW_RELIC_ACCOUNT_ID
+
+ARG NEW_RELIC_LICENSE_KEY
+ENV NEW_RELIC_LICENSE_KEY=$NEW_RELIC_LICENSE_KEY
+
+ENV NEW_RELIC_DISTRIBUTED_TRACING_ENABLED=true
 
 # Add the Microsoft ODBC repository for Debian and install the driver
 RUN curl -fsSL https://packages.microsoft.com/keys/microsoft.asc | gpg --dearmor -o /etc/apt/trusted.gpg.d/microsoft.gpg \
@@ -27,8 +35,14 @@ RUN curl -fsSL https://packages.microsoft.com/keys/microsoft.asc | gpg --dearmor
     libodbc2 \
     msodbcsql18
 
-# Copy the application code file
+# Copy the dependency management file into the container
+COPY pyproject.toml .
+
+# Install Python dependencies
+# RUN pip install --no-cache-dir -r requirements.txt
+RUN pip install uv && uv sync
+
 COPY scheduler_service.py .
 
 # Command to run the scheduler script
-CMD ["python", "scheduler_service.py"]
+CMD ["uv", "run", "newrelic-admin", "run-program", "python", "scheduler_service.py"]

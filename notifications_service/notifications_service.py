@@ -7,9 +7,12 @@ from aiokafka import AIOKafkaConsumer
 # import httpx # Required for calling external APIs like SendGrid or Twilio
 from azure.communication.email import EmailClient
 from azure.communication.sms import SmsClient
+import newrelic.agent
 
 # Configure logging
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
+
+newrelic.agent.initialize(log_file='/app/newrelic.log', log_level=logging.DEBUG)
 
 # Get Kafka broker address from environment variable
 KAFKA_BROKER = os.getenv("KAFKA_BROKER", "kafka:29092")
