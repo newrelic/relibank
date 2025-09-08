@@ -4,14 +4,14 @@ metadata:
   annotations:
     kompose.cmd: kompose convert --namespace relibank --out k8s/
     kompose.version: 1.37.0 (HEAD)
+  labels:
+    io.kompose.service: zookeeper
   name: zookeeper
   namespace: relibank
-  labels:
-    app: zookeeper
 spec:
   ports:
     - name: "2181"
       port: 2181
       targetPort: 2181
   selector:
-    app: zookeeper
+    io.kompose.service: zookeeper

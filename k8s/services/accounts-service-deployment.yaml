@@ -1,23 +1,25 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
+  annotations:
+    kompose.cmd: kompose convert --namespace relibank --out k8s/
+    kompose.version: 1.37.0 (HEAD)
+  labels:
+    io.kompose.service: accounts-service
   name: accounts-service
   namespace: relibank
-  labels:
-    app: accounts-service
-    component: backend
-    part-of: relibank
 spec:
   replicas: 1
   selector:
     matchLabels:
-      app: accounts-service
+      io.kompose.service: accounts-service
   template:
     metadata:
+      annotations:
+        kompose.cmd: kompose convert --namespace relibank --out k8s/
+        kompose.version: 1.37.0 (HEAD)
       labels:
-        app: accounts-service
-        component: backend
-        part-of: relibank
+        io.kompose.service: accounts-service
     spec:
       containers:
         - env:

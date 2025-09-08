@@ -1,23 +1,25 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
+  annotations:
+    kompose.cmd: kompose convert --namespace relibank --out k8s/
+    kompose.version: 1.37.0 (HEAD)
+  labels:
+    io.kompose.service: transaction-service
   name: transaction-service
   namespace: relibank
-  labels:
-    app: transaction-service
-    component: backend
-    part-of: relibank
 spec:
   replicas: 1
   selector:
     matchLabels:
-      app: transaction-service
+      io.kompose.service: transaction-service
   template:
     metadata:
+      annotations:
+        kompose.cmd: kompose convert --namespace relibank --out k8s/
+        kompose.version: 1.37.0 (HEAD)
       labels:
-        app: transaction-service
-        component: backend
-        part-of: relibank
+        io.kompose.service: transaction-service
     spec:
       containers:
         - args:

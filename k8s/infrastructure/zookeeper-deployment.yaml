@@ -1,23 +1,25 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
+  annotations:
+    kompose.cmd: kompose convert --namespace relibank --out k8s/
+    kompose.version: 1.37.0 (HEAD)
+  labels:
+    io.kompose.service: zookeeper
   name: zookeeper
   namespace: relibank
-  labels:
-    app: zookeeper
-    component: infrastructure
-    part-of: relibank
 spec:
   replicas: 1
   selector:
     matchLabels:
-      app: zookeeper
+      io.kompose.service: zookeeper
   template:
     metadata:
+      annotations:
+        kompose.cmd: kompose convert --namespace relibank --out k8s/
+        kompose.version: 1.37.0 (HEAD)
       labels:
-        app: zookeeper
-        component: infrastructure
-        part-of: relibank
+        io.kompose.service: zookeeper
     spec:
       containers:
         - env:

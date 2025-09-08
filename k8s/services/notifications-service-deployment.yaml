@@ -1,23 +1,25 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
+  annotations:
+    kompose.cmd: kompose convert --namespace relibank --out k8s/
+    kompose.version: 1.37.0 (HEAD)
+  labels:
+    io.kompose.service: notifications-service
   name: notifications-service
   namespace: relibank
-  labels:
-    app: notifications-service
-    component: backend
-    part-of: relibank
 spec:
   replicas: 1
   selector:
     matchLabels:
-      app: notifications-service
+      io.kompose.service: notifications-service
   template:
     metadata:
+      annotations:
+        kompose.cmd: kompose convert --namespace relibank --out k8s/
+        kompose.version: 1.37.0 (HEAD)
       labels:
-        app: notifications-service
-        component: backend
-        part-of: relibank
+        io.kompose.service: notifications-service
     spec:
       containers:
         - args:

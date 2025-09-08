@@ -1,30 +1,24 @@
----
-# Azure StorageClass for AKS deployments
-apiVersion: storage.k8s.io/v1
 kind: StorageClass
+apiVersion: storage.k8s.io/v1
 metadata:
-  name: azure-disk-premium
+  name: azure-disk
 provisioner: kubernetes.io/azure-disk
 parameters:
-  storageaccounttype: Premium_LRS
+  storageAccountType: Standard_LRS
   kind: Managed
-allowVolumeExpansion: true
 ---
 apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:
   labels:
-    app: mssql
-    component: storage
-    part-of: relibank
+    io.kompose.service: mssql-data
+  annotations:
+    volume.beta.kubernetes.io/storage-class: azure-disk
   name: mssql-data
   namespace: relibank
-  annotations:
-    # Use Azure premium storage for AKS, falls back to default for local
-    volume.beta.kubernetes.io/storage-class: azure-disk-premium
 spec:
   accessModes:
     - ReadWriteOnce
   resources:
     requests:
-      storage: 4Gi
+      storage: 2Gi

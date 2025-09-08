@@ -1,23 +1,25 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
+  annotations:
+    kompose.cmd: kompose convert --namespace relibank --out k8s/
+    kompose.version: 1.37.0 (HEAD)
+  labels:
+    io.kompose.service: bill-pay-service
   name: bill-pay-service
   namespace: relibank
-  labels:
-    app: bill-pay-service
-    component: backend
-    part-of: relibank
 spec:
   replicas: 1
   selector:
     matchLabels:
-      app: bill-pay-service
+      io.kompose.service: bill-pay-service
   template:
     metadata:
+      annotations:
+        kompose.cmd: kompose convert --namespace relibank --out k8s/
+        kompose.version: 1.37.0 (HEAD)
       labels:
-        app: bill-pay-service
-        component: backend
-        part-of: relibank
+        io.kompose.service: bill-pay-service
     spec:
       containers:
         - env:
