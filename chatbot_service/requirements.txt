@@ -1,0 +1,8 @@
+fastapi>=0.116.1
+uvicorn[standard]>=0.35.0
+openai>=1.102.0
+httpx>=0.28.1
+fastmcp>=2.11.3
+pydantic>=2.12.0a1
+gunicorn>=23.0.0,<24
+newrelic>=v10.17.0

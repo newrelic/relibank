@@ -81,7 +81,8 @@ BEGIN
         Currency VARCHAR(10) NOT NULL,
         AccountID INT NOT NULL,
         Frequency VARCHAR(50) NOT NULL,
-        StartDate DATE NOT NULL
+        StartDate DATE NOT NULL,
+        Timestamp FLOAT NOT NULL
     );
 END;
 GO

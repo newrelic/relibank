@@ -23,18 +23,15 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libpq-dev \
     gcc
 
-# Copy the dependency management file into the container
-COPY pyproject.toml .
+# Copy the application code file
+COPY . .
 
 # Install Python dependencies
 # RUN pip install --no-cache-dir -r requirements.txt
 RUN pip install uv && uv sync
 
-# Copy the application code file
-COPY accounts_service.py .
-
 # Expose the port the FastAPI app will run on
 EXPOSE 5000
 
 # Command to run the application using Uvicorn
-CMD ["uv", "run", "newrelic-admin", "run-program", "uvicorn", "accounts_service:app", "--host", "0.0.0.0", "--port", "5000", "--workers", "1"]
+CMD ["uv", "run", "newrelic-admin", "run-program", "uvicorn", "accounts_service:app", "--host", "0.0.0.0", "--port", "5000", "--workers", "1", "--log-config", "logging.conf"]

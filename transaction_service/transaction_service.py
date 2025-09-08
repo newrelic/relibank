@@ -303,19 +303,18 @@ async def start_kafka_consumer():
                     )
                     db_connection.commit()
                     logging.info(f"Credit transaction {event_model.billId} recorded in Transactions table.")
-                elif event_type == "RecurringPaymentScheduled":
-                    cursor.execute(
-                        """
-                        INSERT INTO Transactions (EventType, BillID, Amount, Currency, AccountID, Timestamp)
-                        VALUES (?, ?, ?, ?, ?, ?)
-                    """,
-                        event_model.eventType,
-                        event_model.billId,
+                elif event_type == 'RecurringPaymentScheduled':
+                    # This event is a schedule, so insert it into the RecurringSchedules table
+                    cursor.execute("""
+                        INSERT INTO RecurringSchedules (BillID, AccountID, Amount, Currency, Frequency, StartDate, Timestamp)
+                        VALUES (?, ?, ?, ?, ?, ?, ?)
+                    """, event_model.billId, 
+                        event_model.accountId, 
                         event_model.amount,
-                        event_model.currency,
-                        event_model.accountId,
-                        event_model.timestamp,
-                    )
+                        event_model.currency, 
+                        event_model.frequency, 
+                        event_model.startDate, 
+                        event_model.timestamp)
                     db_connection.commit()
                     logging.info(f"Recurring payment scheduled for bill ID {event_model.billId} and inserted.")
                 elif event_type == "BillPaymentCancelled":

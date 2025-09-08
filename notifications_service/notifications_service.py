@@ -35,6 +35,7 @@ AZURE_ACS_EMAIL_SENDER = os.getenv("AZURE_ACS_EMAIL_SENDER")
 # but keep all bad/failed notifications for demo scenario purposes
 
 
+@newrelic.agent.background_task()
 async def send_sms_notification(to_number: str, body: str):
     """
     Sends an SMS notification using Azure Communication Services.
@@ -67,7 +68,7 @@ async def send_sms_notification(to_number: str, body: str):
     #     logging.error(f"Failed to send SMS notification: {e}")
     # logging.info(f"SIMULATED SMS: To '{to_number}', Body: '{body}'")
 
-
+@newrelic.agent.background_task()
 async def send_email_notification(to_email: str, subject: str, body: str):
     """
     Sends an SMS notification using Azure Communication Services.
@@ -111,7 +112,7 @@ async def send_email_notification(to_email: str, subject: str, body: str):
     #     logging.error(f"Failed to send email notification: {e}")
     # logging.info(f"SIMULATED EMAIL: To '{to_email}', Subject: '{subject}', Body: '{body}'")
 
-
+@newrelic.agent.background_task()
 async def consume_and_notify():
     """
     Consumes messages from Kafka topics and processes them to send notifications.

@@ -10,7 +10,7 @@
 
 3. If needed, add a logfile to newrelic.ini
 ```[newrelic]
-log_file = /app/newrelic-agent.log
+log_file = /app/newrelic.log
 log_level = info
 ```
 

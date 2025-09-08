@@ -35,14 +35,12 @@ RUN curl -fsSL https://packages.microsoft.com/keys/microsoft.asc | gpg --dearmor
     libodbc2 \
     msodbcsql18
 
-# Copy the dependency management file into the container
-COPY pyproject.toml .
+# Copy the application code file
+COPY . .
 
 # Install Python dependencies
 # RUN pip install --no-cache-dir -r requirements.txt
 RUN pip install uv && uv sync
-
-COPY scheduler_service.py .
 
 # Command to run the scheduler script
 CMD ["uv", "run", "newrelic-admin", "run-program", "python", "scheduler_service.py"]

@@ -49,6 +49,8 @@ services:
     volumes:
       - accounts-data:/var/lib/postgresql/data
       - ./accounts_service/postgres/init.sql:/docker-entrypoint-initdb.d/init.sql
+    env_file:
+      - .env
     platform: linux/amd64
 
   accounts-service:
@@ -61,6 +63,8 @@ services:
     depends_on:
       accounts-db:
         condition: service_healthy
+    env_file:
+      - .env
     environment:
       DB_HOST: accounts-db
       DB_NAME: accountsdb
@@ -84,6 +88,8 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
+    env_file:
+      - .env
     volumes:
       - mssql-data:/var/opt/mssql
 
@@ -95,13 +101,15 @@ services:
       mssql:
         condition: service_healthy
     command: /opt/mssql-tools/bin/sqlcmd -S mssql -U SA -P "YourStrong@Password!" -i /usr/config/init.sql
+    env_file:
+      - .env
     volumes:
       - ./transaction_service/mssql/init.sql:/usr/config/init.sql
 
   bill-pay:
     build:
       context: ./bill_pay
-    container_name: bill-pay
+    container_name: bill-pay-service
     ports:
       - "5000:5000"
     depends_on:
@@ -135,6 +143,8 @@ services:
       timeout: 5s
       retries: 5
     # command: ["sh", "-c", "uvicorn transaction_service:app --host 0.0.0.0 --port 5000 --workers 1 --log-level error"]
+    env_file:
+      - .env
     environment:
       KAFKA_BROKER: kafka:29092
       DB_SERVER: mssql
@@ -173,6 +183,8 @@ services:
       mssql-init:
         condition: service_completed_successfully
     # command: ["python", "scheduler_service.py"]
+    env_file:
+      - .env
     environment:
       KAFKA_BROKER: kafka:29092
       DB_SERVER: mssql

@@ -24,15 +24,12 @@ ENV NEW_RELIC_LICENSE_KEY=$NEW_RELIC_LICENSE_KEY
 
 ENV NEW_RELIC_DISTRIBUTED_TRACING_ENABLED=true
 
-# Copy the dependency management file into the container
-COPY pyproject.toml .
+# Copy the application code file
+COPY . .
 
 # Install Python dependencies
 # RUN pip install --no-cache-dir -r requirements.txt
 RUN pip install uv && uv sync
-
-# Copy the application code file
-COPY notifications_service.py .
 
 # Command to run the consumer script
 CMD ["uv", "run", "newrelic-admin", "run-program", "python", "notifications_service.py"]
