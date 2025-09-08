@@ -169,6 +169,12 @@ async def get_accounts(email: str):
             # Fetch current balance from transaction-service for each account
             async with httpx.AsyncClient() as client:
                 for account in all_accounts:
+                    # Convert datetime fields to strings for Pydantic validation
+                    if account.get('last_statement_date'):
+                        account['last_statement_date'] = account['last_statement_date'].isoformat() if hasattr(account['last_statement_date'], 'isoformat') else str(account['last_statement_date'])
+                    if account.get('last_payment_date'):
+                        account['last_payment_date'] = account['last_payment_date'].isoformat() if hasattr(account['last_payment_date'], 'isoformat') else str(account['last_payment_date'])
+
                     # Correctly handling UUID as a string
                     account_id_int = int(account['id'])
                     try:
