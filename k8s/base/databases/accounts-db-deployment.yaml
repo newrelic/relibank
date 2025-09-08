@@ -22,13 +22,13 @@ spec:
             - name: POSTGRES_PASSWORD
               valueFrom:
                 secretKeyRef:
-                  key: password
-                  name: accounts-db-credentials
+                  key: POSTGRES_PASSWORD
+                  name: database-credentials
             - name: POSTGRES_USER
               valueFrom:
                 secretKeyRef:
-                  key: username
-                  name: accounts-db-credentials
+                  key: POSTGRES_USER
+                  name: database-credentials
             - name: PGDATA
               value: /var/lib/postgresql/data/pgdata
           image: postgres:15

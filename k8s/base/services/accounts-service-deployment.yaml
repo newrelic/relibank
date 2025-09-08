@@ -30,13 +30,13 @@ spec:
             - name: DB_PASSWORD
               valueFrom:
                 secretKeyRef:
-                  key: password
-                  name: accounts-db-credentials
+                  key: POSTGRES_PASSWORD
+                  name: database-credentials
             - name: DB_USER
               valueFrom:
-                configMapKeyRef:
+                secretKeyRef:
                   key: POSTGRES_USER
-                  name: infrastructure-config
+                  name: database-credentials
           image: accounts-service
           name: accounts-service
           ports:

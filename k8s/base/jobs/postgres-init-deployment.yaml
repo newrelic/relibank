@@ -23,12 +23,12 @@ spec:
         - name: POSTGRES_PASSWORD
           valueFrom:
             secretKeyRef:
-              name: accounts-db-credentials
-              key: password
+              name: database-credentials
+              key: POSTGRES_PASSWORD
         - name: POSTGRES_USER
           valueFrom:
-            configMapKeyRef:
-              name: infrastructure-config
+            secretKeyRef:
+              name: database-credentials
               key: POSTGRES_USER
         - name: POSTGRES_SERVER_NAME
           valueFrom:

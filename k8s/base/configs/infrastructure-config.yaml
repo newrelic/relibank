@@ -7,31 +7,25 @@ metadata:
     app: relibank
     component: infrastructure-config
 data:
-  # MSSQL Configuration
+  # Database Configuration
   MSSQL_DATABASE_NAME: "RelibankDB"
   MSSQL_SERVER_NAME: "mssql-0"
   MSSQL_PORT: "1433"
-  MSSQL_SA_USER: "SA"
-
-  # PostgreSQL Configuration
   POSTGRES_DATABASE_NAME: "accountsdb"
   POSTGRES_SERVER_NAME: "accounts-db"
   POSTGRES_PORT: "5432"
-  POSTGRES_USER: "postgres"
 
   # Kafka Configuration
   KAFKA_BROKER: "kafka:29092"
   KAFKA_INTERNAL_PORT: "29092"
   KAFKA_EXTERNAL_PORT: "9092"
   KAFKA_SERVER_NAME: "kafka"
+
+  # Zookeeper Configuration
   ZOOKEEPER_SERVER_NAME: "zookeeper"
   ZOOKEEPER_PORT: "2181"
 
-  # Connection strings (for applications)
-  MSSQL_CONNECTION_STRING: "Server=mssql,1433;Database=RelibankDB;User Id=SA;TrustServerCertificate=true"
-  POSTGRES_CONNECTION_STRING: "postgresql://postgres@accounts-db:5432/accountsdb"
-
-  # Service URLs (for inter-service communication)
+  # Service URLs
   TRANSACTION_SERVICE_URL: "http://transaction-service:5001"
   ACCOUNTS_SERVICE_URL: "http://accounts-service:5002"
   BILL_PAY_SERVICE_URL: "http://bill-pay-service:5000"

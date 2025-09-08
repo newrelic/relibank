@@ -8,9 +8,8 @@ resources:
 - namespaces/relibank-namespace.yaml
 
 # Secrets and ConfigMaps
-- secrets/mssql-secret.yaml
-- secrets/accounts-db-credentials-secret.yaml
-- configmaps/infrastructure-config.yaml
+- configs/database-credentials.yaml
+- configs/infrastructure-config.yaml
 
 # Persistent Volume Claims
 - storage/persistentvolumeclaim.yaml

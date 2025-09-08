@@ -23,12 +23,12 @@ spec:
         - name: MSSQL_SA_PASSWORD
           valueFrom:
             secretKeyRef:
-              name: mssql-secret
+              name: database-credentials
               key: MSSQL_SA_PASSWORD
         - name: MSSQL_SA_USER
           valueFrom:
-            configMapKeyRef:
-              name: infrastructure-config
+            secretKeyRef:
+              name: database-credentials
               key: MSSQL_SA_USER
         - name: MSSQL_SERVER_NAME
           valueFrom:

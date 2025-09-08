@@ -30,7 +30,7 @@ spec:
               valueFrom:
                 secretKeyRef:
                   key: MSSQL_SA_PASSWORD
-                  name: mssql-secret
+                  name: database-credentials
             - name: DB_SERVER
               valueFrom:
                 configMapKeyRef:

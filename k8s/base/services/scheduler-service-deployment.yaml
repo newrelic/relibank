@@ -44,7 +44,7 @@ spec:
               valueFrom:
                 secretKeyRef:
                   key: MSSQL_SA_PASSWORD
-                  name: mssql-secret
+                  name: database-credentials
           image: scheduler-service
           name: scheduler-service
       restartPolicy: Always
