@@ -1,190 +1,130 @@
-# Relibank - Microservices Banking Application
+# Relibank
 
-A resilient microservices banking application with chaos engineering capabilities using Kubernetes, Skaffold, and Chaos Mesh.
+A microservices banking application built for chaos engineering and resilience testing.
 
-## 🏗️ Architecture
+## What is this?
 
-- **Accounts Service** - User account management (Python/FastAPI + PostgreSQL)
-- **Transaction Service** - Payment processing (Python/FastAPI + MSSQL)
-- **Bill Pay Service** - Bill payment processing (Python/FastAPI)
-- **Notifications Service** - Event notifications (Python + Kafka)
-- **Scheduler Service** - Event scheduling (Python + Kafka)
-- **Infrastructure** - Kafka, Zookeeper, PostgreSQL, MSSQL
+Relibank simulates a banking system with separate services for accounts, transactions, bill payments, notifications, and scheduling. It's designed to help you learn about microservices resilience patterns and chaos engineering using Kubernetes and Chaos Mesh.
 
-## 🚀 Quick Start
+## Services
 
-### Prerequisites
+- **accounts-service** - Manages user accounts (FastAPI + PostgreSQL)
+- **transaction-service** - Processes payments (FastAPI + MSSQL)  
+- **bill-pay-service** - Handles bill payments (FastAPI)
+- **notifications-service** - Sends notifications via Kafka
+- **scheduler-service** - Schedules events via Kafka
+- **Infrastructure** - Kafka, Zookeeper, databases
 
-- Docker Desktop with Kubernetes enabled or Minikube
-- [Skaffold](https://skaffold.dev/docs/install/)
-- [kubectl](https://kubernetes.io/docs/tasks/tools/)
-- [Helm](https://helm.sh/docs/intro/install/)
+## Getting Started
 
-### Environment Setup
+You'll need Docker Desktop with Kubernetes enabled (or Minikube), Skaffold, kubectl, and Helm installed.
 
-```bash
-# Copy environment file and configure
-cp skaffold.env.example skaffold.env
-# Edit skaffold.env with your values
-```
 
-### Deploy to Kubernetes
+### Deploy Everything
+Note - all secrets and configs are managed under `k8s/base/configs/*`
 
 ```bash
-# Deploy everything (services + chaos mesh)
+# Deploy to local Kubernetes
 skaffold dev
 ```
 
-### Service Access
+This will:
+- Build all the Docker images
+- Deploy the microservices to Kubernetes
+- Install Chaos Mesh for chaos engineering
+- Set up port forwarding so you can access the services
 
-Once deployed, services are accessible via port forwarding:
+### Access the Services
 
-🏦 **Relibank Services:**
-- Accounts Service: `http://localhost:5002`
-- Transaction Service: `http://localhost:5001` 
-- Bill Pay Service: `http://localhost:5000`
-- Notifications Service: `http://localhost:5003`
-- Scheduler Service: `http://localhost:5004`
+Once deployed, you can access:
+- Accounts: http://localhost:5002
+- Transactions: http://localhost:5001  
+- Bill Pay: http://localhost:5000
+- Notifications: http://localhost:5003
+- Scheduler: http://localhost:5004
+- Chaos Mesh Dashboard: http://localhost:2333
 
-🔬 **Chaos Mesh Dashboard:** `http://localhost:2333`
+## Environment-Specific Deployments
 
-## 🔬 Chaos Engineering
+The project uses Kustomize overlays for different environments:
 
-The system includes 5 scheduled chaos experiments powered by Chaos Mesh:
+**Local Development:**
+- Uses Minikube's built-in "standard" storage class
+- Deploys with `skaffold dev`
 
-### Scheduled Experiments
+**Azure Staging:**  
+- Uses "azure-disk" storage class for AKS
+- Deploys with `skaffold dev -p staging`
 
-All experiments run automatically every Sunday morning with staggered timing:
+## Chaos Engineering
 
-1. **Payment Flow Pod Chaos** (2:00 AM)
-   - Targets: `transaction-service`
-   - Action: Pod kill for 2 minutes
+Chaos Mesh gets installed automatically and includes pre-built experiments in `chaos_mesh/experiments/`. 
 
-2. **Database Connection Chaos** (2:15 AM) 
-   - Targets: `accounts-service`
-   - Action: Pod failure for 90 seconds
+Access the dashboard at http://localhost:2333 to:
+- Kill random pods
+- Inject network latency
+- Stress CPU/memory
+- Simulate database failures
 
-3. **Messaging Service Chaos** (2:30 AM)
-   - Targets: `notifications-service` 
-   - Action: Pod kill for 60 seconds
-
-4. **Bill Pay Resilience Test** (2:45 AM)
-   - Targets: `bill-pay-service`
-   - Action: Pod failure for 2 minutes
-
-5. **Scheduler Service Chaos** (3:00 AM)
-   - Targets: `scheduler-service`
-   - Action: Pod kill for 45 seconds
-
-### Managing Chaos Experiments
-
+Or deploy experiments manually:
 ```bash
-# View scheduled experiments
-kubectl get schedules -n relibank
-
-# View experiment history
-kubectl get jobs -n relibank
-
-# Manually trigger an experiment
-kubectl create job --from=schedule/relibank-payment-flow-pod-chaos-schedule manual-test-$(date +%s) -n relibank
-
-# Stop a running experiment
-kubectl delete job <job-name> -n relibank
+kubectl apply -f chaos_mesh/experiments/relibank-pod-chaos-examples.yaml
 ```
 
-### Custom Chaos Experiments
+## Development Tips
 
-Edit `chaos_mesh/experiments/relibank-pod-chaos-examples.yaml` to customize:
-- Target different services using `labelSelectors`
-- Adjust schedule timing with cron expressions
-- Modify chaos actions (pod-kill vs pod-failure)
-- Change experiment duration
-- Add new experiments
-
-## 📊 Monitoring
-
+**View logs:**
 ```bash
-# Watch pod status during chaos
-kubectl get pods -n relibank -w
-
-# View service logs
 kubectl logs -f deployment/accounts-service -n relibank
-kubectl logs -f deployment/transaction-service -n relibank
-
-# Check scheduled experiment status
-kubectl describe schedule relibank-payment-flow-pod-chaos-schedule -n relibank
-
-# View chaos mesh status
-kubectl get pods -n chaos-mesh
 ```
 
-## 🎯 Testing Resilience
-
-The scheduled chaos experiments automatically test:
-
-1. **Service Recovery** - Pods are killed and should auto-restart
-2. **Database Resilience** - Database failures test connection handling  
-3. **Inter-service Communication** - Tests retry logic and timeout handling
-4. **Message Queue Tolerance** - Tests Kafka resilience
-5. **Scheduled Task Resilience** - Tests event scheduler robustness
-
-## 🛠️ Configuration
-
-### Environment Variables
-
-Services use ConfigMaps and Secrets for configuration:
-- Database credentials in `k8s/secrets/`
-- Service configuration in `k8s/configmaps/`
-- Kafka brokers and endpoints
-
-### Storage Classes
-
-The application supports different storage backends:
-- **Local development (minikube)**: Uses `standard` storage class
-- **AKS deployment**: Uses `azure-disk` storage class
-
-Configure in your `skaffold.env` file or update PVC annotations in `k8s/storage/`.
-
-### Scaling
-
+**Connect to databases:**
 ```bash
-# Scale application services
-kubectl scale deployment accounts-service --replicas=3 -n relibank
-kubectl scale deployment transaction-service --replicas=3 -n relibank
+# PostgreSQL
+kubectl exec -it deployment/accounts-db -n relibank -- psql -U postgres -d accountsdb
+
+# MSSQL  
+kubectl exec -it statefulset/mssql -n relibank -- /opt/mssql-tools18/bin/sqlcmd -S localhost -U SA -C
 ```
 
-## 🔧 Troubleshooting
-
-### Common Issues
-
-1. **Pods not starting**: Check resource limits and PVC status
-2. **Database connections failing**: Verify secrets and storage provisioning
-3. **Chaos experiments not visible**: Ensure Chaos Mesh dashboard is accessible at localhost:2333
-
-### Debug Commands
-
+**Check what's running:**
 ```bash
-# Check pod status
-kubectl describe pod <pod-name> -n relibank
-
-# View recent events
-kubectl get events -n relibank --sort-by='.metadata.creationTimestamp'
-
-# Check persistent volume claims
-kubectl get pvc -n relibank
-
-# Check storage classes
-kubectl get storageclass
-
-# Verify chaos mesh installation
-kubectl get pods -n chaos-mesh
+kubectl get pods -n relibank
 ```
 
-## 📈 Production Considerations
+## API Examples
 
-- Configure persistent storage for databases with appropriate storage classes
-- Adjust resource requests/limits in service manifests
-- Set up monitoring with Prometheus/Grafana
-- Implement proper RBAC for Chaos Mesh
-- Review chaos experiment schedules for production timing
-- Use environment-specific storage configurations (AKS vs local)
+The services expose REST APIs. Some examples:
+
+**Create an account:**
+```bash
+curl -X POST http://localhost:5002/accounts \
+  -H "Content-Type: application/json" \
+  -d '{"name": "John Doe", "email": "john@example.com"}'
+```
+
+**Make a transaction:**
+```bash  
+curl -X POST http://localhost:5001/transactions \
+  -H "Content-Type: application/json" \
+  -d '{"from_account": 1, "to_account": 2, "amount": 100.00}'
+```
+
+## Troubleshooting
+
+**Services won't start?** Check that your environment variables are set correctly and you've sourced the `skaffold.env` file.
+
+**Database connection issues?** Make sure the database pods are running and healthy. The init jobs need to complete successfully.
+
+**Storage issues?** If you're on Minikube, make sure it has the "standard" storage class. On AKS, make sure you have the "azure-disk" storage class.
+
+## What's the Point?
+
+This isn't meant to be a real banking application. It's a learning tool for:
+- Microservices architecture patterns
+- Kubernetes deployment strategies  
+- Chaos engineering practices
+- Service mesh concepts
+- Observability and monitoring
+
+Try breaking things with Chaos Mesh and see how the system responds!
