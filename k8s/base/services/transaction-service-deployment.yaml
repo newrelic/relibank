@@ -38,9 +38,9 @@ spec:
                   name: infrastructure-config
             - name: DB_USERNAME
               valueFrom:
-                configMapKeyRef:
+                secretKeyRef:
                   key: MSSQL_SA_USER
-                  name: infrastructure-config
+                  name: database-credentials
             - name: KAFKA_BROKER
               valueFrom:
                 configMapKeyRef:
