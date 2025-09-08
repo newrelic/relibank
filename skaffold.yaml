@@ -69,19 +69,7 @@ deploy:
     hooks:
       before:
       - host:
-          command: ["echo", "🚀 Starting Relibank deployment"]
-          dir: "."
-      - host:
-          command: ["kubectl", "create", "namespace", "relibank", "--dry-run=client", "-o", "yaml"]
-          dir: "."
-      - host:
-          command: ["kubectl", "apply", "-f", "k8s/namespaces/relibank-namespace.yaml"]
-          dir: "."
-      - host:
-          command: ["kubectl", "apply", "-f", "k8s/secrets/mssql-secret.yaml"]
-          dir: "."
-      - host:
-          command: ["echo", "🔐 MSSQL secret created, proceeding with deployment"]
+          command: ["echo", "🚀 Starting Relibank deployment with Kustomize"]
           dir: "."
   statusCheckDeadlineSeconds: 600
   tolerateFailuresUntilDeadline: true
