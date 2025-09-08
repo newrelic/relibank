@@ -13,8 +13,7 @@ resources:
 - configmaps/infrastructure-config.yaml
 
 # Persistent Volume Claims
-- storage/accounts-data-persistentvolumeclaim.yaml
-- storage/mssql-data-persistentvolumeclaim.yaml
+- storage/persistentvolumeclaim.yaml
 
 # Database Deployments
 - databases/accounts-db-deployment.yaml
