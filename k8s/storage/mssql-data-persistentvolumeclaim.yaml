@@ -1,12 +1,3 @@
-kind: StorageClass
-apiVersion: storage.k8s.io/v1
-metadata:
-  name: azure-disk
-provisioner: kubernetes.io/azure-disk
-parameters:
-  storageAccountType: Standard_LRS
-  kind: Managed
----
 apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:
