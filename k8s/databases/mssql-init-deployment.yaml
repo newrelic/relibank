@@ -28,20 +28,20 @@ spec:
         - name: MSSQL_SA_USER
           valueFrom:
             configMapKeyRef:
-              name: database-config
+              name: infrastructure-config
               key: MSSQL_SA_USER
         - name: MSSQL_SERVER_NAME
           valueFrom:
             configMapKeyRef:
-              name: database-config
+              name: infrastructure-config
               key: MSSQL_SERVER_NAME
         - name: MSSQL_PORT
           valueFrom:
             configMapKeyRef:
-              name: database-config
+              name: infrastructure-config
               key: MSSQL_PORT
         - name: MSSQL_DATABASE_NAME
           valueFrom:
             configMapKeyRef:
-              name: database-config
+              name: infrastructure-config
               key: MSSQL_DATABASE_NAME

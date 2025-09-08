@@ -34,7 +34,10 @@ spec:
             - name: AZURE_ACS_SMS_PHONE_NUMBER
               value: "+15551234567"
             - name: KAFKA_BROKER
-              value: kafka:29092
+              valueFrom:
+                configMapKeyRef:
+                  name: infrastructure-config
+                  key: KAFKA_BROKER
           image: notifications-service
           name: notifications-service
       restartPolicy: Always

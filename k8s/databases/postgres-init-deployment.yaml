@@ -28,20 +28,20 @@ spec:
         - name: POSTGRES_USER
           valueFrom:
             configMapKeyRef:
-              name: database-config
+              name: infrastructure-config
               key: POSTGRES_USER
         - name: POSTGRES_SERVER_NAME
           valueFrom:
             configMapKeyRef:
-              name: database-config
+              name: infrastructure-config
               key: POSTGRES_SERVER_NAME
         - name: POSTGRES_PORT
           valueFrom:
             configMapKeyRef:
-              name: database-config
+              name: infrastructure-config
               key: POSTGRES_PORT
         - name: POSTGRES_DATABASE_NAME
           valueFrom:
             configMapKeyRef:
-              name: database-config
+              name: infrastructure-config
               key: POSTGRES_DATABASE_NAME

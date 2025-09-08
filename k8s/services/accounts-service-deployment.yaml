@@ -24,13 +24,25 @@ spec:
       containers:
         - env:
             - name: DB_HOST
-              value: accounts-db
+              valueFrom:
+                configMapKeyRef:
+                  name: infrastructure-config
+                  key: POSTGRES_SERVER_NAME
             - name: DB_NAME
-              value: accountsdb
+              valueFrom:
+                configMapKeyRef:
+                  name: infrastructure-config
+                  key: POSTGRES_DATABASE_NAME
             - name: DB_PASSWORD
-              value: your_password
+              valueFrom:
+                secretKeyRef:
+                  name: accounts-db-credentials
+                  key: password
             - name: DB_USER
-              value: postgres
+              valueFrom:
+                configMapKeyRef:
+                  name: infrastructure-config
+                  key: POSTGRES_USER
           image: accounts-service
           name: accounts-service
           ports:

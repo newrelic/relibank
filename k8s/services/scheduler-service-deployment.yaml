@@ -27,15 +27,30 @@ spec:
             - scheduler_service.py
           env:
             - name: KAFKA_BROKER
-              value: kafka:29092
+              valueFrom:
+                configMapKeyRef:
+                  name: infrastructure-config
+                  key: KAFKA_BROKER
             - name: DB_SERVER
-              value: mssql
+              valueFrom:
+                configMapKeyRef:
+                  name: infrastructure-config
+                  key: MSSQL_SERVER_NAME
             - name: DB_DATABASE
-              value: RelibankDB
+              valueFrom:
+                configMapKeyRef:
+                  name: infrastructure-config
+                  key: MSSQL_DATABASE_NAME
             - name: DB_USERNAME
-              value: SA
+              valueFrom:
+                configMapKeyRef:
+                  name: infrastructure-config
+                  key: MSSQL_SA_USER
             - name: DB_PASSWORD
-              value: YourStrong@Password!
+              valueFrom:
+                secretKeyRef:
+                  name: mssql-secret
+                  key: MSSQL_SA_PASSWORD
           image: scheduler-service
           name: scheduler-service
       restartPolicy: Always

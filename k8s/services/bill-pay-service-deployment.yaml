@@ -24,7 +24,10 @@ spec:
       containers:
         - env:
             - name: KAFKA_BROKER
-              value: kafka:29092
+              valueFrom:
+                configMapKeyRef:
+                  name: infrastructure-config
+                  key: KAFKA_BROKER
             - name: TRANSACTION_SERVICE_URL
               value: http://transaction-service:5000
           image: bill-pay-service

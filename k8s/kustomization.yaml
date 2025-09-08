@@ -10,7 +10,7 @@ resources:
 # Secrets and ConfigMaps
 - secrets/mssql-secret.yaml
 - secrets/accounts-db-credentials-secret.yaml
-- configmaps/database-config.yaml
+- configmaps/infrastructure-config.yaml
 
 # Persistent Volume Claims
 - storage/accounts-data-persistentvolumeclaim.yaml
