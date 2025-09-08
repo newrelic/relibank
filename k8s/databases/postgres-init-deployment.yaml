@@ -1,0 +1,35 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: postgres-init
+  namespace: relibank
+  labels:
+    app: postgres-init
+spec:
+  backoffLimit: 3
+  template:
+    metadata:
+      labels:
+        app: postgres-init
+    spec:
+      restartPolicy: OnFailure
+      containers:
+      - name: postgres-init
+        image: postgres-custom:latest
+        imagePullPolicy: Never
+        command: ["/bin/bash"]
+        args: ["-c", "echo 'Waiting for PostgreSQL server to be ready...' && sleep 30 && echo 'Connecting to PostgreSQL server...' && PGPASSWORD=$POSTGRES_PASSWORD psql -h accounts-db -U $POSTGRES_USER -d $POSTGRES_DB -f /usr/config/init.sql && echo 'Database initialization completed successfully'"]
+        env:
+        - name: POSTGRES_DB
+          value: accountsdb
+        - name: POSTGRES_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: accounts-db-credentials
+              key: password
+        - name: POSTGRES_USER
+          valueFrom:
+            secretKeyRef:
+              name: accounts-db-credentials
+              key: username
+

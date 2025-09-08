@@ -15,10 +15,10 @@ spec:
       restartPolicy: OnFailure
       containers:
       - name: mssql-init
-        image: mssql-custom:latest
+        image: mssql-custom
         imagePullPolicy: Never
         command: ["/bin/bash"]
-        args: ["-c", "echo 'Waiting for MSSQL server to be ready...' && sleep 45 && echo 'Connecting to MSSQL server...' && /opt/mssql-tools18/bin/sqlcmd -S mssql,1433 -U SA -P \"$MSSQL_SA_PASSWORD\" -C -i /usr/config/init.sql && echo 'Database initialization completed successfully'"]
+        args: ["-c", "echo 'Waiting for MSSQL server to be ready...' && sleep 60 && echo 'Testing connection...' && until /opt/mssql-tools18/bin/sqlcmd -S mssql-0,1433 -U SA -P \"$MSSQL_SA_PASSWORD\" -C -Q 'SELECT 1' -t 5; do echo 'MSSQL not ready, waiting...'; sleep 10; done && echo 'MSSQL is ready, running initialization...' && /opt/mssql-tools18/bin/sqlcmd -S mssql-0,1433 -U SA -P \"$MSSQL_SA_PASSWORD\" -C -i /usr/config/init.sql && echo 'Database initialization completed successfully'"]
         env:
         - name: MSSQL_SA_PASSWORD
           valueFrom:

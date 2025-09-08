@@ -15,12 +15,13 @@ resources:
 
 # Persistent Volume Claims
 - storage/accounts-data-persistentvolumeclaim.yaml
+- storage/mssql-data-persistentvolumeclaim.yaml
 
 # Database Deployments
 - databases/accounts-db-deployment.yaml
 - databases/accounts-db-service.yaml
+- databases/postgres-init-deployment.yaml
 - databases/mssql-deployment.yaml
-- databases/mssql-service.yaml
 - databases/mssql-init-deployment.yaml
 
 # Application Services

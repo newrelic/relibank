@@ -53,6 +53,10 @@ build:
     context: transaction_service/mssql
     docker:
       dockerfile: Dockerfile
+  - image: postgres-custom
+    context: accounts_service/postgres
+    docker:
+      dockerfile: Dockerfile
 
 # Manifests configuration - use Kustomize to handle image name mapping and resources
 manifests:
