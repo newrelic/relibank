@@ -118,18 +118,6 @@ kubectl describe schedule relibank-payment-flow-pod-chaos-schedule -n relibank
 kubectl get pods -n chaos-mesh
 ```
 
-## 🏠 Local Development (Docker Compose)
-
-For local development without Kubernetes:
-
-```bash
-# Start services
-docker-compose up -d
-
-# View logs
-docker-compose logs -f
-```
-
 ## 🎯 Testing Resilience
 
 The scheduled chaos experiments automatically test:
