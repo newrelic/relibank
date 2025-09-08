@@ -40,3 +40,4 @@ resources:
 - infrastructure/zookeeper-service.yaml
 - infrastructure/kafka-deployment.yaml
 - infrastructure/kafka-service.yaml
+- infrastructure/chaos-mesh-ingress.yaml

@@ -65,16 +65,37 @@ manifests:
     - "k8s"
 
 deploy:
+  helm:
+    releases:
+    - name: chaos-mesh
+      remoteChart: chaos-mesh
+      namespace: chaos-mesh
+      createNamespace: true
+      repo: https://charts.chaos-mesh.org
+      version: 2.6.2
+      valuesFiles:
+      - chaos_mesh/values.yaml
+      wait: true
+      upgradeOnChange: true
   kubectl:
     hooks:
       before:
       - host:
           command: ["echo", "🚀 Starting Relibank deployment with Kustomize"]
           dir: "."
-  statusCheckDeadlineSeconds: 600
-  tolerateFailuresUntilDeadline: true
-  logs:
-    prefix: auto
+      after:
+      - host:
+          command: ["kubectl", "label", "namespace", "relibank", "chaos-mesh.org/inject=enabled", "--overwrite"]
+          dir: "."
+      - host:
+          command: ["kubectl", "apply", "-f", "chaos_mesh/experiments/"]
+          dir: "."
+      - host:
+          command: ["echo", "🎭 Chaos Mesh installed and Relibank namespace labeled for chaos injection"]
+          dir: "."
+      - host:
+          command: ["echo", "🔥 Chaos experiments deployed and ready to test system resilience"]
+          dir: "."
 
 # Port forwarding configuration - standardized for maintainability
 portForward:
@@ -103,6 +124,11 @@ portForward:
   namespace: relibank
   port: 5004
   localPort: 5004
+- resourceType: service
+  resourceName: chaos-dashboard
+  namespace: chaos-mesh
+  port: 2333
+  localPort: 2333
 
 # Multiple profiles for different environments and use cases
 profiles:
