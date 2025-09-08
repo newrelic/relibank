@@ -62,4 +62,4 @@ spec:
       volumes:
         - name: postgres-storage
           persistentVolumeClaim:
-            claimName: pg-data
+            claimName: accounts-data
