@@ -16,7 +16,6 @@ resources:
 
 # Database Deployments and Services
 - databases/accounts-db-deployment.yaml
-- databases/accounts-db-service.yaml
 - databases/mssql-deployment.yaml
 
 # Database Initialization Jobs
@@ -25,19 +24,12 @@ resources:
 
 # Application Services
 - services/accounts-service-deployment.yaml
-- services/accounts-service-service.yaml
 - services/bill-pay-service-deployment.yaml
-- services/bill-pay-service-service.yaml
 - services/notifications-service-deployment.yaml
-- services/notifications-service-service.yaml
 - services/scheduler-service-deployment.yaml
-- services/scheduler-service-service.yaml
 - services/transaction-service-deployment.yaml
-- services/transaction-service-service.yaml
 
 # Infrastructure (Kafka/Zookeeper)
 - infrastructure/zookeeper-deployment.yaml
-- infrastructure/zookeeper-service.yaml
 - infrastructure/kafka-deployment.yaml
-- infrastructure/kafka-service.yaml
 - infrastructure/chaos-mesh-ingress.yaml

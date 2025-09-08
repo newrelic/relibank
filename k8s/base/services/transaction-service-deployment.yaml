@@ -61,3 +61,18 @@ spec:
             - containerPort: 5000
               protocol: TCP
       restartPolicy: Always
+---
+apiVersion: v1
+kind: Service
+metadata:
+  labels:
+    app: transaction-service
+  name: transaction-service
+  namespace: relibank
+spec:
+  ports:
+  - name: "5001"
+    port: 5001
+    targetPort: 5000
+  selector:
+    app: transaction-service

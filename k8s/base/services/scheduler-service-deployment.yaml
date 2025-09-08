@@ -48,3 +48,18 @@ spec:
           image: scheduler-service
           name: scheduler-service
       restartPolicy: Always
+---
+apiVersion: v1
+kind: Service
+metadata:
+  labels:
+    app: scheduler-service
+  name: scheduler-service
+  namespace: relibank
+spec:
+  ports:
+  - name: "5004"
+    port: 5004
+    targetPort: 5000
+  selector:
+    app: scheduler-service

@@ -33,3 +33,18 @@ spec:
             - containerPort: 5000
               protocol: TCP
       restartPolicy: Always
+---
+apiVersion: v1
+kind: Service
+metadata:
+  labels:
+    app: bill-pay-service
+  name: bill-pay-service
+  namespace: relibank
+spec:
+  ports:
+  - name: "5000"
+    port: 5000
+    targetPort: 5000
+  selector:
+    app: bill-pay-service

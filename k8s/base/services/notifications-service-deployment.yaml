@@ -35,3 +35,18 @@ spec:
           image: notifications-service
           name: notifications-service
       restartPolicy: Always
+---
+apiVersion: v1
+kind: Service
+metadata:
+  labels:
+    app: notifications-service
+  name: notifications-service
+  namespace: relibank
+spec:
+  ports:
+  - name: "5003"
+    port: 5003
+    targetPort: 5000
+  selector:
+    app: notifications-service

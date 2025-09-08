@@ -60,3 +60,21 @@ spec:
         - name: postgres-storage
           persistentVolumeClaim:
             claimName: accounts-data
+---
+apiVersion: v1
+kind: Service
+metadata:
+  labels:
+    app: accounts-db
+  name: accounts-db
+  namespace: relibank
+spec:
+  ports:
+    - name: "5432"
+      port: 5432
+      targetPort: 5432
+      protocol: TCP
+  selector:
+    app: accounts-db
+  type: ClusterIP
+
