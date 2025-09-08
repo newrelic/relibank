@@ -1,38 +1,32 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  annotations:
-    kompose.cmd: kompose convert --namespace relibank --out k8s/
-    kompose.version: 1.37.0 (HEAD)
   labels:
-    io.kompose.service: bill-pay-service
+    app: bill-pay-service
   name: bill-pay-service
   namespace: relibank
 spec:
   replicas: 1
   selector:
     matchLabels:
-      io.kompose.service: bill-pay-service
+      app: bill-pay-service
   template:
     metadata:
-      annotations:
-        kompose.cmd: kompose convert --namespace relibank --out k8s/
-        kompose.version: 1.37.0 (HEAD)
       labels:
-        io.kompose.service: bill-pay-service
+        app: bill-pay-service
     spec:
       containers:
         - env:
             - name: KAFKA_BROKER
               valueFrom:
                 configMapKeyRef:
-                  name: infrastructure-config
                   key: KAFKA_BROKER
+                  name: infrastructure-config
             - name: TRANSACTION_SERVICE_URL
               valueFrom:
                 configMapKeyRef:
-                  name: infrastructure-config
                   key: TRANSACTION_SERVICE_URL
+                  name: infrastructure-config
           image: bill-pay-service
           name: bill-pay-service
           ports:

@@ -1,9 +1,6 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  annotations:
-    kompose.cmd: kompose convert --namespace relibank --out k8s/
-    kompose.version: 1.37.0 (HEAD)
   labels:
     app: accounts-db
   name: accounts-db

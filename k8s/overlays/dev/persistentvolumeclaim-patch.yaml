@@ -2,7 +2,7 @@ apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:
   labels:
-    io.kompose.service: mssql-data
+    app: mssql-data
   annotations:
     volume.beta.kubernetes.io/storage-class: standard
   name: mssql-data

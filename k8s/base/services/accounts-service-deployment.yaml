@@ -1,48 +1,42 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  annotations:
-    kompose.cmd: kompose convert --namespace relibank --out k8s/
-    kompose.version: 1.37.0 (HEAD)
   labels:
-    io.kompose.service: accounts-service
+    app: accounts-service
   name: accounts-service
   namespace: relibank
 spec:
   replicas: 1
   selector:
     matchLabels:
-      io.kompose.service: accounts-service
+      app: accounts-service
   template:
     metadata:
-      annotations:
-        kompose.cmd: kompose convert --namespace relibank --out k8s/
-        kompose.version: 1.37.0 (HEAD)
       labels:
-        io.kompose.service: accounts-service
+        app: accounts-service
     spec:
       containers:
         - env:
             - name: DB_HOST
               valueFrom:
                 configMapKeyRef:
-                  name: infrastructure-config
                   key: POSTGRES_SERVER_NAME
+                  name: infrastructure-config
             - name: DB_NAME
               valueFrom:
                 configMapKeyRef:
-                  name: infrastructure-config
                   key: POSTGRES_DATABASE_NAME
+                  name: infrastructure-config
             - name: DB_PASSWORD
               valueFrom:
                 secretKeyRef:
-                  name: accounts-db-credentials
                   key: password
+                  name: accounts-db-credentials
             - name: DB_USER
               valueFrom:
                 configMapKeyRef:
-                  name: infrastructure-config
                   key: POSTGRES_USER
+                  name: infrastructure-config
           image: accounts-service
           name: accounts-service
           ports:
