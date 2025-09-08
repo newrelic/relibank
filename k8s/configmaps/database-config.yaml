@@ -1,0 +1,25 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: database-config
+  namespace: relibank
+  labels:
+    app: relibank
+    component: database-config
+data:
+  # MSSQL Configuration
+  MSSQL_DATABASE_NAME: "RelibankDB"
+  MSSQL_SERVER_NAME: "mssq-0"
+  MSSQL_PORT: "1433"
+  MSSQL_SA_USER: "SA"
+
+  # PostgreSQL Configuration
+  POSTGRES_DATABASE_NAME: "accountsdb"
+  POSTGRES_SERVER_NAME: "accounts-db"
+  POSTGRES_PORT: "5432"
+  POSTGRES_USER: "postgres"
+
+  # Connection strings (for applications)
+  MSSQL_CONNECTION_STRING: "Server=mssql,1433;Database=RelibankDB;User Id=SA;TrustServerCertificate=true"
+  POSTGRES_CONNECTION_STRING: "postgresql://postgres@accounts-db:5432/accountsdb"
+

@@ -15,13 +15,11 @@ spec:
       restartPolicy: OnFailure
       containers:
       - name: postgres-init
-        image: postgres-custom:latest
+        image: postgres-custom
         imagePullPolicy: Never
         command: ["/bin/bash"]
-        args: ["-c", "echo 'Waiting for PostgreSQL server to be ready...' && sleep 30 && echo 'Connecting to PostgreSQL server...' && PGPASSWORD=$POSTGRES_PASSWORD psql -h accounts-db -U $POSTGRES_USER -d $POSTGRES_DB -f /usr/config/init.sql && echo 'Database initialization completed successfully'"]
+        args: ["-c", "echo 'Waiting for PostgreSQL server to be ready...' && sleep 30 && echo 'Connecting to PostgreSQL server...' && PGPASSWORD=$POSTGRES_PASSWORD psql -h $POSTGRES_SERVER_NAME -p $POSTGRES_PORT -U $POSTGRES_USER -d $POSTGRES_DATABASE_NAME -f /usr/config/init.sql && echo 'Database initialization completed successfully'"]
         env:
-        - name: POSTGRES_DB
-          value: accountsdb
         - name: POSTGRES_PASSWORD
           valueFrom:
             secretKeyRef:
@@ -29,7 +27,21 @@ spec:
               key: password
         - name: POSTGRES_USER
           valueFrom:
-            secretKeyRef:
-              name: accounts-db-credentials
-              key: username
-
+            configMapKeyRef:
+              name: database-config
+              key: POSTGRES_USER
+        - name: POSTGRES_SERVER_NAME
+          valueFrom:
+            configMapKeyRef:
+              name: database-config
+              key: POSTGRES_SERVER_NAME
+        - name: POSTGRES_PORT
+          valueFrom:
+            configMapKeyRef:
+              name: database-config
+              key: POSTGRES_PORT
+        - name: POSTGRES_DATABASE_NAME
+          valueFrom:
+            configMapKeyRef:
+              name: database-config
+              key: POSTGRES_DATABASE_NAME

@@ -80,7 +80,7 @@ metadata:
 spec:
   type: LoadBalancer
   selector:
-    statefulset.kubernetes.io/pod-name: mssql-0
+    app: mssql
   ports:
     - protocol: TCP
       port: 1433
