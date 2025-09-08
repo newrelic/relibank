@@ -4,9 +4,9 @@ A resilient microservices banking application with chaos engineering capabilitie
 
 ## 🏗️ Architecture
 
-- **Accounts Service** - User account management (Python/Flask + PostgreSQL)
+- **Accounts Service** - User account management (Python/FastAPI + PostgreSQL)
 - **Transaction Service** - Payment processing (Python/FastAPI + MSSQL)
-- **Bill Pay Service** - Bill payment processing (Python/Flask)
+- **Bill Pay Service** - Bill payment processing (Python/FastAPI)
 - **Notifications Service** - Event notifications (Python + Kafka)
 - **Scheduler Service** - Event scheduling (Python + Kafka)
 - **Infrastructure** - Kafka, Zookeeper, PostgreSQL, MSSQL
@@ -15,85 +15,91 @@ A resilient microservices banking application with chaos engineering capabilitie
 
 ### Prerequisites
 
-- Docker Desktop with Kubernetes enabled
+- Docker Desktop with Kubernetes enabled or Minikube
 - [Skaffold](https://skaffold.dev/docs/install/)
 - [kubectl](https://kubernetes.io/docs/tasks/tools/)
 - [Helm](https://helm.sh/docs/intro/install/)
 
+### Environment Setup
+
+```bash
+# Copy environment file and configure
+cp skaffold.env.example skaffold.env
+# Edit skaffold.env with your values
+```
+
 ### Deploy to Kubernetes
 
 ```bash
-# Deploy everything (services + chaos mesh + ingress)
-./deploy-k8s.sh
-
-# Add DNS entries to /etc/hosts for local access:
-echo "127.0.0.1 relibank.local" | sudo tee -a /etc/hosts
-echo "127.0.0.1 chaos.relibank.local" | sudo tee -a /etc/hosts
+# Deploy everything (services + chaos mesh)
+skaffold dev
 ```
 
-### Web Access (Multi-User Demo)
+### Service Access
 
-Once deployed, the application is accessible via web browser:
+Once deployed, services are accessible via port forwarding:
 
 🏦 **Relibank Services:**
-- Accounts: `http://relibank.local:8080/accounts`
-- Transactions: `http://relibank.local:8080/transactions`
-- Bill Pay: `http://relibank.local:8080/billpay`
+- Accounts Service: `http://localhost:5002`
+- Transaction Service: `http://localhost:5001` 
+- Bill Pay Service: `http://localhost:5000`
+- Notifications Service: `http://localhost:5003`
+- Scheduler Service: `http://localhost:5004`
 
-🔬 **Chaos Mesh Dashboard:** `http://chaos.relibank.local:8080`
-
-📊 **Alternative localhost access:**
-- Chaos Dashboard: `http://localhost:8080/chaos`
-- Services: `http://localhost:8080/accounts`, `/transactions`, `/billpay`
-
-### Development with Skaffold
-
-```bash
-# Start development mode (auto-rebuild on changes)
-skaffold dev --profile=local
-
-# Deploy without development mode
-skaffold run --profile=local
-
-# Clean up
-./cleanup-k8s.sh
-```
+🔬 **Chaos Mesh Dashboard:** `http://localhost:2333`
 
 ## 🔬 Chaos Engineering
 
-The system includes automated chaos experiments powered by Chaos Mesh:
+The system includes 5 scheduled chaos experiments powered by Chaos Mesh:
 
-### Active Experiments
+### Scheduled Experiments
 
-- **Pod Chaos**: Randomly kills application pods every 5 minutes
-- **Database Failures**: Simulates database outages every 10 minutes  
-- **Network Delays**: Adds latency to service communications
-- **CPU Stress**: Tests performance under load
-- **Network Partitions**: Isolates services to test resilience
+All experiments run automatically every Sunday morning with staggered timing:
+
+1. **Payment Flow Pod Chaos** (2:00 AM)
+   - Targets: `transaction-service`
+   - Action: Pod kill for 2 minutes
+
+2. **Database Connection Chaos** (2:15 AM) 
+   - Targets: `accounts-service`
+   - Action: Pod failure for 90 seconds
+
+3. **Messaging Service Chaos** (2:30 AM)
+   - Targets: `notifications-service` 
+   - Action: Pod kill for 60 seconds
+
+4. **Bill Pay Resilience Test** (2:45 AM)
+   - Targets: `bill-pay-service`
+   - Action: Pod failure for 2 minutes
+
+5. **Scheduler Service Chaos** (3:00 AM)
+   - Targets: `scheduler-service`
+   - Action: Pod kill for 45 seconds
 
 ### Managing Chaos Experiments
 
 ```bash
-# View active experiments
-kubectl get chaos -n relibank
+# View scheduled experiments
+kubectl get schedules -n relibank
 
-# Stop specific experiment
-kubectl delete podchaos relibank-pod-kill -n relibank
+# View experiment history
+kubectl get jobs -n relibank
 
-# Stop all experiments
-kubectl delete chaos --all -n relibank
+# Manually trigger an experiment
+kubectl create job --from=schedule/relibank-payment-flow-pod-chaos-schedule manual-test-$(date +%s) -n relibank
 
-# Re-apply experiments
-kubectl apply -f chaos_mesh/experiments/
+# Stop a running experiment
+kubectl delete job <job-name> -n relibank
 ```
 
 ### Custom Chaos Experiments
 
-Edit files in `chaos-mesh/experiments/` to customize:
-- Target different services
-- Adjust failure frequencies
-- Modify impact severity
-- Add new experiment types
+Edit `chaos_mesh/experiments/relibank-pod-chaos-examples.yaml` to customize:
+- Target different services using `labelSelectors`
+- Adjust schedule timing with cron expressions
+- Modify chaos actions (pod-kill vs pod-failure)
+- Change experiment duration
+- Add new experiments
 
 ## 📊 Monitoring
 
@@ -105,11 +111,11 @@ kubectl get pods -n relibank -w
 kubectl logs -f deployment/accounts-service -n relibank
 kubectl logs -f deployment/transaction-service -n relibank
 
-# Check experiment status
-kubectl describe podchaos relibank-pod-kill -n relibank
+# Check scheduled experiment status
+kubectl describe schedule relibank-payment-flow-pod-chaos-schedule -n relibank
 
-# View ingress status
-kubectl get ingress --all-namespaces
+# View chaos mesh status
+kubectl get pods -n chaos-mesh
 ```
 
 ## 🏠 Local Development (Docker Compose)
@@ -120,55 +126,36 @@ For local development without Kubernetes:
 # Start services
 docker-compose up -d
 
-# Simple chaos commands
-./simple-chaos.sh kill      # Kill random container
-./simple-chaos.sh restart   # Restart random container
-./simple-chaos.sh pause     # Pause container
-```
-
-## 🗂️ Project Structure
-
-```
-relibank/
-├── skaffold.yaml                    # Skaffold configuration
-├── deploy-k8s.sh                   # Kubernetes deployment
-├── cleanup-k8s.sh                  # Cleanup script
-├── k8s/                            # Kubernetes manifests
-│   ├── namespace.yaml
-│   ├── configmap.yaml
-│   ├── secrets.yaml
-│   ├── infrastructure/kafka.yaml
-│   ├── databases/databases.yaml
-│   └── services/relibank-services.yaml
-├── chaos-mesh/experiments/         # Chaos experiments
-│   ├── pod-kill-experiment.yaml
-│   ├── network-delay-experiment.yaml
-│   └── stress-chaos-experiment.yaml
-├── accounts_service/               # Account management
-├── transaction_service/            # Payment processing
-├── bill_pay/                       # Bill payments
-├── notifications_service/          # Notifications
-└── event_scheduler/                # Event scheduling
+# View logs
+docker-compose logs -f
 ```
 
 ## 🎯 Testing Resilience
 
-The chaos experiments automatically test:
+The scheduled chaos experiments automatically test:
 
 1. **Service Recovery** - Pods are killed and should auto-restart
-2. **Database Resilience** - Database failures test connection handling
-3. **Network Tolerance** - Latency and partitions test timeout handling
-4. **Performance Under Load** - CPU stress tests resource management
-5. **Inter-service Communication** - Network chaos tests retry logic
+2. **Database Resilience** - Database failures test connection handling  
+3. **Inter-service Communication** - Tests retry logic and timeout handling
+4. **Message Queue Tolerance** - Tests Kafka resilience
+5. **Scheduled Task Resilience** - Tests event scheduler robustness
 
 ## 🛠️ Configuration
 
 ### Environment Variables
 
 Services use ConfigMaps and Secrets for configuration:
-- Database credentials in `k8s/secrets.yaml`
-- Service URLs in `k8s/configmap.yaml`
+- Database credentials in `k8s/secrets/`
+- Service configuration in `k8s/configmaps/`
 - Kafka brokers and endpoints
+
+### Storage Classes
+
+The application supports different storage backends:
+- **Local development (minikube)**: Uses `standard` storage class
+- **AKS deployment**: Uses `azure-disk` storage class
+
+Configure in your `skaffold.env` file or update PVC annotations in `k8s/storage/`.
 
 ### Scaling
 
@@ -176,18 +163,15 @@ Services use ConfigMaps and Secrets for configuration:
 # Scale application services
 kubectl scale deployment accounts-service --replicas=3 -n relibank
 kubectl scale deployment transaction-service --replicas=3 -n relibank
-
-# Scale with Skaffold
-# Edit replica counts in k8s/services/relibank-services.yaml
 ```
 
 ## 🔧 Troubleshooting
 
 ### Common Issues
 
-1. **Pods not starting**: Check resource limits and dependencies
-2. **Database connections failing**: Verify secrets and network policies
-3. **Chaos experiments not working**: Ensure Chaos Mesh is properly installed
+1. **Pods not starting**: Check resource limits and PVC status
+2. **Database connections failing**: Verify secrets and storage provisioning
+3. **Chaos experiments not visible**: Ensure Chaos Mesh dashboard is accessible at localhost:2333
 
 ### Debug Commands
 
@@ -198,14 +182,21 @@ kubectl describe pod <pod-name> -n relibank
 # View recent events
 kubectl get events -n relibank --sort-by='.metadata.creationTimestamp'
 
-# Check resource usage
-kubectl top pods -n relibank
+# Check persistent volume claims
+kubectl get pvc -n relibank
+
+# Check storage classes
+kubectl get storageclass
+
+# Verify chaos mesh installation
+kubectl get pods -n chaos-mesh
 ```
 
 ## 📈 Production Considerations
 
+- Configure persistent storage for databases with appropriate storage classes
 - Adjust resource requests/limits in service manifests
-- Configure persistent storage for databases
 - Set up monitoring with Prometheus/Grafana
 - Implement proper RBAC for Chaos Mesh
-- Use GitOps for experiment management
+- Review chaos experiment schedules for production timing
+- Use environment-specific storage configurations (AKS vs local)

@@ -4,26 +4,36 @@ This directory contains Chaos Mesh experiments for testing the resilience of the
 
 ## 🎯 Experiments
 
-The experiments in this directory are automatically applied when deploying with Skaffold:
+The experiments are automatically applied when deploying with Skaffold and can be triggered manually from the dashboard:
 
-### 1. Pod Chaos Experiments
-- `pod-kill-experiment.yaml` - Randomly kills application and database pods to test recovery
+### Pod Chaos Experiments (relibank-pod-chaos-examples.yaml)
 
-### 2. Network Chaos Experiments  
-- `network-delay-experiment.yaml` - Introduces network latency between services
-- `network-partition-experiment.yaml` - Simulates network partitions between services
-- `network-loss-experiment.yaml` - Simulates packet loss
+Your setup includes 5 scheduled pod chaos experiments targeting critical Relibank services:
 
-### 3. Stress Testing
-- `stress-chaos-experiment.yaml` - CPU and memory stress testing
+1. **Payment Flow Pod Chaos** (`relibank-payment-flow-pod-chaos-schedule`)
+   - Targets: `transaction-service` 
+   - Action: Pod kill for 2 minutes
+   - Schedule: Sunday 2:00 AM
 
-### 4. Database and Infrastructure Testing
-- `database-failure-experiment.yaml` - Tests database connectivity issues
-- `kafka-chaos-experiment.yaml` - Tests message queue resilience
-- `io-chaos-experiment.yaml` - Simulates disk I/O issues
+2. **Database Connection Pod Chaos** (`relibank-database-connection-pod-chaos-schedule`)
+   - Targets: `accounts-service`
+   - Action: Pod failure for 90 seconds  
+   - Schedule: Sunday 2:15 AM
 
-### 5. Comprehensive Workflows
-- `comprehensive-workflow.yaml` - Complex multi-stage chaos scenarios
+3. **Messaging Service Pod Chaos** (`relibank-messaging-service-pod-chaos-schedule`)
+   - Targets: `notifications-service`
+   - Action: Pod kill for 60 seconds
+   - Schedule: Sunday 2:30 AM
+
+4. **Bill Pay Resilience Test** (`relibank-bill-pay-resilience-test-schedule`)
+   - Targets: `bill-pay-service`
+   - Action: Pod failure for 2 minutes
+   - Schedule: Sunday 2:45 AM
+
+5. **Scheduler Service Chaos** (`relibank-scheduler-service-chaos-schedule`)
+   - Targets: `scheduler-service`
+   - Action: Pod kill for 45 seconds
+   - Schedule: Sunday 3:00 AM
 
 ## 🚀 Usage
 
@@ -31,57 +41,59 @@ Experiments are automatically deployed with the main application:
 
 ```bash
 # Deploy everything including chaos experiments
-./deploy-k8s.sh
+skaffold dev
 
-# Or use Skaffold directly
-skaffold run --profile=local
+# View all scheduled experiments
+kubectl get schedules -n relibank
+
+# Manually trigger an experiment from dashboard or CLI
+kubectl create job --from=schedule/relibank-payment-flow-pod-chaos-schedule manual-test-$(date +%s) -n relibank
 ```
 
-## 🌐 Multi-User Dashboard Access
+## 🌐 Dashboard Access
 
-The Chaos Mesh dashboard is accessible via web browser (no port-forwarding needed):
-
-**Primary Access:**
-- `http://chaos.relibank.local:8080` (requires /etc/hosts entry)
-
-**Alternative Access:**
-- `http://localhost:8080/chaos`
-
-To set up DNS entries:
-```bash
-echo "127.0.0.1 chaos.relibank.local" | sudo tee -a /etc/hosts
-```
+The Chaos Mesh dashboard is accessible at:
+- **Local Development**: http://localhost:2333
+- **Features**: 
+  - View scheduled experiments
+  - Manually trigger experiments
+  - Monitor experiment status and history
+  - Real-time chaos experiment management
 
 ## 📊 Managing Experiments
 
 ```bash
-# View active experiments
-kubectl get chaos -n relibank
+# View active scheduled experiments
+kubectl get schedules -n relibank
 
-# Apply specific experiment
-kubectl apply -f chaos_mesh/experiments/pod-kill-experiment.yaml
+# View experiment history
+kubectl get jobs -n relibank
 
-# Stop all experiments
-kubectl delete chaos --all -n relibank
+# Apply specific experiment manually
+kubectl apply -f chaos_mesh/experiments/relibank-pod-chaos-examples.yaml
+
+# Stop a running experiment
+kubectl delete job <job-name> -n relibank
 
 # View experiment details in dashboard or CLI
-kubectl describe podchaos relibank-pod-kill -n relibank
+kubectl describe schedule relibank-payment-flow-pod-chaos-schedule -n relibank
 ```
 
 ## 🔧 Customizing Experiments
 
-Edit the YAML files to:
-- Change target services using label selectors
-- Adjust failure frequencies with cron schedules  
-- Modify impact severity (duration, intensity)
-- Add new experiment types
+Edit `relibank-pod-chaos-examples.yaml` to:
+- Change target services using `labelSelectors` (currently targeting `io.kompose.service`)
+- Adjust schedule timing with cron expressions (currently Sunday early morning)
+- Modify chaos actions (pod-kill vs pod-failure)
+- Change experiment duration
+- Add new experiments to the file
 
-All experiments target pods with the `chaos-mesh.org/inject: enabled` label in the `relibank` namespace.
+All experiments target pods with matching service labels in the `relibank` namespace.
 
-## 🎭 Demo Features
+## 🎭 Features
 
-For multi-user demos, the setup includes:
-- **Web-accessible dashboard** - No terminal access required
-- **Automated experiments** - Chaos runs continuously  
-- **Visual monitoring** - Real-time experiment status
-- **Easy experiment control** - Start/stop via web UI
+- **Scheduled Execution** - Experiments run automatically every Sunday morning
+- **Staggered Timing** - 15-minute intervals prevent overlap
+- **Manual Triggering** - Use dashboard to run experiments on-demand
+- **Safe Targeting** - Only affects services with specific labels
+- **Web Dashboard** - No terminal access required for basic operations

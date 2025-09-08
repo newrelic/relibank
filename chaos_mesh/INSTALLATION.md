@@ -2,42 +2,43 @@
 
 ## 🚀 Automated Installation (Recommended)
 
-Chaos Mesh is now automatically installed via Skaffold:
+Chaos Mesh is automatically installed via Skaffold:
 
 ```bash
 # Deploy everything including Chaos Mesh
-skaffold dev --profile local
+skaffold dev
 
-# Or for one-time deployment
-skaffold run --profile local
+# View deployment status
+kubectl get pods -n chaos-mesh
 ```
 
 This will:
 1. ✅ Install Chaos Mesh v2.6.2 via Helm
 2. ✅ Create `chaos-mesh` namespace automatically  
 3. ✅ Label `relibank` namespace for chaos injection
-4. ✅ Set up port forwarding for dashboard access
+4. ✅ Deploy 5 scheduled chaos experiments
+5. ✅ Set up port forwarding for dashboard access at localhost:2333
 
 ## 🌐 Dashboard Access
 
 After deployment, access the Chaos Mesh dashboard at:
 - **Local Development**: http://localhost:2333
-- **Features**: Web UI for creating/managing chaos experiments
+- **Features**: Web UI for viewing/managing scheduled chaos experiments
 - **No Authentication**: Configured for easy local development
 
 ## 🎯 Ready for Chaos Experiments
 
-Your Relibank namespace is automatically labeled with `chaos-mesh.org/inject=enabled`, so you can immediately deploy chaos experiments:
+Your Relibank namespace is automatically labeled with `chaos-mesh.org/inject=enabled`, and 5 scheduled experiments are deployed:
 
 ```bash
-# Deploy individual experiments
-kubectl apply -f chaos_mesh/experiments/pod-kill-experiment.yaml
+# View scheduled experiments
+kubectl get schedules -n relibank
 
-# Deploy all experiments
-kubectl apply -f chaos_mesh/experiments/
+# Deploy experiments manually (already done by Skaffold)
+kubectl apply -f chaos_mesh/experiments/relibank-pod-chaos-examples.yaml
 
-# View active experiments
-kubectl get chaos -n relibank
+# View active chaos jobs
+kubectl get jobs -n relibank | grep chaos
 ```
 
 ## 🔧 Manual Installation (Alternative)
@@ -58,4 +59,18 @@ helm install chaos-mesh chaos-mesh/chaos-mesh \
 
 # Enable chaos injection
 kubectl label namespace relibank chaos-mesh.org/inject=enabled
+
+# Deploy experiments
+kubectl apply -f chaos_mesh/experiments/relibank-pod-chaos-examples.yaml
 ```
+
+## 🕒 Experiment Schedule
+
+All experiments are scheduled to run automatically:
+- **Sunday 2:00 AM** - Payment flow pod chaos (transaction-service)
+- **Sunday 2:15 AM** - Database connection chaos (accounts-service)  
+- **Sunday 2:30 AM** - Messaging service chaos (notifications-service)
+- **Sunday 2:45 AM** - Bill pay resilience test (bill-pay-service)
+- **Sunday 3:00 AM** - Scheduler service chaos (scheduler-service)
+
+Or trigger manually from the dashboard at localhost:2333.
