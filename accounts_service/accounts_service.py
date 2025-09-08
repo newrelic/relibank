@@ -3,7 +3,7 @@ import os
 import json
 import logging
 import psycopg2
-from psycopg2 import extras
+from psycopg2 import extras, pool
 from pydantic import BaseModel, Field
 from typing import Optional, List, Any
 from contextlib import asynccontextmanager
@@ -24,6 +24,23 @@ CONNECTION_STRING = f"host={DB_HOST} dbname={DB_NAME} user={DB_USER} password={D
 
 # Transaction service API URL
 TRANSACTION_SERVICE_URL = os.getenv("TRANSACTION_SERVICE_URL", "http://transaction-service:5000")
+
+# Global connection pool
+connection_pool = None
+
+def get_db_connection():
+    """Get a connection from the pool."""
+    global connection_pool
+    if connection_pool:
+        return connection_pool.getconn()
+    else:
+        raise HTTPException(status_code=503, detail="Database connection pool not available")
+
+def return_db_connection(conn):
+    """Return a connection to the pool."""
+    global connection_pool
+    if connection_pool and conn:
+        connection_pool.putconn(conn)
 
 # Pydantic models for user and account data
 class User(BaseModel):
@@ -55,29 +72,30 @@ class AccountType(BaseModel):
 async def lifespan(app: FastAPI):
     """
     Context manager to handle startup and shutdown events.
-    Initializes database connection.
+    Initializes database connection pool.
     """
-    db_connection = None
+    global connection_pool
     retries = 10
     delay = 3
     for i in range(retries):
         try:
-            logging.info(f"Attempting to connect to database (attempt {i+1}/{retries})...")
-            db_connection = psycopg2.connect(CONNECTION_STRING)
-            logging.info("Database connection successful.")
+            logging.info(f"Attempting to create database connection pool (attempt {i+1}/{retries})...")
+            connection_pool = psycopg2.pool.SimpleConnectionPool(1, 10, CONNECTION_STRING)
+            logging.info("Database connection pool created successfully.")
             break
         except Exception as e:
             logging.error(f"Database connection error: {e}. Retrying in {delay} seconds...")
             await asyncio.sleep(delay)
             delay *= 1.5
     else:
-        logging.error("Failed to connect to database after multiple retries. The application will not start.")
+        logging.error("Failed to create database connection pool after multiple retries. The application will not start.")
         raise ConnectionError("Failed to connect to PostgreSQL during startup.")
 
-    app.state.db_connection = db_connection
     yield
-    app.state.db_connection.close()
-    logging.info("Database connection closed.")
+
+    if connection_pool:
+        connection_pool.closeall()
+        logging.info("Database connection pool closed.")
 
 app = FastAPI(
     title="Relibank Accounts Service",
@@ -89,8 +107,10 @@ app = FastAPI(
 @app.get("/users/{email}")
 async def get_user(email: str):
     """Retrieves user info by email."""
+    conn = None
     try:
-        with app.state.db_connection.cursor(cursor_factory=extras.RealDictCursor) as cursor:
+        conn = get_db_connection()
+        with conn.cursor(cursor_factory=extras.RealDictCursor) as cursor:
             cursor.execute("SELECT * FROM user_account WHERE email = %s", (email,))
             user = cursor.fetchone()
             if not user:
@@ -99,13 +119,17 @@ async def get_user(email: str):
     except Exception as e:
         logging.error(f"Error retrieving user: {e}")
         raise HTTPException(status_code=500, detail="Error retrieving user.")
+    finally:
+        return_db_connection(conn)
 
 @app.get("/accounts/{email}")
 async def get_accounts(email: str):
     """Retrieves all accounts for a given user email."""
     accounts = []
+    conn = None
     try:
-        with app.state.db_connection.cursor(cursor_factory=extras.RealDictCursor) as cursor:
+        conn = get_db_connection()
+        with conn.cursor(cursor_factory=extras.RealDictCursor) as cursor:
             # First, get the user's ID using their email
             cursor.execute("SELECT id FROM user_account WHERE email = %s", (email,))
             user = cursor.fetchone()
@@ -163,14 +187,18 @@ async def get_accounts(email: str):
     except Exception as e:
         logging.error(f"Error retrieving accounts: {e}")
         raise HTTPException(status_code=500, detail="Error retrieving accounts.")
-    
+    finally:
+        return_db_connection(conn)
+
 @app.get("/account/type/{account_id}", response_model=AccountType)
 async def get_account_type(account_id: int):
     """
     Retrieves the type of a specific account by its ID.
     """
+    conn = None
     try:
-        with app.state.db_connection.cursor() as cursor:
+        conn = get_db_connection()
+        with conn.cursor() as cursor:
             # Check checking accounts
             cursor.execute("SELECT id, 'checking' AS account_type FROM checking_accounts WHERE id = %s", (account_id,))
             account_data = cursor.fetchone()
@@ -193,27 +221,35 @@ async def get_account_type(account_id: int):
     except Exception as e:
         logging.error(f"Error retrieving account type: {e}")
         raise HTTPException(status_code=500, detail="Error retrieving account type.")
+    finally:
+        return_db_connection(conn)
 
 @app.post("/users")
 async def create_user(user: User):
     """Creates a new user account."""
+    conn = None
     try:
-        with app.state.db_connection.cursor() as cursor:
+        conn = get_db_connection()
+        with conn.cursor() as cursor:
             cursor.execute("""
                 INSERT INTO user_account (id, name, alert_preferences, phone, email, address, income, preferred_language, marketing_preferences, privacy_preferences)
                 VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
             """, (user.id, user.name, json.dumps(user.alert_preferences), user.phone, user.email, user.address, user.income, user.preferred_language, json.dumps(user.marketing_preferences), json.dumps(user.privacy_preferences)))
-            app.state.db_connection.commit()
+            conn.commit()
             return {"status": "success", "message": "User created successfully."}
     except Exception as e:
         logging.error(f"Error creating user: {e}")
         raise HTTPException(status_code=500, detail="Error creating user.")
+    finally:
+        return_db_connection(conn)
 
 @app.post("/accounts/{email}")
 async def create_account(email: str, account: Account):
     """Creates a new account and links it to a user."""
+    conn = None
     try:
-        with app.state.db_connection.cursor() as cursor:
+        conn = get_db_connection()
+        with conn.cursor() as cursor:
             # First, get the user's ID using their email
             cursor.execute("SELECT id FROM user_account WHERE email = %s", (email,))
             user = cursor.fetchone()
@@ -225,29 +261,54 @@ async def create_account(email: str, account: Account):
                 cursor.execute("""
                     INSERT INTO checking_accounts (id, name, balance, routing_number, interest_rate, last_statement_date)
                     VALUES (%s, %s, %s, %s, %s, %s)
+                    ON CONFLICT (id) DO UPDATE SET
+                        name = EXCLUDED.name,
+                        balance = EXCLUDED.balance,
+                        routing_number = EXCLUDED.routing_number,
+                        interest_rate = EXCLUDED.interest_rate,
+                        last_statement_date = EXCLUDED.last_statement_date
                 """, (account.id, account.name, account.balance, account.routing_number, account.interest_rate, account.last_statement_date))
             elif account.account_type == 'savings':
                 cursor.execute("""
                     INSERT INTO savings_accounts (id, name, balance, routing_number, interest_rate, last_statement_date)
                     VALUES (%s, %s, %s, %s, %s, %s)
+                    ON CONFLICT (id) DO UPDATE SET
+                        name = EXCLUDED.name,
+                        balance = EXCLUDED.balance,
+                        routing_number = EXCLUDED.routing_number,
+                        interest_rate = EXCLUDED.interest_rate,
+                        last_statement_date = EXCLUDED.last_statement_date
                 """, (account.id, account.name, account.balance, account.routing_number, account.interest_rate, account.last_statement_date))
             elif account.account_type == 'credit':
                 # Correctly handling the nullable fields for a credit account
                 cursor.execute("""
                     INSERT INTO credit_accounts (id, name, balance, outstanding_balance, routing_number, interest_rate, last_statement_date, payment_schedule, last_payment_date, automatic_pay)
                     VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                    ON CONFLICT (id) DO UPDATE SET
+                        name = EXCLUDED.name,
+                        balance = EXCLUDED.balance,
+                        outstanding_balance = EXCLUDED.outstanding_balance,
+                        routing_number = EXCLUDED.routing_number,
+                        interest_rate = EXCLUDED.interest_rate,
+                        last_statement_date = EXCLUDED.last_statement_date,
+                        payment_schedule = EXCLUDED.payment_schedule,
+                        last_payment_date = EXCLUDED.last_payment_date,
+                        automatic_pay = EXCLUDED.automatic_pay
                 """, (account.id, account.name, account.balance, 0, account.routing_number, account.interest_rate, account.last_statement_date, None, None, False))
             
             cursor.execute("""
                 INSERT INTO account_user (account_id, user_id)
                 VALUES (%s, %s)
+                ON CONFLICT (account_id, user_id) DO NOTHING
             """, (account.id, user_id))
 
-            app.state.db_connection.commit()
+            conn.commit()
             return {"status": "success", "message": f"{account.account_type} account created and linked to user."}
     except Exception as e:
         logging.error(f"Error creating account: {e}")
         raise HTTPException(status_code=500, detail="Error creating account.")
+    finally:
+        return_db_connection(conn)
 
 @app.get("/health")
 async def health_check():

@@ -29,7 +29,10 @@ spec:
                   name: infrastructure-config
                   key: KAFKA_BROKER
             - name: TRANSACTION_SERVICE_URL
-              value: http://transaction-service:5000
+              valueFrom:
+                configMapKeyRef:
+                  name: infrastructure-config
+                  key: TRANSACTION_SERVICE_URL
           image: bill-pay-service
           name: bill-pay-service
           ports:
