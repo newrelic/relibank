@@ -33,6 +33,7 @@ BEGIN
         Currency VARCHAR(10) NOT NULL,
         AccountID INT NOT NULL,
         Timestamp FLOAT NOT NULL,
+        StartDate DATE,
         CancellationUserID VARCHAR(50),
         CancellationTimestamp FLOAT
     );
