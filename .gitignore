@@ -5,4 +5,15 @@ act-secrets.env
 **/.DS_Store
 **/keys.txt
 **/*.log*
-*.env
+__pycache__/
+*.pyc
+.venv/
+env/
+venv/
+.env
+*.tar
+*.log
+.vscode/
+*.cache
+model/
+todos.md

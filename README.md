@@ -2,22 +2,27 @@
 
 A microservices banking application built for chaos engineering and resilience testing.
 
-## TODOs
+---
 
-DB interface python with endpoints for auth service
-DONE placeholder for posts/puts, so we can implement adding new accounts later
+### ⚙️ Test connection to New Relic
 
-DONE In Transactions, add a DB table that stores outstanding balance on a loan/credit account, amount on a checking/savings account
-Add Transaction types:
-shopping | credit_card | loan | entertainment | utilities | groceries | gas | etc
+1. Connect to the service's container, docker example `docker exec -it bill-pay /bin/sh`
 
-DONE In Bill Pay, add from/to account
-DONE Enforce uniqueness on BillIDs
-Check that to/fromaccount is valid, check balance on each before initiating payment or cancel if it's impossible
+2. newrelic-admin validate-config LOCATION_OF_NEWRELIC.INI
 
-In Accounts, add an account for Relibank that will handle all loan payments. Build out loan payments in the code
+3. If needed, add a logfile to newrelic.ini
+```[newrelic]
+log_file = /app/newrelic.log
+log_level = info
+```
 
-Convert logging.info calls to json instead of flat logs
+4. Validate logs with ```docker exec -it bill-pay cat newrelic-agent.log```
+
+---
+
+### ⚙️ Formatting
+
+1. ```ruff format``` https://docs.astral.sh/ruff/formatter/#ruff-format 
 
 ## What is this?
 
