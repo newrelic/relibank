@@ -8,6 +8,7 @@ services:
     environment:
       - ALLOW_ANONYMOUS_LOGIN=yes
       - ZOO_MY_ID=1
+    platform: linux/arm64/v8
 
   kafka:
     image: bitnami/kafka:3.5
@@ -29,6 +30,7 @@ services:
       - KAFKA_CFG_LISTENER_SECURITY_PROTOCOL_MAP=PLAINTEXT:PLAINTEXT,EXTERNAL:PLAINTEXT
       - KAFKA_CFG_LISTENERS=PLAINTEXT://:29092,EXTERNAL://:9092
       - ALLOW_PLAINTEXT_LISTENER=yes
+    platform: linux/arm64/v8
 
   accounts-db:
     image: postgres:15
@@ -47,6 +49,9 @@ services:
     volumes:
       - accounts-data:/var/lib/postgresql/data
       - ./accounts_service/postgres/init.sql:/docker-entrypoint-initdb.d/init.sql
+    env_file:
+      - .env
+    platform: linux/amd64
 
   accounts-service:
     build:
@@ -58,11 +63,14 @@ services:
     depends_on:
       accounts-db:
         condition: service_healthy
+    env_file:
+      - .env
     environment:
       DB_HOST: accounts-db
       DB_NAME: accountsdb
       DB_USER: postgres
       DB_PASSWORD: your_password
+    platform: linux/arm64/v8
 
   mssql:
     build:
@@ -76,10 +84,12 @@ services:
       - ACCEPT_EULA=Y
     platform: linux/amd64
     healthcheck:
-      test: ["CMD-SHELL", "/opt/mssql-tools/bin/sqlcmd -S localhost -U SA -P \"YourStrong@Password!\" -Q \"SELECT 1\" || exit 1"]
+      test: ["CMD-SHELL", "/opt/mssql-tools/bin/sqlcmd -S localhost -U SA -P \"YourStrong@Password!\" -Q \"SELECT 1 FROM sys.databases WHERE name='RelibankDB'\" || exit 1"]
       interval: 10s
       timeout: 5s
       retries: 5
+    env_file:
+      - .env
     volumes:
       - mssql-data:/var/opt/mssql
 
@@ -91,10 +101,12 @@ services:
       mssql:
         condition: service_healthy
     command: /opt/mssql-tools/bin/sqlcmd -S mssql -U SA -P "YourStrong@Password!" -i /usr/config/init.sql
+    env_file:
+      - .env
     volumes:
       - ./transaction_service/mssql/init.sql:/usr/config/init.sql
 
-  bill-pay-service:
+  bill-pay:
     build:
       context: ./bill_pay
     container_name: bill-pay-service
@@ -105,9 +117,13 @@ services:
         condition: service_healthy
       transaction-service:
         condition: service_healthy
+    # command: ["sh", "-c", "uvicorn bill_pay_service:app --host 0.0.0.0 --port 5000 --workers 1 --log-level error"]
     environment:
       KAFKA_BROKER: kafka:29092
       TRANSACTION_SERVICE_URL: http://transaction-service:5000
+    env_file:
+      - .env
+    platform: linux/arm64/v8
 
   transaction-service:
     build:
@@ -126,14 +142,17 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
-    command: ["sh", "-c", "uvicorn transaction_service:app --host 0.0.0.0 --port 5000 --workers 1 --log-level error"]
+    # command: ["sh", "-c", "uvicorn transaction_service:app --host 0.0.0.0 --port 5000 --workers 1 --log-level error"]
+    env_file:
+      - .env
     environment:
       KAFKA_BROKER: kafka:29092
       DB_SERVER: mssql
       DB_DATABASE: RelibankDB
       DB_USERNAME: SA
       DB_PASSWORD: YourStrong@Password!
-      
+    platform: linux/arm64/v8
+
   notifications-service:
     build:
       context: ./notifications_service
@@ -142,30 +161,48 @@ services:
     depends_on:
       kafka:
         condition: service_healthy
-    command: ["python", "notifications_service.py"]
+    # command: ["python", "notifications_service.py"]
+    env_file:
+      - .env
     environment:
       KAFKA_BROKER: kafka:29092
-      # Azure Communication Services credentials
       AZURE_ACS_CONNECTION_STRING: ""
       AZURE_ACS_SMS_PHONE_NUMBER: "+15551234567"
       AZURE_ACS_EMAIL_ENDPOINT: "https://your-acs-resource-name.azurecomm.net"
       AZURE_ACS_EMAIL_SENDER: "DoNotReply@xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx.azurecomm.net"
-      # Old credentials (uncomment to use)
-      # TWILIO_ACCOUNT_SID: "ACxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
-      # TWILIO_AUTH_TOKEN: "your_auth_token"
-      # TWILIO_PHONE_NUMBER: "+15551234567"
-      # SENDGRID_API_KEY: "SG.xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
-      # SENDGRID_SENDER_EMAIL: "sender@example.com"
-
+    platform: linux/arm64/v8
+  
   scheduler-service:
     build:
-      context: ./event_scheduler
+      context: ./scheduler_service
       dockerfile: Dockerfile
     container_name: scheduler-service
     depends_on:
       kafka:
         condition: service_healthy
-    command: ["python", "scheduler_service.py"]
+      mssql-init:
+        condition: service_completed_successfully
+    # command: ["python", "scheduler_service.py"]
+    env_file:
+      - .env
+    environment:
+      KAFKA_BROKER: kafka:29092
+      DB_SERVER: mssql
+      DB_DATABASE: RelibankDB
+      DB_USERNAME: SA
+      DB_PASSWORD: YourStrong@Password!
+    platform: linux/arm64/v8
+      
+  chatbot-service:
+    build:
+      context: ./chatbot_service
+    container_name: chatbot-service
+    ports:
+      - "5003:5003"
+    depends_on:
+      - kafka
+    env_file:
+      - .env
     environment:
       KAFKA_BROKER: kafka:29092
 

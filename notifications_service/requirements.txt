@@ -1,3 +1,0 @@
-aiokafka==0.10.0
-azure-communication-email
-azure-communication-sms

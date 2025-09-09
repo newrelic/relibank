@@ -49,7 +49,7 @@ BEGIN
 END;
 GO
 
--- Insert initial balances into the Ledger table (using integer IDs)
+-- Insert initial balances into the Ledger table
 IF NOT EXISTS (SELECT 1 FROM Ledger WHERE AccountID = 12345)
 BEGIN
     INSERT INTO Ledger (AccountID, CurrentBalance) VALUES (12345, 1500.50);
@@ -70,6 +70,22 @@ IF NOT EXISTS (SELECT 1 FROM Ledger WHERE AccountID = 10111)
 BEGIN
     INSERT INTO Ledger (AccountID, CurrentBalance) VALUES (10111, 5000.00);
 END;
+
+-- Create a new table to store recurring payment schedules
+IF NOT EXISTS (SELECT * FROM sysobjects WHERE name='RecurringSchedules' and xtype='U')
+BEGIN
+    CREATE TABLE RecurringSchedules (
+        ScheduleID INT IDENTITY(1,1) PRIMARY KEY,
+        BillID VARCHAR(50) NOT NULL,
+        Amount DECIMAL(19, 4) NOT NULL,
+        Currency VARCHAR(10) NOT NULL,
+        AccountID INT NOT NULL,
+        Frequency VARCHAR(50) NOT NULL,
+        StartDate DATE NOT NULL,
+        Timestamp FLOAT NOT NULL
+    );
+END;
+GO
 
 -- Create an initialization flag table to indicate setup is complete
 IF NOT EXISTS (SELECT * FROM sysobjects WHERE name='InitComplete' and xtype='U')

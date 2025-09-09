@@ -13,6 +13,20 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     gnupg \
     lsb-release
 
+ARG NEW_RELIC_APP_NAME="${APP_NAME} - Transaction Service"
+ENV NEW_RELIC_APP_NAME=$NEW_RELIC_APP_NAME
+
+ARG NEW_RELIC_USER_API_KEY
+ENV NEW_RELIC_API_KEY=$NEW_RELIC_USER_API_KEY
+
+ARG NEW_RELIC_ACCOUNT_ID
+ENV NEW_RELIC_ACCOUNT_ID=$NEW_RELIC_ACCOUNT_ID
+
+ARG NEW_RELIC_LICENSE_KEY
+ENV NEW_RELIC_LICENSE_KEY=$NEW_RELIC_LICENSE_KEY
+
+ENV NEW_RELIC_DISTRIBUTED_TRACING_ENABLED=true
+
 # Add the Microsoft ODBC repository for Debian and install the latest driver (msodbcsql18)
 RUN curl -fsSL https://packages.microsoft.com/keys/microsoft.asc | gpg --dearmor > /etc/apt/trusted.gpg.d/microsoft-prod.gpg \
     && echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/trusted.gpg.d/microsoft-prod.gpg] https://packages.microsoft.com/debian/12/prod bookworm main" > /etc/apt/sources.list.d/mssql-release.list \
@@ -21,17 +35,15 @@ RUN curl -fsSL https://packages.microsoft.com/keys/microsoft.asc | gpg --dearmor
     libodbc2 \
     msodbcsql18
 
-# Copy the requirements file into the container
-COPY requirements.txt .
+# Copy the application code file
+COPY . .
 
 # Install Python dependencies
-RUN pip install --no-cache-dir -r requirements.txt
-
-# Copy the application code file
-COPY transaction_service.py .
+# RUN pip install --no-cache-dir -r requirements.txt
+RUN pip install uv && uv sync
 
 # Expose the port the FastAPI app will run on
 EXPOSE 5000
 
 # Command to run the consumer script
-CMD ["uvicorn", "transaction_service:app", "--host", "0.0.0.0", "--port", "5000", "--workers", "1"]
+CMD ["uv", "run", "newrelic-admin", "run-program", "uvicorn", "transaction_service:app", "--host", "0.0.0.0", "--port", "5000", "--workers", "1", "--log-config", "logging.conf"]
