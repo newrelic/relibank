@@ -1,0 +1,52 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    app: notifications-service
+  name: notifications-service
+  namespace: relibank
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: notifications-service
+  template:
+    metadata:
+      labels:
+        app: notifications-service
+    spec:
+      containers:
+        - args:
+            - python
+            - notifications_service.py
+          env:
+            - name: AZURE_ACS_CONNECTION_STRING
+            - name: AZURE_ACS_EMAIL_ENDPOINT
+              value: https://your-acs-resource-name.azurecomm.net
+            - name: AZURE_ACS_EMAIL_SENDER
+              value: DoNotReply@xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx.azurecomm.net
+            - name: AZURE_ACS_SMS_PHONE_NUMBER
+              value: "+15551234567"
+            - name: KAFKA_BROKER
+              valueFrom:
+                configMapKeyRef:
+                  name: infrastructure-config
+                  key: KAFKA_BROKER
+          image: notifications-service
+          name: notifications-service
+      restartPolicy: Always
+---
+apiVersion: v1
+kind: Service
+metadata:
+  labels:
+    app: notifications-service
+  name: notifications-service
+  namespace: relibank
+spec:
+  ports:
+  - name: "5003"
+    port: 5003
+    targetPort: 5000
+  selector:
+    app: notifications-service

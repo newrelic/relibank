@@ -31,5 +31,8 @@ COPY . .
 # RUN pip install --no-cache-dir -r requirements.txt
 RUN pip install uv && uv sync
 
+# Expose port for potential health checks or service communication
+EXPOSE 5000
+
 # Command to run the consumer script
 CMD ["uv", "run", "newrelic-admin", "run-program", "python", "notifications_service.py"]

@@ -1,0 +1,79 @@
+# Chaos Mesh Helm Values for Production Installation
+# Based on: https://chaos-mesh.org/docs/production-installation-using-helm/
+
+# Dashboard Configuration
+dashboard:
+  # Enable the web dashboard
+  create: true
+  # Security mode disabled for easier access (enable in production)
+  securityMode: false
+  # Service configuration
+  service:
+    type: ClusterIP
+    port: 2333
+  # Resource limits
+  resources:
+    limits:
+      cpu: 500m
+      memory: 1Gi
+    requests:
+      cpu: 250m
+      memory: 512Mi
+
+# Chaos Daemon Configuration
+chaosDaemon:
+  # Runtime - adjust based on your cluster
+  runtime: containerd
+  socketPath: /run/containerd/containerd.sock
+  # Enable privileged mode for more chaos types
+  privileged: true
+  # Resource limits
+  resources:
+    limits:
+      cpu: 500m
+      memory: 1Gi
+    requests:
+      cpu: 250m
+      memory: 512Mi
+
+# Controller Manager Configuration
+controllerManager:
+  # Enable leader election for HA
+  leaderElection:
+    enabled: true
+  # Resource limits
+  resources:
+    limits:
+      cpu: 500m
+      memory: 1Gi
+    requests:
+      cpu: 100m
+      memory: 512Mi
+
+# DNS Server Configuration (for network chaos)
+dnsServer:
+  create: true
+  resources:
+    limits:
+      cpu: 100m
+      memory: 256Mi
+    requests:
+      cpu: 50m
+      memory: 128Mi
+
+# RBAC Configuration
+rbac:
+  create: true
+
+# Service Account Configuration
+serviceAccount:
+  create: true
+
+# Webhook Configuration
+webhook:
+  # Failure policy for webhook
+  failurePolicy: Fail
+  # Certificate configuration
+  certs:
+    # Let Chaos Mesh manage certificates
+    autoGenerate: true

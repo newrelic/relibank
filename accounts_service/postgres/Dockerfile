@@ -1,10 +1,8 @@
-# Use the official PostgreSQL image
+# Use the official PostgreSQL 15 image
 FROM postgres:15
 
-# Set environment variables for the database
-ENV POSTGRES_USER=postgres
-ENV POSTGRES_PASSWORD=your_password
-ENV POSTGRES_DB=accountsdb
+# Copy the initialization script into the container
+COPY init.sql /usr/config/init.sql
 
-# Copy the initialization script to the default location for init scripts
-COPY init.sql /docker-entrypoint-initdb.d/
+# Expose the default PostgreSQL port
+EXPOSE 5432

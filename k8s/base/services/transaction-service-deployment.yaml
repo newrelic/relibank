@@ -1,0 +1,78 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    app: transaction-service
+  name: transaction-service
+  namespace: relibank
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: transaction-service
+  template:
+    metadata:
+      labels:
+        app: transaction-service
+    spec:
+      containers:
+        - args:
+            - sh
+            - -c
+            - uvicorn transaction_service:app --host 0.0.0.0 --port 5000 --workers 1 --log-level error
+          env:
+            - name: DB_DATABASE
+              valueFrom:
+                configMapKeyRef:
+                  key: MSSQL_DATABASE_NAME
+                  name: infrastructure-config
+            - name: DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  key: MSSQL_SA_PASSWORD
+                  name: database-credentials
+            - name: DB_SERVER
+              valueFrom:
+                configMapKeyRef:
+                  key: MSSQL_SERVER_NAME
+                  name: infrastructure-config
+            - name: DB_USERNAME
+              valueFrom:
+                secretKeyRef:
+                  key: MSSQL_SA_USER
+                  name: database-credentials
+            - name: KAFKA_BROKER
+              valueFrom:
+                configMapKeyRef:
+                  key: KAFKA_BROKER
+                  name: infrastructure-config
+          image: transaction-service
+          livenessProbe:
+            exec:
+              command:
+                - curl
+                - -f
+                - http://localhost:5000/health
+            failureThreshold: 5
+            periodSeconds: 10
+            timeoutSeconds: 5
+          name: transaction-service
+          ports:
+            - containerPort: 5000
+              protocol: TCP
+      restartPolicy: Always
+---
+apiVersion: v1
+kind: Service
+metadata:
+  labels:
+    app: transaction-service
+  name: transaction-service
+  namespace: relibank
+spec:
+  ports:
+  - name: "5001"
+    port: 5001
+    targetPort: 5000
+  selector:
+    app: transaction-service

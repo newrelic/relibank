@@ -1,0 +1,60 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    app: accounts-service
+  name: accounts-service
+  namespace: relibank
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: accounts-service
+  template:
+    metadata:
+      labels:
+        app: accounts-service
+    spec:
+      containers:
+        - env:
+            - name: DB_HOST
+              valueFrom:
+                configMapKeyRef:
+                  key: POSTGRES_SERVER_NAME
+                  name: infrastructure-config
+            - name: DB_NAME
+              valueFrom:
+                configMapKeyRef:
+                  key: POSTGRES_DATABASE_NAME
+                  name: infrastructure-config
+            - name: DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  key: POSTGRES_PASSWORD
+                  name: database-credentials
+            - name: DB_USER
+              valueFrom:
+                secretKeyRef:
+                  key: POSTGRES_USER
+                  name: database-credentials
+          image: accounts-service
+          name: accounts-service
+          ports:
+            - containerPort: 5000
+              protocol: TCP
+      restartPolicy: Always
+---
+apiVersion: v1
+kind: Service
+metadata:
+  labels:
+    app: accounts-service
+  name: accounts-service
+  namespace: relibank
+spec:
+  ports:
+  - name: "5002"
+    port: 5002
+    targetPort: 5000
+  selector:
+    app: accounts-service

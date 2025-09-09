@@ -1,0 +1,65 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    app: scheduler-service
+  name: scheduler-service
+  namespace: relibank
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: scheduler-service
+  template:
+    metadata:
+      labels:
+        app: scheduler-service
+    spec:
+      containers:
+        - args:
+            - python
+            - scheduler_service.py
+          env:
+            - name: KAFKA_BROKER
+              valueFrom:
+                configMapKeyRef:
+                  key: KAFKA_BROKER
+                  name: infrastructure-config
+            - name: DB_SERVER
+              valueFrom:
+                configMapKeyRef:
+                  key: MSSQL_SERVER_NAME
+                  name: infrastructure-config
+            - name: DB_DATABASE
+              valueFrom:
+                configMapKeyRef:
+                  key: MSSQL_DATABASE_NAME
+                  name: infrastructure-config
+            - name: DB_USERNAME
+              valueFrom:
+                secretKeyRef:
+                  key: MSSQL_SA_USER
+                  name: database-credentials
+            - name: DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  key: MSSQL_SA_PASSWORD
+                  name: database-credentials
+          image: scheduler-service
+          name: scheduler-service
+      restartPolicy: Always
+---
+apiVersion: v1
+kind: Service
+metadata:
+  labels:
+    app: scheduler-service
+  name: scheduler-service
+  namespace: relibank
+spec:
+  ports:
+  - name: "5004"
+    port: 5004
+    targetPort: 5000
+  selector:
+    app: scheduler-service

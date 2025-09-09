@@ -1,0 +1,183 @@
+apiVersion: skaffold/v4beta13
+kind: Config
+metadata:
+  name: relibank
+
+build:
+  tagPolicy:
+    sha256: {}
+  local:
+    useBuildkit: true
+  artifacts:
+  - image: accounts-service
+    context: accounts_service
+    docker:
+      dockerfile: Dockerfile
+      buildArgs:
+        OPENAI_LOG: ${OPENAI_LOG}
+        OPENAI_API_KEY: ${OPENAI_API_KEY}
+        BASE_URL: ${BASE_URL}
+        NEW_RELIC_API_KEY: ${NEW_RELIC_API_KEY}
+        NEW_RELIC_ACCOUNT_ID: ${NEW_RELIC_ACCOUNT_ID}
+        NEW_RELIC_LICENSE_KEY: ${NEW_RELIC_LICENSE_KEY}
+        APP_NAME: ${APP_NAME}
+    sync:
+      manual:
+      - src: "**/*.py"
+        dest: /app
+  - image: transaction-service
+    context: transaction_service
+    docker:
+      dockerfile: Dockerfile
+      buildArgs:
+        OPENAI_LOG: ${OPENAI_LOG}
+        OPENAI_API_KEY: ${OPENAI_API_KEY}
+        BASE_URL: ${BASE_URL}
+        NEW_RELIC_API_KEY: ${NEW_RELIC_API_KEY}
+        NEW_RELIC_ACCOUNT_ID: ${NEW_RELIC_ACCOUNT_ID}
+        NEW_RELIC_LICENSE_KEY: ${NEW_RELIC_LICENSE_KEY}
+        APP_NAME: ${APP_NAME}
+    sync:
+      manual:
+      - src: "**/*.py"
+        dest: /app
+  - image: bill-pay-service
+    context: bill_pay
+    docker:
+      dockerfile: Dockerfile
+      buildArgs:
+        OPENAI_LOG: ${OPENAI_LOG}
+        OPENAI_API_KEY: ${OPENAI_API_KEY}
+        BASE_URL: ${BASE_URL}
+        NEW_RELIC_API_KEY: ${NEW_RELIC_API_KEY}
+        NEW_RELIC_ACCOUNT_ID: ${NEW_RELIC_ACCOUNT_ID}
+        NEW_RELIC_LICENSE_KEY: ${NEW_RELIC_LICENSE_KEY}
+        APP_NAME: ${APP_NAME}
+    sync:
+      manual:
+      - src: "**/*.py"
+        dest: /app
+  - image: notifications-service
+    context: notifications_service
+    docker:
+      dockerfile: Dockerfile
+      buildArgs:
+        OPENAI_LOG: ${OPENAI_LOG}
+        OPENAI_API_KEY: ${OPENAI_API_KEY}
+        BASE_URL: ${BASE_URL}
+        NEW_RELIC_API_KEY: ${NEW_RELIC_API_KEY}
+        NEW_RELIC_ACCOUNT_ID: ${NEW_RELIC_ACCOUNT_ID}
+        NEW_RELIC_LICENSE_KEY: ${NEW_RELIC_LICENSE_KEY}
+        APP_NAME: ${APP_NAME}
+    sync:
+      manual:
+      - src: "**/*.py"
+        dest: /app
+  - image: scheduler-service
+    context: scheduler_service
+    docker:
+      dockerfile: Dockerfile
+      buildArgs:
+        OPENAI_LOG: ${OPENAI_LOG}
+        OPENAI_API_KEY: ${OPENAI_API_KEY}
+        BASE_URL: ${BASE_URL}
+        NEW_RELIC_API_KEY: ${NEW_RELIC_API_KEY}
+        NEW_RELIC_ACCOUNT_ID: ${NEW_RELIC_ACCOUNT_ID}
+        NEW_RELIC_LICENSE_KEY: ${NEW_RELIC_LICENSE_KEY}
+        APP_NAME: ${APP_NAME}
+    sync:
+      manual:
+      - src: "**/*.py"
+        dest: /app
+  - image: mssql-custom
+    context: transaction_service/mssql
+    docker:
+      dockerfile: Dockerfile
+  - image: postgres-custom
+    context: accounts_service/postgres
+    docker:
+      dockerfile: Dockerfile
+
+# Manifests configuration - use Kustomize to handle image name mapping and resources
+manifests:
+  kustomize:
+    paths:
+    - "k8s/overlays/dev"
+
+deploy:
+  helm:
+    releases:
+    - name: chaos-mesh
+      remoteChart: chaos-mesh
+      namespace: chaos-mesh
+      createNamespace: true
+      repo: https://charts.chaos-mesh.org
+      version: 2.6.2
+      valuesFiles:
+      - chaos_mesh/values.yaml
+      wait: true
+      upgradeOnChange: true
+  kubectl:
+    hooks:
+      before:
+      - host:
+          command: ["echo", "🚀 Starting Relibank deployment with Kustomize"]
+          dir: "."
+      after:
+      - host:
+          command: ["kubectl", "label", "namespace", "relibank", "chaos-mesh.org/inject=enabled", "--overwrite"]
+          dir: "."
+      - host:
+          command: ["kubectl", "apply", "-f", "chaos_mesh/experiments/"]
+          dir: "."
+      - host:
+          command: ["echo", "🎭 Chaos Mesh installed and Relibank namespace labeled for chaos injection"]
+          dir: "."
+      - host:
+          command: ["echo", "🔥 Chaos experiments deployed and ready to test system resilience"]
+          dir: "."
+
+# Port forwarding configuration - standardized for maintainability
+portForward:
+- resourceType: service
+  resourceName: accounts-service
+  namespace: relibank
+  port: 5002
+  localPort: 5002
+- resourceType: service
+  resourceName: transaction-service
+  namespace: relibank
+  port: 5001
+  localPort: 5001
+- resourceType: service
+  resourceName: bill-pay-service
+  namespace: relibank
+  port: 5000
+  localPort: 5000
+- resourceType: service
+  resourceName: notifications-service
+  namespace: relibank
+  port: 5003
+  localPort: 5003
+- resourceType: service
+  resourceName: scheduler-service
+  namespace: relibank
+  port: 5004
+  localPort: 5004
+- resourceType: service
+  resourceName: chaos-dashboard
+  namespace: chaos-mesh
+  port: 2333
+  localPort: 2333
+
+# Multiple profiles for different environments and use cases
+profiles:
+# ===========================================
+# LOCAL DEVELOPMENT PROFILE
+# ===========================================
+- name: local
+  build:
+    local:
+      push: false
+  deploy:
+    kubectl: {}
