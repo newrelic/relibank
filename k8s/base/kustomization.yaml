@@ -22,14 +22,17 @@ resources:
 - jobs/mssql-init-deployment.yaml
 - jobs/postgres-init-deployment.yaml
 
+# Infrastructure (Kafka/Zookeeper)
+- infrastructure/zookeeper-deployment.yaml
+- infrastructure/kafka-deployment.yaml
+
 # Application Services
 - services/accounts-service-deployment.yaml
 - services/bill-pay-service-deployment.yaml
 - services/notifications-service-deployment.yaml
 - services/scheduler-service-deployment.yaml
 - services/transaction-service-deployment.yaml
+- services/chatbot-service-deployment.yaml
 
-# Infrastructure (Kafka/Zookeeper)
-- infrastructure/zookeeper-deployment.yaml
-- infrastructure/kafka-deployment.yaml
+# Chaos Mesh
 - infrastructure/chaos-mesh-ingress.yaml

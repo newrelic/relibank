@@ -1,0 +1,45 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    app: chatbot-service
+  name: chatbot-service
+  namespace: relibank
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: chatbot-service
+  template:
+    metadata:
+      labels:
+        app: chatbot-service
+    spec:
+      containers:
+        - env:
+            - name: KAFKA_BROKER
+              valueFrom:
+                configMapKeyRef:
+                  key: KAFKA_BROKER
+                  name: infrastructure-config
+          image: chatbot-service
+          name: chatbot-service
+          ports:
+            - containerPort: 5003
+              protocol: TCP
+      restartPolicy: Always
+---
+apiVersion: v1
+kind: Service
+metadata:
+  labels:
+    app: chatbot-service
+  name: chatbot-service
+  namespace: relibank
+spec:
+  ports:
+  - name: "5003"
+    port: 5003
+    targetPort: 5003
+  selector:
+    app: chatbot-service

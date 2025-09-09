@@ -13,6 +13,14 @@ build:
     context: accounts_service
     docker:
       dockerfile: Dockerfile
+      buildArgs:
+        OPENAI_LOG: ${OPENAI_LOG}
+        OPENAI_API_KEY: ${OPENAI_API_KEY}
+        BASE_URL: ${BASE_URL}
+        NEW_RELIC_API_KEY: ${NEW_RELIC_API_KEY}
+        NEW_RELIC_ACCOUNT_ID: ${NEW_RELIC_ACCOUNT_ID}
+        NEW_RELIC_LICENSE_KEY: ${NEW_RELIC_LICENSE_KEY}
+        APP_NAME: ${APP_NAME}
     sync:
       manual:
       - src: "**/*.py"
@@ -21,6 +29,14 @@ build:
     context: transaction_service
     docker:
       dockerfile: Dockerfile
+      buildArgs:
+        OPENAI_LOG: ${OPENAI_LOG}
+        OPENAI_API_KEY: ${OPENAI_API_KEY}
+        BASE_URL: ${BASE_URL}
+        NEW_RELIC_API_KEY: ${NEW_RELIC_API_KEY}
+        NEW_RELIC_ACCOUNT_ID: ${NEW_RELIC_ACCOUNT_ID}
+        NEW_RELIC_LICENSE_KEY: ${NEW_RELIC_LICENSE_KEY}
+        APP_NAME: ${APP_NAME}
     sync:
       manual:
       - src: "**/*.py"
@@ -29,6 +45,14 @@ build:
     context: bill_pay
     docker:
       dockerfile: Dockerfile
+      buildArgs:
+        OPENAI_LOG: ${OPENAI_LOG}
+        OPENAI_API_KEY: ${OPENAI_API_KEY}
+        BASE_URL: ${BASE_URL}
+        NEW_RELIC_API_KEY: ${NEW_RELIC_API_KEY}
+        NEW_RELIC_ACCOUNT_ID: ${NEW_RELIC_ACCOUNT_ID}
+        NEW_RELIC_LICENSE_KEY: ${NEW_RELIC_LICENSE_KEY}
+        APP_NAME: ${APP_NAME}
     sync:
       manual:
       - src: "**/*.py"
@@ -37,14 +61,30 @@ build:
     context: notifications_service
     docker:
       dockerfile: Dockerfile
+      buildArgs:
+        OPENAI_LOG: ${OPENAI_LOG}
+        OPENAI_API_KEY: ${OPENAI_API_KEY}
+        BASE_URL: ${BASE_URL}
+        NEW_RELIC_API_KEY: ${NEW_RELIC_API_KEY}
+        NEW_RELIC_ACCOUNT_ID: ${NEW_RELIC_ACCOUNT_ID}
+        NEW_RELIC_LICENSE_KEY: ${NEW_RELIC_LICENSE_KEY}
+        APP_NAME: ${APP_NAME}
     sync:
       manual:
       - src: "**/*.py"
         dest: /app
   - image: scheduler-service
-    context: schedular_service
+    context: scheduler_service
     docker:
       dockerfile: Dockerfile
+      buildArgs:
+        OPENAI_LOG: ${OPENAI_LOG}
+        OPENAI_API_KEY: ${OPENAI_API_KEY}
+        BASE_URL: ${BASE_URL}
+        NEW_RELIC_API_KEY: ${NEW_RELIC_API_KEY}
+        NEW_RELIC_ACCOUNT_ID: ${NEW_RELIC_ACCOUNT_ID}
+        NEW_RELIC_LICENSE_KEY: ${NEW_RELIC_LICENSE_KEY}
+        APP_NAME: ${APP_NAME}
     sync:
       manual:
       - src: "**/*.py"
