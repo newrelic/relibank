@@ -42,7 +42,7 @@ build:
       - src: "**/*.py"
         dest: /app
   - image: scheduler-service
-    context: event_scheduler
+    context: schedular_service
     docker:
       dockerfile: Dockerfile
     sync:
