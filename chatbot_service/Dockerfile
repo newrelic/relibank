@@ -4,7 +4,7 @@ FROM python:3.12-slim
 # Set the working directory in the container
 WORKDIR /app
 
-ARG NEW_RELIC_APP_NAME="Jared - Chatbot Service"
+ARG NEW_RELIC_APP_NAME="${APP_NAME} - Chatbot Service"
 ENV NEW_RELIC_APP_NAME=$NEW_RELIC_APP_NAME
 
 ARG NEW_RELIC_USER_API_KEY

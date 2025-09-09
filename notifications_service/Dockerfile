@@ -10,7 +10,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     zlib1g-dev \
     unixodbc-dev
 
-ARG NEW_RELIC_APP_NAME="Jared - Notifications Service"
+ARG NEW_RELIC_APP_NAME="${APP_NAME} - Notifications Service"
 ENV NEW_RELIC_APP_NAME=$NEW_RELIC_APP_NAME
 
 ARG NEW_RELIC_USER_API_KEY

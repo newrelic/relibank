@@ -13,7 +13,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     curl \
     gnupg
 
-ARG NEW_RELIC_APP_NAME="Jared - Event Scheduler Service"
+ARG NEW_RELIC_APP_NAME="${APP_NAME} - Event Scheduler Service"
 ENV NEW_RELIC_APP_NAME=$NEW_RELIC_APP_NAME
 
 ARG NEW_RELIC_USER_API_KEY
