@@ -9,7 +9,6 @@ spec:
   storageClassName: azure-disk
   accessModes:
     - ReadWriteOnce
-  storageClassName: azure-disk
   resources:
     requests:
       storage: 2Gi
@@ -25,7 +24,6 @@ spec:
   storageClassName: azure-disk
   accessModes:
     - ReadWriteOnce
-  storageClassName: azure-disk
   resources:
     requests:
       storage: 2Gi
