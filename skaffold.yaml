@@ -97,6 +97,18 @@ build:
     context: accounts_service/postgres
     docker:
       dockerfile: Dockerfile
+  - image: scenario-runner
+    context: scenario_service
+    docker:
+      dockerfile: Dockerfile
+    sync:
+      manual:
+      - src: "**/*.py"
+        dest: /app/scenario_service
+      - src: "index.html"
+        dest: /app
+      - src: "**/*.yaml"
+        dest: /app/relibank/chaos_mesh/experiments/
 
 # Manifests configuration - use Kustomize to handle image name mapping and resources
 manifests:
@@ -164,6 +176,11 @@ portForward:
   namespace: relibank
   port: 5004
   localPort: 5004
+- resourceType: service
+  resourceName: scenario-runner-service
+  namespace: relibank
+  port: 8000
+  localPort: 8000
 - resourceType: service
   resourceName: chaos-dashboard
   namespace: chaos-mesh

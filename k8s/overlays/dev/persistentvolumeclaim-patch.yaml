@@ -4,7 +4,7 @@ metadata:
   labels:
     app: mssql-data
   annotations:
-    volume.beta.kubernetes.io/storage-class: standard
+    storageClassName: standard
   name: mssql-data
   namespace: relibank
 spec:
@@ -22,7 +22,7 @@ metadata:
   labels:
     app: accounts-db
   annotations:
-    volume.beta.kubernetes.io/storage-class: standard
+    storageClassName: standard
 spec:
   accessModes:
     - ReadWriteOnce
