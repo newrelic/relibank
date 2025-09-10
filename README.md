@@ -11,6 +11,7 @@ Relibank simulates a banking system with separate services for accounts, transac
 - **accounts-service** - Manages user accounts (FastAPI + PostgreSQL)
 - **transaction-service** - Processes payments (FastAPI + MSSQL)  
 - **bill-pay-service** - Handles bill payments (FastAPI)
+- **chatbot-service** - Relibank's AI chatbot (FastAPI)
 - **notifications-service** - Sends notifications via Kafka
 - **scheduler-service** - Schedules events via Kafka
 - **Infrastructure** - Kafka, Zookeeper, databases
