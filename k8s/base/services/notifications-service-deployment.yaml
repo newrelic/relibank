@@ -16,10 +16,7 @@ spec:
         app: notifications-service
     spec:
       containers:
-        - args:
-            - python
-            - notifications_service.py
-          env:
+        - env:
             - name: AZURE_ACS_CONNECTION_STRING
             - name: AZURE_ACS_EMAIL_ENDPOINT
               value: https://your-acs-resource-name.azurecomm.net
@@ -45,8 +42,8 @@ metadata:
   namespace: relibank
 spec:
   ports:
-  - name: "5003"
-    port: 5003
+  - name: "5000"
+    port: 5000
     targetPort: 5000
   selector:
     app: notifications-service

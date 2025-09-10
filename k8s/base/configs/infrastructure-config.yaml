@@ -29,5 +29,5 @@ data:
   TRANSACTION_SERVICE_URL: "http://transaction-service:5001"
   ACCOUNTS_SERVICE_URL: "http://accounts-service:5002"
   BILL_PAY_SERVICE_URL: "http://bill-pay-service:5000"
-  NOTIFICATIONS_SERVICE_URL: "http://notifications-service:5003"
+  CHATBOT_SERVICE_URL: "http://chatbot-service:5003"
   SCHEDULER_SERVICE_URL: "http://scheduler-service:5004"

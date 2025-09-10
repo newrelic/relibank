@@ -155,7 +155,7 @@ portForward:
   port: 5000
   localPort: 5000
 - resourceType: service
-  resourceName: notifications-service
+  resourceName: chatbot-service
   namespace: relibank
   port: 5003
   localPort: 5003
