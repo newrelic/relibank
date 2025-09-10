@@ -266,7 +266,8 @@ async def create_user(user: User):
     """Creates a new user account."""
     conn = None
     try:
-        with app.state.db_connection.cursor() as cursor:
+        conn = get_db_connection()
+        with conn.cursor() as cursor:
             cursor.execute(
                 """
                 INSERT INTO user_account (id, name, alert_preferences, phone, email, address, income, preferred_language, marketing_preferences, privacy_preferences)
@@ -285,7 +286,7 @@ async def create_user(user: User):
                     json.dumps(user.privacy_preferences),
                 ),
             )
-            app.state.db_connection.commit()
+            conn.commit()
             return {"status": "success", "message": "User created successfully."}
     except Exception as e:
         logging.error(f"Error creating user: {e}")
@@ -367,14 +368,30 @@ async def create_account(email: str, account: Account):
                 (account.id, user_id),
             )
 
-            app.state.db_connection.commit()
+            conn.commit()
             return {
                 "status": "success",
                 "message": f"{account.account_type} account created and linked to user.",
             }
+    except psycopg2.IntegrityError as e:
+        if conn:
+            conn.rollback()
+        if "duplicate key value violates unique constraint" in str(e):
+            logging.warning(f"Attempt to create duplicate account with ID {account.id}")
+            raise HTTPException(
+                status_code=409,
+                detail=f"Account with ID {account.id} already exists. Please use a different account ID."
+            )
+        else:
+            logging.error(f"Database integrity error creating account: {e}")
+            raise HTTPException(status_code=400, detail="Invalid account data provided.")
     except Exception as e:
+        if conn:
+            conn.rollback()
         logging.error(f"Error creating account: {e}")
         raise HTTPException(status_code=500, detail="Error creating account.")
+    finally:
+        return_db_connection(conn)
 
 
 @app.get("/health")

@@ -179,7 +179,7 @@ portForward:
   resourceName: notifications-service
   namespace: relibank
   port: 5000
-  localPort: 5000
+  localPort: 5005
 - resourceType: service
   resourceName: scheduler-service
   namespace: relibank
