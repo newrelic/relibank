@@ -2,28 +2,6 @@
 
 A microservices banking application built for chaos engineering and resilience testing.
 
----
-
-### ⚙️ Test connection to New Relic
-
-1. Connect to the service's container, docker example `docker exec -it bill-pay /bin/sh`
-
-2. newrelic-admin validate-config LOCATION_OF_NEWRELIC.INI
-
-3. If needed, add a logfile to newrelic.ini
-```[newrelic]
-log_file = /app/newrelic.log
-log_level = info
-```
-
-4. Validate logs with ```docker exec -it bill-pay cat newrelic-agent.log```
-
----
-
-### ⚙️ Formatting
-
-1. ```ruff format``` https://docs.astral.sh/ruff/formatter/#ruff-format 
-
 ## What is this?
 
 Relibank simulates a banking system with separate services for accounts, transactions, bill payments, notifications, and scheduling. It's designed to help you learn about microservices resilience patterns and chaos engineering using Kubernetes and Chaos Mesh.
@@ -33,6 +11,7 @@ Relibank simulates a banking system with separate services for accounts, transac
 - **accounts-service** - Manages user accounts (FastAPI + PostgreSQL)
 - **transaction-service** - Processes payments (FastAPI + MSSQL)  
 - **bill-pay-service** - Handles bill payments (FastAPI)
+- **chatbot-service** - Relibank's AI chatbot (FastAPI)
 - **notifications-service** - Sends notifications via Kafka
 - **scheduler-service** - Schedules events via Kafka
 - **Infrastructure** - Kafka, Zookeeper, databases
@@ -62,7 +41,7 @@ Once deployed, you can access:
 - Accounts: http://localhost:5002
 - Transactions: http://localhost:5001  
 - Bill Pay: http://localhost:5000
-- Notifications: http://localhost:5003
+- Chatbot: http://localhost:5003
 - Scheduler: http://localhost:5004
 - Chaos Mesh Dashboard: http://localhost:2333
 
@@ -150,3 +129,25 @@ This isn't meant to be a real banking application. It's a learning tool for:
 - Observability and monitoring
 
 Try breaking things with Chaos Mesh and see how the system responds!
+
+---
+
+### ⚙️ Test connection to New Relic
+
+1. Connect to the service's container, docker example `docker exec -it bill-pay /bin/sh`
+
+2. newrelic-admin validate-config LOCATION_OF_NEWRELIC.INI
+
+3. If needed, add a logfile to newrelic.ini
+```[newrelic]
+log_file = /app/newrelic.log
+log_level = info
+```
+
+4. Validate logs with ```docker exec -it bill-pay cat newrelic-agent.log```
+
+---
+
+### ⚙️ Formatting
+
+1. ```ruff format``` https://docs.astral.sh/ruff/formatter/#ruff-format 

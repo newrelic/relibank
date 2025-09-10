@@ -16,10 +16,7 @@ spec:
         app: scheduler-service
     spec:
       containers:
-        - args:
-            - python
-            - scheduler_service.py
-          env:
+        - env:
             - name: KAFKA_BROKER
               valueFrom:
                 configMapKeyRef:

@@ -57,6 +57,22 @@ build:
       manual:
       - src: "**/*.py"
         dest: /app
+  - image: chatbot-service
+    context: chatbot_service
+    docker:
+      dockerfile: Dockerfile
+      buildArgs:
+        OPENAI_LOG: ${OPENAI_LOG}
+        OPENAI_API_KEY: ${OPENAI_API_KEY}
+        BASE_URL: ${BASE_URL}
+        NEW_RELIC_API_KEY: ${NEW_RELIC_API_KEY}
+        NEW_RELIC_ACCOUNT_ID: ${NEW_RELIC_ACCOUNT_ID}
+        NEW_RELIC_LICENSE_KEY: ${NEW_RELIC_LICENSE_KEY}
+        APP_NAME: ${APP_NAME}
+    sync:
+      manual:
+      - src: "**/*.py"
+        dest: /app
   - image: notifications-service
     context: notifications_service
     docker:
@@ -155,10 +171,15 @@ portForward:
   port: 5000
   localPort: 5000
 - resourceType: service
-  resourceName: notifications-service
+  resourceName: chatbot-service
   namespace: relibank
   port: 5003
   localPort: 5003
+- resourceType: service
+  resourceName: notifications-service
+  namespace: relibank
+  port: 5000
+  localPort: 5005
 - resourceType: service
   resourceName: scheduler-service
   namespace: relibank
