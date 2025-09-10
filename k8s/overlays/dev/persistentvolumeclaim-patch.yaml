@@ -3,8 +3,6 @@ kind: PersistentVolumeClaim
 metadata:
   labels:
     app: mssql-data
-  annotations:
-    volume.beta.kubernetes.io/storage-class: standard
   name: mssql-data
   namespace: relibank
 spec:
@@ -21,8 +19,6 @@ metadata:
   namespace: relibank
   labels:
     app: accounts-db
-  annotations:
-    volume.beta.kubernetes.io/storage-class: standard
 spec:
   accessModes:
     - ReadWriteOnce
