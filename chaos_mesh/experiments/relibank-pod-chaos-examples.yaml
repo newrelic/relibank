@@ -1,140 +1,119 @@
+---
 apiVersion: chaos-mesh.org/v1alpha1
-kind: PodChaos
+kind: Schedule
 metadata:
-  name: relibank-payment-flow-pod-chaos
+  name: relibank-payment-flow-schedule
   namespace: relibank
   labels:
     app: relibank
     experiment-type: pod-chaos
     target-flow: payment-processing
 spec:
-  # Target the transaction service which is critical for payment processing
-  selector:
-    namespaces:
-    - relibank
-    labelSelectors:
-      io.kompose.service: transaction-service
-
-  # Kill one pod at a time to test individual pod resilience
-  mode: one
-
-  # Pod kill action - simulates sudden pod failure
-  action: pod-kill
-
-  # Run the experiment for 2 minutes
-  duration: 2m
-
-  # Grace period for pod termination (0 = immediate kill)
-  gracePeriod: 0
+  cron: "0 * * * *"
+  type: PodChaos
+  schedule:
+    action: pod-kill
+    mode: one
+    selector:
+      namespaces:
+      - relibank
+      labelSelectors:
+        app: transaction-service
+    duration: 2m
+    gracePeriod: 0
 
 ---
 apiVersion: chaos-mesh.org/v1alpha1
-kind: PodChaos
+kind: Schedule
 metadata:
-  name: relibank-database-connection-pod-chaos
+  name: relibank-database-connection-schedule
   namespace: relibank
   labels:
     app: relibank
     experiment-type: pod-chaos
     target-flow: database-connectivity
 spec:
-  # Target the accounts service to test database connection resilience
-  selector:
-    namespaces:
-    - relibank
-    labelSelectors:
-      io.kompose.service: accounts-service
-
-  # Test pod failure simulation (temporary failure without killing)
-  mode: one
-  action: pod-failure
-
-  # Run for 90 seconds
-  duration: 90s
-
-  # Grace period for graceful shutdown
-  gracePeriod: 5
+  cron: "0 * * * *"
+  type: PodChaos
+  schedule:
+    action: pod-failure
+    mode: one
+    selector:
+      namespaces:
+      - relibank
+      labelSelectors:
+        app: accounts-service
+    duration: 90s
+    gracePeriod: 5
 
 ---
 apiVersion: chaos-mesh.org/v1alpha1
-kind: PodChaos
+kind: Schedule
 metadata:
-  name: relibank-messaging-service-pod-chaos
+  name: relibank-messaging-service-schedule
   namespace: relibank
   labels:
     app: relibank
     experiment-type: pod-chaos
     target-flow: messaging-notifications
 spec:
-  # Target notifications service that depends on Kafka messaging
-  selector:
-    namespaces:
-    - relibank
-    labelSelectors:
-      io.kompose.service: notifications-service
-
-  # Kill pods to test message queue resilience
-  mode: one
-  action: pod-kill
-
-  # Short duration test
-  duration: 60s
-
-  # Immediate termination
-  gracePeriod: 0
+  cron: "0 * * * *"
+  type: PodChaos
+  schedule:
+    action: pod-kill
+    mode: one
+    selector:
+      namespaces:
+      - relibank
+      labelSelectors:
+        app: notifications-service
+    duration: 60s
+    gracePeriod: 0
 
 ---
 apiVersion: chaos-mesh.org/v1alpha1
-kind: PodChaos
+kind: Schedule
 metadata:
-  name: relibank-bill-pay-resilience-test
+  name: relibank-bill-pay-resilience-schedule
   namespace: relibank
   labels:
     app: relibank
     experiment-type: pod-chaos
     target-flow: bill-payment
 spec:
-  # Target the bill pay service specifically
-  selector:
-    namespaces:
-    - relibank
-    labelSelectors:
-      io.kompose.service: bill-pay-service
-
-  # Use pod-failure to simulate container crashes without killing pods
-  mode: one
-  action: pod-failure
-
-  # Test for 2 minutes
-  duration: 2m
-
-  # Allow graceful shutdown
-  gracePeriod: 10
+  cron: "0 * * * *"
+  type: PodChaos
+  schedule:
+    action: pod-failure
+    mode: one
+    selector:
+      namespaces:
+      - relibank
+      labelSelectors:
+        app: bill-pay-service
+    duration: 2m
+    gracePeriod: 10
 
 ---
 apiVersion: chaos-mesh.org/v1alpha1
-kind: PodChaos
+kind: Schedule
 metadata:
-  name: relibank-scheduler-service-chaos
+  name: relibank-scheduler-service-schedule
   namespace: relibank
   labels:
     app: relibank
     experiment-type: pod-chaos
     target-flow: event-scheduling
 spec:
-  # Target the event scheduler service
-  selector:
-    namespaces:
-    - relibank
-    labelSelectors:
-      io.kompose.service: scheduler-service
-
-  # Kill scheduler pods to test job resilience
-  mode: one
-  action: pod-kill
-
-  # Short test duration
-  duration: 45s
-
-  # No grace period for immediate termination
-  gracePeriod: 0
+  cron: "0 * * * *"
+  type: PodChaos
+  schedule:
+    action: pod-kill
+    mode: one
+    selector:
+      namespaces:
+      - relibank
+      labelSelectors:
+        app: scheduler-service
+    duration: 45s
+    gracePeriod: 0
