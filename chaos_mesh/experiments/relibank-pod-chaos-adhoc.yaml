@@ -1,0 +1,104 @@
+---
+apiVersion: chaos-mesh.org/v1alpha1
+kind: PodChaos
+metadata:
+  name: relibank-payment-flow
+  namespace: relibank
+  labels:
+    app: relibank
+    experiment-type: pod-chaos
+    target-flow: payment-processing
+spec:
+  action: pod-kill
+  mode: one
+  selector:
+    namespaces:
+    - relibank
+    labelSelectors:
+      app: transaction-service
+  duration: 2m
+  gracePeriod: 0
+  
+---
+apiVersion: chaos-mesh.org/v1alpha1
+kind: PodChaos
+metadata:
+  name: relibank-database-connection
+  namespace: relibank
+  labels:
+    app: relibank
+    experiment-type: pod-chaos
+    target-flow: database-connectivity
+spec:
+  action: pod-failure
+  mode: one
+  selector:
+    namespaces:
+    - relibank
+    labelSelectors:
+      app: accounts-service
+  duration: 90s
+  gracePeriod: 5
+
+---
+apiVersion: chaos-mesh.org/v1alpha1
+kind: PodChaos
+metadata:
+  name: relibank-messaging-service
+  namespace: relibank
+  labels:
+    app: relibank
+    experiment-type: pod-chaos
+    target-flow: messaging-notifications
+spec:
+  action: pod-kill
+  mode: one
+  selector:
+    namespaces:
+    - relibank
+    labelSelectors:
+      app: notifications-service
+  duration: 60s
+  gracePeriod: 0
+
+---
+apiVersion: chaos-mesh.org/v1alpha1
+kind: PodChaos
+metadata:
+  name: relibank-bill-pay-resilience-test
+  namespace: relibank
+  labels:
+    app: relibank
+    experiment-type: pod-chaos
+    target-flow: bill-payment
+spec:
+  action: pod-failure
+  mode: one
+  selector:
+    namespaces:
+    - relibank
+    labelSelectors:
+      app: bill-pay-service
+  duration: 2m
+  gracePeriod: 10
+
+---
+apiVersion: chaos-mesh.org/v1alpha1
+kind: PodChaos
+metadata:
+  name: relibank-scheduler-service-test
+  namespace: relibank
+  labels:
+    app: relibank
+    experiment-type: pod-chaos
+    target-flow: event-scheduling
+spec:
+  action: pod-kill
+  mode: one
+  selector:
+    namespaces:
+    - relibank
+    labelSelectors:
+      app: scheduler-service
+  duration: 45s
+  gracePeriod: 0

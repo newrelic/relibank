@@ -44,7 +44,7 @@ def load_chaos_experiments(yaml_file_path: str):
         print(f"Error parsing YAML file: {e}")
 
 # Load the experiments at application startup
-load_chaos_experiments("relibank/chaos_mesh/experiments/relibank-pod-chaos-examples.yaml")
+load_chaos_experiments("relibank/chaos_mesh/experiments/relibank-pod-chaos-adhoc.yaml")
 
 # Load Kubernetes configuration from the cluster
 # This expects the app to be running inside a Kubernetes pod with proper RBAC
