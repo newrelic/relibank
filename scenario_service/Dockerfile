@@ -1,21 +1,20 @@
-# Use the official Python image for a later version
+# Use a slim Python image as the base for building and running
 FROM python:3.12
 
-# Set working directory in the container
+# Create the final application directory
 WORKDIR /app
 
-# Copy the pyproject.toml file
-COPY pyproject.toml ./
+# Copy the requirements file and install dependencies
+COPY requirements.txt .
+RUN pip install -r requirements.txt
 
-# Copy the application code file
+# Copy the application code
 COPY . .
-
-# Install Python dependencies
-# RUN pip install --no-cache-dir -r requirements.txt
-RUN pip install uv && uv sync
 
 # Expose the port the app runs on
 EXPOSE 8000
 
-# Command to run the application with uvicorn
-CMD ["uv", "run", "uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]
+# Command to run the application with gunicorn and uvicorn workers
+# CMD ["gunicorn", "-w", "4", "-k", "uvicorn.workers.UvicornWorker", "-b", "0.0.0.0:8000", "scenario_service.scenario_service:app"]
+CMD ["uvicorn", "scenario_service:app", "--host", "0.0.0.0", "--port", "8000"]
+

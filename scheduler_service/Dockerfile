@@ -1,5 +1,5 @@
 # Use a slim Python image as the base for building and running
-FROM python:3.12-slim
+FROM python:3.12
 
 # Set the working directory in the container
 WORKDIR /app
@@ -35,12 +35,12 @@ RUN curl -fsSL https://packages.microsoft.com/keys/microsoft.asc | gpg --dearmor
     libodbc2 \
     msodbcsql18
 
-# Copy the application code file
+# Copy the requirements file and install dependencies
+COPY requirements.txt .
+RUN pip install -r requirements.txt
+
+# Copy the application code
 COPY . .
 
-# Install Python dependencies
-# RUN pip install --no-cache-dir -r requirements.txt
-RUN pip install uv && uv sync
-
 # Command to run the scheduler script
-CMD ["uv", "run", "newrelic-admin", "run-program", "python", "scheduler_service.py"]
+CMD ["newrelic-admin", "run-program", "python", "scheduler_service.py"]

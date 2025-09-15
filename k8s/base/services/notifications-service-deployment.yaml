@@ -16,10 +16,7 @@ spec:
         app: notifications-service
     spec:
       containers:
-        - args:
-            - python
-            - notifications_service.py
-          env:
+        - env:
             - name: AZURE_ACS_CONNECTION_STRING
             - name: AZURE_ACS_EMAIL_ENDPOINT
               value: https://your-acs-resource-name.azurecomm.net

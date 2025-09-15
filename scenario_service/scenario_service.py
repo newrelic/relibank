@@ -4,38 +4,45 @@ import yaml
 import subprocess
 from fastapi import FastAPI, Request
 from fastapi.responses import HTMLResponse
-from fastapi.templating import Jinja2Templates
+from typing import Dict, Any, List
 from kubernetes import client, config
 from kubernetes.client.rest import ApiException
-from typing import Dict, Any, List
-
-# Initialize FastAPI app
-app = FastAPI(title="Chaos Mesh Scenario Runner")
+from contextlib import asynccontextmanager
 
 # Dictionary to store parsed Chaos Mesh experiments
 CHAOS_EXPERIMENTS: Dict[str, Dict[str, Any]] = {}
 
-def load_chaos_experiments(yaml_file_path: str):
+# Kubernetes API clients for custom resources
+api_client = None
+api_version = "chaos-mesh.org/v1alpha1"
+plural = "podchaos"
+
+# Define the lifespan of the application
+@asynccontextmanager
+async def lifespan(app: FastAPI):
     """
-    Loads chaos experiment definitions from a multi-document YAML file.
+    Loads chaos experiment definitions on application startup and initializes Kubernetes client.
     """
+    global api_client
+    # Define the path to the chaos experiment YAML file
+    yaml_file_path = "relibank/chaos_mesh/experiments/relibank-pod-chaos-adhoc.yaml"
+
+    # Load and parse the chaos experiment YAML file
     try:
         with open(yaml_file_path, 'r') as file:
-            # Use yaml.safe_load_all to parse the multi-document YAML file
             for doc in yaml.safe_load_all(file):
-                if doc and doc.get("kind") == "Schedule" and doc.get("spec", {}).get("type") == "PodChaos":
+                if doc and doc.get("kind") == "PodChaos":
                     name = doc["metadata"]["name"]
-                    spec_schedule = doc["spec"]["schedule"]
                     description = doc["metadata"].get("labels", {}).get("target-flow", "No description available.")
                     
-                    # Construct a new experiment dictionary for ad-hoc execution
+                    # Store the complete experiment spec for ad-hoc execution
                     CHAOS_EXPERIMENTS[name] = {
                         "namespace": doc["metadata"]["namespace"],
-                        "action": spec_schedule["action"],
-                        "mode": spec_schedule["mode"],
-                        "selector": spec_schedule["selector"],
-                        "duration": spec_schedule["duration"],
-                        "gracePeriod": spec_schedule["gracePeriod"],
+                        "action": doc["spec"]["action"],
+                        "mode": doc["spec"]["mode"],
+                        "selector": doc["spec"]["selector"],
+                        "duration": doc["spec"]["duration"],
+                        "gracePeriod": doc["spec"]["gracePeriod"],
                         "description": description
                     }
     except FileNotFoundError:
@@ -43,21 +50,21 @@ def load_chaos_experiments(yaml_file_path: str):
     except yaml.YAMLError as e:
         print(f"Error parsing YAML file: {e}")
 
-# Load the experiments at application startup
-load_chaos_experiments("relibank/chaos_mesh/experiments/relibank-pod-chaos-adhoc.yaml")
+    # Initialize Kubernetes client from within the pod
+    try:
+        config.load_incluster_config()
+    except config.ConfigException:
+        print("Warning: Could not load in-cluster config. Loading kube config from default location.")
+        config.load_kube_config()
+    
+    api_client = client.CustomObjectsApi()
+    
+    print("Chaos experiments loaded successfully on startup.")
+    yield
+    print("Application is shutting down.")
 
-# Load Kubernetes configuration from the cluster
-# This expects the app to be running inside a Kubernetes pod with proper RBAC
-try:
-    config.load_incluster_config()
-except config.ConfigException:
-    print("Warning: Could not load in-cluster config. Loading kube config from default location.")
-    config.load_kube_config()
-
-# Kubernetes API clients for custom resources
-api_client = client.CustomObjectsApi()
-api_version = "chaos-mesh.org/v1alpha1"
-plural = "podchaos"
+# Initialize FastAPI app with the lifespan
+app = FastAPI(title="Relibank Scenario Runner", lifespan=lifespan)
 
 @app.get("/", response_class=HTMLResponse)
 async def read_root():
@@ -164,4 +171,3 @@ async def run_locust_test(locustfile_name: str, num_users: int = 1):
             "message": f"Failed to start Locust test: {e.stderr}",
             "output": e.stderr
         }
-    

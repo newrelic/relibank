@@ -1,5 +1,5 @@
 # Use a slim Python image as the base for building and running
-FROM python:3.12-slim
+FROM python:3.12
 
 # Set the working directory in the container
 WORKDIR /app
@@ -20,16 +20,16 @@ ENV NEW_RELIC_DISTRIBUTED_TRACING_ENABLED=true
 
 ENV NEW_RELIC_CONFIG_FILE="newrelic.ini"
 
-# Copy the application code file
-COPY . .
+# Copy the requirements file and install dependencies
+COPY requirements.txt .
+RUN pip install -r requirements.txt
 
-# Install Python dependencies
-# RUN pip install --no-cache-dir -r requirements.txt
-RUN pip install uv && uv sync
+# Copy the application code
+COPY . .
 
 # Expose the port the FastAPI app will run on
 EXPOSE 5003
 
 # Command to run the application using Uvicorn
 # CMD uv run gunicorn -w 1 -k uvicorn.workers.UvicornWorker chatbot_service:app --bind 0.0.0.0:5003 --log-config=logging.conf
-CMD ["uv", "run", "newrelic-admin", "run-program", "gunicorn", "-w", "1", "-k", "uvicorn.workers.UvicornWorker", "chatbot_service:app", "--bind", "0.0.0.0:5003", "--log-config", "logging.conf"]
+CMD ["newrelic-admin", "run-program", "gunicorn", "-w", "1", "-k", "uvicorn.workers.UvicornWorker", "chatbot_service.chatbot_service:app", "--bind", "0.0.0.0:5003", "--log-config", "logging.conf"]

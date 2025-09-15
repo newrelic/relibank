@@ -1,17 +1,12 @@
 [project]
-name = "scenario-service"
+name = "relibank"
 version = "0.1.0"
-description = "A FastAPI application to trigger scenarios and create chaos in Relibank."
+description = "Repo for the Relibank microservices."
 authors = [
 {name = "Relibank Team", email = "team@relibank.com"}
 ]
 requires-python = ">=3.12"
-dependencies = [
-"fastapi>=0.116.1",
-"uvicorn[standard]>=0.35.0",
-"kubernetes>=30.1.0",
-"python-multipart>=0.0.9",
-]
+dependencies = []
 
 [build-system]
 requires = ["hatchling"]
@@ -19,13 +14,13 @@ build-backend = "hatchling.build"
 
 [dependency-groups]
 dev = [
-    "isort>=5.12.0",
-    "flake8>=6.0.0",
-    "ruff"
+"isort>=5.12.0",
+"flake8>=6.0.0",
+"ruff"
 ]
 
 [tool.hatch.build.targets.wheel]
-packages = ["scenario_service"]
+packages = []
 
 [tool.ruff]
 line-length = 120

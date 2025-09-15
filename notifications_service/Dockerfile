@@ -1,5 +1,5 @@
 # Use a slim Python image as the base for building and running
-FROM python:3.12-slim
+FROM python:3.12
 
 # Set the working directory in the container
 WORKDIR /app
@@ -24,15 +24,15 @@ ENV NEW_RELIC_LICENSE_KEY=$NEW_RELIC_LICENSE_KEY
 
 ENV NEW_RELIC_DISTRIBUTED_TRACING_ENABLED=true
 
-# Copy the application code file
-COPY . .
+# Copy the requirements file and install dependencies
+COPY requirements.txt .
+RUN pip install -r requirements.txt
 
-# Install Python dependencies
-# RUN pip install --no-cache-dir -r requirements.txt
-RUN pip install uv && uv sync
+# Copy the application code
+COPY . .
 
 # Expose port for potential health checks or service communication
 EXPOSE 5000
 
 # Command to run the consumer script
-CMD ["uv", "run", "newrelic-admin", "run-program", "python", "notifications_service.py"]
+CMD ["newrelic-admin", "run-program", "python", "notifications_service.py"]

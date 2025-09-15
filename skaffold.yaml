@@ -104,11 +104,13 @@ build:
     sync:
       manual:
       - src: "**/*.py"
-        dest: /app/scenario_service
+        dest: /app
       - src: "index.html"
         dest: /app
-      - src: "**/*.yaml"
-        dest: /app/relibank/chaos_mesh/experiments/
+      - src: "locust/**/*.py"
+        dest: /app/locust
+      - src: "/chaos_mesh/experiments/*.yaml"
+        dest: /app/chaos_mesh/experiments/
 
 # Manifests configuration - use Kustomize to handle image name mapping and resources
 manifests:
@@ -126,7 +128,7 @@ deploy:
       repo: https://charts.chaos-mesh.org
       version: 2.6.2
       valuesFiles:
-      - chaos_mesh/values.yaml
+      - scenario_service/chaos_mesh/values.yaml
       wait: true
       upgradeOnChange: true
   kubectl:
@@ -140,7 +142,7 @@ deploy:
           command: ["kubectl", "label", "namespace", "relibank", "chaos-mesh.org/inject=enabled", "--overwrite"]
           dir: "."
       - host:
-          command: ["kubectl", "apply", "-f", "chaos_mesh/experiments/"]
+          command: ["kubectl", "apply", "-f", "scenario_service/chaos_mesh/experiments/relibank-pod-chaos-adhoc.yaml"]
           dir: "."
       - host:
           command: ["echo", "🎭 Chaos Mesh installed and Relibank namespace labeled for chaos injection"]
