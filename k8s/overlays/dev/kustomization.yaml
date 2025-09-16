@@ -3,6 +3,7 @@ kind: Kustomization
 
 resources:
   - ../../base
+  - scenario-runner-rbac.yaml
 
 patches:
   - path: persistentvolumeclaim-patch.yaml

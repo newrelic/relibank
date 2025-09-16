@@ -103,14 +103,16 @@ build:
       dockerfile: Dockerfile
     sync:
       manual:
-      - src: "**/*.py"
-        dest: /app
-      - src: "index.html"
-        dest: /app
+      - src: "scenario_service/requirements.txt"
+        dest: /app/requirements.txt
+      - src: "scenario_service/**/*.py"
+        dest: /app/scenario_service
       - src: "locust/**/*.py"
         dest: /app/locust
-      - src: "/chaos_mesh/experiments/*.yaml"
-        dest: /app/chaos_mesh/experiments/
+      - src: "relibank/chaos_mesh/experiments/*.yaml"
+        dest: /app/relibank/chaos_mesh/experiments/
+      - src: "index.html"
+        dest: /app
 
 # Manifests configuration - use Kustomize to handle image name mapping and resources
 manifests:
@@ -142,7 +144,7 @@ deploy:
           command: ["kubectl", "label", "namespace", "relibank", "chaos-mesh.org/inject=enabled", "--overwrite"]
           dir: "."
       - host:
-          command: ["kubectl", "apply", "-f", "scenario_service/chaos_mesh/experiments/relibank-pod-chaos-adhoc.yaml"]
+          command: ["kubectl", "apply", "-f", "scenario_service/chaos_mesh/experiments/relibank-pod-chaos-examples.yaml"]
           dir: "."
       - host:
           command: ["echo", "🎭 Chaos Mesh installed and Relibank namespace labeled for chaos injection"]
@@ -169,10 +171,15 @@ portForward:
   port: 5000
   localPort: 5000
 - resourceType: service
-  resourceName: notifications-service
+  resourceName: chatbot-service
   namespace: relibank
   port: 5003
   localPort: 5003
+- resourceType: service
+  resourceName: notifications-service
+  namespace: relibank
+  port: 5000
+  localPort: 5005
 - resourceType: service
   resourceName: scheduler-service
   namespace: relibank

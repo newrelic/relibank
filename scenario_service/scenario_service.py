@@ -25,7 +25,7 @@ async def lifespan(app: FastAPI):
     """
     global api_client
     # Define the path to the chaos experiment YAML file
-    yaml_file_path = "relibank/chaos_mesh/experiments/relibank-pod-chaos-adhoc.yaml"
+    yaml_file_path = "chaos_mesh/experiments/relibank-pod-chaos-adhoc.yaml"
 
     # Load and parse the chaos experiment YAML file
     try:

@@ -8,6 +8,9 @@ WORKDIR /app
 COPY requirements.txt .
 RUN pip install -r requirements.txt
 
+RUN mkdir locust
+COPY ./locust /locust
+
 # Copy the application code
 COPY . .
 
