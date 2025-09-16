@@ -2,6 +2,7 @@ import os
 import uuid
 import yaml
 import subprocess
+import sys
 from fastapi import FastAPI, Request
 from fastapi.responses import HTMLResponse
 from typing import Dict, Any, List
@@ -146,18 +147,19 @@ async def run_locust_test(locustfile_name: str, num_users: int = 1):
     A better solution would be to create a Kubernetes Job. This method is for
     demonstration and development purposes.
     """
+    # Use sys.executable to get the full path to the Python interpreter
+    # This is the most reliable way to run a command from a Python package
     locust_command = [
-        "locust",
+        sys.executable, "-m", "locust",
         "-f", f"locust/{locustfile_name}",
-        "--host", "http://localhost",  # Base URL can be configured here if needed
+        "--host", "http://localhost",
         "--users", str(num_users),
         "--spawn-rate", "10",
         "--run-time", "1m",
-        "--headless"  # Run in headless mode without the web UI
+        "--headless"
     ]
 
     try:
-        # Run the command and capture output
         result = subprocess.run(locust_command, capture_output=True, text=True, check=True)
         return {
             "status": "success",
