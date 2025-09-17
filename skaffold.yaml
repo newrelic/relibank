@@ -152,6 +152,15 @@ deploy:
       - host:
           command: ["echo", "🔥 Chaos experiments deployed and ready to test system resilience"]
           dir: "."
+      # - host:
+      #     command: ["helm", "repo", "add", "ingress-nginx", "https://kubernetes.github.io/ingress-nginx"]
+      #     dir: "."
+      # - host:
+      #     command: ["helm", "repo", "update"]
+      #     dir: "."
+      # - host:
+      #     command: ["helm", "upgrade", "--install", "nginx-ingress", "ingress-nginx/ingress-nginx", "--namespace", "nginx-ingress", "--create-namespace", "--version", "4.10.1", "--values", "k8s/base/configs/nginx-values.yaml"]
+      #     dir: "."
 
 # Port forwarding configuration - standardized for maintainability
 portForward:
@@ -195,6 +204,11 @@ portForward:
   namespace: chaos-mesh
   port: 2333
   localPort: 2333
+# - resourceType: service
+#   resourceName: nginx
+#   namespace: nginx-ingress-controller
+#   port: 80
+#   localPort: 8080
 
 # Multiple profiles for different environments and use cases
 profiles:

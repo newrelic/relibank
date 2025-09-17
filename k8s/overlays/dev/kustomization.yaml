@@ -4,6 +4,7 @@ kind: Kustomization
 resources:
   - ../../base
   - scenario-runner-rbac.yaml
+  # - relibank-ingress.yaml
 
 patches:
   - path: persistentvolumeclaim-patch.yaml

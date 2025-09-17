@@ -1,3 +1,4 @@
+from locust import main as locust_main
 import os
 import uuid
 import yaml
@@ -147,29 +148,44 @@ async def run_locust_test(locustfile_name: str, num_users: int = 1):
     A better solution would be to create a Kubernetes Job. This method is for
     demonstration and development purposes.
     """
-    # Use sys.executable to get the full path to the Python interpreter
-    # This is the most reliable way to run a command from a Python package
-    locust_command = [
-        sys.executable, "-m", "locust",
+    # Create a list of arguments to pass to Locust's main function
+    locust_args = [
+        "locust",  # The first argument is the program name itself
         "-f", f"locust/{locustfile_name}",
-        "--host", "http://localhost",
+        "--host", os.environ.get("LOCUST_HOST"),
         "--users", str(num_users),
         "--spawn-rate", "10",
         "--run-time", "1m",
         "--headless"
     ]
-
+    
+    # Save the original sys.argv and then replace it with our arguments
+    original_argv = sys.argv
+    sys.argv = locust_args
+    
+    # Create a dummy function to replace sys.exit
+    def dummy_exit(code=0):
+        if code != 0:
+            raise RuntimeError(f"Locust exited with non-zero code {code}")
+        
+    original_exit = sys.exit
+    sys.exit = dummy_exit
+    
     try:
-        result = subprocess.run(locust_command, capture_output=True, text=True, check=True)
+        locust_main.main()
         return {
             "status": "success",
             "message": f"Locust test '{locustfile_name}' started successfully.",
-            "output": result.stdout
+            "output": "Locust output is not captured when run this way."
         }
-    except subprocess.CalledProcessError as e:
+    except Exception as e:
         print(f"Error running Locust: {e}")
         return {
             "status": "error",
-            "message": f"Failed to start Locust test: {e.stderr}",
-            "output": e.stderr
+            "message": f"Failed to start Locust test: {e}",
+            "output": str(e)
         }
+    finally:
+        # Restore sys.argv and sys.exit to their original states
+        sys.argv = original_argv
+        sys.exit = original_exit

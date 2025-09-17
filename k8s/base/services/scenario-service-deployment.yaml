@@ -43,6 +43,8 @@ spec:
                 secretKeyRef:
                   key: MSSQL_SA_PASSWORD
                   name: database-credentials
+            - name: LOCUST_HOST
+              value: "http://relibank.local"
           image: scenario-runner
           name: scenario-runner-service
       restartPolicy: Always

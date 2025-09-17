@@ -1,16 +1,10 @@
-import json
 from locust import HttpUser, task, between
-
-
-# Pays a bill, cancels, then pulls all transactions
+import json
+import os
 
 class RelibankUser(HttpUser):
     # This simulates a user waiting between 1 to 5 seconds between tasks
     wait_time = between(1, 5)
-
-    # Base URLs for the services
-    payment_service_base_url = "http://localhost:5000"
-    transaction_service_base_url = "http://localhost:5001"
 
     @task
     def pay_and_cancel_bill(self):
@@ -25,14 +19,21 @@ class RelibankUser(HttpUser):
             "fromAccountId": 67890,
             "toAccountId": 10111
         }
-        with self.client.post(f"{self.payment_service_base_url}/pay", json=pay_payload, catch_response=True) as response:
+
+        bill_pay_host = os.getenv("BILL_PAY_SERVICE_SERVICE_HOST")
+        bill_pay_port = os.getenv("BILL_PAY_SERVICE_SERVICE_PORT")
+
+        with self.client.post(f"http://{bill_pay_host}:{bill_pay_port}/pay", json=pay_payload, catch_response=True) as response:
+        # with self.client.post(f"{self.host}/pay", json=pay_payload, catch_response=True) as response:
+        # with self.client.post(f"http://localhost:5000/pay", json=pay_payload, catch_response=True) as response:
             if response.status_code == 200:
                 print("Successfully paid the bill.")
             else:
                 response.failure("Failed to pay the bill.")
 
         # Task 2: Cancel the paid bill with a POST request
-        with self.client.post(f"{self.payment_service_base_url}/cancel/BILL-TEST-001", catch_response=True) as response:
+        with self.client.post(f"http://{bill_pay_host}:{bill_pay_port}/cancel/BILL-TEST-001", catch_response=True) as response:
+        # with self.client.post(f"http://localhost:5000/cancel/BILL-TEST-001", catch_response=True) as response:
             if response.status_code == 200:
                 print("Successfully canceled the bill.")
             else:
@@ -43,8 +44,13 @@ class RelibankUser(HttpUser):
         """
         Simulates getting all transactions with a GET request.
         """
+
+        transaction_host = os.getenv("TRANSACTION_SERVICE_SERVICE_HOST")
+        transaction_port = os.getenv("TRANSACTION_SERVICE_SERVICE_PORT")
+
         # Task 3: Get all transactions with a GET request
-        with self.client.get(f"{self.transaction_service_base_url}/transactions", catch_response=True) as response:
+        with self.client.get(f"http://{transaction_host}:{transaction_port}/transactions", catch_response=True) as response:
+        # with self.client.get(f"http://localhost:5001/transactions", catch_response=True) as response:
             if response.status_code == 200:
                 print("Successfully fetched all transactions.")
             else:
