@@ -4,6 +4,8 @@ FROM python:3.12
 # Set the working directory in the container
 WORKDIR /app
 
+ARG APP_NAME
+ENV APP_NAME=$APP_NAME
 ARG NEW_RELIC_APP_NAME="${APP_NAME} - Accounts Service"
 ENV NEW_RELIC_APP_NAME=$NEW_RELIC_APP_NAME
 

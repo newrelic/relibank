@@ -21,7 +21,9 @@ RUN curl -fsSL https://packages.microsoft.com/keys/microsoft.asc | gpg --dearmor
     msodbcsql18
 
 # New Relic environment variables, these will be overwritten by the ini if they're defined in both places
-# ARG NEW_RELIC_APP_NAME="${APP_NAME} - Bill Pay Service"
+# ARG APP_NAME
+ARG APP_NAME
+ENV APP_NAME=$APP_NAME
 ARG NEW_RELIC_APP_NAME="${APP_NAME} - Bill Pay Service"
 ENV NEW_RELIC_APP_NAME=$NEW_RELIC_APP_NAME
 
