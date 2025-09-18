@@ -20,6 +20,12 @@ ENV NEW_RELIC_DISTRIBUTED_TRACING_ENABLED=true
 
 ENV NEW_RELIC_CONFIG_FILE="newrelic.ini"
 
+ARG OPENAI_API_KEY
+ENV OPENAI_API_KEY=$OPENAI_API_KEY
+
+ARG OPENAI_LOG
+ENV OPENAI_LOG=$OPENAI_LOG
+
 # Copy the requirements file and install dependencies
 COPY requirements.txt .
 RUN pip install -r requirements.txt
