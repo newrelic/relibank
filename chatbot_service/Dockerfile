@@ -22,9 +22,10 @@ ENV NEW_RELIC_CONFIG_FILE="newrelic.ini"
 
 ARG OPENAI_API_KEY
 ENV OPENAI_API_KEY=$OPENAI_API_KEY
-
 ARG OPENAI_LOG
 ENV OPENAI_LOG=$OPENAI_LOG
+ARG OPENAI_BASE_URL
+ENV OPENAI_BASE_URL=$OPENAI_BASE_URL
 
 # Copy the requirements file and install dependencies
 COPY requirements.txt .
@@ -38,4 +39,4 @@ EXPOSE 5003
 
 # Command to run the application using Uvicorn
 # CMD uv run gunicorn -w 1 -k uvicorn.workers.UvicornWorker chatbot_service:app --bind 0.0.0.0:5003 --log-config=logging.conf
-CMD ["newrelic-admin", "run-program", "gunicorn", "-w", "1", "-k", "uvicorn.workers.UvicornWorker", "chatbot_service.chatbot_service:app", "--bind", "0.0.0.0:5003", "--log-config", "logging.conf"]
+CMD ["newrelic-admin", "run-program", "gunicorn", "-w", "1", "-k", "uvicorn.workers.UvicornWorker", "chatbot_service:app", "--bind", "0.0.0.0:5003", "--log-config", "logging.conf"]
