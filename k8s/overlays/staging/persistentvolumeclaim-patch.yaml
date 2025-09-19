@@ -8,6 +8,7 @@ metadata:
   name: mssql-data
   namespace: relibank
 spec:
+  storageClassName: azure-disk
   accessModes:
     - ReadWriteOnce
   resources:
@@ -24,6 +25,7 @@ metadata:
   annotations:
     storageClassName: azure-disk
 spec:
+  storageClassName: azure-disk
   accessModes:
     - ReadWriteOnce
   resources:
