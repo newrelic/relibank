@@ -1,0 +1,65 @@
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    app: scenario-runner
+  name: scenario-runner-service
+  namespace: relibank
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: scenario-runner
+  template:
+    metadata:
+      labels:
+        app: scenario-runner
+    spec:
+      containers:
+        - env:
+            - name: KAFKA_BROKER
+              valueFrom:
+                configMapKeyRef:
+                  key: KAFKA_BROKER
+                  name: infrastructure-config
+            - name: DB_SERVER
+              valueFrom:
+                configMapKeyRef:
+                  key: MSSQL_SERVER_NAME
+                  name: infrastructure-config
+            - name: DB_DATABASE
+              valueFrom:
+                configMapKeyRef:
+                  key: MSSQL_DATABASE_NAME
+                  name: infrastructure-config
+            - name: DB_USERNAME
+              valueFrom:
+                secretKeyRef:
+                  key: MSSQL_SA_USER
+                  name: database-credentials
+            - name: DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  key: MSSQL_SA_PASSWORD
+                  name: database-credentials
+            - name: LOCUST_HOST
+              value: "http://relibank.local"
+          image: scenario-runner
+          name: scenario-runner-service
+      restartPolicy: Always
+---
+apiVersion: v1
+kind: Service
+metadata:
+  labels:
+    app: scenario-runner
+  name: scenario-runner-service
+  namespace: relibank
+spec:
+  ports:
+  - protocol: TCP
+    port: 8000
+    targetPort: 8000
+  selector:
+    app: scenario-runner

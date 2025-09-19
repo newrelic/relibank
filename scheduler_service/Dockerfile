@@ -13,6 +13,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     curl \
     gnupg
 
+ARG APP_NAME
+ENV APP_NAME=$APP_NAME
 ARG NEW_RELIC_APP_NAME="${APP_NAME} - Event Scheduler Service"
 ENV NEW_RELIC_APP_NAME=$NEW_RELIC_APP_NAME
 
@@ -35,12 +37,12 @@ RUN curl -fsSL https://packages.microsoft.com/keys/microsoft.asc | gpg --dearmor
     libodbc2 \
     msodbcsql18
 
-# Copy the application code file
+# Copy the requirements file and install dependencies
+COPY requirements.txt .
+RUN pip install -r requirements.txt
+
+# Copy the application code
 COPY . .
 
-# Install Python dependencies
-# RUN pip install --no-cache-dir -r requirements.txt
-RUN pip install uv && uv sync
-
 # Command to run the scheduler script
-CMD ["uv", "run", "newrelic-admin", "run-program", "python", "scheduler_service.py"]
+CMD ["newrelic-admin", "run-program", "python", "scheduler_service.py"]

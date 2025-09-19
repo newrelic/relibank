@@ -1,0 +1,37 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: relibank-ingress
+  namespace: relibank
+  annotations:
+    # Use nginx as the ingress controller
+    traefik.ingress.kubernetes.io/router.entrypoints: web
+spec:
+  ingressClassName: nginx
+  rules:
+  - host: relibank.local
+    http:
+      paths:
+      # Routes requests for /pay and /cancel to the bill-pay-service
+      - path: /pay
+        pathType: Prefix
+        backend:
+          service:
+            name: bill-pay-service
+            port:
+              number: 5000
+      - path: /cancel
+        pathType: Prefix
+        backend:
+          service:
+            name: bill-pay-service
+            port:
+              number: 5000
+      # Routes requests for /transactions to the transaction-service
+      - path: /transactions
+        pathType: Prefix
+        backend:
+          service:
+            name: transaction-service
+            port:
+              number: 5001

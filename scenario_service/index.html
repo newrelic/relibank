@@ -1,0 +1,147 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Relibank Scenario Runner</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f3f4f6;
+        }
+    </style>
+</head>
+<body class="bg-gray-100 min-h-screen flex items-center justify-center p-4">
+    <div class="bg-white rounded-xl shadow-2xl p-8 max-w-4xl w-full">
+        <div class="text-center mb-8">
+            <h1 class="text-4xl font-extrabold text-gray-900 mb-2">Relibank Scenario Runner</h1>
+            <p class="text-lg text-gray-600">Trigger chaos and load testing scenarios.</p>
+        </div>
+
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
+            <!-- Chaos Mesh Scenarios Section -->
+            <div class="bg-gray-50 p-6 rounded-lg border border-gray-200">
+                <h2 class="text-2xl font-bold text-gray-800 mb-4">Chaos Mesh Experiments</h2>
+                <p class="text-gray-500 mb-6">Simulate faults like pod failures and kills to test application resilience.</p>
+                <div id="chaos-buttons-container" class="space-y-4">
+                    <!-- Chaos buttons will be dynamically added here -->
+                </div>
+            </div>
+
+            <!-- Locust Scenarios Section -->
+            <div class="bg-gray-50 p-6 rounded-lg border border-gray-200">
+                <h2 class="text-2xl font-bold text-gray-800 mb-4">Locust Load Tests</h2>
+                <p class="text-gray-500 mb-6">Simulate concurrent users to stress test your services and measure performance.</p>
+                <div class="space-y-4">
+                    <div class="flex items-center space-x-4">
+                        <select id="user-count-select" class="flex-grow p-3 rounded-lg border border-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-500 transition duration-300">
+                            <option value="1">1 User</option>
+                            <option value="10">10 Users</option>
+                            <option value="50">50 Users</option>
+                            <option value="100">100 Users</option>
+                        </select>
+                        <button id="run-locust-test" class="bg-blue-600 text-white font-semibold py-3 px-6 rounded-lg shadow-md hover:bg-blue-700 transition duration-300 transform hover:scale-105 whitespace-nowrap">
+                            Run Locust Test
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Status Message Section -->
+        <div id="status-message" class="mt-8 p-4 rounded-lg text-center font-medium transition-opacity duration-300 opacity-0"></div>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            const statusMessage = document.getElementById('status-message');
+            const chaosButtonsContainer = document.getElementById('chaos-buttons-container');
+            const runLocustBtn = document.getElementById('run-locust-test');
+            const userCountSelect = document.getElementById('user-count-select');
+
+            const showMessage = (message, type) => {
+                statusMessage.textContent = message;
+                statusMessage.className = `mt-8 p-4 rounded-lg text-center font-medium transition-opacity duration-300 opacity-100`;
+                if (type === 'success') {
+                    statusMessage.classList.add('bg-green-100', 'text-green-700');
+                } else if (type === 'error') {
+                    statusMessage.classList.add('bg-red-100', 'text-red-700');
+                } else {
+                    statusMessage.classList.add('bg-gray-200', 'text-gray-800');
+                }
+                setTimeout(() => {
+                    statusMessage.classList.remove('opacity-100');
+                }, 5000);
+            };
+            
+            const fetchAndRenderScenarios = async () => {
+                try {
+                    const response = await fetch('/api/scenarios');
+                    if (!response.ok) {
+                        throw new Error(`HTTP error! status: ${response.status}`);
+                    }
+                    const scenarios = await response.json();
+                    
+                    scenarios.forEach(scenario => {
+                        if (scenario.type === 'chaos-mesh') {
+                            const button = document.createElement('button');
+                            button.id = scenario.name;
+                            button.className = "w-full bg-red-600 text-white font-semibold py-3 px-6 rounded-lg shadow-md hover:bg-red-700 transition duration-300 transform hover:scale-105";
+                            button.textContent = `Trigger ${scenario.description}`;
+                            chaosButtonsContainer.appendChild(button);
+                            
+                            button.addEventListener('click', async () => {
+                                showMessage(`Triggering ${scenario.name}...`, 'info');
+                                try {
+                                    const triggerResponse = await fetch(`/api/trigger_chaos/${scenario.name}`, {
+                                        method: 'POST',
+                                    });
+                                    const result = await triggerResponse.json();
+                                    if (result.status === 'success') {
+                                        showMessage(`Success: ${result.message}`, 'success');
+                                    } else {
+                                        showMessage(`Error: ${result.message}`, 'error');
+                                    }
+                                } catch (e) {
+                                    showMessage(`Network error: Could not reach the server.`, 'error');
+                                }
+                            });
+                        }
+                    });
+
+                } catch (e) {
+                    showMessage(`Failed to load scenarios: ${e.message}`, 'error');
+                }
+            };
+
+            const addLocustButtonListener = () => {
+                runLocustBtn.addEventListener('click', async () => {
+                    const numUsers = userCountSelect.value;
+                    const locustfileName = 'pay_cancel.py';
+                    showMessage(`Running Locust test with ${numUsers} users...`, 'info');
+
+                    try {
+                        const response = await fetch(`/api/run_locust/${locustfileName}?num_users=${numUsers}`, {
+                            method: 'POST',
+                        });
+                        const result = await response.json();
+                        if (result.status === 'success') {
+                            showMessage(`Success: ${result.message}`, 'success');
+                            console.log(result.output);
+                        } else {
+                            showMessage(`Error: ${result.message}`, 'error');
+                            console.error(result.output);
+                        }
+                    } catch (e) {
+                        showMessage(`Network error: Could not reach the server.`, 'error');
+                    }
+                });
+            };
+
+            fetchAndRenderScenarios();
+            addLocustButtonListener();
+        });
+    </script>
+</body>
+</html>

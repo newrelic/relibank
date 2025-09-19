@@ -21,7 +21,9 @@ RUN curl -fsSL https://packages.microsoft.com/keys/microsoft.asc | gpg --dearmor
     msodbcsql18
 
 # New Relic environment variables, these will be overwritten by the ini if they're defined in both places
-# ARG NEW_RELIC_APP_NAME="${APP_NAME} - Bill Pay Service"
+# ARG APP_NAME
+ARG APP_NAME
+ENV APP_NAME=$APP_NAME
 ARG NEW_RELIC_APP_NAME="${APP_NAME} - Bill Pay Service"
 ENV NEW_RELIC_APP_NAME=$NEW_RELIC_APP_NAME
 
@@ -38,15 +40,15 @@ ENV NEW_RELIC_DISTRIBUTED_TRACING_ENABLED=true
 
 # ENV NEW_RELIC_CONFIG_FILE="newrelic.ini"
 
-# Copy the application code file
-COPY . .
+# Copy the requirements file and install dependencies
+COPY requirements.txt .
+RUN pip install -r requirements.txt
 
-# Install Python dependencies
-# RUN pip install --no-cache-dir -r requirements.txt
-RUN pip install uv && uv sync
+# Copy the application code
+COPY . .
 
 # Expose the port the FastAPI app will run on
 EXPOSE 5000
 
 # Command to run the application using Uvicorn
-CMD ["uv", "run", "newrelic-admin", "run-program", "uvicorn", "bill_pay_service:app", "--host", "0.0.0.0", "--port", "5000", "--workers", "1", "--log-config", "logging.conf"]
+CMD ["newrelic-admin", "run-program", "uvicorn", "bill_pay_service:app", "--host", "0.0.0.0", "--port", "5000", "--workers", "1", "--log-config", "logging.conf"]

@@ -33,6 +33,7 @@ resources:
 - services/scheduler-service-deployment.yaml
 - services/transaction-service-deployment.yaml
 - services/chatbot-service-deployment.yaml
+- services/scenario-service-deployment.yaml
 
 # Chaos Mesh
 - infrastructure/chaos-mesh-ingress.yaml

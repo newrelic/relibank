@@ -3,6 +3,8 @@ kind: PersistentVolumeClaim
 metadata:
   labels:
     app: mssql-data
+  annotations:
+    storageClassName: azure-disk
   name: mssql-data
   namespace: relibank
 spec:
@@ -20,6 +22,8 @@ metadata:
   namespace: relibank
   labels:
     app: accounts-db
+  annotations:
+    storageClassName: azure-disk
 spec:
   storageClassName: azure-disk
   accessModes:

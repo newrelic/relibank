@@ -3,6 +3,31 @@ kind: Kustomization
 
 resources:
   - ../../base
+  - scenario-runner-rbac.yaml
+  # - relibank-ingress.yaml
 
 patches:
   - path: persistentvolumeclaim-patch.yaml
+
+images:
+- name: accounts-service
+  newName: localhost:5000/accounts-service
+  newTag: latest
+- name: transaction-service
+  newName: localhost:5000/transaction-service
+  newTag: latest
+- name: bill-pay-service
+  newName: localhost:5000/bill-pay-service
+  newTag: latest
+- name: notifications-service
+  newName: localhost:5000/notifications-service
+  newTag: latest
+- name: scheduler-service
+  newName: localhost:5000/scheduler-service
+  newTag: latest
+- name: scenario-runner-service
+  newName: localhost:5000/scenario-runner-service
+  newTag: latest
+- name: chatbot-service
+  newName: localhost:5000/chatbot-service
+  newTag: latest

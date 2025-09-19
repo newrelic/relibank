@@ -10,6 +10,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     zlib1g-dev \
     unixodbc-dev
 
+ARG APP_NAME
+ENV APP_NAME=$APP_NAME
 ARG NEW_RELIC_APP_NAME="${APP_NAME} - Notifications Service"
 ENV NEW_RELIC_APP_NAME=$NEW_RELIC_APP_NAME
 
@@ -24,15 +26,15 @@ ENV NEW_RELIC_LICENSE_KEY=$NEW_RELIC_LICENSE_KEY
 
 ENV NEW_RELIC_DISTRIBUTED_TRACING_ENABLED=true
 
-# Copy the application code file
-COPY . .
+# Copy the requirements file and install dependencies
+COPY requirements.txt .
+RUN pip install -r requirements.txt
 
-# Install Python dependencies
-# RUN pip install --no-cache-dir -r requirements.txt
-RUN pip install uv && uv sync
+# Copy the application code
+COPY . .
 
 # Expose port for potential health checks or service communication
 EXPOSE 5000
 
 # Command to run the consumer script
-CMD ["uv", "run", "newrelic-admin", "run-program", "python", "notifications_service.py"]
+CMD ["newrelic-admin", "run-program", "python", "notifications_service.py"]

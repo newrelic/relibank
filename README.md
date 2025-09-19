@@ -43,6 +43,7 @@ Once deployed, you can access:
 - Bill Pay: http://localhost:5000
 - Chatbot: http://localhost:5003
 - Scheduler: http://localhost:5004
+- Scenario Runner: http://localhost:8000
 - Chaos Mesh Dashboard: http://localhost:2333
 
 ## Environment-Specific Deployments
@@ -61,7 +62,7 @@ The project uses Kustomize overlays for different environments:
 
 Chaos Mesh gets installed automatically and includes pre-built experiments in `chaos_mesh/experiments/`. 
 
-Access the dashboard at http://localhost:2333 to:
+Access the dashboard at http://localhost:2333, or on the scenario page at http://localhost:8000 to:
 - Kill random pods
 - Inject network latency
 - Stress CPU/memory

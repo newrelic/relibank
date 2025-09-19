@@ -17,31 +17,31 @@ spec:
     spec:
       containers:
         - env:
-          - name: DB_DATABASE
-            valueFrom:
-              configMapKeyRef:
-                key: MSSQL_DATABASE_NAME
-                name: infrastructure-config
-          - name: DB_PASSWORD
-            valueFrom:
-              secretKeyRef:
-                key: MSSQL_SA_PASSWORD
-                name: database-credentials
-          - name: DB_SERVER
-            valueFrom:
-              configMapKeyRef:
-                key: MSSQL_SERVER_NAME
-                name: infrastructure-config
-          - name: DB_USERNAME
-            valueFrom:
-              secretKeyRef:
-                key: MSSQL_SA_USER
-                name: database-credentials
-          - name: KAFKA_BROKER
-            valueFrom:
-              configMapKeyRef:
-                key: KAFKA_BROKER
-                name: infrastructure-config
+            - name: DB_DATABASE
+              valueFrom:
+                configMapKeyRef:
+                  key: MSSQL_DATABASE_NAME
+                  name: infrastructure-config
+            - name: DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  key: MSSQL_SA_PASSWORD
+                  name: database-credentials
+            - name: DB_SERVER
+              valueFrom:
+                configMapKeyRef:
+                  key: MSSQL_SERVER_NAME
+                  name: infrastructure-config
+            - name: DB_USERNAME
+              valueFrom:
+                secretKeyRef:
+                  key: MSSQL_SA_USER
+                  name: database-credentials
+            - name: KAFKA_BROKER
+              valueFrom:
+                configMapKeyRef:
+                  key: KAFKA_BROKER
+                  name: infrastructure-config
           image: transaction-service
           livenessProbe:
             exec:

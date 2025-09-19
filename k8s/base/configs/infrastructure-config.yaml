@@ -31,3 +31,4 @@ data:
   BILL_PAY_SERVICE_URL: "http://bill-pay-service:5000"
   CHATBOT_SERVICE_URL: "http://chatbot-service:5003"
   SCHEDULER_SERVICE_URL: "http://scheduler-service:5004"
+  SCENARIO_RUNNER_SERVICE_URL: "http://scenario-runner-service:8000"

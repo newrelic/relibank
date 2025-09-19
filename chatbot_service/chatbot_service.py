@@ -100,7 +100,7 @@ async def lifespan(app: FastAPI):
 
     # Environment variable retrieval
     openai_api_key = os.getenv("OPENAI_API_KEY")
-    openai_base_url = os.getenv("BASE_URL")
+    openai_base_url = os.getenv("OPENAI_BASE_URL")
 
     if not openai_api_key:
         logger.error("OPENAI_API_KEY environment variable not set. Application will not start.")
