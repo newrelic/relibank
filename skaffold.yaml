@@ -15,9 +15,6 @@ build:
     docker:
       dockerfile: Dockerfile
       buildArgs:
-        OPENAI_LOG: "{{.OPENAI_LOG}}"
-        OPENAI_API_KEY: "{{.OPENAI_API_KEY}}"
-        OPENAI_BASE_URL: "{{.OPENAI_BASE_URL}}"
         NEW_RELIC_USER_API_KEY: "{{.NEW_RELIC_USER_API_KEY}}"
         NEW_RELIC_ACCOUNT_ID: "{{.NEW_RELIC_ACCOUNT_ID}}"
         NEW_RELIC_LICENSE_KEY: "{{.NEW_RELIC_LICENSE_KEY}}"
@@ -31,9 +28,6 @@ build:
     docker:
       dockerfile: Dockerfile
       buildArgs:
-        OPENAI_LOG: "{{.OPENAI_LOG}}"
-        OPENAI_API_KEY: "{{.OPENAI_API_KEY}}"
-        OPENAI_BASE_URL: "{{.OPENAI_BASE_URL}}"
         NEW_RELIC_USER_API_KEY: "{{.NEW_RELIC_USER_API_KEY}}"
         NEW_RELIC_ACCOUNT_ID: "{{.NEW_RELIC_ACCOUNT_ID}}"
         NEW_RELIC_LICENSE_KEY: "{{.NEW_RELIC_LICENSE_KEY}}"
@@ -47,9 +41,6 @@ build:
     docker:
       dockerfile: Dockerfile
       buildArgs:
-        OPENAI_LOG: "{{.OPENAI_LOG}}"
-        OPENAI_API_KEY: "{{.OPENAI_API_KEY}}"
-        OPENAI_BASE_URL: "{{.OPENAI_BASE_URL}}"
         NEW_RELIC_USER_API_KEY: "{{.NEW_RELIC_USER_API_KEY}}"
         NEW_RELIC_ACCOUNT_ID: "{{.NEW_RELIC_ACCOUNT_ID}}"
         NEW_RELIC_LICENSE_KEY: "{{.NEW_RELIC_LICENSE_KEY}}"
@@ -63,9 +54,6 @@ build:
     docker:
       dockerfile: Dockerfile
       buildArgs:
-        OPENAI_LOG: "{{.OPENAI_LOG}}"
-        OPENAI_API_KEY: "{{.OPENAI_API_KEY}}"
-        OPENAI_BASE_URL: "{{.OPENAI_BASE_URL}}"
         NEW_RELIC_USER_API_KEY: "{{.NEW_RELIC_USER_API_KEY}}"
         NEW_RELIC_ACCOUNT_ID: "{{.NEW_RELIC_ACCOUNT_ID}}"
         NEW_RELIC_LICENSE_KEY: "{{.NEW_RELIC_LICENSE_KEY}}"
@@ -79,9 +67,6 @@ build:
     docker:
       dockerfile: Dockerfile
       buildArgs:
-        OPENAI_LOG: "{{.OPENAI_LOG}}"
-        OPENAI_API_KEY: "{{.OPENAI_API_KEY}}"
-        OPENAI_BASE_URL: "{{.OPENAI_BASE_URL}}"
         NEW_RELIC_USER_API_KEY: "{{.NEW_RELIC_USER_API_KEY}}"
         NEW_RELIC_ACCOUNT_ID: "{{.NEW_RELIC_ACCOUNT_ID}}"
         NEW_RELIC_LICENSE_KEY: "{{.NEW_RELIC_LICENSE_KEY}}"
