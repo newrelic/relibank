@@ -46,7 +46,7 @@ import ExpandLessIcon from '@mui/icons-material/ExpandLess';
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 import AttachMoneyIcon from '@mui/icons-material/AttachMoney';
 import CalendarMonthIcon from '@mui/icons-material/CalendarMonth';
-import { PageContext } from '../root';
+import { LoginContext } from '~/root';
 
 
 // This is the loader function for the dashboard route. It will be called by React Router
@@ -68,11 +68,6 @@ export const loader = async () => {
     { id: 7, name: "Transfer to Checking", date: "2023-10-19", amount: -200.00, accountId: 'savings', type: 'debit' },
     { id: 8, name: "Interest", date: "2023-10-18", amount: 0.25, accountId: 'savings', type: 'credit' },
     { id: 9, name: "Gas Station", date: "2023-10-17", amount: -45.00, accountId: 'checking', type: 'debit' },
-  ];
-
-  const mockAccounts = [
-    { id: 'checking', name: 'Checking Account', balance: 8500.25, number: '**** 1234' },
-    { id: 'savings', name: 'Savings Account', balance: 4000.25, number: '**** 5678' },
   ];
 
   const mockSpendingData = [
@@ -99,7 +94,6 @@ export const loader = async () => {
   return {
     summaryData: mockSummaryData,
     transactions: mockTransactions,
-    accounts: mockAccounts,
     spendingData: mockSpendingData,
     pieData: mockPieData,
   };
@@ -228,12 +222,24 @@ const SpendingCategories = ({ data }) => (
 );
 
 // Dashboard Page
-export const DashboardPage = () => {
+const DashboardPage = () => {
   const { summaryData, spendingData, transactions, pieData } = useLoaderData();
+  const [userData, setUserData] = useState(null);
 
-  if (!summaryData) {
-    return <Typography>Loading...</Typography>;
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const storedUserData = sessionStorage.getItem('userData');
+      if (storedUserData) {
+        setUserData(JSON.parse(storedUserData));
+      }
+    }
+  }, []);
+
+  if (!userData || !summaryData) {
+    return <CircularProgress />;
   }
+
+  console.log('Dashboard User Data:', userData);
 
   return (
     <Box sx={{ flexGrow: 1, p: 3 }}>
@@ -279,133 +285,5 @@ export const DashboardPage = () => {
     </Box>
   );
 };
-
-// Accounts Page
-export const AccountsPage = () => {
-  const { mockAccounts, mockTransactions } = useContext(PageContext);
-  const navigate = useNavigate();
-
-  if (!mockAccounts) {
-    return <Typography>Loading...</Typography>;
-  }
-  return (
-    <Box sx={{ flexGrow: 1, p: 3 }}>
-      <Typography variant="h4" sx={{ fontWeight: 'bold', mb: 2 }}>Your Accounts</Typography>
-      <Grid container spacing={2}>
-        {mockAccounts.map((account) => (
-          <Grid size={{ xs: 12, sm: 6, md: 4 }} key={account.id}>
-            <Card>
-              <CardContent>
-                <Box display="flex" justifyContent="space-between" alignItems="center">
-                  <Box>
-                    <Typography variant="h6">{account.name}</Typography>
-                    <Typography variant="subtitle2" color="text.secondary">{account.number}</Typography>
-                  </Box>
-                  <MonetizationOnIcon sx={{ color: 'primary.main', fontSize: 40 }} />
-                </Box>
-                <Typography variant="h5" sx={{ my: 2 }}>${account.balance.toFixed(2)}</Typography>
-                <Button
-                  component={Link}
-                  to={`/accounts/${account.id}`}
-                  variant="contained"
-                  fullWidth
-                >
-                  View Details
-                </Button>
-              </CardContent>
-            </Card>
-          </Grid>
-        ))}
-      </Grid>
-    </Box>
-  );
-};
-
-// Account Details Page
-export const AccountDetailsPage = () => {
-  const { accountId } = useParams();
-  const navigate = useNavigate();
-  const { mockAccounts, mockTransactions } = useContext(PageContext);
-
-  const account = mockAccounts.find(acc => acc.id === accountId);
-  const transactions = mockTransactions.filter(tx => tx.accountId === accountId);
-
-  if (!account) {
-    return (
-      <Box sx={{ flexGrow: 1, p: 3 }}>
-        <Typography variant="h6">Account not found.</Typography>
-        <Button onClick={() => navigate('/accounts')} startIcon={<ArrowBackIcon />}>
-          Back to Accounts
-        </Button>
-      </Box>
-    );
-  }
-
-  return (
-    <Box sx={{ flexGrow: 1, p: 3 }}>
-      <Box sx={{ display: 'flex', alignItems: 'center', mb: 3 }}>
-        <IconButton onClick={() => navigate('/accounts')}>
-          <ArrowBackIcon />
-        </IconButton>
-        <Typography variant="h4" sx={{ fontWeight: 'bold', ml: 1 }}>{account.name}</Typography>
-      </Box>
-      <Grid container spacing={3} mb={3}>
-        <Grid size={{ xs: 12, md: 6 }}>
-          <Card>
-            <CardContent>
-              <Typography variant="subtitle1" color="text.secondary">Current Balance</Typography>
-              <Typography variant="h3" sx={{ fontWeight: 'bold' }}>${account.balance.toFixed(2)}</Typography>
-            </CardContent>
-          </Card>
-        </Grid>
-        <Grid size={{ xs: 12, md: 6 }}>
-          <Card>
-            <CardContent>
-              <Typography variant="subtitle1" color="text.secondary">Account Number</Typography>
-              <Typography variant="h4" sx={{ fontWeight: 'bold' }}>{account.number}</Typography>
-            </CardContent>
-          </Card>
-        </Grid>
-      </Grid>
-      <Paper sx={{ p: 3 }}>
-        <Typography variant="h5" sx={{ fontWeight: 'bold', mb: 2 }}>All Transactions</Typography>
-        <TableContainer>
-          <Table>
-            <TableHead>
-              <TableRow>
-                <TableCell sx={{ fontWeight: 'bold' }}>Date</TableCell>
-                <TableCell sx={{ fontWeight: 'bold' }}>Description</TableCell>
-                <TableCell align="right" sx={{ fontWeight: 'bold' }}>Amount</TableCell>
-              </TableRow>
-            </TableHead>
-            <TableBody>
-              {transactions.map((tx) => (
-                <TableRow key={tx.id}>
-                  <TableCell>{tx.date}</TableCell>
-                  <TableCell>{tx.name}</TableCell>
-                  <TableCell align="right">
-                    <Typography variant="body1" sx={{ fontWeight: 'medium', color: tx.amount > 0 ? 'success.main' : 'error.main' }}>
-                      {tx.amount > 0 ? '+' : ''}${Math.abs(tx.amount).toFixed(2)}
-                    </Typography>
-                  </TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        </TableContainer>
-      </Paper>
-    </Box>
-  );
-};
-
-// Settings Page (placeholder)
-export const SettingsPage = () => (
-  <Box sx={{ flexGrow: 1, p: 3 }}>
-    <Typography variant="h4" sx={{ fontWeight: 'bold', mb: 2 }}>Settings</Typography>
-    <Paper sx={{ p: 3 }}>
-      <Typography>This is a placeholder for the Settings page.</Typography>
-    </Paper>
-  </Box>
-);
 
 export default DashboardPage;

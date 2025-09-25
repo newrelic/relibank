@@ -6,8 +6,8 @@ import {
   ScrollRestoration,
 } from "react-router";
 
-import { useState, createContext, useContext } from 'react';
-import { Link, useLocation, Navigate } from 'react-router-dom';
+import { useState, createContext, useContext, useEffect } from 'react';
+import { Link, useLocation, Navigate, useNavigate } from 'react-router-dom';
 import {
   Box,
   CssBaseline,
@@ -22,7 +22,8 @@ import {
   ListItemText,
   Avatar,
   IconButton,
-  Tooltip
+  Tooltip,
+  CircularProgress
 } from '@mui/material';
 import DashboardIcon from '@mui/icons-material/Dashboard';
 import AccountBalanceWalletIcon from '@mui/icons-material/AccountBalanceWallet';
@@ -35,6 +36,7 @@ export const LoginContext = createContext({});
 
 // Create a context for the page data
 export const PageContext = createContext({});
+
 
 // Mock data for the dashboard
 const mockUserData = {
@@ -186,8 +188,9 @@ export const Header = () => {
 
 // Main Layout component
 export const AppLayout = ({ children }) => {
-  const { userData, isAuthenticated } = useContext(LoginContext);
+  const { isAuthenticated } = useContext(LoginContext);
 
+  // TODO: remove this when it works
   // If not authenticated, redirect to the login page. This handles direct navigation to protected routes.
   // if (!isAuthenticated) {
   //   return <Navigate to="/" replace />;
@@ -269,15 +272,47 @@ export function Layout({ children }: { children: React.ReactNode }) {
 
 
 export default function App() {
-  // Login state and user data are managed at the top level
-  const [isAuthenticated, setIsAuthenticated] = useState(true);
-  const [userData, setUserData] = useState(mockUserData);
+  const [isAuthenticated, setIsAuthenticated] = useState(() => {
+    if (typeof window !== 'undefined') {
+      return sessionStorage.getItem('isAuthenticated') === 'true';
+    }
+    return false;
+  });
+  const [userData, setUserData] = useState(() => {
+    if (typeof window !== 'undefined') {
+      const storedUserData = sessionStorage.getItem('userData');
+      return storedUserData ? JSON.parse(storedUserData) : null;
+    }
+    return null;
+  });
+  const navigate = useNavigate();
 
   const handleLogin = (data) => {
     setIsAuthenticated(true);
     setUserData(data);
+    if (typeof window !== 'undefined') {
+      sessionStorage.setItem('isAuthenticated', 'true');
+      sessionStorage.setItem('userData', JSON.stringify(data));
+    }
   };
   
+  const handleLogout = () => {
+    setIsAuthenticated(false);
+    setUserData(null);
+    if (typeof window !== 'undefined') {
+      sessionStorage.removeItem('isAuthenticated');
+      sessionStorage.removeItem('userData');
+    }
+  };
+
+  useEffect(() => {
+    console.log("userData:", userData);
+    console.log("isAuthenticated:", isAuthenticated);
+    if (isAuthenticated) {
+      navigate('/dashboard');
+    }
+  }, [userData, isAuthenticated, navigate]);
+
   return (
     <LoginContext.Provider value={{ isAuthenticated, handleLogin, userData }}>
       <Outlet />

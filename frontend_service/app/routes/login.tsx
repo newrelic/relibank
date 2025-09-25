@@ -64,8 +64,6 @@ const LoginPage = () => {
             const userData = await response.json();
             console.log('API Response:', userData);
             handleLogin(userData);
-            navigate('/dashboard');
-
         } catch (error) {
             console.error('Login error:', error);
             setLoginError(error.message);
