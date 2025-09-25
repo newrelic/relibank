@@ -27,7 +27,6 @@ import {
   TableRow,
   TableCell,
   Button,
-  Skeleton,
   CircularProgress
 } from '@mui/material';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, Legend, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
@@ -46,7 +45,7 @@ import ExpandLessIcon from '@mui/icons-material/ExpandLess';
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 import AttachMoneyIcon from '@mui/icons-material/AttachMoney';
 import CalendarMonthIcon from '@mui/icons-material/CalendarMonth';
-import { LoginContext } from '~/root';
+import { LoginContext } from '../root';
 
 
 // This is the loader function for the dashboard route. It will be called by React Router
@@ -100,7 +99,7 @@ export const loader = async () => {
 };
 
 // Overview Card component
-const OverviewCard = ({ title, value, icon }) => (
+const OverviewCard = ({ title, value, icon, info }) => (
   <Card sx={{
     display: 'flex',
     flexDirection: 'column',
@@ -113,10 +112,15 @@ const OverviewCard = ({ title, value, icon }) => (
       action={icon}
       sx={{ pb: 1, pt: 2, pr: 2 }}
     />
-    <CardContent>
+    <CardContent sx={{ minHeight: '80px' }}>
       <Typography variant="h4" sx={{ fontWeight: 'bold' }}>
         ${value.toFixed(2)}
       </Typography>
+      {info && (
+        <Typography variant="body2" sx={{ color: 'text.secondary', mt: 1 }}>
+          {info}
+        </Typography>
+      )}
     </CardContent>
   </Card>
 );
@@ -223,7 +227,7 @@ const SpendingCategories = ({ data }) => (
 
 // Dashboard Page
 const DashboardPage = () => {
-  const { summaryData, spendingData, transactions, pieData } = useLoaderData();
+  const loaderData = useLoaderData();
   const [userData, setUserData] = useState(null);
 
   useEffect(() => {
@@ -235,11 +239,19 @@ const DashboardPage = () => {
     }
   }, []);
 
-  if (!userData || !summaryData) {
+  if (!userData || !loaderData) {
     return <CircularProgress />;
   }
 
-  console.log('Dashboard User Data:', userData);
+  const { summaryData, spendingData, transactions, pieData } = loaderData;
+  const checkingAccount = userData.find(acc => acc.account_type === 'checking');
+  const savingsAccount = userData.find(acc => acc.account_type === 'savings');
+
+  const totalBalance = (checkingAccount?.balance || 0) + (savingsAccount?.balance || 0);
+  const checkingBalance = checkingAccount?.balance || 0;
+  const savingsBalance = savingsAccount?.balance || 0;
+  const checkingRouting = checkingAccount?.routing_number || 'Not available';
+  const savingsRouting = savingsAccount?.routing_number || 'Not available';
 
   return (
     <Box sx={{ flexGrow: 1, p: 3 }}>
@@ -248,38 +260,41 @@ const DashboardPage = () => {
         <Grid size={{ xs: 12, md: 4 }}>
           <OverviewCard
             title="Total Balance"
-            value={summaryData.totalBalance}
+            value={totalBalance}
             icon={<MonetizationOnIcon color="disabled" />}
+            info="&nbsp;"
           />
         </Grid>
         <Grid size={{ xs: 12, md: 4 }}>
           <OverviewCard
             title="Checking"
-            value={summaryData.checking}
+            value={checkingBalance}
             icon={<CreditCardIcon color="disabled" />}
+            info={`Routing: ${checkingRouting}`}
           />
         </Grid>
         <Grid size={{ xs: 12, md: 4 }}>
           <OverviewCard
             title="Savings"
-            value={summaryData.savings}
+            value={savingsBalance}
             icon={<AccountBalanceWalletIcon color="disabled" />}
+            info={`Routing: ${savingsRouting}`}
           />
         </Grid>
 
         {/* Spending Chart */}
-        <Grid size={{ xs: 12, md: 6 }}>
-          <SpendingChart data={spendingData} />
+        <Grid item size={{ xs: 12, md: 6 }}>
+          <SpendingChart data={loaderData.spendingData} />
         </Grid>
 
         {/* Spending Categories Pie Chart */}
-        <Grid size={{ xs: 12, md: 6 }}>
-          <SpendingCategories data={pieData} />
+        <Grid item size={{ xs: 12, md: 6 }}>
+          <SpendingCategories data={loaderData.pieData} />
         </Grid>
 
         {/* Recent Transactions */}
-        <Grid size={{ xs: 12 }}>
-          <RecentTransactions transactions={transactions.filter(tx => ['checking', 'savings'].includes(tx.accountId))} />
+        <Grid item size={{ xs: 12 }}>
+          <RecentTransactions transactions={loaderData.transactions.filter(tx => ['checking', 'savings'].includes(tx.accountId))} />
         </Grid>
       </Grid>
     </Box>
