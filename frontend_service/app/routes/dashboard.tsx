@@ -1,7 +1,22 @@
 import { useState, createContext, useContext, useEffect } from 'react';
-import { Link, useLocation, useParams, useNavigate } from 'react-router-dom';
+import { Link, useLocation, useParams, useNavigate, useLoaderData } from 'react-router-dom';
 import {
   Box,
+  CssBaseline,
+  ThemeProvider,
+  createTheme,
+  Typography,
+  Grid,
+  Paper,
+  Divider,
+  List,
+  ListItem,
+  ListItemButton,
+  ListItemIcon,
+  ListItemText,
+  Avatar,
+  IconButton,
+  Tooltip,
   Card,
   CardHeader,
   CardContent,
@@ -13,20 +28,82 @@ import {
   TableCell,
   Button,
   Skeleton,
-  Typography,
-  Grid,
-  Paper,
-  IconButton,
+  CircularProgress
 } from '@mui/material';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, Legend, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
+import DashboardIcon from '@mui/icons-material/Dashboard';
+import AccountBalanceWalletIcon from '@mui/icons-material/AccountBalanceWallet';
+import SettingsIcon from '@mui/icons-material/Settings';
+import NotificationsIcon from '@mui/icons-material/Notifications';
+import PersonIcon from '@mui/icons-material/Person';
 import CreditCardIcon from '@mui/icons-material/CreditCard';
+import BusinessIcon from '@mui/icons-material/Business';
 import MonetizationOnIcon from '@mui/icons-material/MonetizationOn';
 import ArrowUpwardIcon from '@mui/icons-material/ArrowUpward';
 import ArrowDownwardIcon from '@mui/icons-material/ArrowDownward';
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import ExpandLessIcon from '@mui/icons-material/ExpandLess';
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
-import { PageContext } from "../root"; // Re-import PageContext from root
+import AttachMoneyIcon from '@mui/icons-material/AttachMoney';
+import CalendarMonthIcon from '@mui/icons-material/CalendarMonth';
+import { PageContext } from '../root';
+
+
+// This is the loader function for the dashboard route. It will be called by React Router
+// and its data will be available to the DashboardPage component via useLoaderData.
+export const loader = async () => {
+  const mockSummaryData = {
+    totalBalance: 12500.75,
+    checking: 8500.25,
+    savings: 4000.25,
+  };
+
+  const mockTransactions = [
+    { id: 1, name: "Amazon", date: "2023-10-25", amount: -54.99, accountId: 'checking', type: 'debit' },
+    { id: 2, name: "Paycheck", date: "2023-10-24", amount: 2500.00, accountId: 'checking', type: 'credit' },
+    { id: 3, name: "Starbucks", date: "2023-10-23", amount: -5.75, accountId: 'checking', type: 'debit' },
+    { id: 4, name: "Spotify", date: "2023-10-22", amount: -10.99, accountId: 'checking', type: 'debit' },
+    { id: 5, name: "Grocery Store", date: "2023-10-21", amount: -120.50, accountId: 'checking', type: 'debit' },
+    { id: 6, name: "Deposit", date: "2023-10-20", amount: 1000.00, accountId: 'savings', type: 'credit' },
+    { id: 7, name: "Transfer to Checking", date: "2023-10-19", amount: -200.00, accountId: 'savings', type: 'debit' },
+    { id: 8, name: "Interest", date: "2023-10-18", amount: 0.25, accountId: 'savings', type: 'credit' },
+    { id: 9, name: "Gas Station", date: "2023-10-17", amount: -45.00, accountId: 'checking', type: 'debit' },
+  ];
+
+  const mockAccounts = [
+    { id: 'checking', name: 'Checking Account', balance: 8500.25, number: '**** 1234' },
+    { id: 'savings', name: 'Savings Account', balance: 4000.25, number: '**** 5678' },
+  ];
+
+  const mockSpendingData = [
+    { name: 'Jan', value: 4000 },
+    { name: 'Feb', value: 3000 },
+    { name: 'Mar', value: 2000 },
+    { name: 'Apr', value: 2780 },
+    { name: 'May', value: 1890 },
+    { name: 'Jun', value: 2390 },
+    { name: 'Jul', value: 3490 },
+  ];
+
+  const mockPieData = [
+    { name: 'Shopping', value: 300, color: '#f87171' },
+    { name: 'Food', value: 200, color: '#facc15' },
+    { name: 'Groceries', value: 150, color: '#34d399' },
+    { name: 'Utilities', value: 100, color: '#60a5fa' },
+    { name: 'Other', value: 50, color: '#c084fc' },
+  ];
+
+  // Simulate a network delay
+  await new Promise(resolve => setTimeout(resolve, 1000));
+
+  return {
+    summaryData: mockSummaryData,
+    transactions: mockTransactions,
+    accounts: mockAccounts,
+    spendingData: mockSpendingData,
+    pieData: mockPieData,
+  };
+};
 
 // Overview Card component
 const OverviewCard = ({ title, value, icon }) => (
@@ -152,54 +229,51 @@ const SpendingCategories = ({ data }) => (
 
 // Dashboard Page
 export const DashboardPage = () => {
-  const { summaryData, spendingData, mockTransactions, pieData } = useContext(PageContext);
+  const { summaryData, spendingData, transactions, pieData } = useLoaderData();
 
   if (!summaryData) {
-    return (
-      <Box sx={{ flexGrow: 1, p: 3 }}>
-        <Typography variant="h6">Data not available.</Typography>
-      </Box>
-    );
+    return <Typography>Loading...</Typography>;
   }
 
   return (
     <Box sx={{ flexGrow: 1, p: 3 }}>
       <Grid container spacing={4}>
         {/* Overview Cards */}
-        <Grid item size={{ xs: 12, md: 4 }}>
+        <Grid size={{ xs: 12, md: 4 }}>
           <OverviewCard
             title="Total Balance"
             value={summaryData.totalBalance}
             icon={<MonetizationOnIcon color="disabled" />}
           />
         </Grid>
-        <Grid item size={{ xs: 12, md: 4 }}>
+        <Grid size={{ xs: 12, md: 4 }}>
           <OverviewCard
             title="Checking"
             value={summaryData.checking}
             icon={<CreditCardIcon color="disabled" />}
           />
         </Grid>
-        <Grid item size={{ xs: 12, md: 4 }}>
+        <Grid size={{ xs: 12, md: 4 }}>
           <OverviewCard
             title="Savings"
             value={summaryData.savings}
-            icon={<MonetizationOnIcon color="disabled" />}
+            icon={<AccountBalanceWalletIcon color="disabled" />}
           />
         </Grid>
 
-        {/* Charts */}
-        <Grid item size={{ xs: 12, md: 6 }}>
+        {/* Spending Chart */}
+        <Grid size={{ xs: 12, md: 6 }}>
           <SpendingChart data={spendingData} />
         </Grid>
 
-        <Grid item size={{ xs: 12, md: 6 }}>
+        {/* Spending Categories Pie Chart */}
+        <Grid size={{ xs: 12, md: 6 }}>
           <SpendingCategories data={pieData} />
         </Grid>
 
         {/* Recent Transactions */}
-        <Grid item size={{ xs: 12 }}>
-          <RecentTransactions transactions={mockTransactions.filter(tx => ['checking', 'savings'].includes(tx.accountId))} />
+        <Grid size={{ xs: 12 }}>
+          <RecentTransactions transactions={transactions.filter(tx => ['checking', 'savings'].includes(tx.accountId))} />
         </Grid>
       </Grid>
     </Box>
@@ -208,22 +282,18 @@ export const DashboardPage = () => {
 
 // Accounts Page
 export const AccountsPage = () => {
-  const { mockAccounts } = useContext(PageContext);
+  const { mockAccounts, mockTransactions } = useContext(PageContext);
+  const navigate = useNavigate();
 
   if (!mockAccounts) {
-    return (
-      <Box sx={{ flexGrow: 1, p: 3 }}>
-        <Typography variant="h6">Data not available.</Typography>
-      </Box>
-    );
+    return <Typography>Loading...</Typography>;
   }
-
   return (
     <Box sx={{ flexGrow: 1, p: 3 }}>
       <Typography variant="h4" sx={{ fontWeight: 'bold', mb: 2 }}>Your Accounts</Typography>
       <Grid container spacing={2}>
         {mockAccounts.map((account) => (
-          <Grid item size={{ xs: 12, sm: 6, md: 4 }} key={account.id}>
+          <Grid size={{ xs: 12, sm: 6, md: 4 }} key={account.id}>
             <Card>
               <CardContent>
                 <Box display="flex" justifyContent="space-between" alignItems="center">
@@ -260,10 +330,10 @@ export const AccountDetailsPage = () => {
   const account = mockAccounts.find(acc => acc.id === accountId);
   const transactions = mockTransactions.filter(tx => tx.accountId === accountId);
 
-  if (!account || !transactions) {
+  if (!account) {
     return (
       <Box sx={{ flexGrow: 1, p: 3 }}>
-        <Typography variant="h6">Account not found or data not available.</Typography>
+        <Typography variant="h6">Account not found.</Typography>
         <Button onClick={() => navigate('/accounts')} startIcon={<ArrowBackIcon />}>
           Back to Accounts
         </Button>
@@ -280,7 +350,7 @@ export const AccountDetailsPage = () => {
         <Typography variant="h4" sx={{ fontWeight: 'bold', ml: 1 }}>{account.name}</Typography>
       </Box>
       <Grid container spacing={3} mb={3}>
-        <Grid item size={{ xs: 12, md: 6 }}>
+        <Grid size={{ xs: 12, md: 6 }}>
           <Card>
             <CardContent>
               <Typography variant="subtitle1" color="text.secondary">Current Balance</Typography>
@@ -288,7 +358,7 @@ export const AccountDetailsPage = () => {
             </CardContent>
           </Card>
         </Grid>
-        <Grid item size={{ xs: 12, md: 6 }}>
+        <Grid size={{ xs: 12, md: 6 }}>
           <Card>
             <CardContent>
               <Typography variant="subtitle1" color="text.secondary">Account Number</Typography>

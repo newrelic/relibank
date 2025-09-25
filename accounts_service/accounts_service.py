@@ -8,6 +8,7 @@ from pydantic import BaseModel, Field
 from typing import Optional, List, Any
 from contextlib import asynccontextmanager
 from fastapi import FastAPI, HTTPException
+from fastapi.middleware.cors import CORSMiddleware
 import time
 import uuid
 import httpx
@@ -110,6 +111,15 @@ app = FastAPI(
     description="Manages user and account data.",
     version="0.1.0",
     lifespan=lifespan,
+)
+
+# Configure CORS to allow all origins
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],  # This allows all domains
+    allow_credentials=True,
+    allow_methods=["*"],  # Allows all methods (GET, POST, etc.)
+    allow_headers=["*"],  # Allows all headers
 )
 
 

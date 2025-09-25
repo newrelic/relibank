@@ -24,7 +24,13 @@ build:
         APP_NAME: "{{.APP_NAME}}"
     # sync:
     #   manual:
-    #   - src: "**/*.py"
+    #   - src: "**/*.js"
+    #     dest: /app
+    #   - src: "**/*.ts"
+    #     dest: /app
+    #   - src: "**/*.tsx"
+    #     dest: /app
+    #   - src: "**/*.css"
     #     dest: /app
   - image: accounts-service
     context: accounts_service

@@ -14,11 +14,13 @@ RUN npm install
 COPY . .
 
 ENV HOST=0.0.0.0
+ENV PORT=3000
 
 # Expose the port
 EXPOSE 3000
 
-RUN npm run build
+# We don't need to run the build step for development
+# RUN npm run build
 
 # Set the command to run the development server
-CMD ["npm", "run", "start"]
+CMD ["npm", "run", "dev"]
