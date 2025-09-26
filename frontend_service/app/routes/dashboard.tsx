@@ -1,5 +1,5 @@
-import { useState, createContext, useContext, useEffect } from 'react';
-import { Link, useLocation, useParams, useNavigate, useLoaderData } from 'react-router-dom';
+import { useState, useContext, useEffect } from 'react';
+import { Link } from 'react-router-dom';
 import {
   Box,
   CssBaseline,
@@ -30,34 +30,34 @@ import {
   CircularProgress
 } from '@mui/material';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, Legend, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
-import DashboardIcon from '@mui/icons-material/Dashboard';
-import AccountBalanceWalletIcon from '@mui/icons-material/AccountBalanceWallet';
-import SettingsIcon from '@mui/icons-material/Settings';
-import NotificationsIcon from '@mui/icons-material/Notifications';
-import PersonIcon from '@mui/icons-material/Person';
-import CreditCardIcon from '@mui/icons-material/CreditCard';
-import BusinessIcon from '@mui/icons-material/Business';
-import MonetizationOnIcon from '@mui/icons-material/MonetizationOn';
-import ArrowUpwardIcon from '@mui/icons-material/ArrowUpward';
-import ArrowDownwardIcon from '@mui/icons-material/ArrowDownward';
-import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
-import ExpandLessIcon from '@mui/icons-material/ExpandLess';
-import ArrowBackIcon from '@mui/icons-material/ArrowBack';
-import AttachMoneyIcon from '@mui/icons-material/AttachMoney';
-import CalendarMonthIcon from '@mui/icons-material/CalendarMonth';
+import {
+    Dashboard as DashboardIcon,
+    AccountBalanceWallet as AccountBalanceWalletIcon,
+    Settings as SettingsIcon,
+    Notifications as NotificationsIcon,
+    Person as PersonIcon,
+    CreditCard as CreditCardIcon,
+    Business as BusinessIcon,
+    MonetizationOn as MonetizationOnIcon,
+    ArrowUpward as ArrowUpwardIcon,
+    ArrowDownward as ArrowDownwardIcon,
+    ExpandMore as ExpandMoreIcon,
+    ExpandLess as ExpandLessIcon,
+    ArrowBack as ArrowBackIcon,
+    AttachMoney as AttachMoneyIcon,
+    CalendarMonth as CalendarMonthIcon
+} from '@mui/icons-material';
 import { LoginContext } from '~/root';
 
+// --- MOCK APPLICATION DATA (Replaces Loader) ---
 
-// This is the loader function for the dashboard route. It will be called by React Router
-// and its data will be available to the DashboardPage component via useLoaderData.
-export const loader = async () => {
-  const mockSummaryData = {
+const mockSummaryData = {
     totalBalance: 12500.75,
     checking: 8500.25,
     savings: 4000.25,
-  };
+};
 
-  const mockTransactions = [
+const mockTransactions = [
     { id: 1, name: "Amazon", date: "2023-10-25", amount: -54.99, accountId: 'checking', type: 'debit' },
     { id: 2, name: "Paycheck", date: "2023-10-24", amount: 2500.00, accountId: 'checking', type: 'credit' },
     { id: 3, name: "Starbucks", date: "2023-10-23", amount: -5.75, accountId: 'checking', type: 'debit' },
@@ -67,9 +67,9 @@ export const loader = async () => {
     { id: 7, name: "Transfer to Checking", date: "2023-10-19", amount: -200.00, accountId: 'savings', type: 'debit' },
     { id: 8, name: "Interest", date: "2023-10-18", amount: 0.25, accountId: 'savings', type: 'credit' },
     { id: 9, name: "Gas Station", date: "2023-10-17", amount: -45.00, accountId: 'checking', type: 'debit' },
-  ];
+];
 
-  const mockSpendingData = [
+const mockSpendingData = [
     { name: 'Jan', value: 4000 },
     { name: 'Feb', value: 3000 },
     { name: 'Mar', value: 2000 },
@@ -77,26 +77,22 @@ export const loader = async () => {
     { name: 'May', value: 1890 },
     { name: 'Jun', value: 2390 },
     { name: 'Jul', value: 3490 },
-  ];
+];
 
-  const mockPieData = [
+const mockPieData = [
     { name: 'Shopping', value: 300, color: '#f87171' },
     { name: 'Food', value: 200, color: '#facc15' },
     { name: 'Groceries', value: 150, color: '#34d399' },
     { name: 'Utilities', value: 100, color: '#60a5fa' },
     { name: 'Other', value: 50, color: '#c084fc' },
-  ];
+];
 
-  // Simulate a network delay
-  await new Promise(resolve => setTimeout(resolve, 1000));
+// --- MOCK USER ACCOUNT DATA (Used for calculations and initial display) ---
+const demoUserData = [
+  { account_type: 'checking', balance: 8500.25, routing_number: '123456789' },
+  { account_type: 'savings', balance: 4000.25, routing_number: '987654321' },
+];
 
-  return {
-    summaryData: mockSummaryData,
-    transactions: mockTransactions,
-    spendingData: mockSpendingData,
-    pieData: mockPieData,
-  };
-};
 
 // Overview Card component
 const OverviewCard = ({ title, value, icon, info }) => (
@@ -227,9 +223,13 @@ const SpendingCategories = ({ data }) => (
 
 // Dashboard Page
 const DashboardPage = () => {
-  const loaderData = useLoaderData();
-  const [userData, setUserData] = useState(null);
+  // Use a combination of demo data (initial state) and sessionStorage (post-login)
+  const [userData, setUserData] = useState(demoUserData);
+  const [additionalAccountData, setAdditionalAccountData] = useState(null); 
+  // NEW: Loading state for the additional, client-side fetch
+  const [isLoadingDetails, setIsLoadingDetails] = useState(false); 
 
+  // 1. Initial Load: Check sessionStorage for authenticated user data
   useEffect(() => {
     if (typeof window !== 'undefined') {
       const storedUserData = sessionStorage.getItem('userData');
@@ -239,24 +239,92 @@ const DashboardPage = () => {
     }
   }, []);
 
-  if (!userData || !loaderData) {
+  // 2. Secondary Fetch: Get additional account details after initial data is set
+  useEffect(() => {
+    // Only run if userData is available AND we haven't fetched the additional data yet
+    if (userData && !additionalAccountData && !isLoadingDetails) {
+        const fetchAccountDetails = async () => {
+            setIsLoadingDetails(true); // START loading
+            console.log('Simulating fetch for detailed account information with user data:', userData);
+
+            const primaryAccountId = userData.find(acc => acc.account_type === 'checking')?.routing_number || '123456789';
+
+            try {
+                // --- Placeholder API Simulation: Delayed fetch to demonstrate re-rendering ---
+                await new Promise(resolve => setTimeout(resolve, 1500)); 
+
+                const mockDetailedData = {
+                    '123456789': { 
+                        checking: {
+                            lastDeposit: '2023-10-24', 
+                            interestRate: '0.05%'
+                        },
+                        savings: {
+                            maturityDate: '2024-06-01', 
+                            interestRate: '4.10%' 
+                        }
+                    }
+                };
+                
+                const fetchedData = mockDetailedData[primaryAccountId] || {};
+                
+                setAdditionalAccountData(fetchedData);
+                console.log('Fetched detailed account information:', fetchedData);
+            } catch (error) {
+                console.error("Error fetching additional details:", error);
+                // In a real app, you might set an error state here
+            } finally {
+                setIsLoadingDetails(false); // END loading
+            }
+        };
+
+        fetchAccountDetails();
+    }
+  }, [userData, additionalAccountData, isLoadingDetails]); 
+
+  // Data sourcing for the whole component
+  const appData = {
+      summaryData: mockSummaryData, 
+      transactions: mockTransactions,
+      spendingData: mockSpendingData,
+      pieData: mockPieData,
+  };
+
+  if (!userData) { 
     return <CircularProgress />;
   }
 
-  const { summaryData, spendingData, transactions, pieData } = loaderData;
+  const { summaryData, spendingData, transactions, pieData } = appData;
   const checkingAccount = userData.find(acc => acc.account_type === 'checking');
   const savingsAccount = userData.find(acc => acc.account_type === 'savings');
 
   const totalBalance = (checkingAccount?.balance || 0) + (savingsAccount?.balance || 0);
   const checkingBalance = checkingAccount?.balance || 0;
   const savingsBalance = savingsAccount?.balance || 0;
+  
   const checkingRouting = checkingAccount?.routing_number || 'Not available';
   const savingsRouting = savingsAccount?.routing_number || 'Not available';
+
+  // Logic to display loading message or fetched details
+  const checkingExtraInfo = isLoadingDetails ? 
+    `Routing: ${checkingRouting} (Loading details...)` :
+    (additionalAccountData?.checking?.lastDeposit ? 
+        `Routing: ${checkingRouting} | Last Deposit: ${additionalAccountData.checking.lastDeposit}` : 
+        `Routing: ${checkingRouting}`
+    );
+    
+  const savingsExtraInfo = isLoadingDetails ? 
+    `Routing: ${savingsRouting} (Loading details...)` :
+    (additionalAccountData?.savings?.interestRate ? 
+        `Routing: ${savingsRouting} | Interest: ${additionalAccountData.savings.interestRate}` : 
+        `Routing: ${savingsRouting}`
+    );
+
 
   return (
     <Box sx={{ flexGrow: 1, p: 3 }}>
       <Grid container spacing={4}>
-        {/* Overview Cards */}
+        {/* Overview Cards (3-column layout on medium screens and up) */}
         <Grid item size={{ xs:12, md: 4}}>
           <OverviewCard
             title="Total Balance"
@@ -270,7 +338,7 @@ const DashboardPage = () => {
             title="Checking"
             value={checkingBalance}
             icon={<CreditCardIcon color="disabled" />}
-            info={`Routing: ${checkingRouting}`}
+            info={checkingExtraInfo}
           />
         </Grid>
         <Grid item size={{ xs:12, md: 4}}>
@@ -278,23 +346,23 @@ const DashboardPage = () => {
             title="Savings"
             value={savingsBalance}
             icon={<AccountBalanceWalletIcon color="disabled" />}
-            info={`Routing: ${savingsRouting}`}
+            info={savingsExtraInfo}
           />
         </Grid>
 
-        {/* Spending Chart */}
+        {/* Spending Chart (2-column layout on medium screens and up) */}
         <Grid item size={{ xs: 12, md: 6 }}>
-          <SpendingChart data={loaderData.spendingData} />
+          <SpendingChart data={appData.spendingData} />
         </Grid>
 
-        {/* Spending Categories Pie Chart */}
+        {/* Spending Categories Pie Chart (2-column layout on medium screens and up) */}
         <Grid item size={{ xs: 12, md: 6 }}>
-          <SpendingCategories data={loaderData.pieData} />
+          <SpendingCategories data={appData.pieData} />
         </Grid>
 
-        {/* Recent Transactions */}
-        <Grid item size={{ xs: 12 }}>
-          <RecentTransactions transactions={loaderData.transactions.filter(tx => ['checking', 'savings'].includes(tx.accountId))} />
+        {/* Recent Transactions (full width) */}
+        <Grid item size={{ xs: 12}}>
+          <RecentTransactions transactions={appData.transactions.filter(tx => ['checking', 'savings'].includes(tx.accountId))} />
         </Grid>
       </Grid>
     </Box>

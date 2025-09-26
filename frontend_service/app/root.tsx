@@ -276,6 +276,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
 export default function App() {
   const [isAuthenticated, setIsAuthenticated] = useState(() => {
     if (typeof window !== 'undefined') {
+      console.log(`sessionStorage.getItem('isAuthenticated'): ${sessionStorage.getItem('isAuthenticated')}`)
       return sessionStorage.getItem('isAuthenticated') === 'true';
     }
     return false;

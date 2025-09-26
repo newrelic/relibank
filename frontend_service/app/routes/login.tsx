@@ -48,7 +48,7 @@ const LoginPage = () => {
     //     return <Navigate to="/dashboard" replace />;
     // }
 
-    const handleLoginClick = async (event) => {
+    const handleLoginClick = async (event: { preventDefault: () => void; }) => {
         event.preventDefault();
         setIsSubmitting(true);
         setLoginError('');
@@ -118,7 +118,7 @@ const LoginPage = () => {
                                 autoComplete="username"
                                 autoFocus
                                 value={username}
-                                onChange={(e) => setUsername(e.target.value)}
+                                onChange={(e: { target: { value: any; }; }) => setUsername(e.target.value)}
                                 InputProps={{
                                     startAdornment: (
                                         <InputAdornment position="start">
@@ -137,7 +137,7 @@ const LoginPage = () => {
                                 id="password"
                                 autoComplete="current-password"
                                 value={password}
-                                onChange={(e) => setPassword(e.target.value)}
+                                onChange={(e: { target: { value: any; }; }) => setPassword(e.target.value)}
                                 InputProps={{
                                     startAdornment: (
                                         <InputAdornment position="start">
@@ -148,7 +148,7 @@ const LoginPage = () => {
                                         <InputAdornment position="end">
                                             <IconButton
                                                 onClick={() => setShowPassword(!showPassword)}
-                                                onMouseDown={(e) => e.preventDefault()}
+                                                onMouseDown={(e: { preventDefault: () => any; }) => e.preventDefault()}
                                                 edge="end"
                                             >
                                                 {showPassword ? <VisibilityOff /> : <Visibility />}

@@ -4,7 +4,12 @@ import { defineConfig } from "vite";
 import tsconfigPaths from "vite-tsconfig-paths";
 
 export default defineConfig({
-  plugins: [tailwindcss(), reactRouter(), tsconfigPaths()],
+  plugins: [tailwindcss(), reactRouter({
+    // FIX: Add historyApiFallback to ensure deep links (like /dashboard) fall back to index.html
+    historyApiFallback: {
+      single: true,
+    }
+  }), tsconfigPaths()],
   server: {
     host: '0.0.0.0',
     port: 3000,
