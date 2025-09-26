@@ -31,6 +31,8 @@ import SettingsIcon from '@mui/icons-material/Settings';
 import NotificationsIcon from '@mui/icons-material/Notifications';
 import BusinessIcon from '@mui/icons-material/Business';
 
+import nrScriptContent from "./nr.js?raw";
+
 // Create a context for login data
 export const LoginContext = createContext({});
 
@@ -190,7 +192,6 @@ export const Header = () => {
 export const AppLayout = ({ children }) => {
   const { isAuthenticated } = useContext(LoginContext);
 
-  // TODO: remove this when it works
   // If not authenticated, redirect to the login page. This handles direct navigation to protected routes.
   // if (!isAuthenticated) {
   //   return <Navigate to="/" replace />;
@@ -226,7 +227,6 @@ export const AppLayout = ({ children }) => {
   );
 };
 
-
 export function Layout({ children }: { children: React.ReactNode }) {
   const location = useLocation();
   const isLoginPage = location.pathname === '/'; 
@@ -236,6 +236,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
     return (
       <html lang="en">
         <head>
+          <script dangerouslySetInnerHTML={{ __html: nrScriptContent }}></script>
           <meta charSet="utf-8" />
           <meta name="viewport" content="width=device-width, initial-scale=1" />
           <Meta />
@@ -254,8 +255,9 @@ export function Layout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en">
       <head>
+        <script dangerouslySetInnerHTML={{ __html: nrScriptContent }}></script>
         <meta charSet="utf-8" />
-          <meta name="viewport" content="width=device-width, initial-scale=1" />
+        <meta name="viewport" content="width=device-width, initial-scale=1" />
         <Meta />
         <Links />
       </head>
@@ -288,12 +290,17 @@ export default function App() {
   const navigate = useNavigate();
 
   const handleLogin = (data) => {
+    console.log("we're actually setting data");
     setIsAuthenticated(true);
     setUserData(data);
     if (typeof window !== 'undefined') {
       sessionStorage.setItem('isAuthenticated', 'true');
       sessionStorage.setItem('userData', JSON.stringify(data));
     }
+    // navigate('/dashboard');
+    // if (isAuthenticated) {
+    //   navigate('/dashboard');
+    // }
   };
   
   const handleLogout = () => {
@@ -304,7 +311,7 @@ export default function App() {
       sessionStorage.removeItem('userData');
     }
   };
-
+  // Use useEffect to see the updated userData after a render
   useEffect(() => {
     console.log("userData:", userData);
     console.log("isAuthenticated:", isAuthenticated);

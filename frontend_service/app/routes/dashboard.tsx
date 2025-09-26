@@ -45,7 +45,7 @@ import ExpandLessIcon from '@mui/icons-material/ExpandLess';
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 import AttachMoneyIcon from '@mui/icons-material/AttachMoney';
 import CalendarMonthIcon from '@mui/icons-material/CalendarMonth';
-import { LoginContext } from '../root';
+import { LoginContext } from '~/root';
 
 
 // This is the loader function for the dashboard route. It will be called by React Router
@@ -257,15 +257,15 @@ const DashboardPage = () => {
     <Box sx={{ flexGrow: 1, p: 3 }}>
       <Grid container spacing={4}>
         {/* Overview Cards */}
-        <Grid size={{ xs: 12, md: 4 }}>
+        <Grid item size={{ xs:12, md: 4}}>
           <OverviewCard
             title="Total Balance"
             value={totalBalance}
             icon={<MonetizationOnIcon color="disabled" />}
-            info="&nbsp;"
+            info=""
           />
         </Grid>
-        <Grid size={{ xs: 12, md: 4 }}>
+        <Grid item size={{ xs:12, md: 4}}>
           <OverviewCard
             title="Checking"
             value={checkingBalance}
@@ -273,7 +273,7 @@ const DashboardPage = () => {
             info={`Routing: ${checkingRouting}`}
           />
         </Grid>
-        <Grid size={{ xs: 12, md: 4 }}>
+        <Grid item size={{ xs:12, md: 4}}>
           <OverviewCard
             title="Savings"
             value={savingsBalance}
