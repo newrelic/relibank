@@ -63,13 +63,19 @@ const LoginPage = () => {
 
             const userData = await response.json();
             console.log('API Response:', userData);
+            
+            // On success, call handleLogin to set state and initiate navigation (via useEffect in root.tsx)
             handleLogin(userData);
+            
+            // DO NOT set isSubmitting(false) here. The spinner stays until the page unmounts.
         } catch (error) {
             console.error('Login error:', error);
             setLoginError(error.message);
-        } finally {
-            setIsSubmitting(false);
+            
+            // On failure, hide the spinner so the user can try again
+            setIsSubmitting(false); 
         }
+        // Removed the outer finally block to prevent prematurely setting isSubmitting(false)
     };
 
     return (
