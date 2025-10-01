@@ -105,6 +105,9 @@ async def lifespan(app: FastAPI):
     if not openai_api_key:
         logger.error("OPENAI_API_KEY environment variable not set. Application will not start.")
         raise RuntimeError("OpenAI API key is required for startup.")
+    if not openai_base_url:
+        logger.error("OPENAI_BASE_URL environment variable not set. Application will not start.")
+        raise RuntimeError("OpenAI API base url is required for startup.")
 
     try:
         # Initialize OpenAI client with the provided base URL
