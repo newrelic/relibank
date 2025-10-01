@@ -120,7 +120,7 @@ services:
     # command: ["sh", "-c", "uvicorn bill_pay_service:app --host 0.0.0.0 --port 5000 --workers 1 --log-level error"]
     environment:
       KAFKA_BROKER: kafka:29092
-      TRANSACTION_SERVICE_URL: http://transaction-service:5000
+      TRANSACTION_SERVICE_URL: http://transaction-service:5001
     env_file:
       - .env
     platform: linux/arm64/v8
