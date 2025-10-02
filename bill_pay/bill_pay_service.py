@@ -8,6 +8,7 @@ from pydantic import BaseModel, Field, ValidationError, ConfigDict
 from typing import Optional, List, Any
 from contextlib import asynccontextmanager
 from fastapi import FastAPI, HTTPException
+from fastapi.middleware.cors import CORSMiddleware
 import time
 import httpx
 from httpx import HTTPStatusError, RequestError
@@ -67,6 +68,15 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
+# Configure CORS to allow all origins
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],  # This allows all domains
+    allow_credentials=True,
+    allow_methods=["*"],  # Allows all methods (GET, POST, etc.)
+    allow_headers=["*"],  # Allows all headers
+)
+
 
 # Pydantic models for request body and response validation
 class PaymentDetails(BaseModel):
@@ -122,7 +132,7 @@ async def process_bill_payment(payment_details: PaymentDetails):
     logging.info("Authentication handled by upstream service. Proceeding with payment.")
 
     # --- Check for duplicate billId ---
-    transaction_service_url = os.getenv("TRANSACTION_SERVICE_URL", "http://transaction-service:5000")
+    transaction_service_url = os.getenv("TRANSACTION_SERVICE_URL", "http://transaction-service:5001")
     async with httpx.AsyncClient() as client:
         try:
             logging.info(f"Checking for existing transaction with BillID: {payment_details.billId}")
@@ -188,7 +198,7 @@ async def process_recurring_payment(payment_schedule: PaymentSchedule):
     logging.info(f"Received request to schedule recurring payment for: {payment_schedule.billId}")
 
     # Check for a duplicate billId before creating
-    transaction_service_url = os.getenv("TRANSACTION_SERVICE_URL", "http://transaction-service:5000")
+    transaction_service_url = os.getenv("TRANSACTION_SERVICE_URL", "http://transaction-service:5001")
     async with httpx.AsyncClient() as client:
         try:
             logging.info(f"Checking for existing transaction with BillID: {payment_schedule.billId}")
@@ -235,7 +245,7 @@ async def cancel_payment(bill_id: str, cancel_details: CancelPayment):
     logging.info(f"Received request from user '{cancel_details.user_id}' to cancel payment for bill ID: {bill_id}")
 
     # --- Synchronous check with the transaction-service ---
-    transaction_service_url = os.getenv("TRANSACTION_SERVICE_URL", "http://transaction-service:5000")
+    transaction_service_url = os.getenv("TRANSACTION_SERVICE_URL", "http://transaction-service:5001")
     async with httpx.AsyncClient() as client:
         try:
             logging.info(f"Checking for existing transaction with BillID: {bill_id}")

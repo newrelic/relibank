@@ -27,7 +27,14 @@ import {
   TableRow,
   TableCell,
   Button,
-  CircularProgress
+  CircularProgress,
+  TextField,
+  Select,
+  MenuItem,
+  FormControl,
+  InputLabel,
+  Alert,
+  InputAdornment
 } from '@mui/material';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, Legend, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
 import {
@@ -57,6 +64,7 @@ const mockSummaryData = {
     savings: 4000.25,
 };
 
+// NOTE: This array is now only for initial state and must be imported by useState below
 const mockTransactions = [
     { id: 1, name: "Amazon", date: "2023-10-25", amount: -54.99, accountId: 'checking', type: 'debit' },
     { id: 2, name: "Paycheck", date: "2023-10-24", amount: 2500.00, accountId: 'checking', type: 'credit' },
@@ -143,7 +151,9 @@ const SpendingChart = ({ data }) => (
 // Recent Transactions component
 const RecentTransactions = ({ transactions }) => {
   const [showAll, setShowAll] = useState(false);
-  const displayTransactions = showAll ? transactions : transactions.slice(0, 3);
+  // Use filter on the passed transactions prop which is now stateful
+  const filteredTransactions = transactions.filter(tx => ['checking', 'savings'].includes(tx.accountId)); 
+  const displayTransactions = showAll ? filteredTransactions : filteredTransactions.slice(0, 3);
   return (
     <Card sx={{ p: 3 }}>
       <Typography variant="h6" sx={{ mb: 2 }}>Recent Transactions</Typography>
@@ -180,7 +190,7 @@ const RecentTransactions = ({ transactions }) => {
           </TableBody>
         </Table>
       </TableContainer>
-      {transactions.length > 3 && (
+      {filteredTransactions.length > 3 && (
         <Box sx={{ textAlign: 'center', mt: 2 }}>
           <Button
             onClick={() => setShowAll(!showAll)}
@@ -221,11 +231,245 @@ const SpendingCategories = ({ data }) => (
   </Card>
 );
 
+// --- NEW MONEY TRANSFER CARD COMPONENT ---
+const TransferCard = ({ userData, setUserData, transactions, setTransactions }) => {
+  const [fromAccount, setFromAccount] = useState('checking');
+  const [toAccount, setToAccount] = useState('savings');
+  const [amount, setAmount] = useState('');
+  const [message, setMessage] = useState('');
+  const [isError, setIsError] = useState(false);
+
+  const checking = userData.find(acc => acc.account_type === 'checking');
+  const savings = userData.find(acc => acc.account_type === 'savings');
+  
+  // Guard clause in case accounts are missing (e.g. initial load error)
+  if (!checking || !savings) {
+    return (
+      <Card sx={{ p: 3 }}>
+        <Typography variant="h6">Transfer Funds</Typography>
+        <Alert severity="warning" sx={{ mt: 2 }}>Account data is not available for transfers.</Alert>
+      </Card>
+    );
+  }
+
+  const handleTransfer = async (event) => {
+    event.preventDefault();
+    setMessage('');
+    setIsError(false);
+
+    const transferAmount = parseFloat(amount);
+    if (isNaN(transferAmount) || transferAmount <= 0) {
+      setIsError(true);
+      setMessage('Please enter a valid amount.');
+      return;
+    }
+
+    if (fromAccount === toAccount) {
+      setIsError(true);
+      setMessage('Cannot transfer to the same account.');
+      return;
+    }
+
+    const sourceAccount = fromAccount === 'checking' ? checking : savings;
+
+    if (transferAmount > sourceAccount.balance) {
+      setIsError(true);
+      setMessage(`Insufficient funds in ${sourceAccount.account_type} account.`);
+      return;
+    }
+
+    // ==========================================================
+    // --- API CALL TO http://localhost:5000/recurring ---
+    try {
+        const response = await fetch('http://localhost:5000/recurring', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ 
+                "billId": "BILL-RECUR-002",
+                "amount": 150.00,
+                "currency": "EUR",
+                "fromAccountId": 12345,
+                "toAccountId": 56789,
+                "frequency": "monthly",
+                "startDate": "2025-08-01"
+            }),
+        });
+
+        if (!response.ok) {
+            // Note: In a real app, you would read the error message from the response body.
+            // For this hardcoded example, we'll just throw a generic error for the catch block.
+            throw new Error(`API returned status ${response.status}`);
+        }
+
+        // Simulate a small delay for network call effect
+        await new Promise(resolve => setTimeout(resolve, 500));
+
+    } catch (error) {
+        console.error('Transfer API error:', error);
+        // We'll proceed with the mock UI update for demo purposes even if the API fails, 
+        // but set a warning message. In a real app, you'd halt execution here.
+        setIsError(true);
+        setMessage(`API Warning: The transfer logic executed, but the call to /recurring failed or returned an error: ${error.message}`);
+        // return; // Uncomment this in a production app to stop the transfer
+    }
+    // ==========================================================
+
+
+    // Perform the mock transfer (This logic runs after the simulated API call)
+    const newCheckingBalance = fromAccount === 'checking' ? checking.balance - transferAmount : checking.balance + transferAmount;
+    const newSavingsBalance = fromAccount === 'savings' ? savings.balance - transferAmount : savings.balance + transferAmount;
+    
+    const newUserData = userData.map(acc => {
+      if (acc.account_type === 'checking') {
+        // Ensure not to introduce negative zero
+        return { ...acc, balance: parseFloat(newCheckingBalance.toFixed(2)) };
+      }
+      if (acc.account_type === 'savings') {
+        return { ...acc, balance: parseFloat(newSavingsBalance.toFixed(2)) };
+      }
+      return acc;
+    });
+
+    // Update parent user state
+    setUserData(newUserData);
+    
+    // Create new mock transactions for the list
+    const transactionDate = new Date().toISOString().slice(0, 10);
+    const newSourceTx = { 
+        id: transactions.length + 1, 
+        name: `Transfer to ${toAccount.charAt(0).toUpperCase() + toAccount.slice(1)}`, 
+        date: transactionDate, 
+        amount: -transferAmount, 
+        accountId: fromAccount, 
+        type: 'debit' 
+    };
+    const newTargetTx = { 
+        id: transactions.length + 2, 
+        name: `Transfer from ${fromAccount.charAt(0).toUpperCase() + fromAccount.slice(1)}`, 
+        date: transactionDate, 
+        amount: transferAmount, 
+        accountId: toAccount, 
+        type: 'credit' 
+    };
+    
+    // Update parent transactions state to show new transactions first
+    setTransactions([newSourceTx, newTargetTx, ...transactions]);
+
+    // Only show success if no error was set in the API block (or if we intentionally ignored the API error)
+    if (!isError) {
+      setMessage(`Successfully transferred $${transferAmount.toFixed(2)} from ${fromAccount} to ${toAccount}.`);
+    }
+    
+    // Reset form
+    setAmount('');
+    
+    // Update sessionStorage for persistence across mock app pages
+    if (typeof window !== 'undefined') {
+        sessionStorage.setItem('userData', JSON.stringify(newUserData));
+    }
+  };
+
+  return (
+    <Card sx={{ 
+      p: 3, 
+      borderRadius: '12px', 
+      border: '1px solid #e5e7eb', 
+      boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)' 
+    }}>
+      <Typography variant="h6" sx={{ mb: 2 }}>Transfer Funds</Typography>
+      {message && (
+        <Alert severity={isError ? "error" : "success"} sx={{ width: '100%', mb: 2 }}>
+          {message}
+        </Alert>
+      )}
+      <Box component="form" onSubmit={handleTransfer} noValidate sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+        <TextField
+          label="Amount"
+          type="number"
+          variant="outlined"
+          fullWidth
+          value={amount}
+          onChange={(e) => setAmount(e.target.value)}
+          inputProps={{ step: "0.01", min: "0.01" }}
+          InputProps={{
+            startAdornment: <InputAdornment position="start">$</InputAdornment>,
+          }}
+        />
+
+        <Grid container spacing={2}>
+            <Grid item xs={6}>
+                <FormControl fullWidth variant="outlined">
+                    <InputLabel id="from-account-label">From</InputLabel>
+                    <Select
+                        labelId="from-account-label"
+                        id="from-account-select"
+                        value={fromAccount}
+                        label="From"
+                        onChange={(e) => {
+                            setFromAccount(e.target.value);
+                            if (e.target.value === toAccount) {
+                                setToAccount(e.target.value === 'checking' ? 'savings' : 'checking');
+                            }
+                        }}
+                    >
+                        <MenuItem value="checking">
+                            Checking (${checking.balance.toFixed(2)})
+                        </MenuItem>
+                        <MenuItem value="savings">
+                            Savings (${savings.balance.toFixed(2)})
+                        </MenuItem>
+                    </Select>
+                </FormControl>
+            </Grid>
+            <Grid item xs={6}>
+                <FormControl fullWidth variant="outlined">
+                    <InputLabel id="to-account-label">To</InputLabel>
+                    <Select
+                        labelId="to-account-label"
+                        id="to-account-select"
+                        value={toAccount}
+                        label="To"
+                        onChange={(e) => {
+                             setToAccount(e.target.value);
+                             if (e.target.value === fromAccount) {
+                                setFromAccount(e.target.value === 'checking' ? 'savings' : 'checking');
+                            }
+                        }}
+                    >
+                        <MenuItem value="checking">
+                            Checking (${checking.balance.toFixed(2)})
+                        </MenuItem>
+                        <MenuItem value="savings">
+                            Savings (${savings.balance.toFixed(2)})
+                        </MenuItem>
+                    </Select>
+                </FormControl>
+            </Grid>
+        </Grid>
+
+        <Button 
+          type="submit" 
+          variant="contained" 
+          color="primary" 
+          fullWidth 
+          sx={{ py: 1.5 }}
+          disabled={fromAccount === toAccount || isNaN(parseFloat(amount)) || parseFloat(amount) <= 0}
+        >
+          Complete Transfer
+        </Button>
+      </Box>
+    </Card>
+  );
+};
+// --- END NEW MONEY TRANSFER CARD COMPONENT ---
+
 // Dashboard Page
 const DashboardPage = () => {
   // Use a combination of demo data (initial state) and sessionStorage (post-login)
   const [userData, setUserData] = useState(demoUserData);
   const [additionalAccountData, setAdditionalAccountData] = useState(null); 
+  // NEW: Add transactions to state to allow updates from the TransferCard
+  const [transactions, setTransactions] = useState(mockTransactions); 
   // NEW: Loading state for the additional, client-side fetch
   const [isLoadingDetails, setIsLoadingDetails] = useState(false); 
 
@@ -284,8 +528,8 @@ const DashboardPage = () => {
 
   // Data sourcing for the whole component
   const appData = {
-      summaryData: mockSummaryData, 
-      transactions: mockTransactions,
+      // summaryData: mockSummaryData, // Not needed since balance is calculated from userData state
+      transactions: transactions, // Use state instead of mockTransactions constant
       spendingData: mockSpendingData,
       pieData: mockPieData,
   };
@@ -294,7 +538,7 @@ const DashboardPage = () => {
     return <CircularProgress />;
   }
 
-  const { summaryData, spendingData, transactions, pieData } = appData;
+  const { spendingData, pieData } = appData;
   const checkingAccount = userData.find(acc => acc.account_type === 'checking');
   const savingsAccount = userData.find(acc => acc.account_type === 'savings');
 
@@ -349,6 +593,17 @@ const DashboardPage = () => {
             info={savingsExtraInfo}
           />
         </Grid>
+        
+        {/* --- ADDED TRANSFER CARD (Full width) --- */}
+        <Grid item size={{ xs: 12 }}>
+            <TransferCard 
+                userData={userData}
+                setUserData={setUserData}
+                transactions={transactions}
+                setTransactions={setTransactions}
+            />
+        </Grid>
+        {/* --- END ADDED TRANSFER CARD --- */}
 
         {/* Spending Chart (2-column layout on medium screens and up) */}
         <Grid item size={{ xs: 12, md: 6 }}>
@@ -362,7 +617,7 @@ const DashboardPage = () => {
 
         {/* Recent Transactions (full width) */}
         <Grid item size={{ xs: 12}}>
-          <RecentTransactions transactions={appData.transactions.filter(tx => ['checking', 'savings'].includes(tx.accountId))} />
+          <RecentTransactions transactions={appData.transactions} />
         </Grid>
       </Grid>
     </Box>
