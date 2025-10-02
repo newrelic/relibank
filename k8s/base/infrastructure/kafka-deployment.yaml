@@ -29,7 +29,7 @@ spec:
               value: PLAINTEXT:PLAINTEXT,EXTERNAL:PLAINTEXT
             - name: KAFKA_CFG_ZOOKEEPER_CONNECT
               value: zookeeper:2181
-          image: bitnamilegacy/kafka:3.5
+          image: kafka-with-monitoring
           livenessProbe:
             exec:
               command:

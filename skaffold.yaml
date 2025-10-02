@@ -115,6 +115,15 @@ build:
         dest: /app/relibank/chaos_mesh/experiments/
       - src: "index.html"
         dest: /app
+  - image: kafka-with-monitoring
+    context: kafka_service
+    docker:
+      dockerfile: Dockerfile
+      buildArgs:
+        NEW_RELIC_USER_API_KEY: "{{.NEW_RELIC_USER_API_KEY}}"
+        NEW_RELIC_ACCOUNT_ID: "{{.NEW_RELIC_ACCOUNT_ID}}"
+        NEW_RELIC_LICENSE_KEY: "{{.NEW_RELIC_LICENSE_KEY}}"
+        APP_NAME: "{{.APP_NAME}}"
 
 # Manifests configuration - use Kustomize to handle image name mapping and resources
 manifests:
