@@ -30,6 +30,7 @@ import AccountBalanceWalletIcon from '@mui/icons-material/AccountBalanceWallet';
 import SettingsIcon from '@mui/icons-material/Settings';
 import NotificationsIcon from '@mui/icons-material/Notifications';
 import BusinessIcon from '@mui/icons-material/Business';
+import SupportAgentIcon from '@mui/icons-material/SupportAgent';
 
 import nrScriptContent from "./nr.js?raw";
 
@@ -124,12 +125,20 @@ export const Sidebar = () => {
             <ListItemText primary="Dashboard" />
           </ListItemButton>
         </ListItem>
-        <ListItem disablePadding sx={{ mb: 1, borderRadius: '8px' }}>
+        {/* <ListItem disablePadding sx={{ mb: 1, borderRadius: '8px' }}>
           <ListItemButton component={Link} to="/accounts" selected={activePage.startsWith('/accounts')} sx={{ borderRadius: '8px', '&:hover': { backgroundColor: '#f3f4f6' } }}>
             <ListItemIcon>
               <AccountBalanceWalletIcon sx={{ color: activePage.startsWith('/accounts') ? 'primary.main' : 'secondary.main' }} />
             </ListItemIcon>
             <ListItemText primary="Accounts" />
+          </ListItemButton>
+        </ListItem> */}
+        <ListItem disablePadding sx={{ mb: 1, borderRadius: '8px' }}>
+          <ListItemButton component={Link} to="/support" selected={activePage === '/support'} sx={{ borderRadius: '8px', '&:hover': { backgroundColor: '#f3f4f6' } }}>
+            <ListItemIcon>
+              <SupportAgentIcon sx={{ color: activePage === '/support' ? 'primary.main' : 'secondary.main' }} />
+            </ListItemIcon>
+            <ListItemText primary="Support" />
           </ListItemButton>
         </ListItem>
         <ListItem disablePadding sx={{ mb: 1, borderRadius: '8px' }}>
@@ -154,6 +163,8 @@ export const Header = () => {
     pageTitle = 'Accounts';
   } else if (location.pathname === '/settings') {
     pageTitle = 'Settings';
+  } else if (location.pathname === '/support') {
+    pageTitle = 'Support';
   }
 
   // Fallback for userData in case it's not available yet
