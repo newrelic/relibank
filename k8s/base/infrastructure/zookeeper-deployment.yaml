@@ -21,7 +21,7 @@ spec:
               value: "yes"
             - name: ZOO_MY_ID
               value: "1"
-          image: bitnami/zookeeper:3.8
+          image: bitnamilegacy/zookeeper:3.8
           name: zookeeper
           ports:
             - containerPort: 2181

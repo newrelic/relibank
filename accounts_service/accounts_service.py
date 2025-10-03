@@ -26,7 +26,7 @@ DB_PASSWORD = os.getenv("DB_PASSWORD", "your_password")
 CONNECTION_STRING = f"host={DB_HOST} dbname={DB_NAME} user={DB_USER} password={DB_PASSWORD}"
 
 # Transaction service API URL
-TRANSACTION_SERVICE_URL = os.getenv("TRANSACTION_SERVICE_URL", "http://transaction-service:5000")
+TRANSACTION_SERVICE_URL = os.getenv("TRANSACTION_SERVICE_URL", "http://transaction-service:5001")
 
 
 # Global connection pool

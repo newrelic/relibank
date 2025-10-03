@@ -37,6 +37,11 @@ spec:
                 secretKeyRef:
                   key: POSTGRES_USER
                   name: database-credentials
+            - name: TRANSACTION_SERVICE_URL
+              valueFrom:
+                configMapKeyRef:
+                  key: TRANSACTION_SERVICE_URL
+                  name: infrastructure-config
           image: accounts-service
           name: accounts-service
           ports:
