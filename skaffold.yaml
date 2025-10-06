@@ -10,6 +10,30 @@ build:
     useBuildkit: true
     push: false
   artifacts:
+  - image: frontend-service
+    context: frontend_service
+    docker:
+      dockerfile: Dockerfile
+      buildArgs:
+        OPENAI_LOG: "{{.OPENAI_LOG}}"
+        OPENAI_API_KEY: "{{.OPENAI_API_KEY}}"
+        OPENAI_BASE_URL: "{{.OPENAI_BASE_URL}}"
+        NEW_RELIC_USER_API_KEY: "{{.NEW_RELIC_USER_API_KEY}}"
+        NEW_RELIC_ACCOUNT_ID: "{{.NEW_RELIC_ACCOUNT_ID}}"
+        NEW_RELIC_LICENSE_KEY: "{{.NEW_RELIC_BROWSER_LICENSE_KEY}}"
+        NEW_RELIC_BROWSER_APPLICATION_ID: "{{.NEW_RELIC_BROWSER_APPLICATION_ID}}"
+        APP_NAME: "{{.APP_NAME}}"
+
+    # sync:
+    #   manual:
+    #   - src: "**/*.js"
+    #     dest: /app
+    #   - src: "**/*.ts"
+    #     dest: /app
+    #   - src: "**/*.tsx"
+    #     dest: /app
+    #   - src: "**/*.css"
+    #     dest: /app
   - image: accounts-service
     context: accounts_service
     docker:
@@ -179,6 +203,11 @@ deploy:
 
 # Port forwarding configuration - standardized for maintainability
 portForward:
+- resourceType: service
+  resourceName: frontend-service
+  namespace: relibank
+  port: 3000
+  localPort: 3000
 - resourceType: service
   resourceName: accounts-service
   namespace: relibank

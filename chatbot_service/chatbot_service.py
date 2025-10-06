@@ -5,6 +5,7 @@ from contextlib import asynccontextmanager
 from typing import Optional
 from typing import Any
 from fastapi import FastAPI, HTTPException
+from fastapi.middleware.cors import CORSMiddleware
 from openai import AsyncOpenAI, APIConnectionError, AuthenticationError
 from openai.types.chat import (
     ChatCompletionMessageParam,
@@ -132,6 +133,15 @@ app = FastAPI(
     description="Provides a conversational AI experience using OpenAI with MCP tools.",
     version="0.1.0",
     lifespan=lifespan,
+)
+
+# Configure CORS to allow all origins
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],  # This allows all domains
+    allow_credentials=True,
+    allow_methods=["*"],  # Allows all methods (GET, POST, etc.)
+    allow_headers=["*"],  # Allows all headers
 )
 
 

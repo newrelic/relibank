@@ -8,6 +8,7 @@ from pydantic import BaseModel, Field
 from typing import Optional, List, Any
 from contextlib import asynccontextmanager
 from fastapi import FastAPI, HTTPException
+from fastapi.middleware.cors import CORSMiddleware
 import time
 import uuid
 import httpx
@@ -22,7 +23,7 @@ newrelic.agent.initialize(log_file='/app/newrelic.log', log_level=logging.DEBUG)
 DB_HOST = os.getenv("DB_HOST", "accounts-db")
 DB_NAME = os.getenv("DB_NAME", "accountsdb")
 DB_USER = os.getenv("DB_USER", "postgres")
-DB_PASSWORD = os.getenv("DB_PASSWORD", "your_password")
+DB_PASSWORD = os.getenv("DB_PASSWORD", "your_postgres_password_here")
 CONNECTION_STRING = f"host={DB_HOST} dbname={DB_NAME} user={DB_USER} password={DB_PASSWORD}"
 
 # Transaction service API URL
@@ -112,6 +113,15 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
+# Configure CORS to allow all origins
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],  # This allows all domains
+    allow_credentials=True,
+    allow_methods=["*"],  # Allows all methods (GET, POST, etc.)
+    allow_headers=["*"],  # Allows all headers
+)
+
 
 @app.get("/users/{email}")
 async def get_user(email: str):
@@ -198,6 +208,7 @@ async def get_accounts(email: str):
                     account_id_int = int(account["id"])
                     try:
                         # Correctly passing a string UUID to the transaction service
+                        print(f"URL: {TRANSACTION_SERVICE_URL}/ledger/{account_id_int}")
                         response = await client.get(f"{TRANSACTION_SERVICE_URL}/ledger/{account_id_int}")
                         response.raise_for_status()
                         account["balance"] = response.json()["current_balance"]
