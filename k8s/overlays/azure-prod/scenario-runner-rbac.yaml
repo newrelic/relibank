@@ -1,0 +1,24 @@
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: chaos-experiment-creator
+  namespace: relibank
+rules:
+  - apiGroups: ["chaos-mesh.org"]
+    resources: ["podchaos", "networkchaos", "iochaos", "stresschaos", "timechaos", "kernelchaos", "httpchaos"]
+    verbs: ["create", "get", "list", "watch", "update", "patch", "delete"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: scenario-runner-chaos-binding
+  namespace: relibank
+subjects:
+  - kind: ServiceAccount
+    name: default
+    namespace: relibank
+roleRef:
+  kind: Role
+  name: chaos-experiment-creator
+  apiGroup: rbac.authorization.k8s.io

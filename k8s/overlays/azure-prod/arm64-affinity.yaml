@@ -1,0 +1,10 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: .* # Applies to all Deployments in the base
+spec:
+  template:
+    spec:
+      # This standard Kubernetes label restricts pods to nodes with the ARM64 architecture.
+      nodeSelector:
+        kubernetes.io/arch: arm64
