@@ -516,7 +516,7 @@ async def get_ledger_balance(account_id: int):
     finally:
         pass
 
-@app.get("/transaction-service/")
+@app.get("/transaction-service")
 async def ok():
     """Root return 200"""
     return "ok"

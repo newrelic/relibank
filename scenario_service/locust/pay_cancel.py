@@ -49,7 +49,7 @@ class RelibankUser(HttpUser):
         transaction_port = os.getenv("TRANSACTION_SERVICE_SERVICE_PORT")
 
         # Task 3: Get all transactions with a GET request
-        with self.client.get(f"http://{transaction_host}:{transaction_port}/transactions", catch_response=True) as response:
+        with self.client.get(f"http://{transaction_host}:{transaction_port}/transaction-service/transactions", catch_response=True) as response:
         # with self.client.get(f"http://localhost:5001/transactions", catch_response=True) as response:
             if response.status_code == 200:
                 print("Successfully fetched all transactions.")

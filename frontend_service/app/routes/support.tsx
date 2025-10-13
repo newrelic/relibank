@@ -50,7 +50,7 @@ export default function SupportPage() {
 
     // 2. Make API Call to the chatbot service
     try {
-      const apiUrl = `http://localhost:5003/chat?prompt=${encodeURIComponent(userMessageText)}`;
+      const apiUrl = `/chatbot-service/chat?prompt=${encodeURIComponent(userMessageText)}`;
       
       const response = await fetch(apiUrl, {
         method: 'POST',
@@ -81,7 +81,7 @@ export default function SupportPage() {
       console.error("Chatbot API call failed:", error);
       const errorMessage: ChatMessage = {
         id: Date.now() + 1,
-        text: `Sorry, I couldn't connect to the support service at localhost:5003. Please ensure the chatbot service is running. Error: ${error.message}`,
+        text: `Sorry, I couldn't connect to the support service. Please ensure the chatbot service is running. Error: ${error.message}`,
         sender: 'bot',
         timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
       };
