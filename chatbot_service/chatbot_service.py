@@ -234,8 +234,8 @@ async def chat_with_model(prompt: str) -> ChatResponse:
         raise HTTPException(status_code=500, detail="Error generating response.")
 
 @app.get("/chatbot-service/")
-async def simple_health_check():
-    """Simple health check endpoint."""
+async def ok():
+    """Root return 200"""
     return "ok"
 
 @app.get("/chatbot-service/health", response_model=HealthResponse)
