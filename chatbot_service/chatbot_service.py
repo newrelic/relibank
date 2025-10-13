@@ -145,7 +145,7 @@ app.add_middleware(
 )
 
 
-@app.post("/chat", response_model=ChatResponse)
+@app.post("/chatbot-service/chat", response_model=ChatResponse)
 async def chat_with_model(prompt: str) -> ChatResponse:
     """
     Chat with the OpenAI model and handle tool calls from an MCP server.
@@ -233,13 +233,13 @@ async def chat_with_model(prompt: str) -> ChatResponse:
         logger.error(f"An unexpected error occurred: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail="Error generating response.")
 
-@app.get("/")
-async def ok():
-    """Root return 200"""
+@app.get("/chatbot-service/")
+async def simple_health_check():
+    """Simple health check endpoint."""
     return "ok"
 
-@app.get("/health")
-async def health_check():
+@app.get("/chatbot-service/health", response_model=HealthResponse)
+async def health_check() -> HealthResponse:
     """Simple health check endpoint."""
     return {"status": "healthy"}
 

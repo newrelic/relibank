@@ -123,7 +123,7 @@ app.add_middleware(
 )
 
 
-@app.get("/users/{email}")
+@app.get("/accounts-service/users/{email}")
 async def get_user(email: str):
     """Retrieves user info by email."""
     conn = None
@@ -142,7 +142,7 @@ async def get_user(email: str):
         return_db_connection(conn)
 
 
-@app.get("/accounts/{email}")
+@app.get("/accounts-service/accounts/{email}")
 async def get_accounts(email: str):
     """Retrieves all accounts for a given user email."""
     accounts = []
@@ -272,7 +272,7 @@ async def get_account_type(account_id: int):
         return_db_connection(conn)
 
 
-@app.post("/users")
+@app.post("/accounts-service/users")
 async def create_user(user: User):
     """Creates a new user account."""
     conn = None
@@ -306,7 +306,7 @@ async def create_user(user: User):
         return_db_connection(conn)
 
 
-@app.post("/accounts/{email}")
+@app.post("/accounts-service/accounts/{email}")
 async def create_account(email: str, account: Account):
     """Creates a new account and links it to a user."""
     conn = None
@@ -409,7 +409,12 @@ async def ok():
     """Root return 200"""
     return "ok"
 
-@app.get("/health")
+@app.get("/accounts-service")
+async def simple_health_check():
+    """Simple health check endpoint."""
+    return "ok"
+
+@app.get("/accounts-service/health")
 async def health_check():
     """Simple health check endpoint."""
     return {"status": "healthy"}
