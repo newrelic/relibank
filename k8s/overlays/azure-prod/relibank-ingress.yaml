@@ -3,35 +3,49 @@ kind: Ingress
 metadata:
   name: relibank-ingress
   namespace: relibank
-  annotations:
-    # Use nginx as the ingress controller
-    traefik.ingress.kubernetes.io/router.entrypoints: web
 spec:
-  ingressClassName: nginx
+  # If using the AKS App Routing Add-on, use this field instead of the annotation above:
+  ingressClassName: azure-application-gateway 
+  # defaultBackend:
+  #   service:
+  #     name: frontend-service
+  #     port:
+  #       number: 3000
   rules:
-  - host: relibank.local
-    http:
-      paths:
-      # Routes requests for /pay and /cancel to the bill-pay-service
-      - path: /pay
-        pathType: Prefix
-        backend:
-          service:
-            name: bill-pay-service
-            port:
-              number: 5000
-      - path: /cancel
-        pathType: Prefix
-        backend:
-          service:
-            name: bill-pay-service
-            port:
-              number: 5000
-      # Routes requests for /transactions to the transaction-service
-      - path: /transactions
-        pathType: Prefix
-        backend:
-          service:
-            name: transaction-service
-            port:
-              number: 5001
+    - http: 
+        paths:
+        - path: /bill-pay-service
+          pathType: Prefix
+          backend:
+            service:
+              name: bill-pay-service
+              port:
+                number: 5000
+        - path: /transaction-service
+          pathType: Prefix
+          backend:
+            service:
+              name: transaction-service
+              port:
+                number: 5001
+        - path: /accounts-service
+          pathType: Prefix
+          backend:
+            service:
+              name: accounts-service
+              port:
+                number: 5002
+        - path: /chatbot-service
+          pathType: Prefix
+          backend:
+            service:
+              name: chatbot-service
+              port:
+                number: 5003
+        - path: /
+          pathType: Prefix
+          backend:
+            service:
+              name: frontend-service 
+              port:
+                number: 3000

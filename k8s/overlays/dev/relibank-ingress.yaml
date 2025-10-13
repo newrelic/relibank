@@ -7,7 +7,6 @@ metadata:
 spec:
   ingressClassName: traefik 
   rules:
-    # 👈 FIX: Add the hyphen here to define the start of the first IngressRule object
     - http: 
         paths:
         - path: /bill-pay-service

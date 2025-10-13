@@ -2,6 +2,7 @@ import json
 import os
 import asyncio
 import logging
+import newrelic.agent
 from aiokafka import AIOKafkaConsumer
 
 # Correct imports for ACS services
@@ -19,6 +20,8 @@ logging.basicConfig(level=logging.INFO,
                     format='[notifications-service] %(levelname)s [%(asctime)s] %(name)s: %(message)s',
                     datefmt='%Y-%m-%d %H:%M:%S')
 logger = logging.getLogger(__name__)
+
+newrelic.agent.initialize(log_file='/app/newrelic.log', log_level=logging.DEBUG)
 
 # Environment variables for ACS
 ACS_CONNECTION_STRING = os.environ.get("ACS_CONNECTION_STRING")

@@ -4,7 +4,7 @@ kind: Kustomization
 resources:
   - ../../base
   - scenario-runner-rbac.yaml
-  # - relibank-ingress.yaml
+  - relibank-ingress.yaml
 
 patches:
   - path: persistentvolumeclaim-patch.yaml
@@ -20,6 +20,9 @@ patches:
       name: .*
 
 images:
+- name: frontend-service
+  newName: relibank.azurecr.io/frontend-service
+  newTag: latest
 - name: accounts-service
   newName: relibank.azurecr.io/accounts-service
   newTag: latest
