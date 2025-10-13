@@ -1,167 +1,195 @@
-import asyncio
-import os
 import json
+import os
+import asyncio
 import logging
 from aiokafka import AIOKafkaConsumer
 
-# import httpx # Required for calling external APIs like SendGrid or Twilio
+# Correct imports for ACS services
 from azure.communication.email import EmailClient
 from azure.communication.sms import SmsClient
-import newrelic.agent
+from azure.core.exceptions import HttpResponseError
 
-# Configure logging
-logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
+# Removed the failing imports (EmailContent, EmailRecipients, EmailAddress).
+# We will use standard Python dictionaries to construct the message payload
+# to avoid dependency on specific module export paths.
 
-newrelic.agent.initialize(log_file='/app/newrelic.log', log_level=logging.DEBUG)
+# --- Configuration ---
+# Setting up basic logging
+logging.basicConfig(level=logging.INFO,
+                    format='[notifications-service] %(levelname)s [%(asctime)s] %(name)s: %(message)s',
+                    datefmt='%Y-%m-%d %H:%M:%S')
+logger = logging.getLogger(__name__)
 
-# Get Kafka broker address from environment variable
-KAFKA_BROKER = os.getenv("KAFKA_BROKER", "kafka:29092")
+# Environment variables for ACS
+ACS_CONNECTION_STRING = os.environ.get("ACS_CONNECTION_STRING")
+ACS_SMS_SENDER = os.environ.get("ACS_SMS_SENDER", "+18883143834")
+ACS_EMAIL_SENDER = os.environ.get("ACS_EMAIL_SENDER", "DoNotReply@a0c2117c-0bc8-4140-b298-d6a8309b76e1.azurecomm.net")
 
-# Get notification service credentials from environment variables
-# TWILIO_ACCOUNT_SID = os.getenv("TWILIO_ACCOUNT_SID")
-# TWILIO_AUTH_TOKEN = os.getenv("TWILIO_AUTH_TOKEN")
-# TWILIO_PHONE_NUMBER = os.getenv("TWILIO_PHONE_NUMBER")
-# SENDGRID_API_KEY = os.getenv("SENDGRID_API_KEY")
-# SENDGRID_SENDER_EMAIL = os.getenv("SENDGRID_SENDER_EMAIL")
+# Global clients
+SMS_CLIENT = None
+EMAIL_CLIENT = None
 
-# New environment variables for Azure Communication Services
-AZURE_ACS_CONNECTION_STRING = os.getenv("AZURE_ACS_CONNECTION_STRING")
-AZURE_ACS_EMAIL_ENDPOINT = os.getenv("AZURE_ACS_EMAIL_ENDPOINT")
-AZURE_ACS_SMS_PHONE_NUMBER = os.getenv("AZURE_ACS_SMS_PHONE_NUMBER")
-AZURE_ACS_EMAIL_SENDER = os.getenv("AZURE_ACS_EMAIL_SENDER")
-
-# TODO add an endpoint to be used by mobile to do a popup
-# TODO add values to ignore a % of good/successful notifications,
-# but keep all bad/failed notifications for demo scenario purposes
-
-
-@newrelic.agent.background_task()
-async def send_sms_notification(to_number: str, body: str):
-    """
-    Sends an SMS notification using Azure Communication Services.
-    """
-    if AZURE_ACS_CONNECTION_STRING and AZURE_ACS_SMS_PHONE_NUMBER:
+def init_clients():
+    """Initializes the ACS clients if the connection string is available."""
+    global SMS_CLIENT, EMAIL_CLIENT
+    if ACS_CONNECTION_STRING:
+        # Check if the connection string is set (True or False for logging)
+        logger.debug(f"*** RUNTIME VAR CHECK: CONN_STRING Set: {bool(ACS_CONNECTION_STRING)}, SMS Sender: {ACS_SMS_SENDER}, Email Sender: {ACS_EMAIL_SENDER}")
         try:
-            client = SmsClient.from_connection_string(AZURE_ACS_CONNECTION_STRING)
-            client.send(from_=AZURE_ACS_SMS_PHONE_NUMBER, to=[to_number], message=body)
-            logging.info("SMS notification sent via Azure Communication Services.")
+            # Initialize both SMS and Email clients with the same connection string
+            SMS_CLIENT = SmsClient.from_connection_string(ACS_CONNECTION_STRING)
+            EMAIL_CLIENT = EmailClient.from_connection_string(ACS_CONNECTION_STRING)
+            logger.info("ACS SMS and Email Clients initialized successfully.")
         except Exception as e:
-            logging.error(f"Failed to send SMS via Azure Communication Services: {e}")
+            logger.error(f"Failed to initialize ACS clients: {e}")
     else:
-        logging.info(f"SIMULATED SMS: To '{to_number}', Body: '{body}'")
+        logger.warning("ACS_CONNECTION_STRING is not set. Notifications will not be sent.")
 
-    # Sends an SMS notification using Twilio. Update with free tier Twilio creds or use the ACS solution.
-    # if not TWILIO_ACCOUNT_SID or not TWILIO_AUTH_TOKEN or not TWILIO_PHONE_NUMBER:
-    #     logging.warning("Twilio credentials not set. Skipping SMS notification.")
-    #     return
+# --- Notification Logic ---
 
-    # from twilio.rest import Client
-    # client = Client(TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN)
-    # try:
-    #     message = client.messages.create(
-    #         to=to_number,
-    #         from_=TWILIO_PHONE_NUMBER,
-    #         body=body
-    #     )
-    #     logging.info(f"SMS notification sent successfully. SID: {message.sid}")
-    # except Exception as e:
-    #     logging.error(f"Failed to send SMS notification: {e}")
-    # logging.info(f"SIMULATED SMS: To '{to_number}', Body: '{body}'")
-
-@newrelic.agent.background_task()
-async def send_email_notification(to_email: str, subject: str, body: str):
-    """
-    Sends an SMS notification using Azure Communication Services.
-    """
-    if AZURE_ACS_CONNECTION_STRING and AZURE_ACS_EMAIL_ENDPOINT and AZURE_ACS_EMAIL_SENDER:
-        try:
-            client = EmailClient(
-                endpoint=AZURE_ACS_EMAIL_ENDPOINT,
-                connection_string=AZURE_ACS_CONNECTION_STRING,
-            )
-            client.send_message(
-                from_address=AZURE_ACS_EMAIL_SENDER,
-                to_address=[{"address": to_email}],
-                subject=subject,
-                content={"html": body},
-            )
-            logging.info("Email sent via Azure Communication Services.")
-        except Exception as e:
-            logging.error(f"Failed to send email via Azure Communication Services: {e}")
-    else:
-        logging.info(f"SIMULATED EMAIL: To '{to_email}', Subject: '{subject}', Body: '{body}'")
-
-    # Sends an email notification using SendGrid. Update with free tier SendGrid creds or use the ACS solution.
-    # if not SENDGRID_API_KEY or not SENDGRID_SENDER_EMAIL:
-    #     logging.warning("SendGrid credentials not set. Skipping email notification.")
-    #     return
-
-    # from sendgrid import SendGridAPIClient
-    # from sendgrid.helpers.mail import Mail
-    # message = Mail(
-    #     from_email=SENDGRID_SENDER_EMAIL,
-    #     to_emails=to_email,
-    #     subject=subject,
-    #     html_content=body
-    # )
-    # try:
-    #     sg = SendGridAPIClient(SENDGRID_API_KEY)
-    #     response = sg.send(message)
-    #     logging.info(f"Email sent successfully. Status code: {response.status_code}")
-    # except Exception as e:
-    #     logging.error(f"Failed to send email notification: {e}")
-    # logging.info(f"SIMULATED EMAIL: To '{to_email}', Subject: '{subject}', Body: '{body}'")
-
-@newrelic.agent.background_task()
-async def consume_and_notify():
-    """
-    Consumes messages from Kafka topics and processes them to send notifications.
-    """
-    consumer = AIOKafkaConsumer(
-        "bill_payments",
-        "recurring_payments",
-        "payment_cancellations",
-        bootstrap_servers=KAFKA_BROKER,
-        group_id="notifications-consumer-group",
-        auto_offset_reset="earliest",
-    )
+def send_email(subject, body, recipient_address):
+    """Sends an email notification via Azure Communication Services."""
+    if not EMAIL_CLIENT:
+        logger.error("Email client is not initialized.")
+        return
 
     try:
-        logging.info(f"Connecting to Kafka at {KAFKA_BROKER}...")
-        await consumer.start()
-        logging.info("Consumer connected. Waiting for messages...")
+        # FIX: Construct the entire message as a Python dictionary.
+        # This structure avoids the ImportError by not relying on the named model classes.
+        message = {
+            "senderAddress": ACS_EMAIL_SENDER,
+            "content": {
+                "subject": subject,
+                "plainText": body
+                # 'html' can also be added here if needed
+            },
+            "recipients": {
+                "to": [
+                    { "address": recipient_address }
+                ]
+            }
+        }
 
-        async for message in consumer:
-            topic = message.topic
-            value = json.loads(message.value.decode("utf-8"))
-            event_type = value.get("eventType")
+        # Send the email and poll for status (assuming synchronous call for simplicity)
+        poller = EMAIL_CLIENT.begin_send(message)
+        result = poller.result() # Wait for the result
+        
+        # Check the status of the sent email
+        if result and result.get('status', '').lower() == 'succeeded':
+            logger.info(f"Email sent successfully via ACS. Message ID: {result.get('id')}")
+        else:
+            # Error dictionary will contain 'error' key if failed
+            logger.error(f"Failed to send email via ACS. Status: {result.get('status', 'Unknown')}, Error: {result.get('error')}")
 
-            logging.info(f"Received event: {event_type} on topic {topic}")
-
-            # This is where you would handle the different types of notifications
-            # For a demo, we will log a message and simulate a notification
-            if event_type == "BillPaymentInitiated":
-                subject = f"Bill {value['billId']} Paid!"
-                body = f"Your bill {value['billId']} for {value['amount']} {value['currency']} has been successfully paid from account {value['accountId']}."
-                await send_email_notification("user@example.com", subject, body)
-            elif event_type == "RecurringPaymentScheduled":
-                subject = f"Recurring Payment for Bill {value['billId']} is Due Soon!"
-                body = f"A recurring payment for bill {value['billId']} is coming up on {value['startDate']}."
-                await send_email_notification("user@example.com", subject, body)
-                await send_sms_notification("+15551234567", body)
-            elif event_type == "BillPaymentCancelled":
-                subject = f"Bill {value['billId']} Cancelled!"
-                body = f"Your bill {value['billId']} was cancelled by user {value['user_id']}."
-                await send_email_notification("user@example.com", subject, body)
-            else:
-                logging.warning(f"Unknown eventType '{event_type}'. Skipping notification.")
-
+    except HttpResponseError as he:
+        logger.error(f"Failed to send email via ACS (HTTP Error): {he}")
     except Exception as e:
-        logging.error(f"Consumer encountered an error: {e}")
+        logger.error(f"An unexpected error occurred while sending email: {e}")
+
+def send_sms(message, recipient_phone):
+    """Sends an SMS notification via Azure Communication Services."""
+    if not SMS_CLIENT:
+        logger.error("SMS client is not initialized.")
+        return
+
+    try:
+        sms_recipients = [{'to': recipient_phone, 'message': message}]
+        # The logs show the SMS sender is working correctly, but we include the code here.
+        # send_result will be a list of SendSmsResponse objects (or similar)
+        send_result = SMS_CLIENT.send(from_=ACS_SMS_SENDER, sms_content=sms_recipients)
+        
+        # Log the result for each recipient/message sent
+        for result in send_result:
+            logger.info(f"SMS sent via ACS. Message ID: {result.message_id}, Status: {result.http_status_code}")
+
+    except HttpResponseError as he:
+        logger.error(f"Failed to send SMS via ACS (HTTP Error): {he}")
+    except Exception as e:
+        logger.error(f"An unexpected error occurred while sending SMS: {e}")
+
+
+async def process_event(message):
+    """Processes a single Kafka message based on the event type."""
+    try:
+        event = json.loads(message.value.decode('utf-8'))
+        event_type = event.get('eventType')
+        logger.info(f"Received event: {event_type} on topic {message.topic}")
+        logger.debug(f"Received RAW message on topic {message.topic}: {message.value.decode('utf-8')}")
+
+        if event_type == "RecurringPaymentScheduled":
+            logger.info("--- INFO: Recurring Payment event processing started. ---")
+            
+            bill_id = event.get('billId')
+            amount = event.get('amount')
+            currency = event.get('currency')
+            frequency = event.get('frequency')
+            
+            # --- Dummy Recipient Data (Replace with actual lookup logic) ---
+            # In a real system, you would look up the user's email/phone based on event.accountId
+            # For this example, we use mock data to test the ACS integration:
+            user_email = "test.user@example.com"
+            user_phone = "+14255550100" # Use a valid, E.164 formatted number
+            # ----------------------------------------------------------------
+
+            # 1. Send Email Notification
+            email_subject = f"Recurring Payment Scheduled: {bill_id}"
+            email_body = (
+                f"A recurring payment for {amount} {currency} has been successfully scheduled "
+                f"with a {frequency} frequency. Bill ID: {bill_id}."
+            )
+            send_email(email_subject, email_body, user_email)
+
+            # 2. Send SMS Notification
+            sms_body = f"Payment Scheduled: {bill_id}. {amount} {currency} {frequency}. Check your email for details."
+            send_sms(sms_body, user_phone)
+
+        elif event_type == "PaymentCompleted":
+            # Add logic for PaymentCompleted
+            pass
+        
+        # Add other event types here (e.g., PaymentFailed, PaymentCancelled)
+
+    except json.JSONDecodeError as e:
+        logger.error(f"Failed to decode Kafka message: {e}")
+    except Exception as e:
+        logger.error(f"An error occurred during event processing: {e}")
+
+
+async def consume():
+    """Main Kafka consumer loop."""
+    consumer = AIOKafkaConsumer(
+        'recurring_payments',
+        'payment_cancellations',
+        'bill_payments',
+        bootstrap_servers='kafka:29092',
+        group_id='notifications-consumer-group',
+        auto_offset_reset='earliest'
+    )
+    
+    # Start the consumer
+    await consumer.start()
+    logger.info("Kafka consumer started successfully.")
+
+    try:
+        # Poll for messages and process them
+        async for message in consumer:
+            await process_event(message)
+
     finally:
+        # Ensure the consumer is closed when done
+        logger.warning("Stopping Kafka consumer.")
         await consumer.stop()
-        logging.info("Consumer stopped.")
 
+def main():
+    """Application entry point."""
+    init_clients() # Initialize ACS clients
+    try:
+        # Start the consumer loop
+        asyncio.run(consume())
+    except KeyboardInterrupt:
+        logger.info("Service interrupted by user.")
+    except Exception as e:
+        logger.error(f"A fatal error occurred in the main loop: {e}")
 
-if __name__ == "__main__":
-    asyncio.run(consume_and_notify())
+if __name__ == '__main__':
+    main()

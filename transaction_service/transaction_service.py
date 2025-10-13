@@ -516,6 +516,10 @@ async def get_ledger_balance(account_id: int):
     finally:
         pass
 
+@app.get("/")
+async def ok():
+    """Root return 200"""
+    return "ok"
 
 @app.get("/health")
 async def health_check():

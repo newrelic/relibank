@@ -269,6 +269,10 @@ async def cancel_payment(bill_id: str, cancel_details: CancelPayment):
         "message": f"Payment for bill ID {bill_id} has been cancelled successfully by user '{cancel_details.user_id}'.",
     }
 
+@app.get("/")
+async def ok():
+    """Root return 200"""
+    return "ok"
 
 @app.get("/health")
 async def health_check():

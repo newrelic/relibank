@@ -35,9 +35,18 @@ images:
 - name: scheduler-service
   newName: relibank.azurecr.io/scheduler-service
   newTag: latest
-- name: scenario-runner-service
-  newName: relibank.azurecr.io/scenario-runner-service
+- name: scenario-runner
+  newName: relibank.azurecr.io/scenario-runner
   newTag: latest
 - name: chatbot-service
   newName: relibank.azurecr.io/chatbot-service
+  newTag: latest
+- name: postgres-custom
+  newName: relibank.azurecr.io/postgres-custom
+  newTag: latest
+- name: mssql-custom
+  newName: relibank.azurecr.io/mssql-custom
+  newTag: latest
+- name: kafka-with-monitoring
+  newName: relibank.azurecr.io/kafka-with-monitoring
   newTag: latest

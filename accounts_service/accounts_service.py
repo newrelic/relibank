@@ -392,7 +392,11 @@ async def create_account(email: str, account: Account):
         raise HTTPException(status_code=500, detail="Error creating account.")
     finally:
         return_db_connection(conn)
-
+        
+@app.get("/")
+async def ok():
+    """Root return 200"""
+    return "ok"
 
 @app.get("/health")
 async def health_check():

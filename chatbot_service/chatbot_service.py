@@ -223,11 +223,20 @@ async def chat_with_model(prompt: str) -> ChatResponse:
         logger.error(f"An unexpected error occurred: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail="Error generating response.")
 
+@app.get("/")
+async def ok():
+    """Root return 200"""
+    return "ok"
 
-@app.get("/health", response_model=HealthResponse)
-async def health_check() -> HealthResponse:
+@app.get("/health")
+async def health_check():
     """Simple health check endpoint."""
-    if is_ready:
-        return HealthResponse(status="healthy")
-    else:
-        raise HTTPException(status_code=503, detail="AI service is not ready.")
+    return {"status": "healthy"}
+
+# @app.get("/health", response_model=HealthResponse)
+# async def health_check() -> HealthResponse:
+#     """Simple health check endpoint."""
+#     if is_ready:
+#         return HealthResponse(status="healthy")
+#     else:
+#         raise HTTPException(status_code=503, detail="AI service is not ready.")
