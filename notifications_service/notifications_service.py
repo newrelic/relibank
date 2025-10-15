@@ -167,4 +167,9 @@ def main():
     try:
         asyncio.run(consume())
     except KeyboardInterrupt:
-        logger.info("Service
+        logger.info("Service interrupted by user.")
+    except Exception as e:
+        logger.error(f"A fatal error occurred in the main loop: {e}")
+
+if __name__ == '__main__':
+    main()
