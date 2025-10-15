@@ -1,0 +1,15 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  # This patch is applied to all Deployment resources in the base manifest.
+  name: .*
+spec:
+  template:
+    spec:
+      # This toleration allows the application pods to be scheduled on nodes
+      # that have the taint "node.kubernetes.io/arch=arm64:NoSchedule".
+      tolerations:
+      - key: "node.kubernetes.io/arch"
+        operator: "Equal"
+        value: "arm64"
+        effect: "NoSchedule"

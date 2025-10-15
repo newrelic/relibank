@@ -122,7 +122,7 @@ async def publish_message(topic: str, message: dict):
         raise HTTPException(status_code=500, detail="Failed to publish message to Kafka")
 
 
-@app.post("/pay")
+@app.post("/bill-pay-service/pay")
 async def process_bill_payment(payment_details: PaymentDetails):
     """
     Processes a bill payment request that has already been authenticated.
@@ -189,7 +189,7 @@ async def process_bill_payment(payment_details: PaymentDetails):
     }
 
 
-@app.post("/recurring")
+@app.post("/bill-pay-service/recurring")
 async def process_recurring_payment(payment_schedule: PaymentSchedule):
     """
     Simulates setting up a recurring bill payment.
@@ -236,7 +236,7 @@ async def process_recurring_payment(payment_schedule: PaymentSchedule):
     }
 
 
-@app.post("/cancel/{bill_id}")
+@app.post("/bill-pay-service/cancel/{bill_id}")
 async def cancel_payment(bill_id: str, cancel_details: CancelPayment):
     """
     Cancels an initiated payment after checking if it exists.
@@ -279,8 +279,12 @@ async def cancel_payment(bill_id: str, cancel_details: CancelPayment):
         "message": f"Payment for bill ID {bill_id} has been cancelled successfully by user '{cancel_details.user_id}'.",
     }
 
+@app.get("/")
+async def ok():
+    """Root return 200"""
+    return "ok"
 
-@app.get("/health")
+@app.get("/bill-pay-service/health")
 async def health_check():
     """Simple health check endpoint."""
     return {"status": "healthy"}

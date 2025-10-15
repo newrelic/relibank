@@ -82,6 +82,9 @@ build:
         NEW_RELIC_ACCOUNT_ID: "{{.NEW_RELIC_ACCOUNT_ID}}"
         NEW_RELIC_LICENSE_KEY: "{{.NEW_RELIC_LICENSE_KEY}}"
         APP_NAME: "{{.APP_NAME}}"
+        AZURE_ACS_CONNECTION_STRING: "{{.AZURE_ACS_CONNECTION_STRING}}"
+        AZURE_ACS_SMS_PHONE_NUMBER: "{{.AZURE_ACS_SMS_PHONE_NUMBER}}"
+        AZURE_ACS_EMAIL_SENDER: "{{.AZURE_ACS_EMAIL_SENDER}}"
     sync:
       manual:
       - src: "**/*.py"
@@ -154,6 +157,7 @@ manifests:
   kustomize:
     paths:
     - "k8s/overlays/dev"
+    # - "k8s/overlays/azure-prod"
 
 deploy:
   helm:
@@ -259,5 +263,17 @@ profiles:
   build:
     local:
       push: false
-  deploy:
-    kubectl: {}
+  # FIX: Override the 'manifests' block instead of the 'deploy' block
+  # This tells Skaffold which kustomize path to use, while keeping the helm/kubectl deployers
+  manifests:
+    kustomize:
+      paths:
+      - "k8s/overlays/dev"
+
+# Define a profile for your production environment
+- name: azure-prod
+  # FIX: Override the 'manifests' block instead of the 'deploy' block
+  manifests:
+    kustomize:
+      paths:
+      - "k8s/overlays/azure-prod"
