@@ -33,6 +33,7 @@ def trigger_azure_function(payload):
 
     try:
         response = requests.post(AZURE_FUNCTION_URL, data=json.dumps(payload), headers=headers)
+        logger.info(f"Function URL: {AZURE_FUNCTION_URL}, data: {json.dumps(payload)}, headers: {headers}")
         response.raise_for_status()
         logger.info(f"Successfully triggered Azure Function. Status: {response.status_code}, Response: {response.text}")
     except requests.exceptions.RequestException as e:

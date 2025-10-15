@@ -9,6 +9,7 @@ from pydantic import BaseModel, ConfigDict, Field, ValidationError
 from typing import Optional, List
 import schedule
 import time
+import uuid
 import newrelic.agent
 
 # Configure logging

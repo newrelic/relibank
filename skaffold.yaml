@@ -85,6 +85,7 @@ build:
         AZURE_ACS_CONNECTION_STRING: "{{.AZURE_ACS_CONNECTION_STRING}}"
         AZURE_ACS_SMS_PHONE_NUMBER: "{{.AZURE_ACS_SMS_PHONE_NUMBER}}"
         AZURE_ACS_EMAIL_SENDER: "{{.AZURE_ACS_EMAIL_SENDER}}"
+        AZURE_FUNCTION_URL: "{{.AZURE_FUNCTION_URL}}"
     sync:
       manual:
       - src: "**/*.py"
