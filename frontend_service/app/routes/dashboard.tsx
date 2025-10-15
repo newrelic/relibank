@@ -279,9 +279,8 @@ const TransferCard = ({ userData, setUserData, transactions, setTransactions }) 
     }
 
     // ==========================================================
-    // --- API CALL TO http://localhost:5000/recurring ---
     try {
-        const response = await fetch('http://localhost:5000/recurring', {
+        const response = await fetch('/bill-pay-service/recurring', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ 

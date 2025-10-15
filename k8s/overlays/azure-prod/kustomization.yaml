@@ -18,6 +18,10 @@ patches:
     target:
       kind: Deployment
       name: .*
+  - path: infrastructure-config.yaml
+    target:
+      kind: ConfigMap
+      name: .*
 
 images:
 - name: frontend-service

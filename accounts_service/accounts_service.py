@@ -27,8 +27,9 @@ DB_PASSWORD = os.getenv("DB_PASSWORD", "your_postgres_password_here")
 CONNECTION_STRING = f"host={DB_HOST} dbname={DB_NAME} user={DB_USER} password={DB_PASSWORD}"
 
 # Transaction service API URL
-TRANSACTION_SERVICE_URL = os.getenv("TRANSACTION_SERVICE_URL", "http://transaction-service:5001")
-
+# tries to retrieve from host env TRANSACTION_SERVICE_URL and TRANSACTION_SERVICE_SERVICE_PORT
+# if not, default to local development variables
+TRANSACTION_SERVICE_URL = f"http://{os.getenv("TRANSACTION_SERVICE_SERVICE_HOST", "transaction-service")}:{os.getenv("TRANSACTION_SERVICE_SERVICE_PORT", "5001")}"
 
 # Global connection pool
 connection_pool = None
@@ -207,8 +208,8 @@ async def get_accounts(email: str):
                     account_id_int = int(account["id"])
                     try:
                         # Correctly passing a string UUID to the transaction service
-                        print(f"URL: {TRANSACTION_SERVICE_URL}/ledger/{account_id_int}")
-                        response = await client.get(f"{TRANSACTION_SERVICE_URL}/ledger/{account_id_int}")
+                        print(f"URL: {TRANSACTION_SERVICE_URL}/transaction-service/ledger/{account_id_int}")
+                        response = await client.get(f"{TRANSACTION_SERVICE_URL}/transaction-service/ledger/{account_id_int}")
                         response.raise_for_status()
                         account["balance"] = response.json()["current_balance"]
                     except httpx.HTTPStatusError as e:
@@ -402,11 +403,6 @@ async def create_account(email: str, account: Account):
         raise HTTPException(status_code=500, detail="Error creating account.")
     finally:
         return_db_connection(conn)
-        
-@app.get("/")
-async def ok():
-    """Root return 200"""
-    return "ok"
 
 @app.get("/accounts-service")
 async def simple_health_check():

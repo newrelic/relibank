@@ -55,12 +55,7 @@ const LoginPage = () => {
 
         // Simulate a network request. In a real application, you would replace this with a real API call.
         try {
-<<<<<<< HEAD
-            const response = await fetch('http://localhost:5002/accounts/alice.j@relibank.com');
-=======
             const response = await fetch('/accounts-service/accounts/alice.j@relibank.com');
-            // const response = await fetch('http://localhost:5002/accounts/alice.j@relibank.com');
->>>>>>> 24435392f9374dbbe5b8229fd600431a18941314
 
             if (!response.ok) {
                 throw new Error('Login failed. Please check your credentials.');

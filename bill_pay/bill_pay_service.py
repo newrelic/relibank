@@ -136,7 +136,7 @@ async def process_bill_payment(payment_details: PaymentDetails):
     async with httpx.AsyncClient() as client:
         try:
             logging.info(f"Checking for existing transaction with BillID: {payment_details.billId}")
-            response = await client.get(f"{transaction_service_url}/transaction/{payment_details.billId}")
+            response = await client.get(f"{transaction_service_url}/transaction-service/transaction/{payment_details.billId}")
             if response.status_code == 200:
                 logging.error(f"Transaction with BillID '{payment_details.billId}' already exists.")
                 raise HTTPException(
@@ -202,7 +202,7 @@ async def process_recurring_payment(payment_schedule: PaymentSchedule):
     async with httpx.AsyncClient() as client:
         try:
             logging.info(f"Checking for existing transaction with BillID: {payment_schedule.billId}")
-            response = await client.get(f"{transaction_service_url}/transaction/{payment_schedule.billId}")
+            response = await client.get(f"{transaction_service_url}/transaction-service/transaction/{payment_schedule.billId}")
             if response.status_code == 200:
                 raise HTTPException(status_code=409, detail=f"Bill with ID '{payment_schedule.billId}' already exists.")
         except HTTPStatusError as e:
@@ -249,7 +249,7 @@ async def cancel_payment(bill_id: str, cancel_details: CancelPayment):
     async with httpx.AsyncClient() as client:
         try:
             logging.info(f"Checking for existing transaction with BillID: {bill_id}")
-            response = await client.get(f"{transaction_service_url}/transaction/{bill_id}")
+            response = await client.get(f"{transaction_service_url}/transaction-service/transaction/{bill_id}")
             if response.status_code == 404:
                 raise HTTPException(
                     status_code=404,
@@ -279,7 +279,7 @@ async def cancel_payment(bill_id: str, cancel_details: CancelPayment):
         "message": f"Payment for bill ID {bill_id} has been cancelled successfully by user '{cancel_details.user_id}'.",
     }
 
-@app.get("/")
+@app.get("/bill-pay-service")
 async def ok():
     """Root return 200"""
     return "ok"

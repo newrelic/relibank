@@ -43,15 +43,15 @@ spec:
                   key: KAFKA_BROKER
                   name: infrastructure-config
           image: transaction-service
-          livenessProbe:
-            exec:
-              command:
-                - curl
-                - -f
-                - http://localhost:5000/health
-            failureThreshold: 5
-            periodSeconds: 10
-            timeoutSeconds: 5
+          # livenessProbe:
+          #   exec:
+          #     command:
+          #       - curl
+          #       - -f
+          #       - http://localhost:5000/health
+          #   failureThreshold: 5
+          #   periodSeconds: 10
+          #   timeoutSeconds: 5
           name: transaction-service
           ports:
             - containerPort: 5000
