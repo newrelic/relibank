@@ -16,6 +16,7 @@ export default defineConfig({
     // Add this to enable hot reloading
     hmr: {
       clientPort: 3000
-    }
+    },
+    allowedHosts: ['relibank.westus2.cloudapp.azure.com'],
   },
 });
