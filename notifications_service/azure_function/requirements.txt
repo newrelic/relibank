@@ -6,3 +6,4 @@ azure-functions
 azure-communication-email
 azure-communication-sms
 requests
+newrelic>=10.17.0
