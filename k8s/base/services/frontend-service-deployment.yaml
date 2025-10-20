@@ -1,0 +1,46 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    app: frontend-service
+  name: frontend-service
+  namespace: relibank
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: frontend-service
+  template:
+    metadata:
+      labels:
+        app: frontend-service
+    spec:
+      containers:
+      - name: frontend-service
+        image: frontend-service
+        ports:
+        - containerPort: 3000
+          protocol: TCP
+        # restartPolicy: Always
+        resources:
+          requests:
+            cpu: 1000m
+            memory: 1Gi
+          limits:
+            cpu: 2000m
+            memory: 2Gi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  labels:
+    app: frontend-service
+  name: frontend-service
+  namespace: relibank
+spec:
+  ports:
+  - name: "http"
+    port: 3000
+    targetPort: 3000
+  selector:
+    app: frontend-service

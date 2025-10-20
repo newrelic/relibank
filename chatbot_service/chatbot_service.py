@@ -5,6 +5,7 @@ from contextlib import asynccontextmanager
 from typing import Optional
 from typing import Any
 from fastapi import FastAPI, HTTPException
+from fastapi.middleware.cors import CORSMiddleware
 from openai import AsyncOpenAI, APIConnectionError, AuthenticationError
 from openai.types.chat import (
     ChatCompletionMessageParam,
@@ -134,8 +135,16 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
+# Configure CORS to allow all origins
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],  # This allows all domains
+    allow_credentials=True,
+    allow_methods=["*"],  # Allows all methods (GET, POST, etc.)
+    allow_headers=["*"],  # Allows all headers
+)
 
-@app.post("/chat", response_model=ChatResponse)
+@app.post("/chatbot-service/chat", response_model=ChatResponse)
 async def chat_with_model(prompt: str) -> ChatResponse:
     """
     Chat with the OpenAI model and handle tool calls from an MCP server.
@@ -223,11 +232,20 @@ async def chat_with_model(prompt: str) -> ChatResponse:
         logger.error(f"An unexpected error occurred: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail="Error generating response.")
 
+@app.get("/chatbot-service/")
+async def ok():
+    """Root return 200"""
+    return "ok"
 
-@app.get("/health", response_model=HealthResponse)
+@app.get("/chatbot-service/health", response_model=HealthResponse)
 async def health_check() -> HealthResponse:
     """Simple health check endpoint."""
-    if is_ready:
-        return HealthResponse(status="healthy")
-    else:
-        raise HTTPException(status_code=503, detail="AI service is not ready.")
+    return {"status": "healthy"}
+
+# @app.get("/health", response_model=HealthResponse)
+# async def health_check() -> HealthResponse:
+#     """Simple health check endpoint."""
+#     if is_ready:
+#         return HealthResponse(status="healthy")
+#     else:
+#         raise HTTPException(status_code=503, detail="AI service is not ready.")

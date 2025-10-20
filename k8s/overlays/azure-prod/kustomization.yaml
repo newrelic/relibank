@@ -1,0 +1,59 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+resources:
+  - ../../base
+  - scenario-runner-rbac.yaml
+  - relibank-ingress.yaml
+
+patches:
+  - path: persistentvolumeclaim-patch.yaml
+  # New patch to enforce ARM64 architecture affinity on all Deployments
+  - path: arm64-affinity.yaml
+    target:
+      kind: Deployment
+      # This target applies the patch to all Deployment resources found in the base.
+      name: .*
+  - path: arm64-toleration.yaml
+    target:
+      kind: Deployment
+      name: .*
+  - path: infrastructure-config.yaml
+    target:
+      kind: ConfigMap
+      name: .*
+
+images:
+- name: frontend-service
+  newName: relibank.azurecr.io/frontend-service
+  newTag: latest
+- name: accounts-service
+  newName: relibank.azurecr.io/accounts-service
+  newTag: latest
+- name: transaction-service
+  newName: relibank.azurecr.io/transaction-service
+  newTag: latest
+- name: bill-pay-service
+  newName: relibank.azurecr.io/bill-pay-service
+  newTag: latest
+- name: notifications-service
+  newName: relibank.azurecr.io/notifications-service
+  newTag: latest
+- name: scheduler-service
+  newName: relibank.azurecr.io/scheduler-service
+  newTag: latest
+- name: scenario-runner
+  newName: relibank.azurecr.io/scenario-runner
+  newTag: latest
+- name: chatbot-service
+  newName: relibank.azurecr.io/chatbot-service
+  newTag: latest
+- name: postgres-custom
+  newName: relibank.azurecr.io/postgres-custom
+  newTag: latest
+- name: mssql-custom
+  newName: relibank.azurecr.io/mssql-custom
+  newTag: latest
+- name: kafka-with-monitoring
+  newName: relibank.azurecr.io/kafka-with-monitoring
+  newTag: latest

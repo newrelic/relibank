@@ -10,6 +10,30 @@ build:
     useBuildkit: true
     push: false
   artifacts:
+  - image: frontend-service
+    context: frontend_service
+    docker:
+      dockerfile: Dockerfile
+      buildArgs:
+        OPENAI_LOG: "{{.OPENAI_LOG}}"
+        OPENAI_API_KEY: "{{.OPENAI_API_KEY}}"
+        OPENAI_BASE_URL: "{{.OPENAI_BASE_URL}}"
+        NEW_RELIC_USER_API_KEY: "{{.NEW_RELIC_USER_API_KEY}}"
+        NEW_RELIC_ACCOUNT_ID: "{{.NEW_RELIC_ACCOUNT_ID}}"
+        NEW_RELIC_LICENSE_KEY: "{{.NEW_RELIC_BROWSER_LICENSE_KEY}}"
+        NEW_RELIC_BROWSER_APPLICATION_ID: "{{.NEW_RELIC_BROWSER_APPLICATION_ID}}"
+        APP_NAME: "{{.APP_NAME}}"
+
+    # sync:
+    #   manual:
+    #   - src: "**/*.js"
+    #     dest: /app
+    #   - src: "**/*.ts"
+    #     dest: /app
+    #   - src: "**/*.tsx"
+    #     dest: /app
+    #   - src: "**/*.css"
+    #     dest: /app
   - image: accounts-service
     context: accounts_service
     docker:
@@ -58,6 +82,10 @@ build:
         NEW_RELIC_ACCOUNT_ID: "{{.NEW_RELIC_ACCOUNT_ID}}"
         NEW_RELIC_LICENSE_KEY: "{{.NEW_RELIC_LICENSE_KEY}}"
         APP_NAME: "{{.APP_NAME}}"
+        AZURE_ACS_CONNECTION_STRING: "{{.AZURE_ACS_CONNECTION_STRING}}"
+        AZURE_ACS_SMS_PHONE_NUMBER: "{{.AZURE_ACS_SMS_PHONE_NUMBER}}"
+        AZURE_ACS_EMAIL_SENDER: "{{.AZURE_ACS_EMAIL_SENDER}}"
+        AZURE_FUNCTION_URL: "{{.AZURE_FUNCTION_URL}}"
     sync:
       manual:
       - src: "**/*.py"
@@ -130,6 +158,7 @@ manifests:
   kustomize:
     paths:
     - "k8s/overlays/dev"
+    # - "k8s/overlays/azure-prod"
 
 deploy:
   helm:
@@ -175,6 +204,11 @@ deploy:
 
 # Port forwarding configuration - standardized for maintainability
 portForward:
+- resourceType: service
+  resourceName: frontend-service
+  namespace: relibank
+  port: 3000
+  localPort: 3000
 - resourceType: service
   resourceName: accounts-service
   namespace: relibank
@@ -230,5 +264,17 @@ profiles:
   build:
     local:
       push: false
-  deploy:
-    kubectl: {}
+  # FIX: Override the 'manifests' block instead of the 'deploy' block
+  # This tells Skaffold which kustomize path to use, while keeping the helm/kubectl deployers
+  manifests:
+    kustomize:
+      paths:
+      - "k8s/overlays/dev"
+
+# Define a profile for your production environment
+- name: azure-prod
+  # FIX: Override the 'manifests' block instead of the 'deploy' block
+  manifests:
+    kustomize:
+      paths:
+      - "k8s/overlays/azure-prod"

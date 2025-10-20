@@ -441,7 +441,7 @@ app = FastAPI(
 )
 
 
-@app.get("/transactions", response_model=List[TransactionRecord])
+@app.get("/transaction-service/transactions", response_model=List[TransactionRecord])
 async def get_transactions():
     """
     Retrieves all transactions from the database.
@@ -461,7 +461,7 @@ async def get_transactions():
         raise HTTPException(status_code=500, detail="Error retrieving transactions.")
 
 
-@app.get("/transaction/{bill_id}", response_model=TransactionRecord)
+@app.get("/transaction-service/transaction/{bill_id}", response_model=TransactionRecord)
 async def get_transaction(bill_id: str):
     """
     Retrieves a single transaction by its BillID.
@@ -487,7 +487,7 @@ async def get_transaction(bill_id: str):
         raise HTTPException(status_code=500, detail="Error retrieving transaction.")
 
 
-@app.get("/ledger/{account_id}", response_model=LedgerRecord)
+@app.get("/transaction-service/ledger/{account_id}", response_model=LedgerRecord)
 async def get_ledger_balance(account_id: int):
     """
     Retrieves the current balance for a specific account from the Ledger table.
@@ -516,8 +516,12 @@ async def get_ledger_balance(account_id: int):
     finally:
         pass
 
+@app.get("/transaction-service")
+async def ok():
+    """Root return 200"""
+    return "ok"
 
-@app.get("/health")
+@app.get("/transaction-service/health")
 async def health_check():
     """Simple health check endpoint."""
     return {"status": "healthy"}

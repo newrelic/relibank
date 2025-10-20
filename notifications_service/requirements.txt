@@ -5,5 +5,5 @@ pydantic>=2.12.0a1
 newrelic>=10.17.0
 python-multipart>=0.0.20
 aiokafka>=0.12.0
-azure-communication-email
-azure-communication-sms
+azure-communication-email>=1.0.0b1
+azure-communication-sms>=1.1.0

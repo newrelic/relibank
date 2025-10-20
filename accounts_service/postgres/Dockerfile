@@ -2,7 +2,7 @@
 FROM postgres:15
 
 # Copy the initialization script into the container
-COPY init.sql /usr/config/init.sql
+COPY init.sql /docker-entrypoint-initdb.d/init.sql
 
 # Expose the default PostgreSQL port
 EXPOSE 5432

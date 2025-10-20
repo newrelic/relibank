@@ -8,6 +8,7 @@ from pydantic import BaseModel, Field, ValidationError, ConfigDict
 from typing import Optional, List, Any
 from contextlib import asynccontextmanager
 from fastapi import FastAPI, HTTPException
+from fastapi.middleware.cors import CORSMiddleware
 import time
 import httpx
 from httpx import HTTPStatusError, RequestError
@@ -67,6 +68,15 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
+# Configure CORS to allow all origins
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],  # This allows all domains
+    allow_credentials=True,
+    allow_methods=["*"],  # Allows all methods (GET, POST, etc.)
+    allow_headers=["*"],  # Allows all headers
+)
+
 
 # Pydantic models for request body and response validation
 class PaymentDetails(BaseModel):
@@ -112,7 +122,7 @@ async def publish_message(topic: str, message: dict):
         raise HTTPException(status_code=500, detail="Failed to publish message to Kafka")
 
 
-@app.post("/pay")
+@app.post("/bill-pay-service/pay")
 async def process_bill_payment(payment_details: PaymentDetails):
     """
     Processes a bill payment request that has already been authenticated.
@@ -126,7 +136,7 @@ async def process_bill_payment(payment_details: PaymentDetails):
     async with httpx.AsyncClient() as client:
         try:
             logging.info(f"Checking for existing transaction with BillID: {payment_details.billId}")
-            response = await client.get(f"{transaction_service_url}/transaction/{payment_details.billId}")
+            response = await client.get(f"{transaction_service_url}/transaction-service/transaction/{payment_details.billId}")
             if response.status_code == 200:
                 logging.error(f"Transaction with BillID '{payment_details.billId}' already exists.")
                 raise HTTPException(
@@ -179,7 +189,7 @@ async def process_bill_payment(payment_details: PaymentDetails):
     }
 
 
-@app.post("/recurring")
+@app.post("/bill-pay-service/recurring")
 async def process_recurring_payment(payment_schedule: PaymentSchedule):
     """
     Simulates setting up a recurring bill payment.
@@ -192,7 +202,7 @@ async def process_recurring_payment(payment_schedule: PaymentSchedule):
     async with httpx.AsyncClient() as client:
         try:
             logging.info(f"Checking for existing transaction with BillID: {payment_schedule.billId}")
-            response = await client.get(f"{transaction_service_url}/transaction/{payment_schedule.billId}")
+            response = await client.get(f"{transaction_service_url}/transaction-service/transaction/{payment_schedule.billId}")
             if response.status_code == 200:
                 raise HTTPException(status_code=409, detail=f"Bill with ID '{payment_schedule.billId}' already exists.")
         except HTTPStatusError as e:
@@ -226,7 +236,7 @@ async def process_recurring_payment(payment_schedule: PaymentSchedule):
     }
 
 
-@app.post("/cancel/{bill_id}")
+@app.post("/bill-pay-service/cancel/{bill_id}")
 async def cancel_payment(bill_id: str, cancel_details: CancelPayment):
     """
     Cancels an initiated payment after checking if it exists.
@@ -239,7 +249,7 @@ async def cancel_payment(bill_id: str, cancel_details: CancelPayment):
     async with httpx.AsyncClient() as client:
         try:
             logging.info(f"Checking for existing transaction with BillID: {bill_id}")
-            response = await client.get(f"{transaction_service_url}/transaction/{bill_id}")
+            response = await client.get(f"{transaction_service_url}/transaction-service/transaction/{bill_id}")
             if response.status_code == 404:
                 raise HTTPException(
                     status_code=404,
@@ -269,8 +279,12 @@ async def cancel_payment(bill_id: str, cancel_details: CancelPayment):
         "message": f"Payment for bill ID {bill_id} has been cancelled successfully by user '{cancel_details.user_id}'.",
     }
 
+@app.get("/bill-pay-service")
+async def ok():
+    """Root return 200"""
+    return "ok"
 
-@app.get("/health")
+@app.get("/bill-pay-service/health")
 async def health_check():
     """Simple health check endpoint."""
     return {"status": "healthy"}

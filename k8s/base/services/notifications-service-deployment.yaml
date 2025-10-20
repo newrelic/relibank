@@ -17,13 +17,13 @@ spec:
     spec:
       containers:
         - env:
-            - name: AZURE_ACS_CONNECTION_STRING
-            - name: AZURE_ACS_EMAIL_ENDPOINT
-              value: https://your-acs-resource-name.azurecomm.net
-            - name: AZURE_ACS_EMAIL_SENDER
-              value: DoNotReply@xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx.azurecomm.net
-            - name: AZURE_ACS_SMS_PHONE_NUMBER
-              value: "+15551234567"
+            # - name: AZURE_ACS_CONNECTION_STRING
+            # - name: AZURE_ACS_EMAIL_ENDPOINT
+            #   value: https://your-acs-resource-name.azurecomm.net
+            # - name: AZURE_ACS_EMAIL_SENDER
+            #   value: DoNotReply@xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx.azurecomm.net
+            # - name: AZURE_ACS_SMS_PHONE_NUMBER
+            #   value: "+15551234567"
             - name: KAFKA_BROKER
               valueFrom:
                 configMapKeyRef:
