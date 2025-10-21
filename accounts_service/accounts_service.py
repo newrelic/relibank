@@ -7,7 +7,7 @@ from psycopg2 import extras, pool
 from pydantic import BaseModel, Field
 from typing import Optional, List, Any
 from contextlib import asynccontextmanager
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 import time
 import uuid
@@ -124,7 +124,7 @@ app.add_middleware(
 )
 
 @app.get("/accounts-service/users/{email}")
-async def get_user(email: str):
+async def get_user(email: str, request: Request):
     """Retrieves user info by email."""
     conn = None
     try:
@@ -143,7 +143,7 @@ async def get_user(email: str):
 
 
 @app.get("/accounts-service/accounts/{email}")
-async def get_accounts(email: str):
+async def get_accounts(email: str, request: Request):
     """Retrieves all accounts for a given user email."""
     accounts = []
     conn = None
@@ -229,7 +229,7 @@ async def get_accounts(email: str):
         return_db_connection(conn)
 
 @app.get("/account/type/{account_id}", response_model=AccountType)
-async def get_account_type(account_id: int):
+async def get_account_type(account_id: int, request: Request):
     """
     Retrieves the type of a specific account by its ID.
     """
@@ -273,7 +273,7 @@ async def get_account_type(account_id: int):
 
 
 @app.post("/accounts-service/users")
-async def create_user(user: User):
+async def create_user(user: User, request: Request):
     """Creates a new user account."""
     conn = None
     try:
@@ -307,7 +307,7 @@ async def create_user(user: User):
 
 
 @app.post("/accounts-service/accounts/{email}")
-async def create_account(email: str, account: Account):
+async def create_account(email: str, account: Account, request: Request):
     """Creates a new account and links it to a user."""
     conn = None
     try:
