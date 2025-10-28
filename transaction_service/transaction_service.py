@@ -7,11 +7,12 @@ from aiokafka import AIOKafkaConsumer, AIOKafkaProducer
 from pydantic import BaseModel, Field, ValidationError
 from typing import Optional, List, Any
 from contextlib import asynccontextmanager
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Request
 import time
 import httpx
 from httpx import HTTPStatusError, RequestError
 import newrelic.agent
+from utils.process_headers import process_headers
 
 # Configure logging
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
@@ -442,7 +443,7 @@ app = FastAPI(
 
 
 @app.get("/transaction-service/transactions", response_model=List[TransactionRecord])
-async def get_transactions():
+async def get_transactions(request: Request):
     """
     Retrieves all transactions from the database.
     """
@@ -455,6 +456,7 @@ async def get_transactions():
         columns = [column[0] for column in cursor.description]
         transactions = [TransactionRecord(**dict(zip(columns, row))) for row in cursor.fetchall()]
         logging.info(f"Retrieved {len(transactions)} transactions.")
+        process_headers(dict(request.headers))
         return transactions
     except Exception as e:
         logging.error(f"Error retrieving transactions: {e}")
@@ -462,7 +464,7 @@ async def get_transactions():
 
 
 @app.get("/transaction-service/transaction/{bill_id}", response_model=TransactionRecord)
-async def get_transaction(bill_id: str):
+async def get_transaction(bill_id: str, request: Request):
     """
     Retrieves a single transaction by its BillID.
     """
@@ -479,6 +481,7 @@ async def get_transaction(bill_id: str):
         columns = [column[0] for column in cursor.description]
         transaction = TransactionRecord(**dict(zip(columns, row)))
         logging.info(f"Retrieved transaction for BillID: {bill_id}")
+        process_headers(dict(request.headers))
         return transaction
     except HTTPException:
         raise
@@ -488,7 +491,7 @@ async def get_transaction(bill_id: str):
 
 
 @app.get("/transaction-service/ledger/{account_id}", response_model=LedgerRecord)
-async def get_ledger_balance(account_id: int):
+async def get_ledger_balance(account_id: int, request: Request):
     """
     Retrieves the current balance for a specific account from the Ledger table.
     """
@@ -502,6 +505,7 @@ async def get_ledger_balance(account_id: int):
             account_id,
         )
         row = cursor.fetchone()
+        process_headers(dict(request.headers))
         if not row:
             raise HTTPException(status_code=404, detail="Account not found in ledger.")
 

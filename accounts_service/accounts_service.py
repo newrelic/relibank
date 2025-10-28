@@ -13,6 +13,7 @@ import time
 import uuid
 import httpx
 import newrelic.agent
+from utils.process_headers import process_headers
 
 # Configure logging
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
@@ -129,6 +130,7 @@ async def get_user(email: str, request: Request):
     conn = None
     try:
         conn = get_db_connection()
+        process_headers(dict(request.headers))
         with conn.cursor(cursor_factory=extras.RealDictCursor) as cursor:
             cursor.execute("SELECT * FROM user_account WHERE email = %s", (email,))
             user = cursor.fetchone()
@@ -212,6 +214,7 @@ async def get_accounts(email: str, request: Request):
                         response = await client.get(f"{TRANSACTION_SERVICE_URL}/transaction-service/ledger/{account_id_int}")
                         response.raise_for_status()
                         account["balance"] = response.json()["current_balance"]
+                        process_headers(dict(request.headers))
                     except httpx.HTTPStatusError as e:
                         logging.warning(
                             f"Ledger balance for account {account_id_int} not found. Defaulting to 0. Error: {e.response.status_code}"
@@ -263,6 +266,7 @@ async def get_account_type(account_id: int, request: Request):
             account_data = cursor.fetchone()
             if account_data:
                 return AccountType(id=account_data[0], account_type=account_data[1])
+            process_headers(dict(request.headers))
 
             raise HTTPException(status_code=404, detail="Account not found.")
     except Exception as e:
@@ -298,6 +302,7 @@ async def create_user(user: User, request: Request):
                 ),
             )
             conn.commit()
+            process_headers(dict(request.headers))
             return {"status": "success", "message": "User created successfully."}
     except Exception as e:
         logging.error(f"Error creating user: {e}")
@@ -378,7 +383,7 @@ async def create_account(email: str, account: Account, request: Request):
             """,
                 (account.id, user_id),
             )
-
+            process_headers(dict(request.headers))
             conn.commit()
             return {
                 "status": "success",

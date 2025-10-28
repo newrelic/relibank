@@ -4,7 +4,7 @@ import json
 from contextlib import asynccontextmanager
 from typing import Optional
 from typing import Any
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from openai import AsyncOpenAI, APIConnectionError, AuthenticationError
 from openai.types.chat import (
@@ -16,6 +16,7 @@ from pydantic import BaseModel
 import newrelic.agent
 from fastmcp import Client
 from mcp.types import Tool
+from utils.process_headers import process_headers
 
 # --- Logging Configuration ---
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s")
@@ -35,7 +36,7 @@ class HealthResponse(BaseModel):
 # --- Global State ---
 client: Optional[AsyncOpenAI] = None
 is_ready: bool = False
-MODEL_ID = "gpt-4o-mini"  # Use constant naming convention
+MODEL_ID = "gpt-41"
 
 
 # --- MCP Code ---
@@ -103,6 +104,9 @@ async def lifespan(app: FastAPI):
     openai_api_key = os.getenv("OPENAI_API_KEY")
     openai_base_url = os.getenv("OPENAI_BASE_URL")
 
+    #OPENAI_BASE_URL="https://nerd-completion.staging-service.nr-ops.net"
+    # OPENAI_BASE_URL="https://stg-green-smoothie-east-us-2.openai.azure.com/openai/v1"
+
     if not openai_api_key:
         logger.error("OPENAI_API_KEY environment variable not set. Application will not start.")
         raise RuntimeError("OpenAI API key is required for startup.")
@@ -145,7 +149,7 @@ app.add_middleware(
 )
 
 @app.post("/chatbot-service/chat", response_model=ChatResponse)
-async def chat_with_model(prompt: str) -> ChatResponse:
+async def chat_with_model(prompt: str, request: Request) -> ChatResponse:
     """
     Chat with the OpenAI model and handle tool calls from an MCP server.
     """
@@ -197,6 +201,7 @@ async def chat_with_model(prompt: str) -> ChatResponse:
                             role="tool",
                         )
                     )
+                    process_headers(dict(request.headers))
                 except json.JSONDecodeError as e:
                     logger.error(f"Failed to parse tool arguments: {e}")
                     messages.append(
