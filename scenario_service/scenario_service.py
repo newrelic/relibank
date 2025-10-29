@@ -31,30 +31,45 @@ async def lifespan(app: FastAPI):
     yaml_file_path = base_dir / "chaos_mesh" / "experiments" / "relibank-pod-chaos-adhoc.yaml"
 
     # Define the path to the chaos experiment YAML file
-    yaml_file_path = "chaos_mesh/experiments/relibank-pod-chaos-adhoc.yaml"
+    # yaml_file_path = "chaos_mesh/experiments/relibank-pod-chaos-adhoc.yaml"
 
+    loaded_count = 0 # Initialize counter for successful loads
     # Load and parse the chaos experiment YAML file
     try:
-        with open(yaml_file_path, 'r') as file:
-            for doc in yaml.safe_load_all(file):
-                if doc and doc.get("kind") == "PodChaos":
-                    name = doc["metadata"]["name"]
-                    description = doc["metadata"].get("labels", {}).get("target-flow", "No description available.")
-                    
-                    # Store the complete experiment spec for ad-hoc execution
-                    CHAOS_EXPERIMENTS[name] = {
-                        "namespace": doc["metadata"]["namespace"],
-                        "action": doc["spec"]["action"],
-                        "mode": doc["spec"]["mode"],
-                        "selector": doc["spec"]["selector"],
-                        "duration": doc["spec"]["duration"],
-                        "gracePeriod": doc["spec"]["gracePeriod"],
-                        "description": description
-                    }
+        print(f"INFO: Attempting to read YAML from absolute path: {yaml_file_path}") # Log the resolved path
+        
+        with open(yaml_file_path, 'r') as file: 
+            # Use safe_load_all for multi-document YAML
+            for i, doc in enumerate(yaml.safe_load_all(file)):
+                if doc:
+                    current_kind = doc.get('kind', 'N/A')
+                    current_name = doc.get('metadata', {}).get('name', 'N/A')
+                    print(f"DEBUG: Parsed document {i}. Kind: {current_kind}, Name: {current_name}")
+
+                    if current_kind == "PodChaos":
+                        name = doc["metadata"]["name"]
+                        description = doc["metadata"].get("labels", {}).get("target-flow", "No description available.")
+                        
+                        # Store the complete experiment spec for ad-hoc execution
+                        CHAOS_EXPERIMENTS[name] = {
+                            "namespace": doc["metadata"]["namespace"],
+                            "action": doc["spec"]["action"],
+                            "mode": doc["spec"]["mode"],
+                            "selector": doc["spec"]["selector"],
+                            "duration": doc["spec"]["duration"],
+                            "gracePeriod": doc["spec"]["gracePeriod"],
+                            "description": description
+                        }
+                        loaded_count += 1
+                    else:
+                        print(f"DEBUG: Skipping document {i}. Kind is not 'PodChaos'.")
+                else:
+                    print(f"DEBUG: Skipping empty document {i}.")
+        
     except FileNotFoundError:
-        print(f"Error: The YAML file '{yaml_file_path}' was not found.")
+        print(f"Error: The YAML file was not found at '{yaml_file_path}'. This indicates a Dockerfile COPY issue.")
     except yaml.YAMLError as e:
-        print(f"Error parsing YAML file: {e}")
+        print(f"Error parsing YAML file: {e}. Check YAML format.")
 
     # Initialize Kubernetes client from within the pod
     try:
@@ -129,7 +144,9 @@ async def trigger_chaos_experiment(scenario_name: str):
         }
     }
 
-    try:
+    try:        
+        print(f"DEBUG K8S API CALL: Group+Version={api_version}, Namespace={namespace}, Plural={plural}, Name={experiment_name}")
+        
         # Create the custom resource in Kubernetes
         api_client.create_namespaced_custom_object(
             group="chaos-mesh.org",
