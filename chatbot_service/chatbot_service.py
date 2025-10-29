@@ -36,7 +36,8 @@ class HealthResponse(BaseModel):
 # --- Global State ---
 client: Optional[AsyncOpenAI] = None
 is_ready: bool = False
-MODEL_ID = "gpt-41"
+MODEL_ID = "gpt-4.1"
+AZURE_API_VERSION = "2023-05-15"
 
 
 # --- MCP Code ---
@@ -104,15 +105,14 @@ async def lifespan(app: FastAPI):
     openai_api_key = os.getenv("OPENAI_API_KEY")
     openai_base_url = os.getenv("OPENAI_BASE_URL")
 
+    # TODO remove this if it's not needed
     #OPENAI_BASE_URL="https://nerd-completion.staging-service.nr-ops.net"
     # OPENAI_BASE_URL="https://stg-green-smoothie-east-us-2.openai.azure.com/openai/v1"
 
-    if not openai_api_key:
-        logger.error("OPENAI_API_KEY environment variable not set. Application will not start.")
-        raise RuntimeError("OpenAI API key is required for startup.")
-    if not openai_base_url:
-        logger.error("OPENAI_BASE_URL environment variable not set. Application will not start.")
-        raise RuntimeError("OpenAI API base url is required for startup.")
+
+    if not openai_api_key or not openai_base_url:
+        logger.error("OPENAI_API_KEY or OPENAI_BASE_URL environment variable not set. Application will not start.")
+        raise RuntimeError("OpenAI API key and base url are required for startup.")
 
     try:
         # Initialize OpenAI client with the provided base URL
