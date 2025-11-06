@@ -68,12 +68,12 @@ jobs:
         run: |
           cd demo_flows/k8s_bill_pay/ && python trigger_chaos.py ${{ vars.BASE_URL }}
 
-      - name: Wait for Chaos Effect (2 min gap)
+      - name: Wait for Chaos Effect (100sec gap)
         # This step forces a 2-minute pause after the chaos is triggered 
         # but before the "good" deployment marker is sent.
         run: |
-            echo "Sleeping for 120 seconds to allow the chaos experiment to run..."
-            sleep 120
+            echo "Sleeping for 100 seconds to allow the chaos experiment to run..."
+            sleep 100
             echo "Resuming workflow."
 
       - name: Send good deployment marker
