@@ -1,0 +1,80 @@
+name: Flow - Bill Payment K8s Issue
+
+run-name: Bill Payment K8s Issue demo scenario kickoff
+
+on: 
+  workflow_dispatch:
+    # inputs:
+    #   duration:
+    #     description: "Scenario duration in minutes"
+    #     type: choice
+    #     required: true
+    #     default: "30"
+    #     options:
+    #      - "5"
+    #      - "10"
+    #      - "15"
+    #      - "30"
+  
+  schedule:
+  # Run every 4 hours
+  - cron: "0 */4 * * *"
+
+
+
+jobs:
+
+  get-metadata:
+    name: Get Metadata
+    runs-on: ubuntu-latest
+    outputs:
+      latest_tag: ${{ steps.get_latest_tag.outputs.tag }}
+    steps:
+      - name: Checkout Repo
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+  k8s-bill-pay-flow:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    strategy:
+      fail-fast: false
+      matrix:
+        # environment: [sandbox, staging, prod]
+        environment: [events]
+
+    environment: ${{ matrix.environment }}
+    
+# --------------- runner setup ---------------
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v4
+        with:
+          python-version: '3.10'
+
+      - name: pip installs
+        run: |
+          pip install locust
+
+# --------------- demo flow ---------------
+
+      - name: Send bad deployment marker
+        run: |
+          cd demo_flows/k8s_bill_pay/relibank_marker.py && python send_marker_bill_pay.py badCommit ${{ secrets.NR_USER_API_KEY }} ${{ vars.NR_ACCOUNT_ID }}
+
+      - name: Loadgen
+        continue-on-error: true
+        run: |
+          cd demo_flows/k8s_bill_pay/ && python trigger_chaos.py ${{ vars.BASE_URL }}
+      # - name: Run GraphQL Mutation
+      #   run: |
+      #     cd applications/microservices-demo/demo_flows/change_tracking && python test_synthetic.py ${{ secrets.NR_USER_API_KEY }} ${{ vars.NR_ACCOUNT_ID }}
+
+      - name: Send good deployment marker
+        if: always()
+        run: |
+          cd demo_flows/k8s_bill_pay/relibank_marker.py && python send_marker_bill_pay.py goodCommit ${{ secrets.NR_USER_API_KEY }} ${{ vars.NR_ACCOUNT_ID }}
+
