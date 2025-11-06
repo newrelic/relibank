@@ -3,17 +3,19 @@ import os
 import json
 import logging
 import pyodbc
-from aiokafka import AIOKafkaConsumer, AIOKafkaProducer
-from pydantic import BaseModel, Field, ValidationError, ConfigDict
-from typing import Optional, List, Any
+from aiokafka import AIOKafkaProducer
+from pydantic import BaseModel, Field, ConfigDict
+from typing import Optional
 from contextlib import asynccontextmanager
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Header, Request
 from fastapi.middleware.cors import CORSMiddleware
 import time
 import httpx
 from httpx import HTTPStatusError, RequestError
 import uuid
 import newrelic.agent
+from typing import Annotated
+from utils.process_headers import process_headers
 
 # Configure logging
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
@@ -123,20 +125,22 @@ async def publish_message(topic: str, message: dict):
 
 
 @app.post("/bill-pay-service/pay")
-async def process_bill_payment(payment_details: PaymentDetails):
+async def process_bill_payment(payment_details: PaymentDetails, request: Request):
     """
     Processes a bill payment request that has already been authenticated.
     - Publishes two messages to a real Kafka topic, one for each account.
     """
-    logging.info(f"Received payment request for: {payment_details.billId}")
+    logging.info(f"Received payment request for: {payment_details.billId}, headers: {payment_details}")
     logging.info("Authentication handled by upstream service. Proceeding with payment.")
 
     # --- Check for duplicate billId ---
     transaction_service_url = os.getenv("TRANSACTION_SERVICE_URL", "http://transaction-service:5001")
     async with httpx.AsyncClient() as client:
+        # wait if header includes extra_transaction_time
         try:
             logging.info(f"Checking for existing transaction with BillID: {payment_details.billId}")
             response = await client.get(f"{transaction_service_url}/transaction-service/transaction/{payment_details.billId}")
+            process_headers(dict(request.headers))
             if response.status_code == 200:
                 logging.error(f"Transaction with BillID '{payment_details.billId}' already exists.")
                 raise HTTPException(
@@ -190,7 +194,7 @@ async def process_bill_payment(payment_details: PaymentDetails):
 
 
 @app.post("/bill-pay-service/recurring")
-async def process_recurring_payment(payment_schedule: PaymentSchedule):
+async def process_recurring_payment(payment_schedule: PaymentSchedule, request: Request):
     """
     Simulates setting up a recurring bill payment.
     - Publishes a message to a real Kafka topic.
@@ -203,6 +207,7 @@ async def process_recurring_payment(payment_schedule: PaymentSchedule):
         try:
             logging.info(f"Checking for existing transaction with BillID: {payment_schedule.billId}")
             response = await client.get(f"{transaction_service_url}/transaction-service/transaction/{payment_schedule.billId}")
+            process_headers(dict(request.headers))
             if response.status_code == 200:
                 raise HTTPException(status_code=409, detail=f"Bill with ID '{payment_schedule.billId}' already exists.")
         except HTTPStatusError as e:
@@ -237,7 +242,7 @@ async def process_recurring_payment(payment_schedule: PaymentSchedule):
 
 
 @app.post("/bill-pay-service/cancel/{bill_id}")
-async def cancel_payment(bill_id: str, cancel_details: CancelPayment):
+async def cancel_payment(bill_id: str, cancel_details: CancelPayment, request: Request):
     """
     Cancels an initiated payment after checking if it exists.
     - Publishes a message to a real Kafka topic.
@@ -250,6 +255,7 @@ async def cancel_payment(bill_id: str, cancel_details: CancelPayment):
         try:
             logging.info(f"Checking for existing transaction with BillID: {bill_id}")
             response = await client.get(f"{transaction_service_url}/transaction-service/transaction/{bill_id}")
+            process_headers(dict(request.headers))
             if response.status_code == 404:
                 raise HTTPException(
                     status_code=404,

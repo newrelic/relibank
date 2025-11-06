@@ -2,7 +2,7 @@ from locust import main as locust_main
 import os
 import uuid
 import yaml
-import subprocess
+from pathlib import Path 
 import sys
 from fastapi import FastAPI, Request
 from fastapi.responses import HTMLResponse
@@ -26,31 +26,50 @@ async def lifespan(app: FastAPI):
     Loads chaos experiment definitions on application startup and initializes Kubernetes client.
     """
     global api_client
-    # Define the path to the chaos experiment YAML file
-    yaml_file_path = "chaos_mesh/experiments/relibank-pod-chaos-adhoc.yaml"
 
+    base_dir = Path(__file__).parent.absolute()
+    yaml_file_path = base_dir / "chaos_mesh" / "experiments" / "relibank-pod-chaos-adhoc.yaml"
+
+    # Define the path to the chaos experiment YAML file
+    # yaml_file_path = "chaos_mesh/experiments/relibank-pod-chaos-adhoc.yaml"
+
+    loaded_count = 0 # Initialize counter for successful loads
     # Load and parse the chaos experiment YAML file
     try:
-        with open(yaml_file_path, 'r') as file:
-            for doc in yaml.safe_load_all(file):
-                if doc and doc.get("kind") == "PodChaos":
-                    name = doc["metadata"]["name"]
-                    description = doc["metadata"].get("labels", {}).get("target-flow", "No description available.")
-                    
-                    # Store the complete experiment spec for ad-hoc execution
-                    CHAOS_EXPERIMENTS[name] = {
-                        "namespace": doc["metadata"]["namespace"],
-                        "action": doc["spec"]["action"],
-                        "mode": doc["spec"]["mode"],
-                        "selector": doc["spec"]["selector"],
-                        "duration": doc["spec"]["duration"],
-                        "gracePeriod": doc["spec"]["gracePeriod"],
-                        "description": description
-                    }
+        print(f"INFO: Attempting to read YAML from absolute path: {yaml_file_path}") # Log the resolved path
+        
+        with open(yaml_file_path, 'r') as file: 
+            # Use safe_load_all for multi-document YAML
+            for i, doc in enumerate(yaml.safe_load_all(file)):
+                if doc:
+                    current_kind = doc.get('kind', 'N/A')
+                    current_name = doc.get('metadata', {}).get('name', 'N/A')
+                    print(f"DEBUG: Parsed document {i}. Kind: {current_kind}, Name: {current_name}")
+
+                    if current_kind == "PodChaos":
+                        name = doc["metadata"]["name"]
+                        description = doc["metadata"].get("labels", {}).get("target-flow", "No description available.")
+                        
+                        # Store the complete experiment spec for ad-hoc execution
+                        CHAOS_EXPERIMENTS[name] = {
+                            "namespace": doc["metadata"]["namespace"],
+                            "action": doc["spec"]["action"],
+                            "mode": doc["spec"]["mode"],
+                            "selector": doc["spec"]["selector"],
+                            "duration": doc["spec"]["duration"],
+                            "gracePeriod": doc["spec"]["gracePeriod"],
+                            "description": description
+                        }
+                        loaded_count += 1
+                    else:
+                        print(f"DEBUG: Skipping document {i}. Kind is not 'PodChaos'.")
+                else:
+                    print(f"DEBUG: Skipping empty document {i}.")
+        
     except FileNotFoundError:
-        print(f"Error: The YAML file '{yaml_file_path}' was not found.")
+        print(f"Error: The YAML file was not found at '{yaml_file_path}'. This indicates a Dockerfile COPY issue.")
     except yaml.YAMLError as e:
-        print(f"Error parsing YAML file: {e}")
+        print(f"Error parsing YAML file: {e}. Check YAML format.")
 
     # Initialize Kubernetes client from within the pod
     try:
@@ -68,13 +87,13 @@ async def lifespan(app: FastAPI):
 # Initialize FastAPI app with the lifespan
 app = FastAPI(title="Relibank Scenario Runner", lifespan=lifespan)
 
-@app.get("/", response_class=HTMLResponse)
+@app.get("/scenario-runner/home", response_class=HTMLResponse)
 async def read_root():
     """Serves the main HTML page."""
     with open("index.html", "r") as f:
         return f.read()
 
-@app.get("/api/scenarios", response_model=List[Dict[str, Any]])
+@app.get("/scenario-runner/api/scenarios", response_model=List[Dict[str, Any]])
 async def get_scenarios():
     """Returns a list of available chaos scenarios and their details."""
     scenarios_list = []
@@ -92,7 +111,7 @@ async def get_scenarios():
     })
     return scenarios_list
 
-@app.post("/api/trigger_chaos/{scenario_name}")
+@app.post("/scenario-runner/api/trigger_chaos/{scenario_name}")
 async def trigger_chaos_experiment(scenario_name: str):
     """Triggers a one-time Chaos Mesh experiment."""
     if scenario_name not in CHAOS_EXPERIMENTS:
@@ -125,7 +144,9 @@ async def trigger_chaos_experiment(scenario_name: str):
         }
     }
 
-    try:
+    try:        
+        print(f"DEBUG K8S API CALL: Group+Version={api_version}, Namespace={namespace}, Plural={plural}, Name={experiment_name}")
+        
         # Create the custom resource in Kubernetes
         api_client.create_namespaced_custom_object(
             group="chaos-mesh.org",
@@ -139,7 +160,7 @@ async def trigger_chaos_experiment(scenario_name: str):
         print(f"Error creating PodChaos object: {e}")
         return {"status": "error", "message": f"Failed to trigger experiment: {e.reason}"}
 
-@app.post("/api/run_locust/{locustfile_name}")
+@app.post("/scenario-runner/api/run_locust/{locustfile_name}")
 async def run_locust_test(locustfile_name: str, num_users: int = 1):
     """
     Triggers a Locust load test from the command line.
@@ -189,3 +210,8 @@ async def run_locust_test(locustfile_name: str, num_users: int = 1):
         # Restore sys.argv and sys.exit to their original states
         sys.argv = original_argv
         sys.exit = original_exit
+
+@app.get("/scenario-runner")
+async def ok():
+    """Root return 200"""
+    return "ok"

@@ -37,6 +37,13 @@ spec:
               name: chatbot-service
               port:
                 number: 5003
+        - path: /scenario-runner
+          pathType: Prefix
+          backend:
+            service:
+              name: scenario-runner-service
+              port:
+                number: 8000
         - path: /
           pathType: Prefix
           backend:

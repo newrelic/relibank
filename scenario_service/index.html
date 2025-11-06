@@ -77,7 +77,8 @@
             
             const fetchAndRenderScenarios = async () => {
                 try {
-                    const response = await fetch('/api/scenarios');
+                    // FIX 1: Added /scenario-runner prefix to the fetch path
+                    const response = await fetch('/scenario-runner/api/scenarios'); 
                     if (!response.ok) {
                         throw new Error(`HTTP error! status: ${response.status}`);
                     }
@@ -94,7 +95,8 @@
                             button.addEventListener('click', async () => {
                                 showMessage(`Triggering ${scenario.name}...`, 'info');
                                 try {
-                                    const triggerResponse = await fetch(`/api/trigger_chaos/${scenario.name}`, {
+                                    // FIX 2: Added /scenario-runner prefix to the trigger path
+                                    const triggerResponse = await fetch(`/scenario-runner/api/trigger_chaos/${scenario.name}`, {
                                         method: 'POST',
                                     });
                                     const result = await triggerResponse.json();
@@ -122,7 +124,8 @@
                     showMessage(`Running Locust test with ${numUsers} users...`, 'info');
 
                     try {
-                        const response = await fetch(`/api/run_locust/${locustfileName}?num_users=${numUsers}`, {
+                        // FIX 3: Added /scenario-runner prefix to the run locust path
+                        const response = await fetch(`/scenario-runner/api/run_locust/${locustfileName}?num_users=${numUsers}`, {
                             method: 'POST',
                         });
                         const result = await response.json();
