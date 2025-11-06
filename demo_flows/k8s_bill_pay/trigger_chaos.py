@@ -39,8 +39,6 @@ def trigger_chaos_mesh_job():
         if result.get("status") == "success":
             print("\nSuccess!")
             print(f"Message: {result.get('message')}")
-            # The name of the *actual* created resource is returned in the message
-            print(f"Created Ad-Hoc Resource Name: {result.get('message', '').split(' ')[2].strip("'")}")
         elif result.get("error"):
             print("\nError from Scenario Runner!")
             print(f"Error: {result.get('error')}")
