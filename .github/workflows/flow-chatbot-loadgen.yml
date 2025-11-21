@@ -23,12 +23,12 @@ jobs:
 
   chatbot-loadgen:
     runs-on: ubuntu-latest
-    # strategy:
-    #   fail-fast: false
-    #   matrix:
-    #     environment: [sandbox, staging, prod]
+    strategy:
+      fail-fast: false
+      matrix:
+        environment: [events]
 
-    # environment: ${{ matrix.environment }}
+    environment: ${{ matrix.environment }}
     
 # --------------- runner setup ---------------
     steps:
@@ -47,4 +47,4 @@ jobs:
 
       - name: Send chat loadgen
         run: |
-          cd demo_flows/chatbot_loadgen/ && python create_chatbot_loadgen.py
+          cd demo_flows/chatbot_loadgen/ && python create_chatbot_loadgen.py ${{ vars.BASE_URL }}/chatbot-service/chat
