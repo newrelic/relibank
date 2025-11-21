@@ -1,0 +1,50 @@
+name: Flow - Chatbot Loadgen
+
+run-name: Create Scheduled Chatbot Loadgen
+
+on: 
+  workflow_dispatch:
+  
+  schedule:
+  - cron: "*/30 * * * *"
+
+jobs:
+
+  get-metadata:
+    name: Get Metadata
+    runs-on: ubuntu-latest
+    outputs:
+      latest_tag: ${{ steps.get_latest_tag.outputs.tag }}
+    steps:
+      - name: Checkout Repo
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+  change-tracking-flow:
+    runs-on: ubuntu-latest
+    # strategy:
+    #   fail-fast: false
+    #   matrix:
+    #     environment: [sandbox, staging, prod]
+
+    # environment: ${{ matrix.environment }}
+    
+# --------------- runner setup ---------------
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v4
+        with:
+          python-version: '3.10'
+
+      - name: pip installs
+        run: |
+          pip install locust
+
+# --------------- demo flow ---------------
+
+      - name: Send chat loadgen
+        run: |
+          cd demo_flows/chatbot_loadgen/ && python create_chatbot_loadgen.py
