@@ -1,0 +1,33 @@
+Explain the difference between a stock and a bond in two simple sentences.
+
+Define compound interest and give a concise, one-sentence example of its effect.
+
+What are three main benefits of investing in a mutual fund?
+
+If I have $1,000 and the annual inflation rate is 3%, what is the real value of my money after one year?
+
+List three common strategies for mitigating investment risk.
+
+Describe the core function of a credit score in one paragraph.
+
+What is the simplest way to explain the concept of "asset allocation" to a beginner?
+
+Write a simple, three-point to-do list for someone starting their first budget.
+
+Explain why diversification is considered crucial in a financial portfolio.
+
+Summarize the role of a Central Bank in the economy (limit to four sentences).
+
+Write a catchy, three-word slogan for a new bank savings account.
+
+What are the key differences between a Roth IRA and a Traditional IRA? (Focus on tax treatment.)
+
+Describe a simple financial scenario where a time-series analysis model would be most useful.
+
+Act as a financial advisor and explain the concept of the "Rule of 72" in a conversational way.
+
+What is the difference between bear and bull markets? Answer in two separate, short sentences.
+
+Create a short, two-paragraph explanation of blockchain technology specifically tailored for a bank's senior management.
+
+What is the current status of Cloudflare?

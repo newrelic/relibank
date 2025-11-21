@@ -3,15 +3,22 @@ import random
 import json
 import argparse
 import sys
+import os
 
-# Selection of 5 questions to be randomly chosen
-QUESTIONS = [
-    "Is Cloudflare up currently?",
-    "Explain the concept of tool use in large language models.",
-    "Can you give me a summary of the latest software engineering trends?",
-    "How does the MCP server integrate with the OpenAI model?",
-    "What is the difference between a GET and a POST request in HTTP?",
-]
+QUESTION_FILE = "questions.txt"
+
+def get_random_question() -> str:
+    if not os.path.exists(QUESTION_FILE):
+        raise FileNotFoundError(f"Error: The question file '{QUESTION_FILE}' was not found in the current directory.")
+
+    with open(QUESTION_FILE, 'r') as f:
+        # Read all non-empty, stripped lines into a list
+        questions = [line.strip() for line in f if line.strip()]
+
+    if not questions:
+        raise ValueError(f"Error: The question file '{QUESTION_FILE}' is empty or contains no valid questions.")
+        
+    return random.choice(questions)
 
 def post_random_question(api_url: str):
     """
@@ -20,7 +27,7 @@ def post_random_question(api_url: str):
         api_url: The full URL of the chatbot's /chat endpoint.
     """
     # Select a random question
-    random_question = random.choice(QUESTIONS)
+    random_question = get_random_question()
     print(f"Selected Question: '{random_question}'")
     params = {
         "prompt": random_question
