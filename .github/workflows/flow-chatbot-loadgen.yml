@@ -47,4 +47,4 @@ jobs:
 
       - name: Send chat loadgen
         run: |
-          cd demo_flows/chatbot_loadgen/ && python create_chatbot_loadgen.py ${{ matrix.environment.BASE_URL }}/chatbot-service/chat
+          cd demo_flows/chatbot_loadgen/ && python create_chatbot_loadgen.py ${{ vars.BASE_URL }}/chatbot-service/chat
