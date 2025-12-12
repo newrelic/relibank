@@ -44,6 +44,11 @@ const LoginPage = () => {
     const { isAuthenticated, handleLogin } = useContext(LoginContext);
     const navigate = useNavigate();
 
+    // Log when login page loads
+    useEffect(() => {
+        console.info('Login page loaded');
+    }, []);
+
     // if (isAuthenticated) {
     //     return <Navigate to="/dashboard" replace />;
     // }
@@ -53,8 +58,11 @@ const LoginPage = () => {
         setIsSubmitting(true);
         setLoginError('');
 
+        console.info('Login attempt started', { username });
+
         // Simulate a network request. In a real application, you would replace this with a real API call.
         try {
+            console.info('Fetching user account data from accounts service');
             const response = await fetch('/accounts-service/accounts/alice.j@relibank.com');
 
             if (!response.ok) {
@@ -63,17 +71,19 @@ const LoginPage = () => {
 
             const userData = await response.json();
             console.log('API Response:', userData);
-            
+            console.info('Login successful', { userId: userData.id, userName: userData.name });
+
             // On success, call handleLogin to set state and initiate navigation (via useEffect in root.tsx)
             handleLogin(userData);
-            
+
             // DO NOT set isSubmitting(false) here. The spinner stays until the page unmounts.
         } catch (error) {
             console.error('Login error:', error);
+            console.info('Login failed', { error: error.message });
             setLoginError(error.message);
-            
+
             // On failure, hide the spinner so the user can try again
-            setIsSubmitting(false); 
+            setIsSubmitting(false);
         }
         // Removed the outer finally block to prevent prematurely setting isSubmitting(false)
     };

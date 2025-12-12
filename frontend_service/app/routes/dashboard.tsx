@@ -273,6 +273,11 @@ const TransferCard = ({ userData, setUserData, transactions, setTransactions }) 
     const sourceAccount = fromAccount === 'checking' ? checking : savings;
 
     if (transferAmount > sourceAccount.balance) {
+      console.error('Transfer failed: Insufficient funds', {
+        accountType: sourceAccount.account_type,
+        requestedAmount: transferAmount,
+        availableBalance: sourceAccount.balance
+      });
       setIsError(true);
       setMessage(`Insufficient funds in ${sourceAccount.account_type} account.`);
       return;
@@ -466,17 +471,19 @@ const TransferCard = ({ userData, setUserData, transactions, setTransactions }) 
 const DashboardPage = () => {
   // Use a combination of demo data (initial state) and sessionStorage (post-login)
   const [userData, setUserData] = useState(demoUserData);
-  const [additionalAccountData, setAdditionalAccountData] = useState(null); 
+  const [additionalAccountData, setAdditionalAccountData] = useState(null);
   // NEW: Add transactions to state to allow updates from the TransferCard
-  const [transactions, setTransactions] = useState(mockTransactions); 
+  const [transactions, setTransactions] = useState(mockTransactions);
   // NEW: Loading state for the additional, client-side fetch
-  const [isLoadingDetails, setIsLoadingDetails] = useState(false); 
+  const [isLoadingDetails, setIsLoadingDetails] = useState(false);
 
   // 1. Initial Load: Check sessionStorage for authenticated user data
   useEffect(() => {
+    console.info('Dashboard page loaded');
     if (typeof window !== 'undefined') {
       const storedUserData = sessionStorage.getItem('userData');
       if (storedUserData) {
+        console.info('Loading user data from session storage');
         setUserData(JSON.parse(storedUserData));
       }
     }
