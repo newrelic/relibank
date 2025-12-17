@@ -520,6 +520,89 @@ async def get_ledger_balance(account_id: int, request: Request):
     finally:
         pass
 
+@app.get("/transaction-service/blocking")
+async def create_blocking_scenario(delay_seconds: int = 30, request: Request = None):
+    """
+    Creates a blocking scenario on the Transactions table.
+    Starts a transaction, locks a row, and holds it for the specified delay.
+    This simulates blocking behavior for monitoring and testing purposes.
+    """
+    if delay_seconds < 1 or delay_seconds > 300:
+        raise HTTPException(status_code=400, detail="delay_seconds must be between 1 and 300")
+
+    if not db_connection:
+        raise HTTPException(status_code=503, detail="Database connection failed.")
+
+    # Create a new connection without autocommit for transaction control
+    blocking_connection = None
+    try:
+        logging.info(f"Starting blocking scenario with {delay_seconds} second delay...")
+
+        # Create connection without autocommit to control transactions manually
+        blocking_connection = pyodbc.connect(CONNECTION_STRING, autocommit=False)
+        cursor = blocking_connection.cursor()
+
+        # Begin transaction
+        cursor.execute("BEGIN TRANSACTION")
+
+        # Lock a row in the Transactions table with UPDLOCK and HOLDLOCK
+        # This will block any other queries trying to update this row
+        cursor.execute("""
+            SELECT TOP 1 TransactionID, BillID, Amount
+            FROM Transactions WITH (UPDLOCK, HOLDLOCK)
+            ORDER BY TransactionID DESC
+        """)
+        row = cursor.fetchone()
+
+        if not row:
+            blocking_connection.rollback()
+            raise HTTPException(status_code=404, detail="No transactions found to lock. Please create some transactions first.")
+
+        transaction_id = row[0]
+        bill_id = row[1]
+        amount = row[2]
+
+        logging.info(f"Locked TransactionID {transaction_id} (BillID: {bill_id}). Holding lock for {delay_seconds} seconds...")
+
+        # Hold the lock for the specified duration
+        delay_formatted = f"00:{delay_seconds // 60:02d}:{delay_seconds % 60:02d}"
+        cursor.execute(f"WAITFOR DELAY '{delay_formatted}'")
+
+        # Commit the transaction to release the lock
+        blocking_connection.commit()
+
+        logging.info(f"Blocking scenario completed. Lock released on TransactionID {transaction_id}.")
+
+        if request:
+            process_headers(dict(request.headers))
+
+        return {
+            "status": "completed",
+            "message": f"Blocking scenario executed successfully",
+            "locked_transaction_id": transaction_id,
+            "locked_bill_id": bill_id,
+            "delay_seconds": delay_seconds
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logging.error(f"Error during blocking scenario: {e}")
+        if blocking_connection:
+            try:
+                blocking_connection.rollback()
+            except:
+                pass
+        raise HTTPException(status_code=500, detail=f"Error creating blocking scenario: {str(e)}")
+    finally:
+        if blocking_connection:
+            try:
+                blocking_connection.close()
+                logging.info("Blocking connection closed.")
+            except:
+                pass
+
+
 @app.get("/transaction-service")
 async def ok():
     """Root return 200"""

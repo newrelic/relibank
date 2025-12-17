@@ -37,26 +37,30 @@ spec:
             secretKeyRef:
               name: database-credentials
               key: MSSQL_SA_PASSWORD
+        - name: MSSQL_MEMORY_LIMIT_MB
+          value: "3072"
+        - name: MSSQL_PID
+          value: "Developer"
         resources:
           requests:
-            memory: "2Gi"
-            cpu: "1000m"
+            memory: "4Gi"
+            cpu: "2000m"
           limits:
-            memory: "2Gi"
-            cpu: "1000m"
+            memory: "4Gi"
+            cpu: "2000m"
         volumeMounts:
         - name: mssql
           mountPath: "/var/opt/mssql"
         livenessProbe:
           tcpSocket:
             port: 1433
-          initialDelaySeconds: 45
+          initialDelaySeconds: 60
           periodSeconds: 20
           timeoutSeconds: 10
         readinessProbe:
           tcpSocket:
             port: 1433
-          initialDelaySeconds: 30
+          initialDelaySeconds: 45
           periodSeconds: 10
           timeoutSeconds: 5
       terminationGracePeriodSeconds: 30

@@ -1,0 +1,75 @@
+# New Relic nri-bundle Helm chart values
+# Based on: https://github.com/newrelic/helm-charts/tree/master/charts/nri-bundle
+#
+# IMPORTANT: License key and cluster name must be provided via --set flags:
+#   --set global.licenseKey=$NEW_RELIC_LICENSE_KEY
+#   --set global.cluster=$CLUSTER_NAME
+
+global:
+  # licenseKey and cluster are intentionally not set here
+  # They should be provided via --set flags to keep secrets out of version control  
+
+# Core infrastructure monitoring
+newrelic-infrastructure:
+  enabled: true
+  integrations:
+    nri-mssql:
+      discovery:
+        command:
+          exec: /var/db/newrelic-infra/nri-discovery-kubernetes --tls --port 10250
+          match:
+            label.app: mssql
+      integrations:
+      - name: nri-mssql
+        env:
+          HOSTNAME: ${discovery.ip}
+          PORT: 1433
+          USERNAME: newrelic
+          PASSWORD: YourStrong@Password!
+          ENABLE_SSL: true
+          TRUST_SERVER_CERTIFICATE: true
+          ENABLE_QUERY_MONITORING: true
+          QUERY_MONITORING_RESPONSE_TIME_THRESHOLD: 0.01
+          TIMEOUT: 120
+        interval: 5s
+        labels:
+          environment: production
+        inventory_source: config/mssql
+
+# Prometheus integration
+nri-prometheus:
+  enabled: true
+
+# Metadata injection for APM correlation
+nri-metadata-injection:
+  enabled: true
+
+# Kube-state-metrics for cluster state
+kube-state-metrics:
+  enabled: true
+
+# Kubernetes events monitoring
+nri-kube-events:
+  enabled: true
+
+# Log forwarding
+newrelic-logging:
+  enabled: true
+
+# Prometheus agent
+newrelic-prometheus-agent:
+  enabled: true
+
+# K8s agents operator
+k8s-agents-operator:
+  enabled: true
+
+# Disable Pixie (optional eBPF-based monitoring)
+newrelic-pixie:
+  enabled: false
+
+pixie-chart:
+  enabled: false
+
+newrelic-infra-operator:
+  enabled: false
