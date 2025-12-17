@@ -99,6 +99,8 @@ class PaymentSchedule(BaseModel):
     toAccountId: Optional[int] = 0
     frequency: str = Field(min_length=1)
     startDate: str = Field(min_length=1)
+    currentBalance: Optional[float] = None
+    accountType: Optional[str] = None
 
 
 class CancelPayment(BaseModel):
@@ -200,6 +202,26 @@ async def process_recurring_payment(payment_schedule: PaymentSchedule, request: 
     - Publishes a message to a real Kafka topic.
     """
     logging.info(f"Received request to schedule recurring payment for: {payment_schedule.billId}")
+
+    # Validate insufficient funds
+    if payment_schedule.currentBalance is not None and payment_schedule.amount > payment_schedule.currentBalance:
+        error_msg = f"Insufficient funds in {payment_schedule.accountType} account. Requested: ${payment_schedule.amount:.2f}, Available: ${payment_schedule.currentBalance:.2f}"
+        logging.error(error_msg)
+        newrelic.agent.notice_error(
+            error=Exception(error_msg),
+            attributes={
+                "error.class": "InsufficientFundsError",
+                "account_type": payment_schedule.accountType,
+                "requested_amount": payment_schedule.amount,
+                "available_balance": payment_schedule.currentBalance,
+                "from_account_id": payment_schedule.fromAccountId,
+                "bill_id": payment_schedule.billId
+            }
+        )
+        raise HTTPException(
+            status_code=400,
+            detail=error_msg
+        )
 
     # Check for a duplicate billId before creating
     transaction_service_url = os.getenv("TRANSACTION_SERVICE_URL", "http://transaction-service:5001")
