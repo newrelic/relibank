@@ -273,11 +273,22 @@ const TransferCard = ({ userData, setUserData, transactions, setTransactions }) 
     const sourceAccount = fromAccount === 'checking' ? checking : savings;
 
     if (transferAmount > sourceAccount.balance) {
-      console.error('Transfer failed: Insufficient funds', {
+      const errorDetails = {
         accountType: sourceAccount.account_type,
         requestedAmount: transferAmount,
         availableBalance: sourceAccount.balance
-      });
+      };
+
+      console.error('Transfer failed: Insufficient funds', errorDetails);
+
+      // Report error to New Relic Browser
+      if (typeof window !== 'undefined' && window.newrelic) {
+        window.newrelic.noticeError(
+          new Error(`Insufficient funds in ${sourceAccount.account_type} account`),
+          errorDetails
+        );
+      }
+
       setIsError(true);
       setMessage(`Insufficient funds in ${sourceAccount.account_type} account.`);
       return;
@@ -310,7 +321,19 @@ const TransferCard = ({ userData, setUserData, transactions, setTransactions }) 
 
     } catch (error) {
         console.error('Transfer API error:', error);
-        // We'll proceed with the mock UI update for demo purposes even if the API fails, 
+
+        // Report API error to New Relic Browser
+        if (typeof window !== 'undefined' && window.newrelic) {
+          window.newrelic.noticeError(error, {
+            component: 'TransferFunds',
+            endpoint: '/bill-pay-service/recurring',
+            amount: transferAmount,
+            fromAccount: fromAccount,
+            toAccount: toAccount
+          });
+        }
+
+        // We'll proceed with the mock UI update for demo purposes even if the API fails,
         // but set a warning message. In a real app, you'd halt execution here.
         setIsError(true);
         setMessage(`API Warning: The transfer logic executed, but the call to /recurring failed or returned an error: ${error.message}`);
