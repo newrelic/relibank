@@ -293,8 +293,15 @@ const TransferCard = ({ userData, setUserData, transactions, setTransactions }) 
         });
 
         if (!response.ok) {
-            const errorData = await response.json().catch(() => ({ detail: `API returned status ${response.status}` }));
-            throw new Error(errorData.detail || `API returned status ${response.status}`);
+            let errorMessage = `API returned status ${response.status}`;
+            try {
+                const errorData = await response.json();
+                // FastAPI returns errors in "detail" field
+                errorMessage = errorData.detail || errorData.message || errorMessage;
+            } catch (e) {
+                console.warn('Could not parse error response as JSON');
+            }
+            throw new Error(errorMessage);
         }
 
         // Simulate a small delay for network call effect
