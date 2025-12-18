@@ -59,7 +59,7 @@ These scripts are designed to be copied into **New Relic Synthetics** as Scripte
 - Validates support interaction completes
 
 **Errors generated:**
-- **InsufficientFundsError** in New Relic Errors Inbox
+- **InsufficientFundsError** in New Relic Errors Inbox for Browser
 - Captured from `bill-pay-service` backend with attributes:
   - `account_type`: checking
   - `requested_amount`: 10000.00
@@ -79,11 +79,5 @@ These scripts are designed to be copied into **New Relic Synthetics** as Scripte
 - Update this URL if deploying to a different environment, change later to use environment variables for lower environments
 
 **Default Credentials:** Scripts use default login (form auto-filled)
-- Username: `demo`
-- Password: `password`
-
-**Account Balances:**
-- Checking: $8,500.25
-- Savings: $4,000.25
 
 
