@@ -276,20 +276,24 @@ const TransferCard = ({ userData, setUserData, transactions, setTransactions }) 
     // ==========================================================
     // Call the backend API with transfer details (including balance info for server-side validation)
     try {
+        const paymentData = {
+            "billId": "BILL-RECUR-002",
+            "amount": transferAmount,
+            "currency": "USD",
+            "fromAccountId": sourceAccount.account_type === 'checking' ? 12345 : 56789,
+            "toAccountId": destinationAccount.account_type === 'checking' ? 12345 : 56789,
+            "frequency": "one-time",
+            "startDate": new Date().toISOString().split('T')[0],
+            "currentBalance": sourceAccount.balance,
+            "accountType": sourceAccount.account_type
+        };
+
+        console.log('[DEBUG] Sending payment request:', paymentData);
+
         const response = await fetch('/bill-pay-service/recurring', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                "billId": "BILL-RECUR-002",
-                "amount": transferAmount,
-                "currency": "USD",
-                "fromAccountId": sourceAccount.account_type === 'checking' ? 12345 : 56789,
-                "toAccountId": destinationAccount.account_type === 'checking' ? 12345 : 56789,
-                "frequency": "one-time",
-                "startDate": new Date().toISOString().split('T')[0],
-                "currentBalance": sourceAccount.balance,
-                "accountType": sourceAccount.account_type
-            }),
+            body: JSON.stringify(paymentData),
         });
 
         if (!response.ok) {

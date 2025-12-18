@@ -87,6 +87,8 @@ $browser.get('http://relibank.westus2.cloudapp.azure.com/').then(function(){
                                         return $browser.wait($driver.until.elementLocated($driver.By.css('.MuiAlert-message')), 5000).then(function(){
                                           console.log('Transfer failed - error message appeared');
 
+                                          $browser.sleep(1000);
+
                                           // Verify the error message
                                           return $browser.findElement($driver.By.css('.MuiAlert-message')).then(function(alertMessage){
                                             return alertMessage.getText().then(function(text){
