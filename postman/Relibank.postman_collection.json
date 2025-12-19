@@ -24,13 +24,14 @@
 							"raw": "{\n    \"billId\": \"BILL-TEST-001\",\n    \"amount\": 75.25,\n    \"currency\": \"USD\",\n    \"fromAccountId\": 12345,\n    \"toAccountId\": 56789\n}"
 						},
 						"url": {
-							"raw": "http://localhost:5000/pay",
+							"raw": "http://localhost:5000/bill-pay-service/pay",
 							"protocol": "http",
 							"host": [
 								"localhost"
 							],
 							"port": "5000",
 							"path": [
+								"bill-pay-service",
 								"pay"
 							]
 						}
@@ -52,13 +53,14 @@
 							"raw": "{\n    \"user_id\": \"alice.j@relibank.com\"\n}"
 						},
 						"url": {
-							"raw": "http://localhost:5000/cancel/BILL-TEST-001",
+							"raw": "http://localhost:5000/bill-pay-service/cancel/BILL-TEST-001",
 							"protocol": "http",
 							"host": [
 								"localhost"
 							],
 							"port": "5000",
 							"path": [
+								"bill-pay-service",
 								"cancel",
 								"BILL-TEST-001"
 							]
@@ -81,13 +83,14 @@
 							"raw": "{\n    \"billId\": \"BILL-RECUR-002\",\n    \"amount\": 150.00,\n    \"currency\": \"EUR\",\n    \"fromAccountId\": 12345,\n    \"toAccountId\": 56789,\n    \"frequency\": \"monthly\",\n    \"startDate\": \"2025-08-01\"\n}"
 						},
 						"url": {
-							"raw": "http://localhost:5000/recurring",
+							"raw": "http://localhost:5000/bill-pay-service/recurring",
 							"protocol": "http",
 							"host": [
 								"localhost"
 							],
 							"port": "5000",
 							"path": [
+								"bill-pay-service",
 								"recurring"
 							]
 						}
@@ -105,13 +108,14 @@
 						"method": "GET",
 						"header": [],
 						"url": {
-							"raw": "http://localhost:5001/transactions",
+							"raw": "http://localhost:5001/transaction-service/transactions",
 							"protocol": "http",
 							"host": [
 								"localhost"
 							],
 							"port": "5001",
 							"path": [
+								"transaction-service",
 								"transactions"
 							]
 						}
@@ -124,13 +128,14 @@
 						"method": "GET",
 						"header": [],
 						"url": {
-							"raw": "http://localhost:5001/transaction/BILL-TEST-001",
+							"raw": "http://localhost:5001/transaction-service/transaction/BILL-TEST-001",
 							"protocol": "http",
 							"host": [
 								"localhost"
 							],
 							"port": "5001",
 							"path": [
+								"transaction-service",
 								"transaction",
 								"BILL-TEST-001"
 							]
@@ -144,15 +149,103 @@
 						"method": "GET",
 						"header": [],
 						"url": {
-							"raw": "http://localhost:5001/ledger/12345",
+							"raw": "http://localhost:5001/transaction-service/ledger/12345",
 							"protocol": "http",
 							"host": [
 								"localhost"
 							],
 							"port": "5001",
 							"path": [
+								"transaction-service",
 								"ledger",
 								"12345"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "create blocking scenario",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "http://localhost:5001/transaction-service/blocking?delay_seconds=30",
+							"protocol": "http",
+							"host": [
+								"localhost"
+							],
+							"port": "5001",
+							"path": [
+								"transaction-service",
+								"blocking"
+							],
+							"query": [
+								{
+									"key": "delay_seconds",
+									"value": "30",
+									"description": "Duration to hold the lock (1-300 seconds)"
+								}
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "adjust transaction amount",
+					"request": {
+						"method": "POST",
+						"header": [],
+						"url": {
+							"raw": "http://localhost:5001/transaction-service/adjust-amount/BILL-1701?adjustment=100.00",
+							"protocol": "http",
+							"host": [
+								"localhost"
+							],
+							"port": "5001",
+							"path": [
+								"transaction-service",
+								"adjust-amount",
+								"BILL-1701"
+							],
+							"query": [
+								{
+									"key": "adjustment",
+									"value": "100.00",
+									"description": "Amount to adjust (can be positive or negative)"
+								}
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "generate slow query",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "http://localhost:5001/transaction-service/slow-query?query_type=summary&delay_seconds=5",
+							"protocol": "http",
+							"host": [
+								"localhost"
+							],
+							"port": "5001",
+							"path": [
+								"transaction-service",
+								"slow-query"
+							],
+							"query": [
+								{
+									"key": "query_type",
+									"value": "summary",
+									"description": "Query type: summary, account_analysis, window_functions, self_join, complex_filter"
+								},
+								{
+									"key": "delay_seconds",
+									"value": "5",
+									"description": "Delay in seconds (1-60)"
+								}
 							]
 						}
 					},
@@ -178,13 +271,14 @@
 							"raw": "{\n    \"id\": \"2d94a11c-9b88-46c5-a4b3-568b200b3967\",\n    \"name\": \"Jane Doe\",\n    \"alert_preferences\": {\n        \"email_notifications\": true,\n        \"sms_notifications\": false\n    },\n    \"phone\": \"+15551234567\",\n    \"email\": \"jane.doe@example.com\",\n    \"address\": \"123 Main St, Anytown, USA\",\n    \"income\": 75000.00,\n    \"preferred_language\": \"en-US\",\n    \"marketing_preferences\": {},\n    \"privacy_preferences\": {}\n}"
 						},
 						"url": {
-							"raw": "http://localhost:5002/users",
+							"raw": "http://localhost:5002/accounts-service/users",
 							"protocol": "http",
 							"host": [
 								"localhost"
 							],
 							"port": "5002",
 							"path": [
+								"accounts-service",
 								"users"
 							]
 						}
@@ -206,13 +300,14 @@
 							"raw": "{\n    \"id\": 12345,\n    \"name\": \"Primary Checking\",\n    \"balance\": 1500.50,\n    \"routing_number\": \"0123456789\",\n    \"interest_rate\": 0.001,\n    \"last_statement_date\": \"2025-07-31\",\n    \"account_type\": \"checking\"\n}"
 						},
 						"url": {
-							"raw": "http://localhost:5002/accounts/alice.j@relibank.com",
+							"raw": "http://localhost:5002/accounts-service/accounts/alice.j@relibank.com",
 							"protocol": "http",
 							"host": [
 								"localhost"
 							],
 							"port": "5002",
 							"path": [
+								"accounts-service",
 								"accounts",
 								"alice.j@relibank.com"
 							]
@@ -226,13 +321,14 @@
 						"method": "GET",
 						"header": [],
 						"url": {
-							"raw": "http://localhost:5002/accounts/alice.j@relibank.com",
+							"raw": "http://localhost:5002/accounts-service/accounts/alice.j@relibank.com",
 							"protocol": "http",
 							"host": [
 								"localhost"
 							],
 							"port": "5002",
 							"path": [
+								"accounts-service",
 								"accounts",
 								"alice.j@relibank.com"
 							]
@@ -246,13 +342,14 @@
 						"method": "GET",
 						"header": [],
 						"url": {
-							"raw": "http://localhost:5002/users/alice.j@relibank.com",
+							"raw": "http://localhost:5002/accounts-service/users/alice.j@relibank.com",
 							"protocol": "http",
 							"host": [
 								"localhost"
 							],
 							"port": "5002",
 							"path": [
+								"accounts-service",
 								"users",
 								"alice.j@relibank.com"
 							]

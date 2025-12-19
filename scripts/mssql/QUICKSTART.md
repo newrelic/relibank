@@ -89,10 +89,10 @@ If you want to see execution plan data immediately:
 
 ```bash
 # One-time population
-bash scripts/mssql/loadgen/populate-dmv-plan-cache.sh
+bash scripts/mssql/loadgen/db-direct/populate-dmv-plan-cache.sh
 
 # OR continuous (keep running in background)
-bash scripts/mssql/loadgen/populate-dmv-plan-cache-continuous.sh &
+bash scripts/mssql/loadgen/db-direct/populate-dmv-plan-cache-continuous.sh &
 ```
 
 ## Verification Checklist
@@ -154,7 +154,7 @@ kubectl logs mssql-0 -n relibank
 - [startup/create-newrelic-mssql-user.sh](./startup/create-newrelic-mssql-user.sh) - User creation (called by complete script)
 - [startup/disable-adhoc-optimization.sh](./startup/disable-adhoc-optimization.sh) - Ad hoc config (called by complete script)
 - [startup/enable-query-store.sh](./startup/enable-query-store.sh) - Query Store setup (called by complete script)
-- [loadgen/populate-dmv-plan-cache.sh](./loadgen/populate-dmv-plan-cache.sh) - Optional DMV population
+- [loadgen/db-direct/populate-dmv-plan-cache.sh](./loadgen/db-direct/populate-dmv-plan-cache.sh) - Optional DMV population
 - [nri-bundle-values.yaml](./nri-bundle-values.yaml) - Helm values for nri-bundle
 - `../../nri-mssql-deployment.yaml` - Standalone deployment
 

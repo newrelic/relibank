@@ -48,4 +48,4 @@ COPY . .
 EXPOSE 5000
 
 # Command to run the consumer script
-CMD ["newrelic-admin", "run-program", "uvicorn", "transaction_service:app", "--host", "0.0.0.0", "--port", "5000", "--workers", "1", "--log-config", "logging.conf"]
+CMD ["newrelic-admin", "run-program", "uvicorn", "transaction_service:app", "--host", "0.0.0.0", "--port", "5000", "--workers", "4", "--log-config", "logging.conf"]

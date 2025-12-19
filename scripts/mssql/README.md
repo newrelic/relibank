@@ -17,6 +17,8 @@ scripts/mssql/
 ├── nri-bundle-values.yaml     - Helm values for New Relic nri-bundle
 ├── startup/                    - Database initialization and setup scripts
 └── loadgen/                    - Load generation and testing scripts
+    ├── db-direct/              - Scripts that connect directly to database
+    └── api/                    - Scripts that make HTTP requests to API
 ```
 
 ## Startup Scripts (`startup/`)
@@ -43,24 +45,39 @@ bash scripts/mssql/startup/enable-query-store.sh
 
 ## LoadGen Scripts (`loadgen/`)
 
-These scripts generate load and test scenarios for the MSSQL database:
+These scripts generate load and test scenarios for the MSSQL database.
+
+### Database Direct Scripts (`loadgen/db-direct/`)
+Scripts that connect directly to the database via kubectl/sqlcmd:
 
 - **`populate-dmv-plan-cache.sh`** - One-time population of DMV plan cache with various queries
 - **`populate-dmv-plan-cache-continuous.sh`** - Continuous cache population (runs every 30s)
 - **`generate-slow-queries.sh`** - Generates intentionally slow queries for testing monitoring
+- **`generate-transaction-slow-queries.sh`** - Generates slow queries against Transactions table
 - **`generate-query-load.sh`** - Generates realistic query load patterns
 - **`create-mssql-blocking.sh`** - Creates blocking scenarios for testing lock detection
 
+### API Scripts (`loadgen/api/`)
+Scripts that make HTTP requests to the transaction service API:
+
+- **`test-transaction-blocking.sh`** - Tests blocking with continuous adjust requests (2 minutes)
+- **`test-intense-blocking.sh`** - Intense blocking with rapid requests (1 minute)
+- **`test-sustained-blocking.sh`** - Sustained blocking with burst + steady traffic (2 minutes)
+- **`test-blocking-with-slow-queries.sh`** - Alternates adjust and slow query requests (5 minutes)
+
 **Usage Example (run from repo root):**
 ```bash
-# Generate load for testing
-bash scripts/mssql/loadgen/generate-slow-queries.sh
+# Generate load for testing (db-direct)
+bash scripts/mssql/loadgen/db-direct/generate-slow-queries.sh
 
-# Or keep cache warm continuously
-bash scripts/mssql/loadgen/populate-dmv-plan-cache-continuous.sh &
+# Or keep cache warm continuously (db-direct)
+bash scripts/mssql/loadgen/db-direct/populate-dmv-plan-cache-continuous.sh &
 
-# Create blocking scenario
-bash scripts/mssql/loadgen/create-mssql-blocking.sh
+# Create blocking scenario (db-direct)
+bash scripts/mssql/loadgen/db-direct/create-mssql-blocking.sh
+
+# Test API blocking (api)
+bash scripts/mssql/loadgen/api/test-intense-blocking.sh
 ```
 
 ## Quick Start
@@ -76,19 +93,19 @@ bash scripts/mssql/loadgen/create-mssql-blocking.sh
 
 2. **Generate load** (optional, for testing):
    ```bash
-   bash scripts/mssql/loadgen/populate-dmv-plan-cache.sh
+   bash scripts/mssql/loadgen/db-direct/populate-dmv-plan-cache.sh
    ```
 
 ### For Continuous Testing
 
 Keep DMV cache populated for monitoring:
 ```bash
-bash scripts/mssql/loadgen/populate-dmv-plan-cache-continuous.sh &
+bash scripts/mssql/loadgen/db-direct/populate-dmv-plan-cache-continuous.sh &
 ```
 
 Generate slow queries for monitoring demos:
 ```bash
-while true; do bash scripts/mssql/loadgen/generate-slow-queries.sh; sleep 30; done
+while true; do bash scripts/mssql/loadgen/db-direct/generate-slow-queries.sh; sleep 30; done
 ```
 
 ## Best Practices

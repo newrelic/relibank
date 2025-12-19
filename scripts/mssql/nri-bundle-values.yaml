@@ -5,10 +5,6 @@
 #   --set global.licenseKey=$NEW_RELIC_LICENSE_KEY
 #   --set global.cluster=$CLUSTER_NAME
 
-global:
-  # licenseKey and cluster are intentionally not set here
-  # They should be provided via --set flags to keep secrets out of version control  
-
 # Core infrastructure monitoring
 newrelic-infrastructure:
   enabled: true
