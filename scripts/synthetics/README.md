@@ -29,21 +29,26 @@ These scripts are designed to be copied into **New Relic Synthetics** as Scripte
 ---
 
 ### 2. `selenium_transfer.js`
-**Purpose:** Successful funds transfer flow
+**Purpose:** Successful funds transfer flow with randomized amounts
 
 **What it does:**
+- Generates a random transfer amount between $1-$100
 - Logs in to ReliBank
-- Transfers $100 from checking to savings
+- Transfers the random amount from checking to savings
 - Validates success message appears
 - Clicks "Show All" and "Show Less" transaction buttons
-- Reverses the transfer (transfers $100 back to checking)
+- Reverses the transfer (transfers the same amount back to checking)
 - Validates second transfer completes
+- Account balances return to original state
 
 **Errors generated:**
 - None (happy path validation)
 - Monitor fails if transfer functionality breaks
 
-**Use case:** Validates end-to-end transfer functionality and UI interactions
+**Use case:**
+- Validates end-to-end transfer functionality and UI interactions
+- Creates varied transaction data in New Relic for more realistic demos
+- Tests transfer logic with different dollar amounts on each run
 
 ---
 
