@@ -62,6 +62,9 @@ var assert = require('assert');
     await checkingOption.click();
     console.log('Selected checking as from account');
 
+    // Wait for the first dropdown to close completely before opening the second one
+    await $browser.sleep(1000);
+
     // Find the "To" dropdown
     const toSelect = await $browser.findElement($driver.By.id('to-account-select'));
     console.log('Found to account dropdown');
