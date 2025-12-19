@@ -10,6 +10,10 @@ var assert = require('assert');
 // Main async function
 (async function() {
   try {
+    // Generate a random transfer amount between $1 and $100
+    const transferAmount = Math.floor(Math.random() * 100) + 1;
+    console.log('Generated random transfer amount: $' + transferAmount);
+
     // Navigate to ReliBank login page
     await $browser.get('http://relibank.westus2.cloudapp.azure.com/');
     console.log('Navigated to ReliBank homepage');
@@ -39,8 +43,8 @@ var assert = require('assert');
     const amountField = await $browser.findElement($driver.By.css('input[type="number"]'));
     console.log('Found amount field');
 
-    await amountField.sendKeys('100');
-    console.log('Entered transfer amount: $100');
+    await amountField.sendKeys(transferAmount.toString());
+    console.log('Entered transfer amount: $' + transferAmount);
 
     // Find the "From" dropdown
     const fromSelect = await $browser.findElement($driver.By.id('from-account-select'));
@@ -125,8 +129,8 @@ var assert = require('assert');
 
     // Clear and enter the same amount
     await amountField2.clear();
-    await amountField2.sendKeys('100');
-    console.log('Entered reverse transfer amount: $100');
+    await amountField2.sendKeys(transferAmount.toString());
+    console.log('Entered reverse transfer amount: $' + transferAmount);
 
     // Find the "From" dropdown and select savings
     const fromSelect2 = await $browser.findElement($driver.By.id('from-account-select'));
