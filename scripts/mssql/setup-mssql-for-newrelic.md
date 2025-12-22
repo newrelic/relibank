@@ -70,12 +70,12 @@ To ensure execution plans show up in New Relic immediately, run one of these scr
 
 **One-time population:**
 ```bash
-bash scripts/mssql/loadgen/populate-dmv-plan-cache.sh
+bash scripts/mssql/loadgen/db-direct/populate-dmv-plan-cache.sh
 ```
 
 **Continuous population (for testing):**
 ```bash
-bash scripts/mssql/loadgen/populate-dmv-plan-cache-continuous.sh
+bash scripts/mssql/loadgen/db-direct/populate-dmv-plan-cache-continuous.sh
 # Press Ctrl+C to stop
 ```
 
@@ -158,7 +158,7 @@ FROM sys.dm_exec_query_stats;
 
 **Causes & Solutions:**
 1. **DMV cache is empty**
-   - Solution: Run `scripts/mssql/loadgen/populate-dmv-plan-cache.sh` or `scripts/mssql/loadgen/populate-dmv-plan-cache-continuous.sh`
+   - Solution: Run `scripts/mssql/loadgen/db-direct/populate-dmv-plan-cache.sh` or `scripts/mssql/loadgen/db-direct/populate-dmv-plan-cache-continuous.sh`
    - Queries need to be executed recently and frequently
 
 2. **Missing permissions**
@@ -188,7 +188,7 @@ FROM sys.dm_exec_query_stats;
    - If `READ_ONLY`, increase max storage size
 
 3. **No queries executed since enabling**
-   - Solution: Run application queries or `scripts/mssql/loadgen/populate-dmv-plan-cache.sh`
+   - Solution: Run application queries or `scripts/mssql/loadgen/db-direct/populate-dmv-plan-cache.sh`
 
 ### Problem: Permission errors in New Relic logs
 
@@ -209,7 +209,7 @@ FROM sys.dm_exec_query_stats;
 - ✅ Query Store data: **Preserved**
 - ✅ Permissions: **Preserved**
 - ✅ Ad hoc optimization setting: **Preserved**
-- ❌ DMV plan cache: **Cleared** - Need to re-run `scripts/mssql/loadgen/populate-dmv-plan-cache.sh` or wait for queries to populate naturally
+- ❌ DMV plan cache: **Cleared** - Need to re-run `scripts/mssql/loadgen/db-direct/populate-dmv-plan-cache.sh` or wait for queries to populate naturally
 
 ### Regular Monitoring
 ```bash
@@ -233,10 +233,10 @@ bash scripts/mssql/startup/disable-adhoc-optimization.sh
 bash scripts/mssql/startup/enable-query-store.sh
 
 # Populate DMV cache (for immediate testing)
-bash scripts/mssql/loadgen/populate-dmv-plan-cache.sh
+bash scripts/mssql/loadgen/db-direct/populate-dmv-plan-cache.sh
 
 # Continuous cache population (keep running in background)
-bash scripts/mssql/loadgen/populate-dmv-plan-cache-continuous.sh &
+bash scripts/mssql/loadgen/db-direct/populate-dmv-plan-cache-continuous.sh &
 ```
 
 ## Notes

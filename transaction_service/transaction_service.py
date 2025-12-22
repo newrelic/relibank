@@ -3,6 +3,7 @@ import os
 import json
 import logging
 import pyodbc
+import datetime
 from aiokafka import AIOKafkaConsumer, AIOKafkaProducer
 from pydantic import BaseModel, Field, ValidationError
 from typing import Optional, List, Any
@@ -545,18 +546,31 @@ async def create_blocking_scenario(delay_seconds: int = 30, request: Request = N
         # Begin transaction
         cursor.execute("BEGIN TRANSACTION")
 
-        # Lock a row in the Transactions table with UPDLOCK and HOLDLOCK
-        # This will block any other queries trying to update this row
+        # First, ensure we have a transaction to lock
+        # Check if BILL-1701 exists, if not create it
+        cursor.execute("""
+            IF NOT EXISTS (SELECT 1 FROM Transactions WHERE BillID = 'BILL-1701' AND EventType = 'BillPaymentInitiated')
+            BEGIN
+                INSERT INTO Transactions (EventType, BillID, Amount, Currency, AccountID, Timestamp)
+                VALUES ('BillPaymentInitiated', 'BILL-1701', 125.50, 'USD', 12345, DATEDIFF(s, '1970-01-01', GETUTCDATE()))
+            END
+        """)
+
+        # First, SELECT and lock the row - this acquires and holds the lock
+        # The lock will be held throughout the transaction until COMMIT
         cursor.execute("""
             SELECT TOP 1 TransactionID, BillID, Amount
-            FROM Transactions WITH (UPDLOCK, HOLDLOCK)
+            FROM Transactions WITH (UPDLOCK, ROWLOCK, HOLDLOCK)
+            WHERE BillID = 'BILL-1701'
+            AND EventType = 'BillPaymentInitiated'
             ORDER BY TransactionID DESC
         """)
         row = cursor.fetchone()
 
         if not row:
+            cursor.execute("ROLLBACK TRANSACTION")
             blocking_connection.rollback()
-            raise HTTPException(status_code=404, detail="No transactions found to lock. Please create some transactions first.")
+            raise HTTPException(status_code=404, detail="No BILL-1701 transaction found to lock")
 
         transaction_id = row[0]
         bill_id = row[1]
@@ -564,11 +578,20 @@ async def create_blocking_scenario(delay_seconds: int = 30, request: Request = N
 
         logging.info(f"Locked TransactionID {transaction_id} (BillID: {bill_id}). Holding lock for {delay_seconds} seconds...")
 
+        # Now update the locked row (lock is already held from the SELECT above)
+        cursor.execute("""
+            UPDATE Transactions
+            SET Amount = Amount + 0.01
+            WHERE TransactionID = ?
+        """, transaction_id)
+
         # Hold the lock for the specified duration
+        # The lock remains held because we're still in the transaction
         delay_formatted = f"00:{delay_seconds // 60:02d}:{delay_seconds % 60:02d}"
         cursor.execute(f"WAITFOR DELAY '{delay_formatted}'")
 
         # Commit the transaction to release the lock
+        cursor.execute("COMMIT TRANSACTION")
         blocking_connection.commit()
 
         logging.info(f"Blocking scenario completed. Lock released on TransactionID {transaction_id}.")
@@ -590,6 +613,7 @@ async def create_blocking_scenario(delay_seconds: int = 30, request: Request = N
         logging.error(f"Error during blocking scenario: {e}")
         if blocking_connection:
             try:
+                cursor.execute("ROLLBACK TRANSACTION")
                 blocking_connection.rollback()
             except:
                 pass
@@ -601,6 +625,214 @@ async def create_blocking_scenario(delay_seconds: int = 30, request: Request = N
                 logging.info("Blocking connection closed.")
             except:
                 pass
+
+
+@app.post("/transaction-service/adjust-amount/{bill_id}")
+async def adjust_transaction_amount(bill_id: str, adjustment: float = 0.01, request: Request = None):
+    """
+    Adjusts the amount of the most recent transaction for a given bill.
+    Used for processing fee adjustments or corrections.
+    Each request creates its own connection to ensure proper blocking detection.
+    """
+    if not db_connection:
+        raise HTTPException(status_code=503, detail="Database connection failed.")
+
+    # Create a new connection for this request to ensure blocking works properly
+    adjust_connection = None
+    try:
+        adjust_connection = pyodbc.connect(CONNECTION_STRING, autocommit=False)
+        cursor = adjust_connection.cursor()
+
+        # Begin transaction explicitly
+        cursor.execute("BEGIN TRANSACTION")
+
+        # Update the most recent transaction for this bill
+        # Use UPDLOCK in subquery to prevent deadlocks when multiple sessions update
+        cursor.execute("""
+            UPDATE Transactions
+            SET Amount = Amount + ?
+            WHERE TransactionID = (
+                SELECT TOP 1 TransactionID
+                FROM Transactions WITH (UPDLOCK)
+                WHERE BillID = ?
+                AND EventType = 'BillPaymentInitiated'
+                ORDER BY TransactionID DESC
+            )
+        """, adjustment, bill_id)
+
+        affected_rows = cursor.rowcount
+
+        if affected_rows == 0:
+            cursor.execute("ROLLBACK TRANSACTION")
+            adjust_connection.rollback()
+            raise HTTPException(status_code=404, detail=f"No transaction found for bill {bill_id}")
+
+        cursor.execute("COMMIT TRANSACTION")
+        adjust_connection.commit()
+
+        logging.info(f"Adjusted amount by {adjustment} for bill {bill_id}")
+
+        if request:
+            process_headers(dict(request.headers))
+
+        return {
+            "status": "success",
+            "message": f"Transaction amount adjusted by ${adjustment}",
+            "bill_id": bill_id,
+            "affected_rows": affected_rows
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logging.error(f"Error adjusting transaction amount: {e}")
+        if adjust_connection:
+            try:
+                adjust_connection.rollback()
+            except:
+                pass
+        raise HTTPException(status_code=500, detail=f"Error adjusting amount: {str(e)}")
+    finally:
+        if adjust_connection:
+            try:
+                adjust_connection.close()
+            except:
+                pass
+
+
+@app.get("/transaction-service/slow-query")
+async def generate_slow_query(query_type: str = "summary", delay_seconds: int = 3, request: Request = None):
+    """
+    Generates an intentionally slow query for testing/demo purposes.
+    This endpoint helps demonstrate New Relic's slow query detection.
+
+    Query types:
+    - summary: Transaction summary by EventType with aggregations
+    - account_analysis: Account-level analysis with subqueries
+    - window_functions: Running totals and moving averages
+    - self_join: Duplicate detection via self-join
+    - complex_filter: Full table scan with complex WHERE clause
+    """
+    if not db_connection:
+        raise HTTPException(status_code=503, detail="Database connection failed.")
+
+    if delay_seconds < 1 or delay_seconds > 60:
+        raise HTTPException(status_code=400, detail="delay_seconds must be between 1 and 60")
+
+    delay_formatted = f"00:{delay_seconds // 60:02d}:{delay_seconds % 60:02d}"
+
+    try:
+        cursor = db_connection.cursor()
+        start_time = datetime.datetime.now()
+
+        if query_type == "summary":
+            # Transaction summary report with delay
+            cursor.execute(f"""
+                SELECT
+                    EventType,
+                    COUNT(*) AS TransactionCount,
+                    SUM(Amount) AS TotalAmount,
+                    AVG(Amount) AS AvgAmount,
+                    MIN(Amount) AS MinAmount,
+                    MAX(Amount) AS MaxAmount,
+                    COUNT(DISTINCT BillID) AS UniqueBills,
+                    COUNT(DISTINCT AccountID) AS UniqueAccounts
+                FROM Transactions
+                GROUP BY EventType
+                ORDER BY TotalAmount DESC
+                WAITFOR DELAY '{delay_formatted}';
+            """)
+            results = cursor.fetchall()
+
+        elif query_type == "account_analysis":
+            # Inefficient subquery pattern
+            cursor.execute(f"""
+                SELECT TOP 50
+                    AccountID,
+                    (SELECT COUNT(*) FROM Transactions t WHERE t.AccountID = main.AccountID) AS TotalTransactions,
+                    (SELECT SUM(Amount) FROM Transactions t WHERE t.AccountID = main.AccountID) AS TotalSpent,
+                    (SELECT MAX(Amount) FROM Transactions t WHERE t.AccountID = main.AccountID) AS LargestTransaction
+                FROM (SELECT DISTINCT AccountID FROM Transactions) main
+                WAITFOR DELAY '{delay_formatted}';
+            """)
+            results = cursor.fetchall()
+
+        elif query_type == "window_functions":
+            # Window functions for running totals
+            cursor.execute(f"""
+                SELECT TOP 100
+                    TransactionID,
+                    AccountID,
+                    EventType,
+                    Amount,
+                    SUM(Amount) OVER (PARTITION BY AccountID ORDER BY TransactionID) AS RunningTotal,
+                    AVG(Amount) OVER (PARTITION BY AccountID ORDER BY TransactionID ROWS BETWEEN 10 PRECEDING AND CURRENT ROW) AS MovingAvg,
+                    ROW_NUMBER() OVER (PARTITION BY AccountID ORDER BY Amount DESC) AS AmountRank
+                FROM Transactions
+                WHERE EventType IN ('BillPaymentInitiated', 'BillPaymentCompleted')
+                WAITFOR DELAY '{delay_formatted}';
+            """)
+            results = cursor.fetchall()
+
+        elif query_type == "self_join":
+            # Self-join for duplicate detection
+            cursor.execute(f"""
+                SELECT TOP 50
+                    t1.TransactionID AS Transaction1,
+                    t2.TransactionID AS Transaction2,
+                    t1.BillID,
+                    t1.Amount,
+                    t1.AccountID,
+                    ABS(t1.Amount - t2.Amount) AS AmountDifference
+                FROM Transactions t1
+                INNER JOIN Transactions t2
+                    ON t1.BillID = t2.BillID
+                    AND t1.AccountID = t2.AccountID
+                    AND t1.TransactionID < t2.TransactionID
+                WHERE ABS(t1.Amount - t2.Amount) < 1.00
+                WAITFOR DELAY '{delay_formatted}';
+            """)
+            results = cursor.fetchall()
+
+        elif query_type == "complex_filter":
+            # Full table scan with complex WHERE clause
+            cursor.execute(f"""
+                SELECT TOP 100 *
+                FROM Transactions
+                WHERE Amount > 100.00
+                    AND LEN(BillID) > 10
+                    AND Currency IN ('USD', 'EUR')
+                    AND EventType LIKE '%Payment%'
+                ORDER BY Amount DESC, TransactionID DESC
+                WAITFOR DELAY '{delay_formatted}';
+            """)
+            results = cursor.fetchall()
+
+        else:
+            raise HTTPException(status_code=400, detail=f"Unknown query_type: {query_type}")
+
+        end_time = datetime.datetime.now()
+        duration = (end_time - start_time).total_seconds()
+
+        logging.info(f"Slow query ({query_type}) completed in {duration:.2f} seconds")
+
+        if request:
+            process_headers(dict(request.headers))
+
+        return {
+            "status": "success",
+            "message": f"Slow query executed successfully",
+            "query_type": query_type,
+            "delay_seconds": delay_seconds,
+            "actual_duration_seconds": round(duration, 2),
+            "rows_returned": len(results)
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logging.error(f"Error executing slow query: {e}")
+        raise HTTPException(status_code=500, detail=f"Error executing slow query: {str(e)}")
 
 
 @app.get("/transaction-service")
