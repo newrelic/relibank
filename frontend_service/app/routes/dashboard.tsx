@@ -271,45 +271,67 @@ const TransferCard = ({ userData, setUserData, transactions, setTransactions }) 
     }
 
     const sourceAccount = fromAccount === 'checking' ? checking : savings;
-
-    if (transferAmount > sourceAccount.balance) {
-      setIsError(true);
-      setMessage(`Insufficient funds in ${sourceAccount.account_type} account.`);
-      return;
-    }
+    const destinationAccount = toAccount === 'checking' ? checking : savings;
 
     // ==========================================================
+    // Call the backend API with transfer details (including balance info for server-side validation)
     try {
+        const paymentData = {
+            "billId": "BILL-RECUR-002",
+            "amount": transferAmount,
+            "currency": "USD",
+            "fromAccountId": sourceAccount.account_type === 'checking' ? 12345 : 56789,
+            "toAccountId": destinationAccount.account_type === 'checking' ? 12345 : 56789,
+            "frequency": "one-time",
+            "startDate": new Date().toISOString().split('T')[0],
+            "currentBalance": sourceAccount.balance,
+            "accountType": sourceAccount.account_type
+        };
+
+        console.log('[DEBUG] Sending payment request:', paymentData);
+
         const response = await fetch('/bill-pay-service/recurring', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ 
-                "billId": "BILL-RECUR-002",
-                "amount": 150.00,
-                "currency": "EUR",
-                "fromAccountId": 12345,
-                "toAccountId": 56789,
-                "frequency": "monthly",
-                "startDate": "2025-08-01"
-            }),
+            body: JSON.stringify(paymentData),
         });
 
         if (!response.ok) {
-            // Note: In a real app, you would read the error message from the response body.
-            // For this hardcoded example, we'll just throw a generic error for the catch block.
-            throw new Error(`API returned status ${response.status}`);
+            let errorMessage = `API returned status ${response.status}`;
+            try {
+                const errorData = await response.json();
+                // FastAPI returns errors in "detail" field
+                errorMessage = errorData.detail || errorData.message || errorMessage;
+            } catch (e) {
+                console.warn('Could not parse error response as JSON');
+            }
+            throw new Error(errorMessage);
         }
 
         // Simulate a small delay for network call effect
         await new Promise(resolve => setTimeout(resolve, 500));
 
-    } catch (error) {
+    } catch (error: any) {
         console.error('Transfer API error:', error);
-        // We'll proceed with the mock UI update for demo purposes even if the API fails, 
-        // but set a warning message. In a real app, you'd halt execution here.
+
+        // Report API error to New Relic Browser
+        if (typeof window !== 'undefined' && (window as any).newrelic) {
+          console.log('[DEBUG] Reporting API error to New Relic Browser');
+          (window as any).newrelic.noticeError(error, {
+            component: 'TransferFunds',
+            endpoint: '/bill-pay-service/recurring',
+            amount: transferAmount,
+            fromAccount: fromAccount,
+            toAccount: toAccount
+          });
+          console.log('[DEBUG] API error reported to New Relic');
+        } else {
+          console.warn('[DEBUG] New Relic Browser agent not available for API error');
+        }
+
         setIsError(true);
-        setMessage(`API Warning: The transfer logic executed, but the call to /recurring failed or returned an error: ${error.message}`);
-        // return; // Uncomment this in a production app to stop the transfer
+        setMessage(error.message || 'Transfer failed. Please try again.');
+        return;
     }
     // ==========================================================
 
@@ -466,17 +488,19 @@ const TransferCard = ({ userData, setUserData, transactions, setTransactions }) 
 const DashboardPage = () => {
   // Use a combination of demo data (initial state) and sessionStorage (post-login)
   const [userData, setUserData] = useState(demoUserData);
-  const [additionalAccountData, setAdditionalAccountData] = useState(null); 
+  const [additionalAccountData, setAdditionalAccountData] = useState(null);
   // NEW: Add transactions to state to allow updates from the TransferCard
-  const [transactions, setTransactions] = useState(mockTransactions); 
+  const [transactions, setTransactions] = useState(mockTransactions);
   // NEW: Loading state for the additional, client-side fetch
-  const [isLoadingDetails, setIsLoadingDetails] = useState(false); 
+  const [isLoadingDetails, setIsLoadingDetails] = useState(false);
 
   // 1. Initial Load: Check sessionStorage for authenticated user data
   useEffect(() => {
+    console.info('Dashboard page loaded');
     if (typeof window !== 'undefined') {
       const storedUserData = sessionStorage.getItem('userData');
       if (storedUserData) {
+        console.info('Loading user data from session storage');
         setUserData(JSON.parse(storedUserData));
       }
     }
@@ -515,7 +539,6 @@ const DashboardPage = () => {
                 console.log('Fetched detailed account information:', fetchedData);
             } catch (error) {
                 console.error("Error fetching additional details:", error);
-                // In a real app, you might set an error state here
             } finally {
                 setIsLoadingDetails(false); // END loading
             }

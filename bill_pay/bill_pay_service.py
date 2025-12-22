@@ -99,6 +99,8 @@ class PaymentSchedule(BaseModel):
     toAccountId: Optional[int] = 0
     frequency: str = Field(min_length=1)
     startDate: str = Field(min_length=1)
+    currentBalance: Optional[float] = None
+    accountType: Optional[str] = None
 
 
 class CancelPayment(BaseModel):
@@ -199,7 +201,37 @@ async def process_recurring_payment(payment_schedule: PaymentSchedule, request: 
     Simulates setting up a recurring bill payment.
     - Publishes a message to a real Kafka topic.
     """
-    logging.info(f"Received request to schedule recurring payment for: {payment_schedule.billId}")
+    try:
+        logging.info(f"Received request to schedule recurring payment for: {payment_schedule.billId}")
+        logging.info(f"Payment details - Amount: {payment_schedule.amount}, Balance: {payment_schedule.currentBalance}, Account: {payment_schedule.accountType}")
+
+        # Validate insufficient funds
+        if payment_schedule.currentBalance is not None and payment_schedule.amount > payment_schedule.currentBalance:
+            error_msg = f"Insufficient funds in {payment_schedule.accountType} account. Requested: ${payment_schedule.amount:.2f}, Available: ${payment_schedule.currentBalance:.2f}"
+            logging.error(error_msg)
+
+            # Report error to New Relic with custom attributes
+            newrelic.agent.notice_error(
+                attributes={
+                    "error.class": "InsufficientFundsError",
+                    "account_type": payment_schedule.accountType,
+                    "requested_amount": payment_schedule.amount,
+                    "available_balance": payment_schedule.currentBalance,
+                    "from_account_id": payment_schedule.fromAccountId,
+                    "bill_id": payment_schedule.billId,
+                    "error_message": error_msg
+                }
+            )
+
+            raise HTTPException(
+                status_code=400,
+                detail=error_msg
+            )
+    except HTTPException:
+        raise
+    except Exception as e:
+        logging.exception(f"Unexpected error in recurring payment endpoint: {e}")
+        raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")
 
     # Check for a duplicate billId before creating
     transaction_service_url = os.getenv("TRANSACTION_SERVICE_URL", "http://transaction-service:5001")
