@@ -144,9 +144,9 @@ async def trigger_chaos_experiment(scenario_name: str):
         }
     }
 
-    try:        
+    try:
         print(f"DEBUG K8S API CALL: Group+Version={api_version}, Namespace={namespace}, Plural={plural}, Name={experiment_name}")
-        
+
         # Create the custom resource in Kubernetes
         api_client.create_namespaced_custom_object(
             group="chaos-mesh.org",
@@ -155,7 +155,51 @@ async def trigger_chaos_experiment(scenario_name: str):
             plural=plural,
             body=pod_chaos_manifest,
         )
-        return {"status": "success", "message": f"Successfully triggered '{experiment_name}'."}
+
+        # Wait briefly and check if experiment was processed by Chaos Mesh
+        import time
+        time.sleep(3)  # Give Chaos Mesh time to process
+
+        try:
+            # Get the experiment status
+            experiment = api_client.get_namespaced_custom_object(
+                group="chaos-mesh.org",
+                version="v1alpha1",
+                namespace=namespace,
+                plural=plural,
+                name=experiment_name
+            )
+
+            status = experiment.get("status", {})
+            conditions = status.get("conditions", [])
+
+            # Check if Chaos Mesh controller processed it
+            if not status:
+                print(f"WARNING: Experiment created but has no status. Chaos Mesh may not be installed.")
+                return {
+                    "status": "warning",
+                    "message": f"Experiment '{experiment_name}' created but not processed. Check if Chaos Mesh is running."
+                }
+
+            # Check if pods were selected
+            selected_condition = next((c for c in conditions if c.get("type") == "Selected"), None)
+            if selected_condition and selected_condition.get("status") == "False":
+                print(f"WARNING: No pods matched the selector")
+                return {
+                    "status": "warning",
+                    "message": f"Experiment '{experiment_name}' created but no pods matched selector."
+                }
+
+            print(f"SUCCESS: Experiment processed by Chaos Mesh. Status: {status}")
+            return {"status": "success", "message": f"Successfully triggered '{experiment_name}' and verified execution."}
+
+        except ApiException as status_error:
+            print(f"WARNING: Could not verify experiment status: {status_error}")
+            return {
+                "status": "success",
+                "message": f"Experiment '{experiment_name}' created but status verification failed. It may still be running."
+            }
+
     except ApiException as e:
         print(f"Error creating PodChaos object: {e}")
         return {"status": "error", "message": f"Failed to trigger experiment: {e.reason}"}

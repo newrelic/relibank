@@ -39,15 +39,26 @@ def trigger_chaos_mesh_job():
         if result.get("status") == "success":
             print("\nSuccess!")
             print(f"Message: {result.get('message')}")
+        elif result.get("status") == "warning":
+            print("\nWarning: Chaos experiment may not have executed properly!")
+            print(f"Message: {result.get('message')}")
+            print("\nThis usually means:")
+            print("  - Chaos Mesh is not installed or not running")
+            print("  - No pods matched the selector")
+            print("  - The experiment was created but not processed")
+            sys.exit(1)
         elif result.get("error"):
             print("\nError from Scenario Runner!")
             print(f"Error: {result.get('error')}")
+            sys.exit(1)
         elif result.get("status") == "error":
              print("\nError during Kubernetes API Call!")
              print(f"Message: {result.get('message')}")
+             sys.exit(1)
         else:
             print("\nUnknown Response Format!")
             print(json.dumps(result, indent=4))
+            sys.exit(1)
 
 
     except requests.exceptions.ConnectionError:

@@ -65,7 +65,6 @@ jobs:
           cd demo_flows/k8s_bill_pay/ && python send_marker_bill_pay.py badCommit ${{ secrets.NR_USER_API_KEY }} ${{ vars.NR_ACCOUNT_ID }}
           
       - name: Trigger chaos
-        continue-on-error: true
         run: |
           cd demo_flows/k8s_bill_pay/ && python trigger_chaos.py ${{ vars.BASE_URL }}
 
