@@ -72,7 +72,7 @@ metadata:
     experiment-type: pod-chaos
     target-flow: bill-payment
 spec:
-  action: pod-failure
+  action: pod-kill
   mode: one
   selector:
     namespaces:
@@ -80,7 +80,7 @@ spec:
     labelSelectors:
       app: bill-pay-service
   duration: 2m
-  gracePeriod: 10
+  gracePeriod: 0
 
 ---
 apiVersion: chaos-mesh.org/v1alpha1

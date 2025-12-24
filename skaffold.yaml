@@ -181,6 +181,12 @@ deploy:
     hooks:
       before:
       - host:
+          command: ["sh", "-c", "helm repo add chaos-mesh https://charts.chaos-mesh.org || true"]
+          dir: "."
+      - host:
+          command: ["helm", "repo", "update"]
+          dir: "."
+      - host:
           command: ["echo", "🚀 Starting Relibank deployment with Kustomize"]
           dir: "."
       after:
