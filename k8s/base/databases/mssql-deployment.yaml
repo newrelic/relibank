@@ -38,16 +38,16 @@ spec:
               name: database-credentials
               key: MSSQL_SA_PASSWORD
         - name: MSSQL_MEMORY_LIMIT_MB
-          value: "3072"
+          value: "1024"
         - name: MSSQL_PID
           value: "Developer"
         resources:
           requests:
-            memory: "4Gi"
-            cpu: "2000m"
+            memory: "1Gi"
+            cpu: "500m"
           limits:
-            memory: "4Gi"
-            cpu: "2000m"
+            memory: "2Gi"
+            cpu: "1000m"
         volumeMounts:
         - name: mssql
           mountPath: "/var/opt/mssql"

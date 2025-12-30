@@ -32,10 +32,45 @@ export default function SupportPage() {
 
   useEffect(scrollToBottom, [messages, isBotTyping]);
 
+  // Demo scenario: Blocking synchronous Fibonacci calculation
+  const calculateFibonacci = (n: number): number => {
+    if (n <= 1) return n;
+    return calculateFibonacci(n - 1) + calculateFibonacci(n - 2);
+  };
+
   const handleSend = async () => {
     if (!inputMessage.trim()) return;
 
     const userMessageText = inputMessage.trim();
+
+    // Demo scenario
+    // Check for spending analysis triggers
+    // This will match variations like:
+    // - "analyze my spending"
+    // - "Analyze my spending."
+    // - "analyse my spending"
+    // - "spending analysis"
+    // - "check my spending"
+    const spendingAnalysisTriggers = [
+      /analyz[e]?\s+my\s+spending/i,
+      /analys[e]?\s+spending/i,
+      /spending\s+analys[ie]s/i,
+      /check\s+my\s+spending/i
+    ];
+
+    const isSpendingAnalysis = spendingAnalysisTriggers.some(
+      pattern => pattern.test(userMessageText)
+    );
+
+    if (isSpendingAnalysis) {
+      // Demo scenario: Simulates heavy computation on main thread
+      // This blocks the UI from updating before the user sees their message
+      console.warn('[DEMO] Running blocking Fibonacci calculation for spending analysis...');
+      const startTime = performance.now();
+      const result = calculateFibonacci(42); // ~3-5 seconds on average CPU
+      const endTime = performance.now();
+      console.warn(`[DEMO] Blocking calculation complete: fib(42) = ${result}, took ${(endTime - startTime).toFixed(0)}ms`);
+    }
     const newUserMessage: ChatMessage = {
       id: Date.now(),
       text: userMessageText,
@@ -44,7 +79,7 @@ export default function SupportPage() {
     };
 
     // 1. Add user message and clear input
-    setMessages((prev) => [...prev, newUserMessage]);
+    setMessages((prev: ChatMessage[]) => [...prev, newUserMessage]);
     setInputMessage('');
     setIsBotTyping(true);
 
@@ -75,23 +110,23 @@ export default function SupportPage() {
         timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
       };
 
-      setMessages((prev) => [...prev, newBotMessage]);
+      setMessages((prev: ChatMessage[]) => [...prev, newBotMessage]);
 
-    } catch (error) {
+    } catch (error: unknown) {
       console.error("Chatbot API call failed:", error);
       const errorMessage: ChatMessage = {
         id: Date.now() + 1,
-        text: `Sorry, I couldn't connect to the support service. Please ensure the chatbot service is running. Error: ${error.message}`,
+        text: `Sorry, I couldn't connect to the support service. Please ensure the chatbot service is running. Error: ${error instanceof Error ? error.message : 'Unknown error'}`,
         sender: 'bot',
         timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
       };
-      setMessages((prev) => [...prev, errorMessage]);
+      setMessages((prev: ChatMessage[]) => [...prev, errorMessage]);
     } finally {
       setIsBotTyping(false);
     }
   };
   
-  const handleKeyPress = (e: React.KeyboardEvent) => {
+  const handleKeyPress = (e: any) => {
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
       handleSend();
@@ -163,7 +198,7 @@ export default function SupportPage() {
             flexDirection: 'column'
           }}
         >
-          {messages.map((message) => (
+          {messages.map((message: ChatMessage) => (
             <MessageBubble key={message.id} message={message} />
           ))}
           
@@ -192,7 +227,7 @@ export default function SupportPage() {
             autoFocus 
             size="small"
             value={inputMessage}
-            onChange={(e) => setInputMessage(e.target.value)}
+            onChange={(e: any) => setInputMessage(e.target.value)}
             onKeyPress={handleKeyPress}
             disabled={isBotTyping}
           />
