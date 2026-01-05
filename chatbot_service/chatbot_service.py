@@ -1,6 +1,7 @@
 import os
 import logging
 import json
+import ssl
 from contextlib import asynccontextmanager
 from typing import Optional
 from typing import Any
@@ -52,7 +53,17 @@ server_config = {
 
 # https://mcp.deepwiki.com/sse
 
-mcp_client = Client(server_config)
+# Create SSL context that doesn't verify certificates (for self-signed certs)
+ssl_context = ssl.create_default_context()
+ssl_context.check_hostname = False
+ssl_context.verify_mode = ssl.CERT_NONE
+
+try:
+    mcp_client = Client(server_config, ssl_context=ssl_context)
+except TypeError:
+    # If Client doesn't accept ssl_context parameter, try without it
+    logger.warning("Client does not support ssl_context parameter, proceeding without SSL verification override")
+    mcp_client = Client(server_config)
 
 async def get_tools() -> list[Tool]:
     """
