@@ -170,7 +170,7 @@ export default function SupportPage() {
   };
 
   return (
-    <Box sx={{ p: 3, display: 'flex', flexDirection: 'column', height: '100%' }}>
+    <Box sx={{ px: 48, py: 3, display: 'flex', flexDirection: 'column', height: '100%' }}>
       <Typography variant="h4" component="h1" gutterBottom>
         Customer Support Chat
       </Typography>
