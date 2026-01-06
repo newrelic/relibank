@@ -10,6 +10,25 @@ export default defineConfig(({ mode }: { mode: string }) => ({
       single: true,
     }
   }), tsconfigPaths()],
+  optimizeDeps: {
+    // Pre-bundle dependencies to prevent race condition on startup
+    include: [
+      '@mui/material',
+      '@mui/icons-material',
+      '@mui/icons-material/Dashboard',
+      '@mui/icons-material/AccountBalanceWallet',
+      '@mui/icons-material/Settings',
+      '@mui/icons-material/Notifications',
+      '@mui/icons-material/Business',
+      '@mui/icons-material/SupportAgent',
+      '@mui/material/styles',
+      'react',
+      'react-dom',
+      'react-router',
+      'react-router-dom',
+      'recharts'
+    ],
+  },
   server: {
     host: '0.0.0.0',
     port: 3000,

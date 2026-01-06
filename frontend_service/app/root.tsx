@@ -55,7 +55,19 @@ const generateNrScript = () => {
 
 
 // Create a context for login data
-export const LoginContext = createContext({});
+interface LoginContextType {
+  isAuthenticated: boolean;
+  handleLogin: (data: any) => void;
+  userData: any;
+  setUserData: (data: any) => void;
+}
+
+export const LoginContext = createContext<LoginContextType>({
+  isAuthenticated: false,
+  handleLogin: () => {},
+  userData: null,
+  setUserData: () => {},
+});
 
 // Create a context for the page data
 export const PageContext = createContext({});
@@ -317,7 +329,15 @@ export default function App() {
   const [userData, setUserData] = useState(() => {
     if (typeof window !== 'undefined') {
       const storedUserData = sessionStorage.getItem('userData');
-      return storedUserData ? JSON.parse(storedUserData) : null;
+      if (storedUserData) {
+        try {
+          return JSON.parse(storedUserData);
+        } catch (error) {
+          console.error('Failed to parse userData from sessionStorage:', error);
+          sessionStorage.removeItem('userData');
+          return null;
+        }
+      }
     }
     return null;
   });
@@ -345,6 +365,13 @@ export default function App() {
       sessionStorage.removeItem('userData');
     }
   };
+  // Sync userData changes to sessionStorage
+  useEffect(() => {
+    if (typeof window !== 'undefined' && userData) {
+      sessionStorage.setItem('userData', JSON.stringify(userData));
+    }
+  }, [userData]);
+
   // Use useEffect to see the updated userData after a render
   useEffect(() => {
     console.log("userData:", userData);
@@ -355,7 +382,7 @@ export default function App() {
   }, [userData, isAuthenticated, navigate]);
 
   return (
-    <LoginContext.Provider value={{ isAuthenticated, handleLogin, userData }}>
+    <LoginContext.Provider value={{ isAuthenticated, handleLogin, userData, setUserData }}>
       <Outlet />
     </LoginContext.Provider>
   );

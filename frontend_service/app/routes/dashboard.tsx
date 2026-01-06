@@ -383,11 +383,6 @@ const TransferCard = ({ userData, setUserData, transactions, setTransactions }) 
     
     // Reset form
     setAmount('');
-    
-    // Update sessionStorage for persistence across mock app pages
-    if (typeof window !== 'undefined') {
-        sessionStorage.setItem('userData', JSON.stringify(newUserData));
-    }
   };
 
   return (
@@ -486,25 +481,17 @@ const TransferCard = ({ userData, setUserData, transactions, setTransactions }) 
 
 // Dashboard Page
 const DashboardPage = () => {
-  // Use a combination of demo data (initial state) and sessionStorage (post-login)
-  const [userData, setUserData] = useState(demoUserData);
+  // Get userData from LoginContext instead of loading from sessionStorage
+  const { userData: contextUserData, setUserData: contextSetUserData } = useContext(LoginContext);
+  // Use demo data as fallback if not logged in (for development/demo purposes)
+  const userData = contextUserData || demoUserData;
+  const setUserData = contextSetUserData;
+
   const [additionalAccountData, setAdditionalAccountData] = useState(null);
   // NEW: Add transactions to state to allow updates from the TransferCard
   const [transactions, setTransactions] = useState(mockTransactions);
   // NEW: Loading state for the additional, client-side fetch
   const [isLoadingDetails, setIsLoadingDetails] = useState(false);
-
-  // 1. Initial Load: Check sessionStorage for authenticated user data
-  useEffect(() => {
-    console.info('Dashboard page loaded');
-    if (typeof window !== 'undefined') {
-      const storedUserData = sessionStorage.getItem('userData');
-      if (storedUserData) {
-        console.info('Loading user data from session storage');
-        setUserData(JSON.parse(storedUserData));
-      }
-    }
-  }, []);
 
   // 2. Secondary Fetch: Get additional account details after initial data is set
   useEffect(() => {
