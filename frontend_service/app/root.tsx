@@ -36,6 +36,7 @@ const generateNrScript = () => {
 interface LoginContextType {
   isAuthenticated: boolean;
   handleLogin: (data: any) => void;
+  handleLogout: () => void;
   userData: any;
   setUserData: (data: any) => void;
 }
@@ -43,6 +44,7 @@ interface LoginContextType {
 export const LoginContext = createContext<LoginContextType>({
   isAuthenticated: false,
   handleLogin: () => {},
+  handleLogout: () => {},
   userData: null,
   setUserData: () => {},
 });
@@ -133,6 +135,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
   const contextValue = {
     isAuthenticated,
     handleLogin,
+    handleLogout,
     userData,
     setUserData: updateUserData
   };

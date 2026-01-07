@@ -8,11 +8,13 @@ import {
   IconButton,
   Tooltip,
   Divider,
+  Button,
 } from '@mui/material';
 import NotificationsIcon from '@mui/icons-material/Notifications';
+import LogoutIcon from '@mui/icons-material/Logout';
 
 export const Header = () => {
-  const { userData } = useContext(LoginContext);
+  const { userData, handleLogout } = useContext(LoginContext);
   const location = useLocation();
 
   // CRITICAL: Force re-render when userData changes
@@ -68,6 +70,11 @@ export const Header = () => {
             <Typography variant="subtitle1" sx={{ fontWeight: 'medium' }}>
               {userName}
             </Typography>
+            <Tooltip title="Logout">
+              <IconButton onClick={handleLogout} sx={{ ml: 1 }}>
+                <LogoutIcon sx={{ color: 'text.secondary' }} />
+              </IconButton>
+            </Tooltip>
           </>
         ) : (
           <Typography variant="subtitle1" sx={{ fontWeight: 'medium', color: 'text.secondary' }}>

@@ -16,6 +16,7 @@ export interface UserData {
 export interface LoginContextType {
   isAuthenticated: boolean;
   handleLogin: (data: any) => void;
+  handleLogout: () => void;
   userData: any;
   setUserData: (data: any) => void;
 }
