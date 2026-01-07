@@ -37,19 +37,22 @@ export default defineConfig(({ mode }: { mode: string }) => ({
       clientPort: 3000
     },
     allowedHosts: ['relibank.westus2.cloudapp.azure.com'],
-    // Only use proxy in development mode (local machine)
-    // In production, the ingress handles routing to backend services
-    ...(mode === 'development' && {
-      proxy: {
-        '/chatbot-service': {
-          target: 'http://chatbot-service:5003',
-          changeOrigin: true
-        },
-        '/bill-pay-service': {
-          target: 'http://bill-pay-service:5000',
-          changeOrigin: true
-        }
+    // Proxy API requests to backend services via Kubernetes service DNS
+    // Backend services include the service name in their routes (e.g., /accounts-service/accounts/...)
+    // so we forward the full path without rewriting
+    proxy: {
+      '/accounts-service': {
+        target: 'http://accounts-service.relibank.svc.cluster.local:5002',
+        changeOrigin: true
+      },
+      '/chatbot-service': {
+        target: 'http://chatbot-service.relibank.svc.cluster.local:5003',
+        changeOrigin: true
+      },
+      '/bill-pay-service': {
+        target: 'http://bill-pay-service.relibank.svc.cluster.local:5000',
+        changeOrigin: true
       }
-    })
+    }
   },
 }));
