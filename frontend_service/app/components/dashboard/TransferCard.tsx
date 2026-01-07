@@ -71,12 +71,20 @@ export const TransferCard = ({ transactions, setTransactions }: TransferCardProp
       return;
     }
 
+    // ==========================================================================
+    // DEMO APP: No overdraft validation on frontend
+    //
+    // Users can transfer more than their balance (e.g., $10,000 from $100 account).
+    // This is intentional to demonstrate:
+    // - Backend validation errors
+    // - New Relic error telemetry
+    // - Visual impact of failed transfers with incorrect balances
+    //
+    // Do not add balance checks here unless updating demo scenarios.
+    // ==========================================================================
+
     const sourceAccount = fromAccount === 'checking' ? checking : savings;
     const destinationAccount = toAccount === 'checking' ? checking : savings;
-
-    // CRITICAL: Store original state for rollback
-    const originalUserData = [...userData];
-    const originalTransactions = [...transactions];
 
     // Calculate new balances
     const newCheckingBalance = fromAccount === 'checking'
@@ -115,7 +123,16 @@ export const TransferCard = ({ transactions, setTransactions }: TransferCardProp
       type: 'credit'
     };
 
-    // OPTIMISTIC UPDATE: Update UI immediately
+    // ==========================================================================
+    // OPTIMISTIC UPDATE: Update UI immediately (before API call)
+    //
+    // NOTE FOR DEMO APP: We intentionally DO NOT rollback on error.
+    // This allows the UI to show incorrect balances when transfers fail,
+    // demonstrating the visual impact of errors for New Relic telemetry demos.
+    //
+    // In a production app, you would rollback to original state on error.
+    // Do not change this behavior unless explicitly updating demo scenarios.
+    // ==========================================================================
     setUserData(newUserData);
     setTransactions([newSourceTx, newTargetTx, ...transactions]);
 
@@ -159,9 +176,14 @@ export const TransferCard = ({ transactions, setTransactions }: TransferCardProp
     } catch (error: any) {
       console.error('Transfer API error:', error);
 
-      // ROLLBACK: Restore original state on error
-      setUserData(originalUserData);
-      setTransactions(originalTransactions);
+      // ==========================================================================
+      // INTENTIONAL: NO ROLLBACK ON ERROR (Demo App Behavior)
+      //
+      // The incorrect balance remains visible to demonstrate error impact.
+      // This helps with New Relic demos by showing corrupted UI state.
+      //
+      // In production: You would rollback userData and transactions here.
+      // ==========================================================================
 
       // Report error to New Relic Browser
       if (typeof window !== 'undefined' && (window as any).newrelic) {
