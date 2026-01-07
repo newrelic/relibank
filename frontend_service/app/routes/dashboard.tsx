@@ -107,6 +107,7 @@ const OverviewCard = ({ title, value, icon, info }) => (
   <Card sx={{
     display: 'flex',
     flexDirection: 'column',
+    height: '100%',
     borderRadius: '12px',
     border: '1px solid #e5e7eb',
     boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)'
@@ -116,7 +117,7 @@ const OverviewCard = ({ title, value, icon, info }) => (
       action={icon}
       sx={{ pb: 1, pt: 2, pr: 2 }}
     />
-    <CardContent sx={{ minHeight: '80px' }}>
+    <CardContent sx={{ flexGrow: 1, display: 'flex', flexDirection: 'column' }}>
       <Typography variant="h4" sx={{ fontWeight: 'bold' }}>
         ${value.toFixed(2)}
       </Typography>
@@ -131,7 +132,7 @@ const OverviewCard = ({ title, value, icon, info }) => (
 
 // Spending Chart Card component
 const SpendingChart = ({ data }) => (
-  <Card sx={{ p: 3 }}>
+  <Card sx={{ p: 3, height: '100%', display: 'flex', flexDirection: 'column' }}>
     <Typography variant="h6" sx={{ mb: 2 }}>Spending over last 6 months</Typography>
     <Box sx={{ height: 300 }}>
       <ResponsiveContainer width="100%" height="100%">
@@ -206,7 +207,7 @@ const RecentTransactions = ({ transactions }) => {
 
 // Spending Categories Chart
 const SpendingCategories = ({ data }) => (
-  <Card sx={{ p: 3 }}>
+  <Card sx={{ p: 3, height: '100%', display: 'flex', flexDirection: 'column' }}>
     <Typography variant="h6" sx={{ mb: 2 }}>Spending over last 6 months</Typography>
     <Box sx={{ height: 300 }}>
       <ResponsiveContainer width="100%" height="100%">
