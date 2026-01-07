@@ -55,6 +55,7 @@ import {
     CalendarMonth as CalendarMonthIcon
 } from '@mui/icons-material';
 import { LoginContext } from '~/root';
+import { TransferCard } from '~/components/dashboard/TransferCard';
 
 // --- MOCK APPLICATION DATA (Replaces Loader) ---
 
@@ -232,253 +233,7 @@ const SpendingCategories = ({ data }) => (
   </Card>
 );
 
-// --- NEW MONEY TRANSFER CARD COMPONENT ---
-const TransferCard = ({ userData, setUserData, transactions, setTransactions }) => {
-  const [fromAccount, setFromAccount] = useState('checking');
-  const [toAccount, setToAccount] = useState('savings');
-  const [amount, setAmount] = useState('');
-  const [message, setMessage] = useState('');
-  const [isError, setIsError] = useState(false);
-
-  const checking = userData.find(acc => acc.account_type === 'checking');
-  const savings = userData.find(acc => acc.account_type === 'savings');
-  
-  // Guard clause in case accounts are missing (e.g. initial load error)
-  if (!checking || !savings) {
-    return (
-      <Card sx={{ p: 3 }}>
-        <Typography variant="h6">Transfer Funds</Typography>
-        <Alert severity="warning" sx={{ mt: 2 }}>Account data is not available for transfers.</Alert>
-      </Card>
-    );
-  }
-
-  const handleTransfer = async (event) => {
-    event.preventDefault();
-    setMessage('');
-    setIsError(false);
-
-    const transferAmount = parseFloat(amount);
-    if (isNaN(transferAmount) || transferAmount <= 0) {
-      setIsError(true);
-      setMessage('Please enter a valid amount.');
-      return;
-    }
-
-    if (fromAccount === toAccount) {
-      setIsError(true);
-      setMessage('Cannot transfer to the same account.');
-      return;
-    }
-
-    const sourceAccount = fromAccount === 'checking' ? checking : savings;
-    const destinationAccount = toAccount === 'checking' ? checking : savings;
-
-    // ==========================================================
-    // Call the backend API with transfer details (including balance info for server-side validation)
-    try {
-        const paymentData = {
-            "billId": "BILL-RECUR-002",
-            "amount": transferAmount,
-            "currency": "USD",
-            "fromAccountId": sourceAccount.account_type === 'checking' ? 12345 : 56789,
-            "toAccountId": destinationAccount.account_type === 'checking' ? 12345 : 56789,
-            "frequency": "one-time",
-            "startDate": new Date().toISOString().split('T')[0],
-            "currentBalance": sourceAccount.balance,
-            "accountType": sourceAccount.account_type
-        };
-
-        console.log('[DEBUG] Sending payment request:', paymentData);
-
-        const response = await fetch('/bill-pay-service/recurring', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(paymentData),
-        });
-
-        if (!response.ok) {
-            let errorMessage = `API returned status ${response.status}`;
-            try {
-                const errorData = await response.json();
-                // FastAPI returns errors in "detail" field
-                errorMessage = errorData.detail || errorData.message || errorMessage;
-            } catch (e) {
-                console.warn('Could not parse error response as JSON');
-            }
-            throw new Error(errorMessage);
-        }
-
-        // Simulate a small delay for network call effect
-        await new Promise(resolve => setTimeout(resolve, 500));
-
-    } catch (error: any) {
-        console.error('Transfer API error:', error);
-
-        // Report API error to New Relic Browser
-        if (typeof window !== 'undefined' && (window as any).newrelic) {
-          console.log('[DEBUG] Reporting API error to New Relic Browser');
-          (window as any).newrelic.noticeError(error, {
-            component: 'TransferFunds',
-            endpoint: '/bill-pay-service/recurring',
-            amount: transferAmount,
-            fromAccount: fromAccount,
-            toAccount: toAccount
-          });
-          console.log('[DEBUG] API error reported to New Relic');
-        } else {
-          console.warn('[DEBUG] New Relic Browser agent not available for API error');
-        }
-
-        setIsError(true);
-        setMessage(error.message || 'Transfer failed. Please try again.');
-        return;
-    }
-    // ==========================================================
-
-
-    // Perform the mock transfer (This logic runs after the simulated API call)
-    const newCheckingBalance = fromAccount === 'checking' ? checking.balance - transferAmount : checking.balance + transferAmount;
-    const newSavingsBalance = fromAccount === 'savings' ? savings.balance - transferAmount : savings.balance + transferAmount;
-    
-    const newUserData = userData.map(acc => {
-      if (acc.account_type === 'checking') {
-        // Ensure not to introduce negative zero
-        return { ...acc, balance: parseFloat(newCheckingBalance.toFixed(2)) };
-      }
-      if (acc.account_type === 'savings') {
-        return { ...acc, balance: parseFloat(newSavingsBalance.toFixed(2)) };
-      }
-      return acc;
-    });
-
-    // Update parent user state
-    setUserData(newUserData);
-    
-    // Create new mock transactions for the list
-    const transactionDate = new Date().toISOString().slice(0, 10);
-    const newSourceTx = { 
-        id: transactions.length + 1, 
-        name: `Transfer to ${toAccount.charAt(0).toUpperCase() + toAccount.slice(1)}`, 
-        date: transactionDate, 
-        amount: -transferAmount, 
-        accountId: fromAccount, 
-        type: 'debit' 
-    };
-    const newTargetTx = { 
-        id: transactions.length + 2, 
-        name: `Transfer from ${fromAccount.charAt(0).toUpperCase() + fromAccount.slice(1)}`, 
-        date: transactionDate, 
-        amount: transferAmount, 
-        accountId: toAccount, 
-        type: 'credit' 
-    };
-    
-    // Update parent transactions state to show new transactions first
-    setTransactions([newSourceTx, newTargetTx, ...transactions]);
-
-    // Only show success if no error was set in the API block (or if we intentionally ignored the API error)
-    if (!isError) {
-      setMessage(`Successfully transferred $${transferAmount.toFixed(2)} from ${fromAccount} to ${toAccount}.`);
-    }
-    
-    // Reset form
-    setAmount('');
-  };
-
-  return (
-    <Card sx={{ 
-      p: 3, 
-      borderRadius: '12px', 
-      border: '1px solid #e5e7eb', 
-      boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)' 
-    }}>
-      <Typography variant="h6" sx={{ mb: 2 }}>Transfer Funds</Typography>
-      {message && (
-        <Alert severity={isError ? "error" : "success"} sx={{ width: '100%', mb: 2 }}>
-          {message}
-        </Alert>
-      )}
-      <Box component="form" onSubmit={handleTransfer} noValidate sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-        <TextField
-          label="Amount"
-          type="number"
-          variant="outlined"
-          fullWidth
-          value={amount}
-          onChange={(e) => setAmount(e.target.value)}
-          inputProps={{ step: "0.01", min: "0.01" }}
-          InputProps={{
-            startAdornment: <InputAdornment position="start">$</InputAdornment>,
-          }}
-        />
-
-        <Grid container spacing={2}>
-            <Grid item xs={6}>
-                <FormControl fullWidth variant="outlined">
-                    <InputLabel id="from-account-label">From</InputLabel>
-                    <Select
-                        labelId="from-account-label"
-                        id="from-account-select"
-                        value={fromAccount}
-                        label="From"
-                        onChange={(e) => {
-                            setFromAccount(e.target.value);
-                            if (e.target.value === toAccount) {
-                                setToAccount(e.target.value === 'checking' ? 'savings' : 'checking');
-                            }
-                        }}
-                    >
-                        <MenuItem value="checking">
-                            Checking (${checking.balance.toFixed(2)})
-                        </MenuItem>
-                        <MenuItem value="savings">
-                            Savings (${savings.balance.toFixed(2)})
-                        </MenuItem>
-                    </Select>
-                </FormControl>
-            </Grid>
-            <Grid item xs={6}>
-                <FormControl fullWidth variant="outlined">
-                    <InputLabel id="to-account-label">To</InputLabel>
-                    <Select
-                        labelId="to-account-label"
-                        id="to-account-select"
-                        value={toAccount}
-                        label="To"
-                        onChange={(e) => {
-                             setToAccount(e.target.value);
-                             if (e.target.value === fromAccount) {
-                                setFromAccount(e.target.value === 'checking' ? 'savings' : 'checking');
-                            }
-                        }}
-                    >
-                        <MenuItem value="checking">
-                            Checking (${checking.balance.toFixed(2)})
-                        </MenuItem>
-                        <MenuItem value="savings">
-                            Savings (${savings.balance.toFixed(2)})
-                        </MenuItem>
-                    </Select>
-                </FormControl>
-            </Grid>
-        </Grid>
-
-        <Button 
-          type="submit" 
-          variant="contained" 
-          color="primary" 
-          fullWidth 
-          sx={{ py: 1.5 }}
-          disabled={fromAccount === toAccount || isNaN(parseFloat(amount)) || parseFloat(amount) <= 0}
-        >
-          Complete Transfer
-        </Button>
-      </Box>
-    </Card>
-  );
-};
-// --- END NEW MONEY TRANSFER CARD COMPONENT ---
+// TransferCard component now imported from ~/components/dashboard/TransferCard
 
 // Dashboard Page
 const DashboardPage = () => {
@@ -604,16 +359,13 @@ const DashboardPage = () => {
           />
         </Grid>
         
-        {/* --- ADDED TRANSFER CARD (Full width) --- */}
+        {/* Transfer Card (Full width) */}
         <Grid item size={{ xs: 12 }}>
-            <TransferCard 
-                userData={userData}
-                setUserData={setUserData}
+            <TransferCard
                 transactions={transactions}
                 setTransactions={setTransactions}
             />
         </Grid>
-        {/* --- END ADDED TRANSFER CARD --- */}
 
         {/* Spending Chart (2-column layout on medium screens and up) */}
         <Grid item size={{ xs: 12, md: 6 }}>
