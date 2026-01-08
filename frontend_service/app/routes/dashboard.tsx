@@ -114,9 +114,9 @@ const OverviewCard = ({ title, value, icon, info }) => (
     boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)'
   }}>
     <CardHeader
+      avatar={icon}
       title={<Typography variant="subtitle1" sx={{ fontWeight: 'medium', fontSize: '0.875rem' }}>{title}</Typography>}
-      action={icon}
-      sx={{ pb: 1, pt: 2, pr: 2 }}
+      sx={{ pb: 1, pt: 2, pl: 2 }}
     />
     <CardContent sx={{ flexGrow: 1, display: 'flex', flexDirection: 'column' }}>
       <Typography variant="h4" sx={{ fontWeight: 'bold' }}>
