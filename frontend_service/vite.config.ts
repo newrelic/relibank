@@ -10,6 +10,16 @@ export default defineConfig(({ mode }: { mode: string }) => ({
       single: true,
     }
   }), tsconfigPaths()],
+  build: {
+    // Add timestamps to bust cache on every build
+    rollupOptions: {
+      output: {
+        entryFileNames: `assets/[name]-[hash]-${Date.now()}.js`,
+        chunkFileNames: `assets/[name]-[hash]-${Date.now()}.js`,
+        assetFileNames: `assets/[name]-[hash]-${Date.now()}[extname]`
+      }
+    }
+  },
   optimizeDeps: {
     // Pre-bundle dependencies to prevent race condition on startup
     include: [

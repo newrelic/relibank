@@ -36,7 +36,7 @@ import {
   Alert,
   InputAdornment
 } from '@mui/material';
-import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, Legend, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
+import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, Legend, ResponsiveContainer, PieChart, Pie, Cell, BarChart, Bar } from 'recharts';
 import {
     Dashboard as DashboardIcon,
     AccountBalanceWallet as AccountBalanceWalletIcon,
@@ -94,6 +94,15 @@ const mockPieData = [
     { name: 'Groceries', value: 150, color: '#34d399' },
     { name: 'Utilities', value: 100, color: '#60a5fa' },
     { name: 'Other', value: 50, color: '#c084fc' },
+];
+
+const mockStackedBarData = [
+    { month: 'Jan', checking: 2400, savings: 1400 },
+    { month: 'Feb', checking: 1800, savings: 1600 },
+    { month: 'Mar', checking: 2200, savings: 1200 },
+    { month: 'Apr', checking: 2600, savings: 1800 },
+    { month: 'May', checking: 2000, savings: 1400 },
+    { month: 'Jun', checking: 2400, savings: 1600 },
 ];
 
 // --- MOCK USER ACCOUNT DATA (Used for calculations and initial display) ---
@@ -157,7 +166,7 @@ const RecentTransactions = ({ transactions }) => {
   const filteredTransactions = transactions.filter(tx => ['checking', 'savings'].includes(tx.accountId)); 
   const displayTransactions = showAll ? filteredTransactions : filteredTransactions.slice(0, 3);
   return (
-    <Card sx={{ p: 3 }}>
+    <Card sx={{ p: 3, height: '100%', width: '100%', display: 'flex', flexDirection: 'column' }}>
       <Typography variant="h6" sx={{ mb: 2 }}>Recent Transactions</Typography>
       <TableContainer>
         <Table>
@@ -233,6 +242,26 @@ const SpendingCategories = ({ data }) => (
   </Card>
 );
 
+// Account Balance Trends (Stacked Bar Chart)
+const AccountBalanceTrends = ({ data }) => (
+  <Card sx={{ p: 3, height: '100%', display: 'flex', flexDirection: 'column' }}>
+    <Typography variant="h6" sx={{ mb: 2 }}>Account Balance Trends</Typography>
+    <Box sx={{ height: 300 }}>
+      <ResponsiveContainer width="100%" height="100%">
+        <BarChart data={data}>
+          <CartesianGrid strokeDasharray="3 3" />
+          <XAxis dataKey="month" />
+          <YAxis />
+          <RechartsTooltip />
+          <Legend />
+          <Bar dataKey="checking" stackId="a" fill="#60a5fa" name="Checking" />
+          <Bar dataKey="savings" stackId="a" fill="#34d399" name="Savings" />
+        </BarChart>
+      </ResponsiveContainer>
+    </Box>
+  </Card>
+);
+
 // TransferCard component now imported from ~/components/dashboard/TransferCard
 
 // Dashboard Page
@@ -297,6 +326,7 @@ const DashboardPage = () => {
       transactions: transactions, // Use state instead of mockTransactions constant
       spendingData: mockSpendingData,
       pieData: mockPieData,
+      stackedBarData: mockStackedBarData,
   };
 
   if (!userData) { 
@@ -358,27 +388,31 @@ const DashboardPage = () => {
             info={savingsExtraInfo}
           />
         </Grid>
-        
-        {/* Transfer Card (Full width) */}
-        <Grid item size={{ xs: 12 }}>
-            <TransferCard
-                transactions={transactions}
-                setTransactions={setTransactions}
-            />
-        </Grid>
 
-        {/* Spending Chart (2-column layout on medium screens and up) */}
-        <Grid item size={{ xs: 12, md: 6 }}>
+        {/* Spending Chart (3-column layout on medium screens and up) */}
+        <Grid item size={{ xs: 12, md: 4 }}>
           <SpendingChart data={appData.spendingData} />
         </Grid>
 
-        {/* Spending Categories Pie Chart (2-column layout on medium screens and up) */}
-        <Grid item size={{ xs: 12, md: 6 }}>
+        {/* Spending Categories Pie Chart (3-column layout on medium screens and up) */}
+        <Grid item size={{ xs: 12, md: 4 }}>
           <SpendingCategories data={appData.pieData} />
         </Grid>
 
-        {/* Recent Transactions (full width) */}
-        <Grid item size={{ xs: 12}}>
+        {/* Account Balance Trends Stacked Bar Chart (3-column layout on medium screens and up) */}
+        <Grid item size={{ xs: 12, md: 4 }}>
+          <AccountBalanceTrends data={appData.stackedBarData} />
+        </Grid>
+
+        {/* Transfer Card and Recent Transactions Row */}
+        <Grid item size={{ xs: 12, md: 4 }}>
+          <TransferCard
+            transactions={transactions}
+            setTransactions={setTransactions}
+          />
+        </Grid>
+
+        <Grid item size={{ xs: 12, md: 8 }}>
           <RecentTransactions transactions={appData.transactions} />
         </Grid>
       </Grid>
