@@ -5,7 +5,7 @@ A React-based banking demo application built with React Router v7, Material-UI, 
 ## 🏗️ Architecture Overview
 
 ### Tech Stack
-- **Framework**: React Router v7 (SSR + Client-side routing)
+- **Framework**: React Router v7 (SPA mode with client-side routing)
 - **UI Library**: Material-UI (MUI)
 - **State Management**: React Context API
 - **Styling**: Material-UI theme system + Emotion
@@ -15,7 +15,7 @@ A React-based banking demo application built with React Router v7, Material-UI, 
 - **Monitoring**: New Relic Browser Agent
 
 ### Key Features
-- Server-side rendering (SSR) with hydration
+- Single Page Application (SPA) with client-side routing
 - Hot Module Replacement (HMR) in development
 - Responsive dashboard with real-time balance updates
 - Fund transfer functionality with optimistic updates
@@ -181,7 +181,7 @@ frontend_service/
   - `handleLogin: (data) => void`
   - `setUserData: (data) => void`
 - **Persistence**: Syncs with `sessionStorage` automatically
-- **Hydration-safe**: Initializes to `null`, loads from sessionStorage after client hydration
+- **Initialization**: Initializes to `null`, loads from sessionStorage after component mount
 
 **Why state is in Layout, not App:**
 - `Layout` wraps the entire page including `AppLayout` (Header/Sidebar/Footer)
@@ -346,14 +346,14 @@ If components show "Loading..." instead of user data:
 1. Check browser console for `[Layout]` and `[Header]` debug logs
 2. Verify `sessionStorage.getItem('userData')` has data
 3. Ensure component is inside `LoginContext.Provider` (check component tree)
-4. Look for hydration errors (server/client HTML mismatch)
+4. Check that `useEffect` hooks are running (state updates after mount)
 
 ### Common Issues
 
-**Hydration Errors**:
-- Ensure state initializes to `null`/`false` (same as server-side)
-- Load from sessionStorage only in `useEffect` (client-side only)
-- Never use `typeof window !== 'undefined'` checks in render logic
+**State Initialization**:
+- Ensure state initializes to `null`/`false` consistently
+- Load from sessionStorage only in `useEffect` (runs after component mount)
+- Avoid reading browser-specific values during initial render
 
 **Username Not Displaying**:
 - `userData` is an array: `userData[0].name` to access first account
@@ -372,9 +372,10 @@ npm run build
 Output:
 ```
 build/
-├── client/    # Static assets (bundled JS, CSS)
-└── server/    # SSR server code
+└── client/    # Static assets (bundled JS, CSS, HTML)
 ```
+
+Note: Since SSR is disabled (`ssr: false` in `react-router.config.ts`), only client-side assets are generated.
 
 ### Docker Deployment
 
@@ -461,10 +462,10 @@ docker run -p 3000:3000 \
 
 ✅ **Do fix these:**
 
-1. Hydration errors from SSR/client mismatch
-2. Context not accessible in components
-3. New Relic agent not loading
-4. Navigation broken after login
+1. Context not accessible in components
+2. New Relic agent not loading
+3. Navigation broken after login
+4. State not loading from sessionStorage
 
 ---
 
