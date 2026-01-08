@@ -71,6 +71,8 @@ build:
         NEW_RELIC_ACCOUNT_ID: "{{.NEW_RELIC_ACCOUNT_ID}}"
         NEW_RELIC_LICENSE_KEY: "{{.NEW_RELIC_LICENSE_KEY}}"
         APP_NAME: "{{.APP_NAME}}"
+        STRIPE_SECRET_KEY: "{{.STRIPE_SECRET_KEY}}"
+        STRIPE_PUBLISHABLE_KEY: "{{.STRIPE_PUBLISHABLE_KEY}}"
     sync:
       manual:
       - src: "**/*.py"

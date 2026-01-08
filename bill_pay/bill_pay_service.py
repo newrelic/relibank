@@ -3,6 +3,7 @@ import os
 import json
 import logging
 import pyodbc
+import random
 from aiokafka import AIOKafkaProducer
 from pydantic import BaseModel, Field, ConfigDict
 from typing import Optional
@@ -16,14 +17,52 @@ import uuid
 import newrelic.agent
 from typing import Annotated
 from utils.process_headers import process_headers
+import stripe
 
 # Configure logging
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
 
 newrelic.agent.initialize(log_file='/app/newrelic.log', log_level=logging.DEBUG)
 
+# Initialize Stripe
+stripe.api_key = os.getenv("STRIPE_SECRET_KEY")
+if stripe.api_key:
+    # Disable SSL verification for development (if behind corporate proxy)
+    stripe.verify_ssl_certs = False
+    logging.info("Stripe initialized successfully (SSL verification disabled for development)")
+else:
+    logging.warning("STRIPE_SECRET_KEY not set - Stripe functionality will be disabled")
+
+# Scenario service URL
+SCENARIO_SERVICE_URL = os.getenv("SCENARIO_SERVICE_URL", "http://scenario-runner-service.relibank.svc.cluster.local:8000")
+
 # Global Kafka producer instance
 producer = None
+
+async def get_payment_scenarios():
+    """Fetch payment scenario configuration from scenario service"""
+    try:
+        async with httpx.AsyncClient() as client:
+            response = await client.get(
+                f"{SCENARIO_SERVICE_URL}/scenario-runner/api/payment-scenarios",
+                timeout=2.0
+            )
+            if response.status_code == 200:
+                data = response.json()
+                return data.get("scenarios", {})
+    except Exception as e:
+        logging.debug(f"Could not fetch payment scenarios: {e}")
+
+    # Return defaults if scenario service is unavailable
+    return {
+        "gateway_timeout_enabled": False,
+        "gateway_timeout_delay": 10.0,
+        "gateway_timeout_probability": 0.0,
+        "card_decline_enabled": False,
+        "card_decline_probability": 0.0,
+        "stolen_card_enabled": False,
+        "stolen_card_probability": 0.0,
+    }
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -53,6 +92,44 @@ async def lifespan(app: FastAPI):
             "Failed to connect to Kafka after multiple retries. The application will not be able to publish messages."
         )
         # We can still run the app, but publishing will fail.
+
+    # Seed demo customers with payment methods on startup
+    if stripe.api_key:
+        try:
+            logging.info("Seeding demo customers with payment methods...")
+            demo_users = [
+                {"email": "alice.j@relibank.com", "name": "Alice Johnson"},
+                {"email": "bob.smith@relibank.com", "name": "Bob Smith"},
+                {"email": "demo@relibank.com", "name": "Demo User"},
+            ]
+
+            for user in demo_users:
+                # Check if customer already exists
+                existing = stripe.Customer.list(email=user["email"], limit=1)
+
+                if existing.data:
+                    customer = existing.data[0]
+                    logging.info(f"Demo customer exists: {user['email']} ({customer.id})")
+                else:
+                    # Create new customer
+                    customer = stripe.Customer.create(
+                        email=user["email"],
+                        name=user["name"],
+                        description=f"ReliBank Demo User"
+                    )
+                    logging.info(f"Created demo customer: {user['email']} ({customer.id})")
+
+                # Check if they have a payment method
+                payment_methods = stripe.PaymentMethod.list(customer=customer.id, type="card")
+
+                if not payment_methods.data:
+                    # Attach test Visa card
+                    stripe.PaymentMethod.attach("pm_card_visa", customer=customer.id)
+                    logging.info(f"Attached payment method to {user['email']}")
+
+            logging.info("Demo customer seeding complete")
+        except Exception as e:
+            logging.warning(f"Failed to seed demo customers: {e}")
 
     yield
 
@@ -106,6 +183,25 @@ class PaymentSchedule(BaseModel):
 class CancelPayment(BaseModel):
     model_config = ConfigDict(populate_by_name=True)
     user_id: Optional[str] = "unknown_user"
+
+
+class CardPaymentRequest(BaseModel):
+    """Request model for card payments via Stripe"""
+    model_config = ConfigDict(populate_by_name=True)
+    billId: str = Field(min_length=1)
+    amount: float = Field(gt=0)
+    currency: str = Field(default="usd", min_length=3)
+    paymentMethodId: str = Field(min_length=1)  # Payment method token from Stripe.js
+    saveCard: bool = False
+    customerId: Optional[str] = None  # Stripe customer ID if exists
+
+
+class CreatePaymentMethodRequest(BaseModel):
+    """Request model for creating/saving a payment method using test token"""
+    model_config = ConfigDict(populate_by_name=True)
+    paymentMethodToken: str = Field(min_length=1)  # Token like 'pm_card_visa' for testing
+    customerId: Optional[str] = None
+    customerEmail: Optional[str] = None
 
 
 async def publish_message(topic: str, message: dict):
@@ -316,6 +412,300 @@ async def cancel_payment(bill_id: str, cancel_details: CancelPayment, request: R
         "status": "success",
         "message": f"Payment for bill ID {bill_id} has been cancelled successfully by user '{cancel_details.user_id}'.",
     }
+
+@app.post("/bill-pay-service/card-payment")
+async def process_card_payment(payment: CardPaymentRequest, request: Request):
+    """
+    Process a bill payment using a credit/debit card via Stripe.
+    Uses Stripe test mode.
+    
+    See: https://stripe.com/docs/testing#cards
+    """
+    if not stripe.api_key:
+        raise HTTPException(status_code=503, detail="Stripe payment processing is not configured")
+
+    try:
+        logging.info(f"Processing card payment for bill ID: {payment.billId}, amount: ${payment.amount}")
+
+        # Fetch current payment scenarios
+        scenarios = await get_payment_scenarios()
+
+        # Check for stolen card scenario (probability-based)
+        if scenarios["stolen_card_enabled"] and random.random() * 100 < scenarios["stolen_card_probability"]:
+            payment_method_to_use = "pm_card_visa_chargeDeclinedStolenCard"
+        else:
+            payment_method_to_use = payment.paymentMethodId
+
+        # Check for card decline scenario (probability-based)
+        if scenarios["card_decline_enabled"] and random.random() * 100 < scenarios["card_decline_probability"]:
+            logging.error(f"Payment processor declined transaction")
+            newrelic.agent.record_custom_event("PaymentDeclined", {
+                "billId": payment.billId,
+                "amount": payment.amount,
+                "reason": "card_declined",
+                "paymentMethod": "card",
+                "processor": "stripe"
+            })
+            raise HTTPException(
+                status_code=402,
+                detail="Payment declined by card issuer. Please try a different payment method or contact your bank."
+            )
+
+        # Check for gateway timeout scenario (probability-based)
+        if scenarios["gateway_timeout_enabled"] and random.random() * 100 < scenarios["gateway_timeout_probability"]:
+            delay = scenarios["gateway_timeout_delay"]
+            logging.warning(f"Payment gateway experiencing delays (waiting {delay}s)")
+            await asyncio.sleep(delay)
+            logging.error(f"Payment gateway timeout after {delay}s")
+            newrelic.agent.record_custom_event("PaymentTimeout", {
+                "billId": payment.billId,
+                "amount": payment.amount,
+                "timeout_seconds": delay,
+                "paymentMethod": "card"
+            })
+            raise HTTPException(
+                status_code=504,
+                detail="Payment gateway timeout - please try again later"
+            )
+
+        # Create or retrieve Stripe customer
+        customer_id = payment.customerId
+        if not customer_id:
+            customer = stripe.Customer.create(
+                description=f"ReliBank Customer for bill {payment.billId}",
+                metadata={"billId": payment.billId}
+            )
+            customer_id = customer.id
+            logging.info(f"Created new Stripe customer: {customer_id}")
+
+        # Use the payment method (may be overridden by stolen card scenario)
+        logging.info(f"Using payment method: {payment_method_to_use}")
+
+        # Attach to customer if saving
+        if payment.saveCard:
+            stripe.PaymentMethod.attach(
+                payment_method_to_use,
+                customer=customer_id,
+            )
+            logging.info(f"Attached payment method to customer")
+
+        # Create PaymentIntent
+        amount_cents = int(payment.amount * 100)  # Stripe uses cents
+        payment_intent = stripe.PaymentIntent.create(
+            amount=amount_cents,
+            currency=payment.currency,
+            customer=customer_id,
+            payment_method=payment_method_to_use,
+            confirm=True,
+            automatic_payment_methods={"enabled": True, "allow_redirects": "never"},
+            metadata={
+                "billId": payment.billId,
+                "service": "relibank-bill-pay"
+            }
+        )
+
+        logging.info(f"Payment intent created: {payment_intent.id}, status: {payment_intent.status}")
+
+        # Publish to Kafka
+        kafka_message = {
+            "eventType": "CardPaymentProcessed",
+            "billId": payment.billId,
+            "amount": payment.amount,
+            "currency": payment.currency,
+            "paymentIntentId": payment_intent.id,
+            "customerId": customer_id,
+            "status": payment_intent.status,
+            "timestamp": time.time()
+        }
+        await publish_message("card_payments", kafka_message)
+
+        return {
+            "status": "success",
+            "message": f"Card payment of ${payment.amount} {payment.currency.upper()} processed successfully",
+            "paymentIntentId": payment_intent.id,
+            "customerId": customer_id,
+            "paymentStatus": payment_intent.status,
+            "billId": payment.billId
+        }
+
+    except HTTPException:
+        # Re-raise HTTPException from scenario checks
+        raise
+    except stripe.error.CardError as e:
+        # Stripe card declined (includes stolen card scenario)
+        decline_code = e.code if hasattr(e, 'code') else 'unknown'
+        logging.error(f"Card declined by processor: {e.user_message} (code: {decline_code})")
+
+        newrelic.agent.record_custom_event("PaymentDeclined", {
+            "billId": payment.billId,
+            "amount": payment.amount,
+            "reason": decline_code,
+            "paymentMethod": "card",
+            "processor": "stripe",
+            "message": e.user_message
+        })
+
+        raise HTTPException(status_code=402, detail=f"Card declined: {e.user_message}")
+    except stripe.error.StripeError as e:
+        logging.error(f"Stripe error: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Payment processing error: {str(e)}")
+    except Exception as e:
+        logging.error(f"Unexpected error processing card payment: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/bill-pay-service/payment-method")
+async def create_payment_method(payment_method_request: CreatePaymentMethodRequest, request: Request):
+    """
+    Save a payment method (card) in Stripe for future use.
+
+    Use Stripe test payment method tokens for testing:
+    - pm_card_visa - Visa
+    - pm_card_mastercard - Mastercard
+    - pm_card_amex - American Express
+
+    See: https://stripe.com/docs/testing#cards
+    """
+    if not stripe.api_key:
+        raise HTTPException(status_code=503, detail="Stripe is not configured")
+
+    try:
+        logging.info("Saving payment method")
+
+        # Create or retrieve customer
+        customer_id = payment_method_request.customerId
+        if not customer_id:
+            customer = stripe.Customer.create(
+                email=payment_method_request.customerEmail,
+                description="ReliBank Customer",
+            )
+            customer_id = customer.id
+            logging.info(f"Created new Stripe customer: {customer_id}")
+
+        # Attach the payment method token to customer
+        payment_method = stripe.PaymentMethod.attach(
+            payment_method_request.paymentMethodToken,
+            customer=customer_id,
+        )
+
+        logging.info(f"Payment method {payment_method.id} attached to customer {customer_id}")
+
+        return {
+            "status": "success",
+            "message": "Payment method saved successfully",
+            "paymentMethodId": payment_method.id,
+            "customerId": customer_id,
+            "cardBrand": payment_method.card.brand,
+            "cardLast4": payment_method.card.last4
+        }
+
+    except stripe.error.StripeError as e:
+        logging.error(f"Stripe error: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Error saving payment method: {str(e)}")
+    except Exception as e:
+        logging.error(f"Unexpected error: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/bill-pay-service/payment-methods/{customer_id}")
+async def list_payment_methods(customer_id: str):
+    """
+    List all saved payment methods for a customer.
+    """
+    if not stripe.api_key:
+        raise HTTPException(status_code=503, detail="Stripe is not configured")
+
+    try:
+        payment_methods = stripe.PaymentMethod.list(
+            customer=customer_id,
+            type="card",
+        )
+
+        return {
+            "status": "success",
+            "customerId": customer_id,
+            "paymentMethods": [
+                {
+                    "id": pm.id,
+                    "brand": pm.card.brand,
+                    "last4": pm.card.last4,
+                    "expMonth": pm.card.exp_month,
+                    "expYear": pm.card.exp_year
+                }
+                for pm in payment_methods.data
+            ]
+        }
+
+    except stripe.error.StripeError as e:
+        logging.error(f"Stripe error: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/bill-pay-service/seed-demo-customers")
+async def seed_demo_customers():
+    """
+    Seed demo customers with saved payment methods for load testing.
+    Creates standard demo users with Visa cards attached.
+    """
+    if not stripe.api_key:
+        raise HTTPException(status_code=503, detail="Stripe is not configured")
+
+    demo_users = [
+        {"email": "alice.j@relibank.com", "name": "Alice Johnson"},
+        {"email": "bob.smith@relibank.com", "name": "Bob Smith"},
+        {"email": "demo@relibank.com", "name": "Demo User"},
+    ]
+
+    created_customers = []
+
+    try:
+        for user in demo_users:
+            # Check if customer already exists by email
+            existing = stripe.Customer.list(email=user["email"], limit=1)
+
+            if existing.data:
+                customer = existing.data[0]
+                logging.info(f"Customer already exists: {customer.id} ({user['email']})")
+            else:
+                # Create new customer
+                customer = stripe.Customer.create(
+                    email=user["email"],
+                    name=user["name"],
+                    description=f"ReliBank Demo User - {user['name']}"
+                )
+                logging.info(f"Created customer: {customer.id} ({user['email']})")
+
+            # Check if they already have a payment method
+            payment_methods = stripe.PaymentMethod.list(
+                customer=customer.id,
+                type="card"
+            )
+
+            if not payment_methods.data:
+                # Attach a test Visa card
+                payment_method = stripe.PaymentMethod.attach(
+                    "pm_card_visa",
+                    customer=customer.id
+                )
+                logging.info(f"Attached payment method to {customer.id}")
+
+            created_customers.append({
+                "customerId": customer.id,
+                "email": user["email"],
+                "name": user["name"],
+                "hasPaymentMethod": True
+            })
+
+        return {
+            "status": "success",
+            "message": f"Seeded {len(created_customers)} demo customers",
+            "customers": created_customers
+        }
+
+    except stripe.error.StripeError as e:
+        logging.error(f"Stripe error: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
 
 @app.get("/bill-pay-service")
 async def ok():

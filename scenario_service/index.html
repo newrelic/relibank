@@ -13,19 +13,28 @@
     </style>
 </head>
 <body class="bg-gray-100 min-h-screen flex items-center justify-center p-4">
-    <div class="bg-white rounded-xl shadow-2xl p-8 max-w-4xl w-full">
+    <div class="bg-white rounded-xl shadow-2xl p-8 max-w-7xl w-full">
         <div class="text-center mb-8">
             <h1 class="text-4xl font-extrabold text-gray-900 mb-2">Relibank Scenario Runner</h1>
             <p class="text-lg text-gray-600">Trigger chaos and load testing scenarios.</p>
         </div>
 
-        <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-8">
             <!-- Chaos Mesh Scenarios Section -->
             <div class="bg-gray-50 p-6 rounded-lg border border-gray-200">
                 <h2 class="text-2xl font-bold text-gray-800 mb-4">Chaos Mesh Experiments</h2>
                 <p class="text-gray-500 mb-6">Simulate faults like pod failures and kills to test application resilience.</p>
                 <div id="chaos-buttons-container" class="space-y-4">
                     <!-- Chaos buttons will be dynamically added here -->
+                </div>
+            </div>
+
+            <!-- Payment Scenarios Section -->
+            <div class="bg-gray-50 p-6 rounded-lg border border-gray-200">
+                <h2 class="text-2xl font-bold text-gray-800 mb-4">Payment Scenarios</h2>
+                <p class="text-gray-500 mb-6">Toggle payment failure scenarios for card transactions.</p>
+                <div id="payment-buttons-container" class="space-y-4">
+                    <!-- Payment scenario toggles will be dynamically added here -->
                 </div>
             </div>
 
@@ -57,6 +66,7 @@
         document.addEventListener('DOMContentLoaded', () => {
             const statusMessage = document.getElementById('status-message');
             const chaosButtonsContainer = document.getElementById('chaos-buttons-container');
+            const paymentButtonsContainer = document.getElementById('payment-buttons-container');
             const runLocustBtn = document.getElementById('run-locust-test');
             const userCountSelect = document.getElementById('user-count-select');
 
@@ -74,16 +84,15 @@
                     statusMessage.classList.remove('opacity-100');
                 }, 5000);
             };
-            
+
             const fetchAndRenderScenarios = async () => {
                 try {
-                    // FIX 1: Added /scenario-runner prefix to the fetch path
-                    const response = await fetch('/scenario-runner/api/scenarios'); 
+                    const response = await fetch('/scenario-runner/api/scenarios');
                     if (!response.ok) {
                         throw new Error(`HTTP error! status: ${response.status}`);
                     }
                     const scenarios = await response.json();
-                    
+
                     scenarios.forEach(scenario => {
                         if (scenario.type === 'chaos-mesh') {
                             const button = document.createElement('button');
@@ -91,11 +100,10 @@
                             button.className = "w-full bg-red-600 text-white font-semibold py-3 px-6 rounded-lg shadow-md hover:bg-red-700 transition duration-300 transform hover:scale-105";
                             button.textContent = `Trigger ${scenario.description}`;
                             chaosButtonsContainer.appendChild(button);
-                            
+
                             button.addEventListener('click', async () => {
                                 showMessage(`Triggering ${scenario.name}...`, 'info');
                                 try {
-                                    // FIX 2: Added /scenario-runner prefix to the trigger path
                                     const triggerResponse = await fetch(`/scenario-runner/api/trigger_chaos/${scenario.name}`, {
                                         method: 'POST',
                                     });
@@ -107,6 +115,84 @@
                                     }
                                 } catch (e) {
                                     showMessage(`Network error: Could not reach the server.`, 'error');
+                                }
+                            });
+                        } else if (scenario.type === 'payment') {
+                            const container = document.createElement('div');
+                            container.className = 'bg-white p-4 rounded-lg border border-gray-300';
+
+                            const titleDiv = document.createElement('div');
+                            titleDiv.className = 'flex items-center justify-between mb-2';
+
+                            const title = document.createElement('span');
+                            title.className = 'font-semibold text-gray-800';
+                            title.textContent = scenario.description;
+
+                            const toggle = document.createElement('button');
+                            toggle.className = scenario.enabled
+                                ? 'bg-green-500 text-white px-3 py-1 rounded-md text-sm font-medium hover:bg-green-600 transition'
+                                : 'bg-gray-300 text-gray-700 px-3 py-1 rounded-md text-sm font-medium hover:bg-gray-400 transition';
+                            toggle.textContent = scenario.enabled ? 'ON' : 'OFF';
+                            toggle.id = `toggle-${scenario.name}`;
+
+                            titleDiv.appendChild(title);
+                            titleDiv.appendChild(toggle);
+                            container.appendChild(titleDiv);
+
+                            const configDiv = document.createElement('div');
+                            configDiv.className = 'text-sm text-gray-600';
+                            if (scenario.name === 'gateway_timeout') {
+                                configDiv.textContent = `${scenario.config.probability}% probability, ${scenario.config.delay}s delay`;
+                            } else {
+                                configDiv.textContent = `${scenario.config.probability}% probability`;
+                            }
+                            container.appendChild(configDiv);
+
+                            paymentButtonsContainer.appendChild(container);
+
+                            toggle.addEventListener('click', async (e) => {
+                                e.preventDefault();
+                                e.stopPropagation();
+                                const newState = !scenario.enabled;
+                                try {
+                                    let endpoint;
+                                    if (scenario.name === 'gateway_timeout') {
+                                        const prob = newState ? 15.0 : 0.0;
+                                        endpoint = `/scenario-runner/api/payment-scenarios/gateway-timeout?enabled=${newState}&probability=${prob}&delay=${scenario.config.delay}`;
+                                    } else if (scenario.name === 'card_decline') {
+                                        const prob = newState ? 20.0 : 0.0;
+                                        endpoint = `/scenario-runner/api/payment-scenarios/card-decline?enabled=${newState}&probability=${prob}`;
+                                    } else if (scenario.name === 'stolen_card') {
+                                        const prob = newState ? 10.0 : 0.0;
+                                        endpoint = `/scenario-runner/api/payment-scenarios/stolen-card?enabled=${newState}&probability=${prob}`;
+                                    }
+
+                                    const response = await fetch(endpoint, { method: 'POST' });
+                                    const result = await response.json();
+
+                                    if (result.status === 'success') {
+                                        scenario.enabled = newState;
+                                        toggle.textContent = newState ? 'ON' : 'OFF';
+                                        toggle.className = newState
+                                            ? 'bg-green-500 text-white px-3 py-1 rounded-md text-sm font-medium hover:bg-green-600 transition'
+                                            : 'bg-gray-300 text-gray-700 px-3 py-1 rounded-md text-sm font-medium hover:bg-gray-400 transition';
+                                        showMessage(result.message, 'success');
+
+                                        // Update probability display
+                                        if (scenario.name === 'gateway_timeout') {
+                                            const prob = newState ? 15.0 : 0.0;
+                                            configDiv.textContent = `${prob}% probability, ${scenario.config.delay}s delay`;
+                                            scenario.config.probability = prob;
+                                        } else {
+                                            const prob = newState ? (scenario.name === 'card_decline' ? 20.0 : 10.0) : 0.0;
+                                            configDiv.textContent = `${prob}% probability`;
+                                            scenario.config.probability = prob;
+                                        }
+                                    } else {
+                                        showMessage(`Error: ${result.message}`, 'error');
+                                    }
+                                } catch (e) {
+                                    showMessage(`Network error: ${e.message}`, 'error');
                                 }
                             });
                         }

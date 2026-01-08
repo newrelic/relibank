@@ -19,6 +19,17 @@ api_client = None
 api_version = "chaos-mesh.org/v1alpha1"
 plural = "podchaos"
 
+# Payment scenario configuration (runtime toggleable)
+PAYMENT_SCENARIOS = {
+    "gateway_timeout_enabled": False,
+    "gateway_timeout_delay": 10.0,
+    "gateway_timeout_probability": 0.0,  # 0-100 percent
+    "card_decline_enabled": False,
+    "card_decline_probability": 0.0,  # 0-100 percent
+    "stolen_card_enabled": False,
+    "stolen_card_probability": 0.0,  # 0-100 percent
+}
+
 # Define the lifespan of the application
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -108,6 +119,31 @@ async def get_scenarios():
         "name": "pay_cancel.py",
         "description": "Bill pay and cancel with a POST request.",
         "type": "locust"
+    })
+    # Payment scenarios
+    scenarios_list.append({
+        "name": "card_decline",
+        "description": "Card Decline",
+        "type": "payment",
+        "enabled": PAYMENT_SCENARIOS["card_decline_enabled"],
+        "config": {"probability": PAYMENT_SCENARIOS["card_decline_probability"]}
+    })
+    scenarios_list.append({
+        "name": "gateway_timeout",
+        "description": "Gateway Timeout",
+        "type": "payment",
+        "enabled": PAYMENT_SCENARIOS["gateway_timeout_enabled"],
+        "config": {
+            "delay": PAYMENT_SCENARIOS["gateway_timeout_delay"],
+            "probability": PAYMENT_SCENARIOS["gateway_timeout_probability"]
+        }
+    })
+    scenarios_list.append({
+        "name": "stolen_card",
+        "description": "Stolen Card",
+        "type": "payment",
+        "enabled": PAYMENT_SCENARIOS["stolen_card_enabled"],
+        "config": {"probability": PAYMENT_SCENARIOS["stolen_card_probability"]}
     })
     return scenarios_list
 
@@ -259,3 +295,88 @@ async def run_locust_test(locustfile_name: str, num_users: int = 1):
 async def ok():
     """Root return 200"""
     return "ok"
+
+
+# ============================================================================
+# Payment Scenario Control Endpoints
+# ============================================================================
+
+@app.get("/scenario-runner/api/payment-scenarios")
+async def get_payment_scenarios():
+    """Get current payment scenario configuration"""
+    return {
+        "status": "success",
+        "scenarios": PAYMENT_SCENARIOS
+    }
+
+
+@app.post("/scenario-runner/api/payment-scenarios/gateway-timeout")
+async def toggle_gateway_timeout(enabled: bool, probability: float = 15.0, delay: float = 10.0):
+    """Enable/disable gateway timeout scenario with probability"""
+    if delay < 1 or delay > 60:
+        return {"status": "error", "message": "Delay must be between 1 and 60 seconds"}
+    if probability < 0 or probability > 100:
+        return {"status": "error", "message": "Probability must be between 0 and 100"}
+
+    PAYMENT_SCENARIOS["gateway_timeout_enabled"] = enabled
+    PAYMENT_SCENARIOS["gateway_timeout_delay"] = delay
+    PAYMENT_SCENARIOS["gateway_timeout_probability"] = probability
+
+    status_msg = "enabled" if enabled else "disabled"
+    return {
+        "status": "success",
+        "message": f"Gateway timeout scenario {status_msg} ({probability}% of requests)",
+        "scenarios": PAYMENT_SCENARIOS
+    }
+
+
+@app.post("/scenario-runner/api/payment-scenarios/card-decline")
+async def set_card_decline(enabled: bool, probability: float = 20.0):
+    """Enable/disable card decline scenario with probability"""
+    if probability < 0 or probability > 100:
+        return {"status": "error", "message": "Probability must be between 0 and 100"}
+
+    PAYMENT_SCENARIOS["card_decline_enabled"] = enabled
+    PAYMENT_SCENARIOS["card_decline_probability"] = probability
+
+    status_msg = "enabled" if enabled else "disabled"
+    return {
+        "status": "success",
+        "message": f"Card decline scenario {status_msg} ({probability}% of requests)",
+        "scenarios": PAYMENT_SCENARIOS
+    }
+
+
+@app.post("/scenario-runner/api/payment-scenarios/stolen-card")
+async def set_stolen_card(enabled: bool, probability: float = 10.0):
+    """Enable/disable stolen card scenario with probability"""
+    if probability < 0 or probability > 100:
+        return {"status": "error", "message": "Probability must be between 0 and 100"}
+
+    PAYMENT_SCENARIOS["stolen_card_enabled"] = enabled
+    PAYMENT_SCENARIOS["stolen_card_probability"] = probability
+
+    status_msg = "enabled" if enabled else "disabled"
+    return {
+        "status": "success",
+        "message": f"Stolen card scenario {status_msg} ({probability}% of requests)",
+        "scenarios": PAYMENT_SCENARIOS
+    }
+
+
+@app.post("/scenario-runner/api/payment-scenarios/reset")
+async def reset_payment_scenarios():
+    """Reset all payment scenarios to default values"""
+    PAYMENT_SCENARIOS["gateway_timeout_enabled"] = False
+    PAYMENT_SCENARIOS["gateway_timeout_delay"] = 10.0
+    PAYMENT_SCENARIOS["gateway_timeout_probability"] = 0.0
+    PAYMENT_SCENARIOS["card_decline_enabled"] = False
+    PAYMENT_SCENARIOS["card_decline_probability"] = 0.0
+    PAYMENT_SCENARIOS["stolen_card_enabled"] = False
+    PAYMENT_SCENARIOS["stolen_card_probability"] = 0.0
+
+    return {
+        "status": "success",
+        "message": "All payment scenarios reset to defaults",
+        "scenarios": PAYMENT_SCENARIOS
+    }
