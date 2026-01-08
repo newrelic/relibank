@@ -96,6 +96,85 @@
 						}
 					},
 					"response": []
+				},
+				{
+					"name": "card payment",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"billId\": \"BILL-CARD-001\",\n    \"amount\": 50.00,\n    \"currency\": \"usd\",\n    \"paymentMethodId\": \"pm_card_visa\",\n    \"saveCard\": false\n}"
+						},
+						"url": {
+							"raw": "http://localhost:5000/bill-pay-service/card-payment",
+							"protocol": "http",
+							"host": [
+								"localhost"
+							],
+							"port": "5000",
+							"path": [
+								"bill-pay-service",
+								"card-payment"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "save payment method",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"paymentMethodToken\": \"pm_card_visa\",\n    \"customerEmail\": \"alice.j@relibank.com\"\n}"
+						},
+						"url": {
+							"raw": "http://localhost:5000/bill-pay-service/payment-method",
+							"protocol": "http",
+							"host": [
+								"localhost"
+							],
+							"port": "5000",
+							"path": [
+								"bill-pay-service",
+								"payment-method"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "list payment methods",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "http://localhost:5000/bill-pay-service/payment-methods/cus_REPLACE_WITH_CUSTOMER_ID",
+							"protocol": "http",
+							"host": [
+								"localhost"
+							],
+							"port": "5000",
+							"path": [
+								"bill-pay-service",
+								"payment-methods",
+								"cus_REPLACE_WITH_CUSTOMER_ID"
+							]
+						}
+					},
+					"response": []
 				}
 			]
 		},
@@ -246,6 +325,145 @@
 									"value": "5",
 									"description": "Delay in seconds (1-60)"
 								}
+							]
+						}
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "scenario service",
+			"item": [
+				{
+					"name": "get payment scenarios",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "http://localhost:8000/scenario-runner/api/payment-scenarios",
+							"protocol": "http",
+							"host": [
+								"localhost"
+							],
+							"port": "8000",
+							"path": [
+								"scenario-runner",
+								"api",
+								"payment-scenarios"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "enable gateway timeout",
+					"request": {
+						"method": "POST",
+						"header": [],
+						"url": {
+							"raw": "http://localhost:8000/scenario-runner/api/payment-scenarios/gateway-timeout?enabled=true&delay=15",
+							"protocol": "http",
+							"host": [
+								"localhost"
+							],
+							"port": "8000",
+							"path": [
+								"scenario-runner",
+								"api",
+								"payment-scenarios",
+								"gateway-timeout"
+							],
+							"query": [
+								{
+									"key": "enabled",
+									"value": "true",
+									"description": "Enable or disable the timeout scenario"
+								},
+								{
+									"key": "delay",
+									"value": "15",
+									"description": "Delay in seconds (1-60)"
+								}
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "disable gateway timeout",
+					"request": {
+						"method": "POST",
+						"header": [],
+						"url": {
+							"raw": "http://localhost:8000/scenario-runner/api/payment-scenarios/gateway-timeout?enabled=false",
+							"protocol": "http",
+							"host": [
+								"localhost"
+							],
+							"port": "8000",
+							"path": [
+								"scenario-runner",
+								"api",
+								"payment-scenarios",
+								"gateway-timeout"
+							],
+							"query": [
+								{
+									"key": "enabled",
+									"value": "false"
+								}
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "set decline amount",
+					"request": {
+						"method": "POST",
+						"header": [],
+						"url": {
+							"raw": "http://localhost:8000/scenario-runner/api/payment-scenarios/decline-amount?amount=50.00",
+							"protocol": "http",
+							"host": [
+								"localhost"
+							],
+							"port": "8000",
+							"path": [
+								"scenario-runner",
+								"api",
+								"payment-scenarios",
+								"decline-amount"
+							],
+							"query": [
+								{
+									"key": "amount",
+									"value": "50.00",
+									"description": "Dollar amount that will always decline"
+								}
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "reset payment scenarios",
+					"request": {
+						"method": "POST",
+						"header": [],
+						"url": {
+							"raw": "http://localhost:8000/scenario-runner/api/payment-scenarios/reset",
+							"protocol": "http",
+							"host": [
+								"localhost"
+							],
+							"port": "8000",
+							"path": [
+								"scenario-runner",
+								"api",
+								"payment-scenarios",
+								"reset"
 							]
 						}
 					},

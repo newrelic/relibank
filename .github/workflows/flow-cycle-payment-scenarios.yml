@@ -1,0 +1,48 @@
+name: Cycle Payment Scenarios
+
+on:
+  schedule:
+    # Run every 3 hours
+    - cron: '0 */3 * * *'
+  workflow_dispatch:  # Allow manual trigger
+
+jobs:
+  cycle-scenario:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Reset all scenarios
+        run: |
+          echo "Resetting all payment scenarios..."
+          curl -X POST "${{ secrets.SCENARIO_SERVICE_URL }}/scenario-runner/api/payment-scenarios/reset"
+          sleep 2
+
+      - name: Select random scenario
+        id: random
+        run: |
+          # Generate random number 1-3
+          SCENARIO=$((RANDOM % 3 + 1))
+          echo "Selected scenario: $SCENARIO"
+          echo "scenario=$SCENARIO" >> $GITHUB_OUTPUT
+
+      - name: Enable Gateway Timeout (Scenario 1)
+        if: steps.random.outputs.scenario == '1'
+        run: |
+          echo "Enabling Gateway Timeout scenario (15% probability, 15s delay)"
+          curl -X POST "${{ secrets.SCENARIO_SERVICE_URL }}/scenario-runner/api/payment-scenarios/gateway-timeout?enabled=true&probability=15.0&delay=15"
+
+      - name: Enable Card Decline (Scenario 2)
+        if: steps.random.outputs.scenario == '2'
+        run: |
+          echo "Enabling Card Decline scenario (20% probability)"
+          curl -X POST "${{ secrets.SCENARIO_SERVICE_URL }}/scenario-runner/api/payment-scenarios/card-decline?enabled=true&probability=20.0"
+
+      - name: Enable Stolen Card (Scenario 3)
+        if: steps.random.outputs.scenario == '3'
+        run: |
+          echo "Enabling Stolen Card scenario (10% probability)"
+          curl -X POST "${{ secrets.SCENARIO_SERVICE_URL }}/scenario-runner/api/payment-scenarios/stolen-card?enabled=true&probability=10.0"
+
+      - name: Verify scenario configuration
+        run: |
+          echo "Current scenario configuration:"
+          curl "${{ secrets.SCENARIO_SERVICE_URL }}/scenario-runner/api/payment-scenarios"
