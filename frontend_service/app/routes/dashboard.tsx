@@ -406,6 +406,50 @@ const DashboardPage = () => {
       <Box sx={{ px: 48, pb: 3 }}>
         <Grid container spacing={4}>
 
+        {/* Row 1: Promotional Banner (12) */}
+        <Grid item size={12}>
+          <Card sx={{
+            p: 2,
+            display: 'flex',
+            alignItems: 'center',
+            gap: 2,
+            background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+            color: 'white',
+            borderRadius: '12px'
+          }}>
+            <Box sx={{
+              fontSize: '2.5rem',
+              flexShrink: 0
+            }}>
+              💳
+            </Box>
+            <Box sx={{ flexGrow: 1 }}>
+              <Typography variant="h6" sx={{ fontWeight: 'bold', mb: 0.25 }}>
+                Get 5% Cash Back on Every Purchase!
+              </Typography>
+              <Typography variant="body2" sx={{ opacity: 0.95 }}>
+                Apply now for the ReliBank Rewards Credit Card and earn unlimited cash back with no annual fee.
+              </Typography>
+            </Box>
+            <Button
+              variant="contained"
+              size="medium"
+              sx={{
+                bgcolor: 'white',
+                color: '#667eea',
+                fontWeight: 'bold',
+                px: 3,
+                '&:hover': {
+                  bgcolor: '#f0f0f0'
+                },
+                flexShrink: 0
+              }}
+            >
+              Sign Up
+            </Button>
+          </Card>
+        </Grid>
+
         {/* Row 2: Transfer Card + Line Chart (4-8) */}
         <Grid item size={{ xs: 12, md: 4 }}>
           <TransferCard
