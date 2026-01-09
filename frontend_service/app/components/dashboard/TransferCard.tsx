@@ -12,7 +12,6 @@ import {
   InputLabel,
   Alert,
   InputAdornment,
-  Grid,
 } from '@mui/material';
 
 interface TransferCardProps {
@@ -236,56 +235,51 @@ export const TransferCard = ({ transactions, setTransactions }: TransferCardProp
           }}
         />
 
-        <Grid container spacing={2}>
-          <Grid item xs={6}>
-            <FormControl fullWidth variant="outlined">
-              <InputLabel id="from-account-label">From</InputLabel>
-              <Select
-                labelId="from-account-label"
-                id="from-account-select"
-                value={fromAccount}
-                label="From"
-                onChange={(e) => {
-                  setFromAccount(e.target.value);
-                  if (e.target.value === toAccount) {
-                    setToAccount(e.target.value === 'checking' ? 'savings' : 'checking');
-                  }
-                }}
-              >
-                <MenuItem value="checking">
-                  Checking (${checking.balance.toFixed(2)})
-                </MenuItem>
-                <MenuItem value="savings">
-                  Savings (${savings.balance.toFixed(2)})
-                </MenuItem>
-              </Select>
-            </FormControl>
-          </Grid>
-          <Grid item xs={6}>
-            <FormControl fullWidth variant="outlined">
-              <InputLabel id="to-account-label">To</InputLabel>
-              <Select
-                labelId="to-account-label"
-                id="to-account-select"
-                value={toAccount}
-                label="To"
-                onChange={(e) => {
-                  setToAccount(e.target.value);
-                  if (e.target.value === fromAccount) {
-                    setFromAccount(e.target.value === 'checking' ? 'savings' : 'checking');
-                  }
-                }}
-              >
-                <MenuItem value="checking">
-                  Checking (${checking.balance.toFixed(2)})
-                </MenuItem>
-                <MenuItem value="savings">
-                  Savings (${savings.balance.toFixed(2)})
-                </MenuItem>
-              </Select>
-            </FormControl>
-          </Grid>
-        </Grid>
+        <FormControl fullWidth variant="outlined">
+          <InputLabel id="from-account-label">From</InputLabel>
+          <Select
+            labelId="from-account-label"
+            id="from-account-select"
+            value={fromAccount}
+            label="From"
+            onChange={(e) => {
+              setFromAccount(e.target.value);
+              if (e.target.value === toAccount) {
+                setToAccount(e.target.value === 'checking' ? 'savings' : 'checking');
+              }
+            }}
+          >
+            <MenuItem value="checking">
+              Checking (${checking.balance.toFixed(2)})
+            </MenuItem>
+            <MenuItem value="savings">
+              Savings (${savings.balance.toFixed(2)})
+            </MenuItem>
+          </Select>
+        </FormControl>
+
+        <FormControl fullWidth variant="outlined">
+          <InputLabel id="to-account-label">To</InputLabel>
+          <Select
+            labelId="to-account-label"
+            id="to-account-select"
+            value={toAccount}
+            label="To"
+            onChange={(e) => {
+              setToAccount(e.target.value);
+              if (e.target.value === fromAccount) {
+                setFromAccount(e.target.value === 'checking' ? 'savings' : 'checking');
+              }
+            }}
+          >
+            <MenuItem value="checking">
+              Checking (${checking.balance.toFixed(2)})
+            </MenuItem>
+            <MenuItem value="savings">
+              Savings (${savings.balance.toFixed(2)})
+            </MenuItem>
+          </Select>
+        </FormControl>
 
         <Button
           type="submit"
