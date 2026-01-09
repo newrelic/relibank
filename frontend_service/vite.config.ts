@@ -31,6 +31,8 @@ export default defineConfig(({ mode }: { mode: string }) => ({
       '@mui/icons-material/Notifications',
       '@mui/icons-material/Business',
       '@mui/icons-material/SupportAgent',
+      '@mui/icons-material/Send',
+      '@mui/icons-material/Logout',
       '@mui/material/styles',
       'react',
       'react-dom',
