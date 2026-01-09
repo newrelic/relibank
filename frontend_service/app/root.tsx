@@ -147,6 +147,13 @@ export function Layout({ children }: { children: React.ReactNode }) {
           <script dangerouslySetInnerHTML={{ __html: dynamicNrScriptContent }}></script>
           <meta charSet="utf-8" />
           <meta name="viewport" content="width=device-width, initial-scale=1" />
+          {/* Prevent browser caching to avoid stale JS errors after Skaffold rebuilds.
+              When Skaffold rebuilds the container, the browser may have cached the old index.html
+              which references old JS file hashes that no longer exist after the build.
+              This is for smoother development experience and can be safely removed in the future if needed. */}
+          <meta httpEquiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
+          <meta httpEquiv="Pragma" content="no-cache" />
+          <meta httpEquiv="Expires" content="0" />
           <Meta />
           <Links />
         </head>
@@ -168,6 +175,13 @@ export function Layout({ children }: { children: React.ReactNode }) {
         <script dangerouslySetInnerHTML={{ __html: dynamicNrScriptContent }}></script>
         <meta charSet="utf-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1" />
+        {/* Prevent browser caching to avoid stale JS errors after Skaffold rebuilds.
+            When Skaffold rebuilds the container, the browser may have cached the old index.html
+            which references old JS file hashes that no longer exist after the build.
+            This is for smoother development experience and can be safely removed in the future if needed. */}
+        <meta httpEquiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
+        <meta httpEquiv="Pragma" content="no-cache" />
+        <meta httpEquiv="Expires" content="0" />
         <Meta />
         <Links />
       </head>
