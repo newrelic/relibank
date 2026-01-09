@@ -264,6 +264,36 @@ try {
 
 ---
 
+### 3. Broken Theme Toggle Button
+
+**Location**: `app/components/layout/Header.tsx` (lines 48-76)
+
+**Behavior**: A light/dark mode toggle button in the header that throws a JavaScript error when clicked.
+
+**Visual**: Sun/moon icon (🌓) between notifications and user avatar
+
+**What happens**:
+1. User clicks the theme toggle button
+2. Error is logged: `Error: Theme toggle is not implemented`
+3. Error is reported to New Relic Browser with context
+4. Uncaught error is thrown, potentially breaking UI
+
+**Purpose**:
+- Demonstrates frontend error tracking
+- Shows New Relic Browser error reporting
+- Illustrates impact of uncaught JavaScript errors on user experience
+- Tests error boundary behavior
+
+**Production difference**: Real apps would implement theme switching logic:
+```typescript
+// Production would do:
+const handleThemeToggle = () => {
+  setTheme(theme === 'light' ? 'dark' : 'light');
+};
+```
+
+---
+
 ## 🚀 Getting Started
 
 ### Prerequisites
@@ -446,6 +476,18 @@ docker run -p 3000:3000 \
 5. ✅ Verify: Balance shows incorrect amount
 6. ✅ Verify: New Relic captures validation error
 
+### Scenario 4: Frontend Error (Broken Theme Toggle)
+
+1. Login and navigate to any page
+2. Look for the sun/moon icon (🌓) in the header
+3. Click the theme toggle button
+4. ✅ Verify: Error appears in browser console
+5. ✅ Verify: Uncaught error: "Theme toggle is not implemented"
+6. ✅ Verify: New Relic Browser captures the error with context
+7. ✅ Verify: UI may show error state or error boundary
+
+**Purpose**: Demonstrates client-side JavaScript error tracking and error boundary behavior.
+
 ---
 
 ## 🐛 Known Issues & Intentional Behaviors
@@ -457,6 +499,7 @@ docker run -p 3000:3000 \
 1. **No overdraft validation** - Allows demonstrating backend errors
 2. **No rollback on failed transfers** - Shows visual impact of errors
 3. **Transfer with insufficient funds allowed** - Tests error telemetry
+4. **Broken theme toggle button** - Demonstrates frontend error tracking
 
 ### Actual Bugs to Report
 

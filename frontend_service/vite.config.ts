@@ -33,6 +33,7 @@ export default defineConfig(({ mode }: { mode: string }) => ({
       '@mui/icons-material/SupportAgent',
       '@mui/icons-material/Send',
       '@mui/icons-material/Logout',
+      '@mui/icons-material/Brightness4',
       '@mui/material/styles',
       'react',
       'react-dom',

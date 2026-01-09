@@ -12,6 +12,7 @@ import {
 } from '@mui/material';
 import NotificationsIcon from '@mui/icons-material/Notifications';
 import LogoutIcon from '@mui/icons-material/Logout';
+import Brightness4Icon from '@mui/icons-material/Brightness4';
 
 export const Header = () => {
   const { userData, handleLogout } = useContext(LoginContext);
@@ -44,6 +45,36 @@ export const Header = () => {
     ? userData[0].name.split(' ')[0]  // Get first name from "Alice Checking"
     : null;
 
+  // ==========================================================================
+  // DEMO APP: Intentionally broken theme toggle button
+  //
+  // This button throws a JavaScript error to demonstrate:
+  // - Frontend error tracking with New Relic Browser
+  // - Error boundaries and error handling
+  // - Impact of client-side errors on user experience
+  //
+  // Do not fix this unless explicitly updating demo scenarios.
+  // ==========================================================================
+  const handleThemeToggle = () => {
+    const error = new Error('Theme toggle is not implemented');
+
+    // Report error to New Relic Browser
+    if (typeof window !== 'undefined' && (window as any).newrelic) {
+      console.log('[DEBUG] Reporting theme toggle error to New Relic Browser');
+      (window as any).newrelic.noticeError(error, {
+        component: 'Header',
+        feature: 'ThemeToggle',
+        action: 'click'
+      });
+      console.log('[DEBUG] Theme toggle error reported to New Relic');
+    } else {
+      console.warn('[DEBUG] New Relic Browser agent not available for theme error');
+    }
+
+    // Intentionally throw error to demonstrate frontend error handling
+    throw error;
+  };
+
   return (
     <Box sx={{
       display: 'flex',
@@ -62,6 +93,11 @@ export const Header = () => {
         <Tooltip title="Notifications">
           <IconButton>
             <NotificationsIcon sx={{ color: 'text.secondary' }} />
+          </IconButton>
+        </Tooltip>
+        <Tooltip title="Toggle theme">
+          <IconButton onClick={handleThemeToggle}>
+            <Brightness4Icon sx={{ color: 'text.secondary' }} />
           </IconButton>
         </Tooltip>
         <Divider orientation="vertical" flexItem sx={{ mx: 1 }} />
