@@ -49,7 +49,8 @@ export const Header = () => {
       display: 'flex',
       alignItems: 'center',
       justifyContent: 'space-between',
-      p: 2,
+      px: 48,
+      py: 2,
       backgroundColor: 'white',
       borderBottom: '1px solid #e5e7eb',
       borderRadius: '0 12px 12px 0'

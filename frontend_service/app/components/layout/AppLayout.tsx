@@ -41,9 +41,7 @@ export const AppLayout = ({ children }: { children: React.ReactNode }) => {
       <Box sx={{
         display: 'flex',
         height: '100vh',
-        bgcolor: '#f8f9fa',
-        p: 4,
-        borderRadius: '12px'
+        bgcolor: '#f8f9fa'
       }}>
         <Sidebar />
         <Box sx={{ flex: 1, display: 'flex', flexDirection: 'column', borderRadius: '0 12px 12px 0' }}>

@@ -361,50 +361,52 @@ const DashboardPage = () => {
 
 
   return (
-    <Box sx={{ flexGrow: 1, p: 3 }}>
-      <Grid container spacing={4}>
-        {/* Overview Cards (3-column layout on medium screens and up) */}
-        <Grid item size={{ xs:12, md: 4}}>
-          <OverviewCard
-            title="Total Balance"
-            value={totalBalance}
-            icon={<MonetizationOnIcon color="disabled" />}
-            info=""
-          />
-        </Grid>
-        <Grid item size={{ xs:12, md: 4}}>
-          <OverviewCard
-            title="Checking"
-            value={checkingBalance}
-            icon={<CreditCardIcon color="disabled" />}
-            info={checkingExtraInfo}
-          />
-        </Grid>
-        <Grid item size={{ xs:12, md: 4}}>
-          <OverviewCard
-            title="Savings"
-            value={savingsBalance}
-            icon={<AccountBalanceWalletIcon color="disabled" />}
-            info={savingsExtraInfo}
-          />
-        </Grid>
+    <Box sx={{ flexGrow: 1 }}>
+      {/* Hero Section with Balance Cards */}
+      <Box sx={{
+        bgcolor: 'white',
+        py: 2,
+        mb: 3
+      }}>
+        <Box sx={{ px: 48 }}>
+          <Typography variant="h4" component="h1" gutterBottom>
+            Account Summary
+          </Typography>
+          <Grid container spacing={4}>
+          {/* Row 1: Overview Cards (4-4-4) */}
+          <Grid item size={{ xs:12, md: 4}}>
+            <OverviewCard
+              title="Total Balance"
+              value={totalBalance}
+              icon={<MonetizationOnIcon color="disabled" />}
+              info=""
+            />
+          </Grid>
+          <Grid item size={{ xs:12, md: 4}}>
+            <OverviewCard
+              title="Checking"
+              value={checkingBalance}
+              icon={<CreditCardIcon color="disabled" />}
+              info={checkingExtraInfo}
+            />
+          </Grid>
+          <Grid item size={{ xs:12, md: 4}}>
+            <OverviewCard
+              title="Savings"
+              value={savingsBalance}
+              icon={<AccountBalanceWalletIcon color="disabled" />}
+              info={savingsExtraInfo}
+            />
+          </Grid>
+          </Grid>
+        </Box>
+      </Box>
 
-        {/* Spending Chart (3-column layout on medium screens and up) */}
-        <Grid item size={{ xs: 12, md: 4 }}>
-          <SpendingChart data={appData.spendingData} />
-        </Grid>
+      {/* Rest of Dashboard Content */}
+      <Box sx={{ px: 48, pb: 3 }}>
+        <Grid container spacing={4}>
 
-        {/* Spending Categories Pie Chart (3-column layout on medium screens and up) */}
-        <Grid item size={{ xs: 12, md: 4 }}>
-          <SpendingCategories data={appData.pieData} />
-        </Grid>
-
-        {/* Account Balance Trends Stacked Bar Chart (3-column layout on medium screens and up) */}
-        <Grid item size={{ xs: 12, md: 4 }}>
-          <AccountBalanceTrends data={appData.stackedBarData} />
-        </Grid>
-
-        {/* Transfer Card and Recent Transactions Row */}
+        {/* Row 2: Transfer Card + Line Chart (4-8) */}
         <Grid item size={{ xs: 12, md: 4 }}>
           <TransferCard
             transactions={transactions}
@@ -413,9 +415,24 @@ const DashboardPage = () => {
         </Grid>
 
         <Grid item size={{ xs: 12, md: 8 }}>
+          <SpendingChart data={appData.spendingData} />
+        </Grid>
+
+        {/* Row 3: Pie Chart + Stacked Bar Chart (6-6) */}
+        <Grid item size={{ xs: 12, md: 6 }}>
+          <SpendingCategories data={appData.pieData} />
+        </Grid>
+
+        <Grid item size={{ xs: 12, md: 6 }}>
+          <AccountBalanceTrends data={appData.stackedBarData} />
+        </Grid>
+
+        {/* Row 4: Recent Transactions (12 - full width) */}
+        <Grid item size={{ xs: 12 }}>
           <RecentTransactions transactions={appData.transactions} />
         </Grid>
-      </Grid>
+        </Grid>
+      </Box>
     </Box>
   );
 };
