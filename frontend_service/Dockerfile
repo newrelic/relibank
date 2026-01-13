@@ -28,11 +28,12 @@ RUN ./generate_nrjs_file.sh
 ENV HOST=0.0.0.0
 ENV PORT=3000
 
+# Pre-build to optimize Vite dependencies cache
+# This prevents the race condition where chunks aren't ready on first page load
+RUN npm run build
+
 # Expose the port
 EXPOSE 3000
-
-# We don't need to run the build step for development
-# RUN npm run build
 
 # Set the command to run the development server
 CMD ["npm", "run", "dev"]

@@ -10,6 +10,38 @@ export default defineConfig(({ mode }: { mode: string }) => ({
       single: true,
     }
   }), tsconfigPaths()],
+  build: {
+    // Add timestamps to bust cache on every build
+    rollupOptions: {
+      output: {
+        entryFileNames: `assets/[name]-[hash]-${Date.now()}.js`,
+        chunkFileNames: `assets/[name]-[hash]-${Date.now()}.js`,
+        assetFileNames: `assets/[name]-[hash]-${Date.now()}[extname]`
+      }
+    }
+  },
+  optimizeDeps: {
+    // Pre-bundle dependencies to prevent race condition on startup
+    include: [
+      '@mui/material',
+      '@mui/icons-material',
+      '@mui/icons-material/Dashboard',
+      '@mui/icons-material/AccountBalanceWallet',
+      '@mui/icons-material/Settings',
+      '@mui/icons-material/Notifications',
+      '@mui/icons-material/Business',
+      '@mui/icons-material/SupportAgent',
+      '@mui/icons-material/Send',
+      '@mui/icons-material/Logout',
+      '@mui/icons-material/Brightness4',
+      '@mui/material/styles',
+      'react',
+      'react-dom',
+      'react-router',
+      'react-router-dom',
+      'recharts'
+    ],
+  },
   server: {
     host: '0.0.0.0',
     port: 3000,
@@ -18,19 +50,22 @@ export default defineConfig(({ mode }: { mode: string }) => ({
       clientPort: 3000
     },
     allowedHosts: ['relibank.westus2.cloudapp.azure.com'],
-    // Only use proxy in development mode (local machine)
-    // In production, the ingress handles routing to backend services
-    ...(mode === 'development' && {
-      proxy: {
-        '/chatbot-service': {
-          target: 'http://chatbot-service:5003',
-          changeOrigin: true
-        },
-        '/bill-pay-service': {
-          target: 'http://bill-pay-service:5000',
-          changeOrigin: true
-        }
+    // Proxy API requests to backend services via Kubernetes service DNS
+    // Backend services include the service name in their routes (e.g., /accounts-service/accounts/...)
+    // so we forward the full path without rewriting
+    proxy: {
+      '/accounts-service': {
+        target: 'http://accounts-service.relibank.svc.cluster.local:5002',
+        changeOrigin: true
+      },
+      '/chatbot-service': {
+        target: 'http://chatbot-service.relibank.svc.cluster.local:5003',
+        changeOrigin: true
+      },
+      '/bill-pay-service': {
+        target: 'http://bill-pay-service.relibank.svc.cluster.local:5000',
+        changeOrigin: true
       }
-    })
+    }
   },
 }));
