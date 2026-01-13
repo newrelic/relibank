@@ -13,7 +13,7 @@ jobs:
       - name: Reset all scenarios
         run: |
           echo "Resetting all payment scenarios..."
-          curl -X POST "${{ secrets.SCENARIO_SERVICE_URL }}/scenario-runner/api/payment-scenarios/reset"
+          curl -X POST "${{ vars.SCENARIO_SERVICE_URL }}/api/payment-scenarios/reset"
           sleep 2
 
       - name: Select random scenario
@@ -28,21 +28,21 @@ jobs:
         if: steps.random.outputs.scenario == '1'
         run: |
           echo "Enabling Gateway Timeout scenario (15% probability, 15s delay)"
-          curl -X POST "${{ secrets.SCENARIO_SERVICE_URL }}/scenario-runner/api/payment-scenarios/gateway-timeout?enabled=true&probability=15.0&delay=15"
+          curl -X POST "${{ vars.SCENARIO_SERVICE_URL }}/api/payment-scenarios/gateway-timeout?enabled=true&probability=15.0&delay=15"
 
       - name: Enable Card Decline (Scenario 2)
         if: steps.random.outputs.scenario == '2'
         run: |
           echo "Enabling Card Decline scenario (20% probability)"
-          curl -X POST "${{ secrets.SCENARIO_SERVICE_URL }}/scenario-runner/api/payment-scenarios/card-decline?enabled=true&probability=20.0"
+          curl -X POST "${{ vars.SCENARIO_SERVICE_URL }}/api/payment-scenarios/card-decline?enabled=true&probability=20.0"
 
       - name: Enable Stolen Card (Scenario 3)
         if: steps.random.outputs.scenario == '3'
         run: |
           echo "Enabling Stolen Card scenario (10% probability)"
-          curl -X POST "${{ secrets.SCENARIO_SERVICE_URL }}/scenario-runner/api/payment-scenarios/stolen-card?enabled=true&probability=10.0"
+          curl -X POST "${{ vars.SCENARIO_SERVICE_URL }}/api/payment-scenarios/stolen-card?enabled=true&probability=10.0"
 
       - name: Verify scenario configuration
         run: |
           echo "Current scenario configuration:"
-          curl "${{ secrets.SCENARIO_SERVICE_URL }}/scenario-runner/api/payment-scenarios"
+          curl "${{ vars.SCENARIO_SERVICE_URL }}/api/payment-scenarios"
