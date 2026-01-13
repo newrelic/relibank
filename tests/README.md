@@ -20,9 +20,24 @@ This directory contains automated tests for the Relibank payment failure scenari
 
 ## Running the Tests
 
-### Run All Tests
+### Run All Tests Locally
 ```bash
 pytest tests/test_payment_scenarios.py -v -s
+```
+
+### Run Tests Against Remote Environment
+To test against a remote deployment, set the environment variables:
+
+```bash
+# Example: Testing against a remote server
+export SCENARIO_SERVICE_URL="https://your-server.example.com/scenario-runner"
+export BASE_URL="https://your-server.example.com"
+pytest tests/test_payment_scenarios.py -v -s
+```
+
+Or as a one-liner:
+```bash
+SCENARIO_SERVICE_URL="https://your-server.example.com/scenario-runner" BASE_URL="https://your-server.example.com" pytest tests/test_payment_scenarios.py -v -s
 ```
 
 ### Run Individual Tests
@@ -213,13 +228,14 @@ These tests can be added to GitHub Actions or other CI pipelines:
 
 ```yaml
 - name: Run payment scenario tests
+  env:
+    SCENARIO_SERVICE_URL: ${{ vars.SCENARIO_SERVICE_URL }}
+    BASE_URL: ${{ vars.BASE_URL }}
   run: |
     pip install pytest requests
     pytest tests/test_payment_scenarios.py -v
 ```
 
-For CI environments, update service URLs in the test file or use environment variables:
-```python
-SCENARIO_SERVICE_URL = os.getenv("SCENARIO_SERVICE_URL", "http://localhost:8000")
-BILL_PAY_SERVICE_URL = os.getenv("BILL_PAY_SERVICE_URL", "http://localhost:5000")
-```
+The tests automatically use environment variables for configuration:
+- `SCENARIO_SERVICE_URL`: URL to the scenario runner service (default: `http://localhost:8000/scenario-runner`)
+- `BASE_URL`: Base URL to the bill pay service (default: `http://localhost:5000`)

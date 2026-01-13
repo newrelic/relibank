@@ -1,29 +1,30 @@
 import pytest
 import requests
 import time
+import os
 from typing import Dict, List
 
-# Configuration
-SCENARIO_SERVICE_URL = "http://localhost:8000"
-BILL_PAY_SERVICE_URL = "http://localhost:5000"
+# Configuration - use environment variables with local defaults
+SCENARIO_SERVICE_URL = os.getenv("SCENARIO_SERVICE_URL", "http://localhost:8000/scenario-runner")
+BILL_PAY_SERVICE_URL = os.getenv("BASE_URL", "http://localhost:5000")
 NUM_PAYMENT_ATTEMPTS = 50  # Send enough to trigger scenarios
 
 @pytest.fixture
 def reset_scenarios():
     """Reset all scenarios before and after tests"""
-    response = requests.post(f"{SCENARIO_SERVICE_URL}/scenario-runner/api/payment-scenarios/reset")
+    response = requests.post(f"{SCENARIO_SERVICE_URL}/api/payment-scenarios/reset")
     assert response.status_code == 200
     yield
     # Cleanup after test
-    requests.post(f"{SCENARIO_SERVICE_URL}/scenario-runner/api/payment-scenarios/reset")
+    requests.post(f"{SCENARIO_SERVICE_URL}/api/payment-scenarios/reset")
 
 
 def enable_scenario(scenario_name: str, probability: float = None, delay: float = None) -> Dict:
     """Enable a payment scenario"""
     endpoints = {
-        "gateway_timeout": f"{SCENARIO_SERVICE_URL}/scenario-runner/api/payment-scenarios/gateway-timeout",
-        "card_decline": f"{SCENARIO_SERVICE_URL}/scenario-runner/api/payment-scenarios/card-decline",
-        "stolen_card": f"{SCENARIO_SERVICE_URL}/scenario-runner/api/payment-scenarios/stolen-card"
+        "gateway_timeout": f"{SCENARIO_SERVICE_URL}/api/payment-scenarios/gateway-timeout",
+        "card_decline": f"{SCENARIO_SERVICE_URL}/api/payment-scenarios/card-decline",
+        "stolen_card": f"{SCENARIO_SERVICE_URL}/api/payment-scenarios/stolen-card"
     }
 
     params = {"enabled": True}
@@ -196,7 +197,7 @@ def test_scenario_reset(reset_scenarios):
     enable_scenario("stolen_card", probability=100.0)
 
     # Reset all scenarios
-    response = requests.post(f"{SCENARIO_SERVICE_URL}/scenario-runner/api/payment-scenarios/reset")
+    response = requests.post(f"{SCENARIO_SERVICE_URL}/api/payment-scenarios/reset")
     assert response.status_code == 200
     print("Reset all scenarios")
 
