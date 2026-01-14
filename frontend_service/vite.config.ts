@@ -34,6 +34,14 @@ export default defineConfig(({ mode }: { mode: string }) => ({
       '@mui/icons-material/Send',
       '@mui/icons-material/Logout',
       '@mui/icons-material/Brightness4',
+      '@mui/icons-material/Payment',
+      '@mui/icons-material/Receipt',
+      '@mui/icons-material/CreditCard',
+      '@mui/icons-material/CalendarMonth',
+      '@mui/icons-material/Delete',
+      '@mui/icons-material/Edit',
+      '@mui/icons-material/Add',
+      '@mui/icons-material/AccountBalance',
       '@mui/material/styles',
       'react',
       'react-dom',
@@ -64,6 +72,10 @@ export default defineConfig(({ mode }: { mode: string }) => ({
       },
       '/bill-pay-service': {
         target: 'http://bill-pay-service.relibank.svc.cluster.local:5000',
+        changeOrigin: true
+      },
+      '/transaction-service': {
+        target: 'http://transaction-service.relibank.svc.cluster.local:5001',
         changeOrigin: true
       }
     }

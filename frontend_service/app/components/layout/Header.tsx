@@ -80,7 +80,7 @@ export const Header = () => {
       display: 'flex',
       alignItems: 'center',
       justifyContent: 'space-between',
-      px: 48,
+      px: 32,
       py: 2,
       backgroundColor: 'white',
       borderBottom: '1px solid #e5e7eb',
@@ -91,12 +91,12 @@ export const Header = () => {
       </Typography>
       <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
         <Tooltip title="Notifications">
-          <IconButton>
+          <IconButton id="header-notifications-btn">
             <NotificationsIcon sx={{ color: 'text.secondary' }} />
           </IconButton>
         </Tooltip>
         <Tooltip title="Toggle theme">
-          <IconButton onClick={handleThemeToggle}>
+          <IconButton id="header-theme-toggle-btn" onClick={handleThemeToggle}>
             <Brightness4Icon sx={{ color: 'text.secondary' }} />
           </IconButton>
         </Tooltip>
@@ -108,7 +108,7 @@ export const Header = () => {
               {userName}
             </Typography>
             <Tooltip title="Logout">
-              <IconButton onClick={handleLogout} sx={{ ml: 1 }}>
+              <IconButton id="header-logout-btn" onClick={handleLogout} sx={{ ml: 1 }}>
                 <LogoutIcon sx={{ color: 'text.secondary' }} />
               </IconButton>
             </Tooltip>

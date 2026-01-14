@@ -14,6 +14,7 @@ import DashboardIcon from '@mui/icons-material/Dashboard';
 import SettingsIcon from '@mui/icons-material/Settings';
 import SupportAgentIcon from '@mui/icons-material/SupportAgent';
 import BusinessIcon from '@mui/icons-material/Business';
+import PaymentIcon from '@mui/icons-material/Payment';
 
 export const Sidebar = () => {
   const { userData } = useContext(LoginContext);
@@ -37,7 +38,7 @@ export const Sidebar = () => {
       </Box>
       <List sx={{ flexGrow: 1 }}>
         <ListItem disablePadding sx={{ mb: 1, borderRadius: '8px' }}>
-          <ListItemButton component={Link} to="/dashboard" selected={activePage === '/dashboard'} sx={{ borderRadius: '8px', '&:hover': { backgroundColor: '#f3f4f6' } }}>
+          <ListItemButton id="sidebar-dashboard-link" component={Link} to="/dashboard" selected={activePage === '/dashboard'} sx={{ borderRadius: '8px', '&:hover': { backgroundColor: '#f3f4f6' } }}>
             <ListItemIcon>
               <DashboardIcon sx={{ color: activePage === '/dashboard' ? 'primary.main' : 'secondary.main' }} />
             </ListItemIcon>
@@ -45,7 +46,15 @@ export const Sidebar = () => {
           </ListItemButton>
         </ListItem>
         <ListItem disablePadding sx={{ mb: 1, borderRadius: '8px' }}>
-          <ListItemButton component={Link} to="/support" selected={activePage === '/support'} sx={{ borderRadius: '8px', '&:hover': { backgroundColor: '#f3f4f6' } }}>
+          <ListItemButton id="sidebar-payments-link" component={Link} to="/payments" selected={activePage === '/payments'} sx={{ borderRadius: '8px', '&:hover': { backgroundColor: '#f3f4f6' } }}>
+            <ListItemIcon>
+              <PaymentIcon sx={{ color: activePage === '/payments' ? 'primary.main' : 'secondary.main' }} />
+            </ListItemIcon>
+            <ListItemText primary="Payments" />
+          </ListItemButton>
+        </ListItem>
+        <ListItem disablePadding sx={{ mb: 1, borderRadius: '8px' }}>
+          <ListItemButton id="sidebar-support-link" component={Link} to="/support" selected={activePage === '/support'} sx={{ borderRadius: '8px', '&:hover': { backgroundColor: '#f3f4f6' } }}>
             <ListItemIcon>
               <SupportAgentIcon sx={{ color: activePage === '/support' ? 'primary.main' : 'secondary.main' }} />
             </ListItemIcon>
@@ -53,7 +62,7 @@ export const Sidebar = () => {
           </ListItemButton>
         </ListItem>
         <ListItem disablePadding sx={{ mb: 1, borderRadius: '8px' }}>
-          <ListItemButton component={Link} to="/settings" selected={activePage === '/settings'} sx={{ borderRadius: '8px', '&:hover': { backgroundColor: '#f3f4f6' } }}>
+          <ListItemButton id="sidebar-settings-link" component={Link} to="/settings" selected={activePage === '/settings'} sx={{ borderRadius: '8px', '&:hover': { backgroundColor: '#f3f4f6' } }}>
             <ListItemIcon>
               <SettingsIcon sx={{ color: activePage === '/settings' ? 'primary.main' : 'secondary.main' }} />
             </ListItemIcon>

@@ -64,7 +64,7 @@ Layout (root.tsx)
 
 ---
 
-### Authenticated Pages (`/dashboard`, `/support`, `/settings`)
+### Authenticated Pages (`/dashboard`, `/payments`, `/support`, `/settings`)
 
 ```
 Layout (root.tsx)
@@ -87,6 +87,7 @@ Layout (root.tsx)
                   │     ├─ BusinessIcon + "ReliBank" logo
                   │     └─ List (navigation)
                   │        ├─ Dashboard link (with DashboardIcon)
+                  │        ├─ Payments link (with PaymentIcon)
                   │        ├─ Support link (with SupportAgentIcon)
                   │        └─ Settings link (with SettingsIcon)
                   │
@@ -114,6 +115,13 @@ Layout (root.tsx)
                         │     │     ├─ SpendingChart
                         │     │     ├─ SpendingCategories (PieChart)
                         │     │     └─ RecentTransactions
+                        │     │
+                        │     ├─ PaymentsPage (routes/payments.tsx)
+                        │     │  └─ Grid container
+                        │     │     ├─ PayBillCard (one-time payments)
+                        │     │     ├─ RecurringPaymentsCard (recurring payments)
+                        │     │     ├─ PaymentMethodsCard (payment methods)
+                        │     │     └─ RecentPaymentsCard (payment history)
                         │     │
                         │     ├─ SupportPage (routes/support.tsx)
                         │     │
@@ -144,13 +152,19 @@ frontend_service/
 │   │   │   ├── Header.tsx         # Top bar with username + notifications
 │   │   │   ├── Sidebar.tsx        # Left navigation menu
 │   │   │   └── Footer.tsx         # Bottom disclaimer + copyright
-│   │   └── dashboard/
-│   │       └── TransferCard.tsx   # Fund transfer form component
+│   │   ├── dashboard/
+│   │   │   └── TransferCard.tsx   # Fund transfer form component
+│   │   └── payments/
+│   │       ├── PayBillCard.tsx           # One-time payments (bank + card)
+│   │       ├── RecurringPaymentsCard.tsx # Recurring payment management
+│   │       ├── PaymentMethodsCard.tsx    # Payment methods display
+│   │       └── RecentPaymentsCard.tsx    # Payment history
 │   │
 │   ├── routes/
 │   │   ├── home.tsx               # Default route (redirects to login)
 │   │   ├── login.tsx              # Login page
 │   │   ├── dashboard.tsx          # Dashboard with accounts + charts
+│   │   ├── payments.tsx           # Payments page with bill pay
 │   │   ├── support.tsx            # Support/chatbot page
 │   │   └── settings.tsx           # Settings page
 │   │
@@ -166,6 +180,91 @@ frontend_service/
 ├── package.json
 └── README.md
 ```
+
+---
+
+## 💳 Payments Functionality
+
+The frontend includes comprehensive bill payment functionality integrating with the bill-pay-service backend.
+
+### Payment Components
+
+Located in `app/components/payments/`:
+
+1. **PayBillCard.tsx**
+   - One-time bill payments
+   - Unified payment method dropdown (bank accounts + credit cards)
+   - Supports both bank transfers and card payments
+   - IDs: `pay-bill-*` prefix
+
+2. **RecurringPaymentsCard.tsx**
+   - Set up recurring payments
+   - Manage and cancel recurring payments
+   - Configurable frequency (weekly/monthly/quarterly/annually)
+   - IDs: `recurring-payment-*` prefix
+
+3. **PaymentMethodsCard.tsx**
+   - Display saved bank accounts and credit cards
+   - Add new Stripe test cards
+   - IDs: `payment-method-*` prefix
+
+4. **RecentPaymentsCard.tsx**
+   - Display payment history from transaction service
+   - Combines mock data with real transactions
+   - Shows payment status with color-coded chips
+
+### Bill Pay Service Endpoint Coverage
+
+**✅ All 6 user-facing endpoints are implemented:**
+
+| Endpoint | Method | Component | Function | Purpose |
+|----------|--------|-----------|----------|---------|
+| `/bill-pay-service/pay` | POST | PayBillCard.tsx | `handleBankPayment()` | Bank-to-bank transfers |
+| `/bill-pay-service/card-payment` | POST | PayBillCard.tsx | `handleCardPayment()` | Credit/debit card payments |
+| `/bill-pay-service/recurring` | POST | RecurringPaymentsCard.tsx | `handleAddRecurring()` | Set up recurring payments |
+| `/bill-pay-service/cancel/{bill_id}` | POST | RecurringPaymentsCard.tsx | `handleCancelPayment()` | Cancel recurring payment |
+| `/bill-pay-service/payment-method` | POST | PaymentMethodsCard.tsx | `handleAddPaymentMethod()` | Add payment method |
+| `/bill-pay-service/payment-methods/{customer_id}` | GET | PaymentMethodsCard.tsx, PayBillCard.tsx | `fetchPaymentMethods()` | List saved payment methods |
+
+**Internal endpoints (not in UI):**
+- `/bill-pay-service/seed-demo-customers` - Admin endpoint for seeding test data
+- `/bill-pay-service` - Root health check
+- `/bill-pay-service/health` - Health check endpoint
+
+### Payment Features
+
+**Unified Payment Method Dropdown:**
+- Shows all available payment options in one dropdown
+- Format: `{Type} •••• {last4}` (e.g., "Checking •••• 6789", "Visa •••• 1234")
+- Automatically detects bank accounts vs credit cards
+- Bank accounts use routing number last 4 digits
+- Cards show brand and last 4 digits
+
+**Stripe Test Cards:**
+- Pre-configured test cards for demo purposes
+- Visa, Mastercard, American Express test cards
+- No actual Stripe.js integration required
+- Uses Stripe test payment method tokens
+
+**Form Pre-filling:**
+- All forms pre-filled with test values that work with real database accounts
+- Enables quick demonstration and testing
+- Values map to actual accounts in init.sql
+
+### ID Attributes for Synthetic Testing
+
+All payment components include unique `id` attributes following this convention:
+
+**Pattern:** `{component-area}-{element-purpose}-{element-type}`
+
+**Examples:**
+- `pay-bill-payee` - Payee name input
+- `pay-bill-payment-method` - Payment method dropdown
+- `pay-bill-submit-btn` - Submit button
+- `recurring-payment-frequency` - Frequency dropdown
+- `payment-method-card-select` - Test card selector
+
+**See `.claude.md` for complete ID naming conventions and patterns.**
 
 ---
 
@@ -289,6 +388,47 @@ try {
 // Production would do:
 const handleThemeToggle = () => {
   setTheme(theme === 'light' ? 'dark' : 'light');
+};
+```
+
+---
+
+### 4. Blocking Fibonacci Calculation in Support Chat
+
+**Location**: `app/routes/support.tsx` (lines 36-73)
+
+**Behavior**: When users type phrases like "analyze my spending" or "spending analysis" in the support chat, it triggers a heavy synchronous calculation that freezes the UI.
+
+**Visual**: Normal chat interface at `/support`
+
+**What happens**:
+1. User types "analyze my spending" or similar phrases
+2. Triggers recursive Fibonacci calculation: `calculateFibonacci(44)`
+3. Runs synchronously on main thread for ~8-13 seconds
+4. UI completely freezes - buttons don't work, messages don't appear
+5. After calculation completes, user's message finally appears
+6. Console logs show timing: `[DEMO] Blocking calculation complete: fib(44) = ...`
+
+**Trigger phrases** (case-insensitive):
+- "analyze my spending"
+- "analyse my spending"
+- "spending analysis"
+- "check my spending"
+
+**Purpose**:
+- Demonstrates frontend performance bottlenecks
+- Shows impact of blocking JavaScript on main thread
+- Illustrates poor user experience from synchronous heavy computations
+- **Generates an INP (Interaction to Next Paint) spike in New Relic Browser**
+- Tests New Relic Browser's Core Web Vitals monitoring and long task detection
+
+**Production difference**: Real apps would use web workers or async processing:
+```typescript
+// Production would do:
+const worker = new Worker('fibonacci-worker.js');
+worker.postMessage(44);
+worker.onmessage = (e) => {
+  console.log('Result:', e.data);
 };
 ```
 
@@ -488,6 +628,24 @@ docker run -p 3000:3000 \
 
 **Purpose**: Demonstrates client-side JavaScript error tracking and error boundary behavior.
 
+### Scenario 5: Blocking UI Performance (Support Chat - INP Spike)
+
+1. Login and navigate to `/support`
+2. Type any spending analysis phrase in the chat:
+   - "analyze my spending"
+   - "spending analysis"
+   - "check my spending"
+3. Press Enter or click Send
+4. ✅ Verify: UI completely freezes for 8-13 seconds
+5. ✅ Verify: Message doesn't appear immediately
+6. ✅ Verify: Buttons become unresponsive
+7. ✅ Verify: Console logs show: `[DEMO] Running blocking Fibonacci calculation...`
+8. ✅ Verify: After ~10 seconds, message appears and UI unfreezes
+9. ✅ Verify: New Relic Browser captures long task duration
+10. ✅ Verify: **INP (Interaction to Next Paint) spike visible in New Relic Browser > Core Web Vitals**
+
+**Purpose**: Demonstrates frontend performance bottlenecks from blocking JavaScript on the main thread. Specifically designed to generate a measurable INP spike in New Relic's Core Web Vitals monitoring.
+
 ---
 
 ## 🐛 Known Issues & Intentional Behaviors
@@ -500,6 +658,7 @@ docker run -p 3000:3000 \
 2. **No rollback on failed transfers** - Shows visual impact of errors
 3. **Transfer with insufficient funds allowed** - Tests error telemetry
 4. **Broken theme toggle button** - Demonstrates frontend error tracking
+5. **Blocking Fibonacci in support chat** - Demonstrates UI performance issues
 
 ### Actual Bugs to Report
 

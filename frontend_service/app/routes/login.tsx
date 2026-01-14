@@ -163,6 +163,7 @@ const LoginPage = () => {
                                     endAdornment: (
                                         <InputAdornment position="end">
                                             <IconButton
+                                                id="login-toggle-password-btn"
                                                 onClick={() => setShowPassword(!showPassword)}
                                                 onMouseDown={(e: { preventDefault: () => any; }) => e.preventDefault()}
                                                 edge="end"
@@ -174,6 +175,7 @@ const LoginPage = () => {
                                 }}
                             />
                             <Button
+                                id="login-submit-btn"
                                 type="submit"
                                 fullWidth
                                 variant="contained"
@@ -184,7 +186,7 @@ const LoginPage = () => {
                             </Button>
                             <Box sx={{ mt: 2, textAlign: 'center' }}>
                                 <Typography variant="body2" color="text.secondary">
-                                    Don't have an account? <Link href="#" style={{ color: theme.palette.primary.main }}>Sign Up</Link>
+                                    Don't have an account? <Link id="login-signup-link" href="#" style={{ color: theme.palette.primary.main }}>Sign Up</Link>
                                 </Typography>
                             </Box>
                         </Box>

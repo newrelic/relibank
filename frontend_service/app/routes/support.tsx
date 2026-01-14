@@ -67,9 +67,9 @@ export default function SupportPage() {
       // This blocks the UI from updating before the user sees their message
       console.warn('[DEMO] Running blocking Fibonacci calculation for spending analysis...');
       const startTime = performance.now();
-      const result = calculateFibonacci(42); // ~3-5 seconds on average CPU
+      const result = calculateFibonacci(44); // ~8-13 seconds on average CPU
       const endTime = performance.now();
-      console.warn(`[DEMO] Blocking calculation complete: fib(42) = ${result}, took ${(endTime - startTime).toFixed(0)}ms`);
+      console.warn(`[DEMO] Blocking calculation complete: fib(44) = ${result}, took ${(endTime - startTime).toFixed(0)}ms`);
     }
     const newUserMessage: ChatMessage = {
       id: Date.now(),
@@ -170,7 +170,7 @@ export default function SupportPage() {
   };
 
   return (
-    <Box sx={{ px: 48, py: 3, display: 'flex', flexDirection: 'column', height: '100%' }}>
+    <Box sx={{ px: 32, py: 3, display: 'flex', flexDirection: 'column', height: '100%' }}>
       <Typography variant="h4" component="h1" gutterBottom>
         Customer Support Chat
       </Typography>
@@ -221,21 +221,23 @@ export default function SupportPage() {
         {/* Input Area */}
         <Box sx={{ p: 2, borderTop: '1px solid #e5e7eb', bgcolor: 'white', display: 'flex', gap: 1 }}>
           <TextField
+            id="support-message-input"
             fullWidth
             variant="outlined"
             placeholder="Type your message (Press Enter to send)..."
-            autoFocus 
+            autoFocus
             size="small"
             value={inputMessage}
             onChange={(e: any) => setInputMessage(e.target.value)}
             onKeyPress={handleKeyPress}
             disabled={isBotTyping}
           />
-          <Button 
-            variant="contained" 
-            color="primary" 
+          <Button
+            id="support-send-btn"
+            variant="contained"
+            color="primary"
             endIcon={<SendIcon />}
-            onClick={handleSend} 
+            onClick={handleSend}
             disabled={!inputMessage.trim() || isBotTyping}
             sx={{ flexShrink: 0 }}
           >
