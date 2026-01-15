@@ -18,3 +18,5 @@ venv/
 model/
 todos.md
 skaffold
+.venv/
+.venv
