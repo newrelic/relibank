@@ -223,6 +223,7 @@ export const TransferCard = ({ transactions, setTransactions }: TransferCardProp
       )}
       <Box component="form" onSubmit={handleTransfer} noValidate sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
         <TextField
+          id="transfer-amount"
           label="Amount"
           type="number"
           variant="outlined"
@@ -239,7 +240,7 @@ export const TransferCard = ({ transactions, setTransactions }: TransferCardProp
           <InputLabel id="from-account-label">From</InputLabel>
           <Select
             labelId="from-account-label"
-            id="from-account-select"
+            id="transfer-from-account-select"
             value={fromAccount}
             label="From"
             onChange={(e) => {
@@ -262,7 +263,7 @@ export const TransferCard = ({ transactions, setTransactions }: TransferCardProp
           <InputLabel id="to-account-label">To</InputLabel>
           <Select
             labelId="to-account-label"
-            id="to-account-select"
+            id="transfer-to-account-select"
             value={toAccount}
             label="To"
             onChange={(e) => {
@@ -282,6 +283,7 @@ export const TransferCard = ({ transactions, setTransactions }: TransferCardProp
         </FormControl>
 
         <Button
+          id="transfer-submit-btn"
           type="submit"
           variant="contained"
           color="primary"

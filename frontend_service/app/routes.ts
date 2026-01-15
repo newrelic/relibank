@@ -6,6 +6,8 @@ export default [
     index("routes/login.tsx"),
     // The dashboard is on its own dedicated route
     route("/dashboard", "routes/dashboard.tsx"),
+    // The payments/bill pay route
+    route("/payments", "routes/payments.tsx"),
     // The new support/chat route
     route("/support", "routes/support.tsx"),
 ] satisfies RouteConfig;

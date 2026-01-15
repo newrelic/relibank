@@ -34,7 +34,8 @@ import {
   FormControl,
   InputLabel,
   Alert,
-  InputAdornment
+  InputAdornment,
+  Chip
 } from '@mui/material';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, Legend, ResponsiveContainer, PieChart, Pie, Cell, BarChart, Bar } from 'recharts';
 import {
@@ -52,7 +53,8 @@ import {
     ExpandLess as ExpandLessIcon,
     ArrowBack as ArrowBackIcon,
     AttachMoney as AttachMoneyIcon,
-    CalendarMonth as CalendarMonthIcon
+    CalendarMonth as CalendarMonthIcon,
+    Receipt as ReceiptIcon
 } from '@mui/icons-material';
 import { LoginContext } from '~/root';
 import { TransferCard } from '~/components/dashboard/TransferCard';
@@ -76,6 +78,14 @@ const mockTransactions = [
     { id: 7, name: "Transfer to Checking", date: "2023-10-19", amount: -200.00, accountId: 'savings', type: 'debit' },
     { id: 8, name: "Interest", date: "2023-10-18", amount: 0.25, accountId: 'savings', type: 'credit' },
     { id: 9, name: "Gas Station", date: "2023-10-17", amount: -45.00, accountId: 'checking', type: 'debit' },
+];
+
+// Mock data for recent payment history (always shown)
+const mockPaymentHistory = [
+  { id: 'mock-1', payee: 'Electric Company', amount: 125.50, date: '2024-01-01', status: 'completed', method: 'Bank Account' },
+  { id: 'mock-2', payee: 'Internet Service', amount: 79.99, date: '2024-01-05', status: 'completed', method: 'Bank Account' },
+  { id: 'mock-3', payee: 'Rent', amount: 1500.00, date: '2024-01-01', status: 'completed', method: 'Bank Account' },
+  { id: 'mock-4', payee: 'Phone Bill', amount: 65.00, date: '2023-12-28', status: 'completed', method: 'Credit Card' },
 ];
 
 const mockSpendingData = [
@@ -160,56 +170,165 @@ const SpendingChart = ({ data }) => (
 );
 
 // Recent Transactions component
-const RecentTransactions = ({ transactions }) => {
+const RecentTransactions = () => {
+  const [payments, setPayments] = useState(mockPaymentHistory);
+  const [isLoading, setIsLoading] = useState(true);
   const [showAll, setShowAll] = useState(false);
-  // Use filter on the passed transactions prop which is now stateful
-  const filteredTransactions = transactions.filter(tx => ['checking', 'savings'].includes(tx.accountId)); 
-  const displayTransactions = showAll ? filteredTransactions : filteredTransactions.slice(0, 3);
+
+  useEffect(() => {
+    fetchTransactions();
+  }, []);
+
+  // Helper: Parse bill_id into readable payee name
+  const parseBillIdToPayee = (billId) => {
+    const cleaned = billId.replace(/^BILL-/i, '').replace(/-\d+$/, '');
+    return cleaned
+      .split(/[-_]/)
+      .map(word => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
+      .join(' ');
+  };
+
+  // Helper: Format Unix timestamp to date string
+  const formatTimestamp = (timestamp) => {
+    const date = new Date(timestamp * 1000);
+    return date.toISOString().split('T')[0];
+  };
+
+  // Helper: Derive status from cancellation fields
+  const deriveStatus = (transaction) => {
+    if (transaction.cancellation_timestamp) {
+      return 'cancelled';
+    }
+    return 'completed';
+  };
+
+  const fetchTransactions = async () => {
+    try {
+      setIsLoading(true);
+      const response = await fetch('/transaction-service/transactions');
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error('Failed to fetch transactions');
+      }
+
+      const paymentTransactions = data.filter(tx => tx.event_type && tx.event_type.toLowerCase() === 'payment');
+      const realPayments = paymentTransactions.map(tx => ({
+        id: `tx-${tx.transaction_id}`,
+        payee: parseBillIdToPayee(tx.bill_id),
+        amount: tx.amount,
+        date: formatTimestamp(tx.timestamp),
+        status: deriveStatus(tx),
+        method: 'Bank Account',
+      }));
+
+      const allPayments = [...mockPaymentHistory, ...realPayments];
+      const sortedPayments = allPayments
+        .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
+        .slice(0, 10);
+
+      setPayments(sortedPayments);
+    } catch (error) {
+      console.error('Error fetching transactions:', error);
+      setPayments(mockPaymentHistory);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const getStatusColor = (status) => {
+    switch (status) {
+      case 'completed':
+        return 'success';
+      case 'pending':
+        return 'warning';
+      case 'failed':
+        return 'error';
+      case 'cancelled':
+        return 'default';
+      default:
+        return 'default';
+    }
+  };
+
+  const displayPayments = showAll ? payments : payments.slice(0, 5);
+
   return (
     <Card sx={{ p: 3, height: '100%', width: '100%', display: 'flex', flexDirection: 'column' }}>
-      <Typography variant="h6" sx={{ mb: 2 }}>Recent Transactions</Typography>
-      <TableContainer>
-        <Table>
-          <TableHead>
-            <TableRow>
-              <TableCell sx={{ fontWeight: 'bold' }}>Transaction</TableCell>
-              <TableCell sx={{ fontWeight: 'bold' }}>Date</TableCell>
-              <TableCell align="right" sx={{ fontWeight: 'bold' }}>Amount</TableCell>
-            </TableRow>
-          </TableHead>
-          <TableBody>
-            {displayTransactions.map((tx) => (
-              <TableRow key={tx.id}>
-                <TableCell>
-                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                    <Box sx={{ p: 1, bgcolor: '#f3f4f6', borderRadius: '50%' }}>
-                      {tx.amount > 0 ? <ArrowUpwardIcon color="success" /> : <ArrowDownwardIcon color="error" />}
-                    </Box>
-                    <Typography variant="body1" sx={{ fontWeight: 'medium' }}>{tx.name}</Typography>
-                  </Box>
-                </TableCell>
-                <TableCell>
-                  <Typography variant="body2" sx={{ color: 'text.secondary' }}>{tx.date}</Typography>
-                </TableCell>
-                <TableCell align="right">
-                  <Typography variant="body1" sx={{ fontWeight: 'medium', color: tx.amount > 0 ? 'success.main' : 'error.main' }}>
-                    {tx.amount > 0 ? '+' : ''}${Math.abs(tx.amount).toFixed(2)}
-                  </Typography>
-                </TableCell>
-              </TableRow>
-            ))}
-          </TableBody>
-        </Table>
-      </TableContainer>
-      {filteredTransactions.length > 3 && (
-        <Box sx={{ textAlign: 'center', mt: 2 }}>
-          <Button
-            onClick={() => setShowAll(!showAll)}
-            endIcon={showAll ? <ExpandLessIcon /> : <ExpandMoreIcon />}
-          >
-            {showAll ? 'Show Less' : 'Show All'}
-          </Button>
+      <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
+        <ReceiptIcon color="primary" sx={{ mr: 1 }} />
+        <Typography variant="h6">Recent Payments</Typography>
+      </Box>
+
+      {isLoading ? (
+        <Box sx={{ display: 'flex', justifyContent: 'center', py: 4 }}>
+          <CircularProgress />
         </Box>
+      ) : (
+        <>
+          <TableContainer>
+            <Table size="small">
+              <TableHead>
+                <TableRow>
+                  <TableCell sx={{ fontWeight: 'bold' }}>Payee</TableCell>
+                  <TableCell align="right" sx={{ fontWeight: 'bold' }}>Amount</TableCell>
+                  <TableCell sx={{ fontWeight: 'bold' }}>Date</TableCell>
+                  <TableCell sx={{ fontWeight: 'bold' }}>Method</TableCell>
+                  <TableCell sx={{ fontWeight: 'bold' }}>Status</TableCell>
+                </TableRow>
+              </TableHead>
+              <TableBody>
+                {displayPayments.map((payment) => (
+                  <TableRow key={payment.id}>
+                    <TableCell>
+                      <Typography variant="body1" sx={{ fontWeight: 'medium' }}>
+                        {payment.payee}
+                      </Typography>
+                    </TableCell>
+                    <TableCell align="right">
+                      <Typography variant="body1" sx={{ fontWeight: 'medium' }}>
+                        ${payment.amount.toFixed(2)}
+                      </Typography>
+                    </TableCell>
+                    <TableCell>
+                      <Typography variant="body2" color="text.secondary">
+                        {payment.date}
+                      </Typography>
+                    </TableCell>
+                    <TableCell>{payment.method}</TableCell>
+                    <TableCell>
+                      <Chip
+                        label={payment.status}
+                        size="small"
+                        color={getStatusColor(payment.status)}
+                      />
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </TableContainer>
+
+          {payments.length > 5 && (
+            <Box sx={{ textAlign: 'center', mt: 2 }}>
+              <Button
+                id="dashboard-payments-toggle-btn"
+                onClick={() => setShowAll(!showAll)}
+                endIcon={showAll ? <ExpandLessIcon /> : <ExpandMoreIcon />}
+              >
+                {showAll ? 'Show Less' : 'Show All'}
+              </Button>
+            </Box>
+          )}
+
+          {!isLoading && payments.length === 0 && (
+            <Box sx={{ textAlign: 'center', py: 4 }}>
+              <Typography variant="body2" color="text.secondary">
+                No payment history available
+              </Typography>
+            </Box>
+          )}
+        </>
       )}
     </Card>
   );
@@ -368,7 +487,7 @@ const DashboardPage = () => {
         py: 2,
         mb: 3
       }}>
-        <Box sx={{ px: 48 }}>
+        <Box sx={{ px: 32 }}>
           <Typography variant="h4" component="h1" gutterBottom>
             Account Summary
           </Typography>
@@ -403,7 +522,7 @@ const DashboardPage = () => {
       </Box>
 
       {/* Rest of Dashboard Content */}
-      <Box sx={{ px: 48, pb: 3 }}>
+      <Box sx={{ px: 32, pb: 3 }}>
         <Grid container spacing={4}>
 
         {/* Row 1: Promotional Banner (12) */}
@@ -432,6 +551,7 @@ const DashboardPage = () => {
               </Typography>
             </Box>
             <Button
+              id="dashboard-rewards-signup-btn"
               variant="contained"
               size="medium"
               sx={{
@@ -471,9 +591,9 @@ const DashboardPage = () => {
           <AccountBalanceTrends data={appData.stackedBarData} />
         </Grid>
 
-        {/* Row 4: Recent Transactions (12 - full width) */}
+        {/* Row 4: Recent Payments (12 - full width) */}
         <Grid item size={{ xs: 12 }}>
-          <RecentTransactions transactions={appData.transactions} />
+          <RecentTransactions />
         </Grid>
         </Grid>
       </Box>
