@@ -13,7 +13,6 @@ import {
   Alert,
   InputAdornment,
   CircularProgress,
-  Divider,
 } from '@mui/material';
 import { Receipt as ReceiptIcon } from '@mui/icons-material';
 
@@ -25,13 +24,31 @@ interface PaymentMethod {
   expYear: number;
 }
 
-export const PayBillCard = () => {
+interface PayeeAccount {
+  id: string;
+  name: string;
+  accountNumber: string;
+}
+
+// Available accounts from the database
+const AVAILABLE_PAYEES: PayeeAccount[] = [
+  { id: '12345', name: 'Alice Checking', accountNumber: '12345' },
+  { id: '56789', name: 'Alice Savings', accountNumber: '56789' },
+  { id: '67890', name: 'Charlie Checking', accountNumber: '67890' },
+  { id: '98765', name: 'Bob Credit Card', accountNumber: '98765' },
+  { id: '10111', name: 'Charlie Credit Card', accountNumber: '10111' },
+];
+
+interface PayBillCardProps {
+  onPaymentSuccess?: () => void;
+}
+
+export const PayBillCard = ({ onPaymentSuccess }: PayBillCardProps) => {
   const { userData } = useContext(LoginContext);
 
-  // Form state
-  const [payee, setPayee] = useState('Electric Company');
+  // Form state - use account ID as the single source of truth
+  const [selectedAccountId, setSelectedAccountId] = useState('67890');
   const [amount, setAmount] = useState('125.50');
-  const [accountNumber, setAccountNumber] = useState('67890');
 
   // Payment method selection - unified dropdown
   const [selectedPaymentMethod, setSelectedPaymentMethod] = useState('checking');
@@ -71,7 +88,7 @@ export const PayBillCard = () => {
     }
   };
 
-  const handleBankPayment = async (paymentAmount: number, accountType: string) => {
+  const handleBankPayment = async (paymentAmount: number, accountType: string, selectedAccount: PayeeAccount) => {
     // Get the fromAccountId based on selected account type
     const fromAccountData = userData?.find((acc: any) => acc.account_type === accountType);
     if (!fromAccountData) {
@@ -88,11 +105,11 @@ export const PayBillCard = () => {
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        billId: `BILL-${payee.toUpperCase().replace(/\s+/g, '-')}-${Date.now()}`,
+        billId: `BILL-${selectedAccount.name.toUpperCase().replace(/\s+/g, '-')}-${Date.now()}`,
         amount: paymentAmount,
         currency: 'USD',
         fromAccountId: fromAccountId,
-        toAccountId: parseInt(accountNumber),
+        toAccountId: parseInt(selectedAccount.accountNumber),
       }),
     });
 
@@ -104,22 +121,27 @@ export const PayBillCard = () => {
 
     const accountDisplay = accountType.charAt(0).toUpperCase() + accountType.slice(1);
     setIsError(false);
-    setMessage(`Payment of $${paymentAmount.toFixed(2)} to ${payee} completed successfully using ${accountDisplay} account!`);
+
+    setMessage(`Payment of $${paymentAmount.toFixed(2)} to ${selectedAccount.name} completed successfully using ${accountDisplay} account!`);
 
     // Reset form to defaults
-    setPayee('Electric Company');
+    setSelectedAccountId('67890');
     setAmount('125.50');
-    setAccountNumber('67890');
+
+    // Trigger refresh of recent payments
+    if (onPaymentSuccess) {
+      onPaymentSuccess();
+    }
   };
 
-  const handleCardPayment = async (paymentAmount: number, cardId: string) => {
+  const handleCardPayment = async (paymentAmount: number, cardId: string, selectedAccount: PayeeAccount) => {
     const response = await fetch('/bill-pay-service/card-payment', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        billId: `BILL-${payee.toUpperCase().replace(/\s+/g, '-')}-${Date.now()}`,
+        billId: `BILL-${selectedAccount.name.toUpperCase().replace(/\s+/g, '-')}-${Date.now()}`,
         amount: paymentAmount,
         currency: 'USD',
         paymentMethodId: cardId,
@@ -147,12 +169,16 @@ export const PayBillCard = () => {
       : 'card';
 
     setIsError(false);
-    setMessage(`Card payment of $${paymentAmount.toFixed(2)} to ${payee} processed successfully using ${cardDisplay}! (Payment ID: ${data.paymentIntentId})`);
+    setMessage(`Card payment of $${paymentAmount.toFixed(2)} to ${selectedAccount.name} processed successfully using ${cardDisplay}! (Payment ID: ${data.paymentIntentId})`);
 
     // Reset form to defaults
-    setPayee('Electric Company');
+    setSelectedAccountId('67890');
     setAmount('125.50');
-    setAccountNumber('67890');
+
+    // Trigger refresh of recent payments
+    if (onPaymentSuccess) {
+      onPaymentSuccess();
+    }
   };
 
   const handlePayBill = async (event: React.FormEvent) => {
@@ -160,11 +186,19 @@ export const PayBillCard = () => {
     setMessage('');
     setIsError(false);
 
+    // Get the selected payee account
+    const selectedAccount = AVAILABLE_PAYEES.find(acc => acc.accountNumber === selectedAccountId);
+    if (!selectedAccount) {
+      setIsError(true);
+      setMessage('Please select a valid payee.');
+      return;
+    }
+
     // Basic validation
     const paymentAmount = parseFloat(amount);
-    if (!payee || isNaN(paymentAmount) || paymentAmount <= 0 || !accountNumber) {
+    if (isNaN(paymentAmount) || paymentAmount <= 0) {
       setIsError(true);
-      setMessage('Please fill in all fields with valid values.');
+      setMessage('Please enter a valid payment amount.');
       return;
     }
 
@@ -174,10 +208,10 @@ export const PayBillCard = () => {
       // Determine if selected payment method is a bank account or card
       if (selectedPaymentMethod === 'checking' || selectedPaymentMethod === 'savings') {
         // Bank account payment
-        await handleBankPayment(paymentAmount, selectedPaymentMethod);
+        await handleBankPayment(paymentAmount, selectedPaymentMethod, selectedAccount);
       } else {
         // Card payment - selectedPaymentMethod is the card ID (pm_xxxx)
-        await handleCardPayment(paymentAmount, selectedPaymentMethod);
+        await handleCardPayment(paymentAmount, selectedPaymentMethod, selectedAccount);
       }
     } catch (error: any) {
       setIsError(true);
@@ -212,25 +246,22 @@ export const PayBillCard = () => {
       )}
 
       <Box component="form" onSubmit={handlePayBill} noValidate sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-        <TextField
-          id="pay-bill-payee"
-          label="Payee Name"
-          variant="outlined"
-          fullWidth
-          value={payee}
-          onChange={(e) => setPayee(e.target.value)}
-          placeholder="Electric Company"
-        />
-
-        <TextField
-          id="pay-bill-account-number"
-          label="Account Number"
-          variant="outlined"
-          fullWidth
-          value={accountNumber}
-          onChange={(e) => setAccountNumber(e.target.value)}
-          placeholder="67890"
-        />
+        <FormControl fullWidth variant="outlined">
+          <InputLabel id="payee-label">Payee</InputLabel>
+          <Select
+            id="pay-bill-payee"
+            labelId="payee-label"
+            value={selectedAccountId}
+            label="Payee"
+            onChange={(e) => setSelectedAccountId(e.target.value)}
+          >
+            {AVAILABLE_PAYEES.map((account) => (
+              <MenuItem key={account.id} value={account.accountNumber}>
+                {account.name} - {account.accountNumber}
+              </MenuItem>
+            ))}
+          </Select>
+        </FormControl>
 
         <TextField
           id="pay-bill-amount"

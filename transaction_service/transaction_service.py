@@ -46,6 +46,23 @@ class TransactionRecord(BaseModel):
         populate_by_name = True  # This tells Pydantic to use the alias when converting from the database row
 
 
+class RecurringScheduleRecord(BaseModel):
+    # Mapping SQL column names to Pydantic field names for RecurringSchedules table
+    schedule_id: int = Field(alias="ScheduleID")
+    bill_id: str = Field(alias="BillID")
+    account_id: int = Field(alias="AccountID")
+    amount: float = Field(alias="Amount")
+    currency: str = Field(alias="Currency")
+    frequency: str = Field(alias="Frequency")
+    start_date: str = Field(alias="StartDate")
+    timestamp: float = Field(alias="Timestamp")
+    cancellation_user_id: Optional[str] = Field(None, alias="CancellationUserID")
+    cancellation_timestamp: Optional[float] = Field(None, alias="CancellationTimestamp")
+
+    class Config:
+        populate_by_name = True
+
+
 class CreateTransaction(BaseModel):
     billId: str = Field(min_length=1)
     amount: float = Field(gt=0)
@@ -489,6 +506,35 @@ async def get_transaction(bill_id: str, request: Request):
     except Exception as e:
         logging.error(f"Error retrieving transaction: {e}")
         raise HTTPException(status_code=500, detail="Error retrieving transaction.")
+
+
+@app.get("/transaction-service/recurring-payments", response_model=List[RecurringScheduleRecord])
+async def get_recurring_payments(request: Request):
+    """
+    Retrieves all recurring payments from the database.
+    """
+    if not db_connection:
+        raise HTTPException(status_code=503, detail="Database connection failed.")
+
+    try:
+        cursor = db_connection.cursor()
+        cursor.execute("SELECT * FROM RecurringSchedules")
+        columns = [column[0] for column in cursor.description]
+
+        schedules = []
+        for row in cursor.fetchall():
+            row_dict = dict(zip(columns, row))
+            # Convert StartDate from datetime.date to string
+            if 'StartDate' in row_dict and row_dict['StartDate']:
+                row_dict['StartDate'] = row_dict['StartDate'].strftime('%Y-%m-%d')
+            schedules.append(RecurringScheduleRecord(**row_dict))
+
+        logging.info(f"Retrieved {len(schedules)} recurring payments.")
+        process_headers(dict(request.headers))
+        return schedules
+    except Exception as e:
+        logging.error(f"Error retrieving recurring payments: {e}")
+        raise HTTPException(status_code=500, detail="Error retrieving recurring payments.")
 
 
 @app.get("/transaction-service/ledger/{account_id}", response_model=LedgerRecord)

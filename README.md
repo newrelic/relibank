@@ -8,8 +8,14 @@ Relibank simulates a banking system with separate services for accounts, transac
 
 ## Services
 
+- **frontend-service** - React-based banking UI (React Router v7 + Material-UI)
+  - Responsive design with mobile-first breakpoints
+  - Bill payments, fund transfers, recurring payments
+  - New Relic Browser monitoring integration
 - **accounts-service** - Manages user accounts (FastAPI + PostgreSQL)
-- **transaction-service** - Processes payments (FastAPI + MSSQL)  
+- **transaction-service** - Processes and retrieves payment transactions (FastAPI + MSSQL)
+  - GET endpoint for recurring payment schedules
+  - Kafka consumer for payment events
 - **bill-pay-service** - Handles bill payments (FastAPI)
 - **chatbot-service** - Relibank's AI chatbot (FastAPI)
 - **notifications-service** - Sends notifications via Kafka
@@ -38,8 +44,9 @@ This will:
 ### Access the Services
 
 Once deployed, you can access:
+- **Frontend UI**: http://localhost:3000 (Main banking interface)
 - Accounts: http://localhost:5002
-- Transactions: http://localhost:5001  
+- Transactions: http://localhost:5001
 - Bill Pay: http://localhost:5000
 - Chatbot: http://localhost:5003
 - Scheduler: http://localhost:5004
@@ -124,10 +131,26 @@ curl -X POST http://localhost:5001/transactions \
 
 This isn't meant to be a real banking application. It's a learning tool for:
 - Microservices architecture patterns
-- Kubernetes deployment strategies  
+- Kubernetes deployment strategies
 - Chaos engineering practices
 - Service mesh concepts
-- Observability and monitoring
+- Observability and monitoring with New Relic
+- Responsive web application design
+
+## Recent Updates
+
+### UI Enhancements
+- **Responsive Design**: Mobile-first breakpoints (xs/sm/md/lg/xl) across all pages
+- **Simplified Bill Pay**: Unified payment method dropdown for easier UX
+- **Default Transfer Amount**: Pre-filled $5.00 for faster demos
+- **Updated Branding**: Larger logo (64x64px) in sidebar with primary green color
+- **Favicon**: Added ReliBank logo as browser favicon
+- **Payment Methods Scrolling**: Fixed height with vertical scrolling on desktop
+
+### Backend Enhancements
+- **Recurring Payments Endpoint**: GET `/transaction-service/recurring-payments` to fetch recurring payment schedules from database
+- **Date Conversion**: Automatic MSSQL date-to-string conversion for proper JSON serialization
+- **Active Schedule Filtering**: Frontend filters cancelled vs active recurring payments
 
 Try breaking things with Chaos Mesh and see how the system responds!
 

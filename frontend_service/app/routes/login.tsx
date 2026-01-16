@@ -17,27 +17,50 @@ import { Visibility, VisibilityOff, Lock, Person, ErrorOutline } from '@mui/icon
 import { createTheme, ThemeProvider } from '@mui/material/styles';
 import { LoginContext } from '../root';
 
-// Create a custom theme with Inter font and a subtle background
+// Create a custom theme with Inter font and ReliBank green colors
 const theme = createTheme({
     typography: {
         fontFamily: ['Inter', 'sans-serif'].join(','),
     },
     palette: {
         background: {
-            default: '#f8f9fa',
+            default: '#f8faf8',
+            paper: '#ffffff',
         },
         primary: {
-            main: '#3b82f6',
+            main: '#1a3d1a',      // Forest green from logo
+            light: '#7a9b3e',     // Sage green
+            dark: '#0f2610',      // Deeper green
         },
         secondary: {
-            main: '#6b7280',
+            main: '#8db600',      // Lime accent from logo
+            light: '#a8cc3a',
+        },
+        success: {
+            main: '#7a9b3e',      // Sage green
+        },
+        warning: {
+            main: '#d97706',      // Amber gold (tertiary)
+            light: '#fbbf24',     // Light gold
+            dark: '#b45309',      // Deep amber
+        },
+        error: {
+            main: '#dc2626',      // Red for errors
+            light: '#f87171',
+        },
+        info: {
+            main: '#7a9b3e',      // Sage green for info
+        },
+        text: {
+            primary: '#2d3748',   // Charcoal
+            secondary: '#6b7280',
         },
     },
 });
 
 const LoginPage = () => {
     const [username, setUsername] = useState('demo');
-    const [password, setPassword] = useState('password');
+    const [password, setPassword] = useState('lightm0deisthebest');
     const [showPassword, setShowPassword] = useState(false);
     const [loginError, setLoginError] = useState('');
     const [isSubmitting, setIsSubmitting] = useState(false);
@@ -113,7 +136,9 @@ const LoginPage = () => {
                         }}
                     >
                         <Box sx={{ mb: 2, display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-                            <Lock color="primary" sx={{ fontSize: 48, mb: 1 }} />
+                            <Box sx={{ width: '64px', height: '64px', display: 'flex', alignItems: 'center', justifyContent: 'center', mb: 1 }}>
+                                <img src="/relibank.png" alt="ReliBank Logo" style={{ maxWidth: '100%', maxHeight: '100%', objectFit: 'contain' }} />
+                            </Box>
                             <Typography component="h1" variant="h5" sx={{ fontWeight: 'bold' }}>
                                 ReliBank Login
                             </Typography>

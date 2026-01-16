@@ -223,6 +223,27 @@
 					"response": []
 				},
 				{
+					"name": "get recurring payments",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "http://localhost:5001/transaction-service/recurring-payments",
+							"protocol": "http",
+							"host": [
+								"localhost"
+							],
+							"port": "5001",
+							"path": [
+								"transaction-service",
+								"recurring-payments"
+							]
+						},
+						"description": "Retrieves all recurring payment schedules from the RecurringSchedules table. Returns all schedules including cancelled ones. Frontend should filter based on CancellationTimestamp field (NULL = active, non-NULL = cancelled)."
+					},
+					"response": []
+				},
+				{
 					"name": "get ledger balance",
 					"request": {
 						"method": "GET",

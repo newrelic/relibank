@@ -34,6 +34,8 @@ export const Header = () => {
   let pageTitle = 'Dashboard';
   if (location.pathname.startsWith('/accounts')) {
     pageTitle = 'Accounts';
+  } else if (location.pathname === '/payments') {
+    pageTitle = 'Payments';
   } else if (location.pathname === '/settings') {
     pageTitle = 'Settings';
   } else if (location.pathname === '/support') {

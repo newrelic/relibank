@@ -14,12 +14,45 @@ A React-based banking demo application built with React Router v7, Material-UI, 
 - **Language**: TypeScript
 - **Monitoring**: New Relic Browser Agent
 
+### 🎨 Theme & Branding
+
+**Color System**: Green + Gold palette based on the ReliBank logo
+
+**Primary Colors (Green)** - Trust & Stability:
+- Forest Green `#1a3d1a` - Main brand color (buttons, headers, active states)
+- Sage Green `#7a9b3e` - Accents, success states, chart data
+- Deep Green `#0f2610` - Dark accents and shadows
+
+**Secondary Colors (Lime)** - Fresh & Modern:
+- Lime Accent `#8db600` - Highlights and secondary actions
+- Light Lime `#a8cc3a` - Hover states and bright accents
+
+**Tertiary Colors (Gold)** - Wealth & Premium:
+- Amber Gold `#d97706` - Warnings, premium features, total balance displays
+- Light Gold `#fbbf24` - Call-to-action buttons, promotional highlights
+- Deep Amber `#b45309` - Dark gold accents
+
+**Theme Configuration**:
+- Defined in `app/components/layout/AppLayout.tsx` (authenticated pages)
+- Defined in `app/routes/login.tsx` (login page)
+- Uses MUI's `createTheme()` with complete palette configuration
+
+**Static Assets**:
+- **Location**: `public/` directory
+- **Logo**: `relibank.png` (928x1232px portrait)
+  - Used in Sidebar (64x64px container with gap: 1 spacing)
+  - Used in Login page (64x64px container)
+  - Used as favicon (defined in `app/root.tsx`)
+  - Images preserve aspect ratio with `objectFit: 'contain'` in fixed square containers
+
 ### Key Features
 - Single Page Application (SPA) with client-side routing
 - Hot Module Replacement (HMR) in development
+- Responsive design with mobile-first breakpoints (xs/sm/md/lg/xl)
 - Responsive dashboard with real-time balance updates
-- Fund transfer functionality with optimistic updates
+- Fund transfer functionality with optimistic updates and error rollback
 - New Relic Browser instrumentation for error tracking
+- Recurring payments integration with transaction-service backend
 
 ---
 
@@ -141,6 +174,62 @@ Layout (root.tsx)
 
 ---
 
+## 📱 Responsive Design System
+
+The application uses Material-UI's responsive breakpoints for mobile-first design:
+
+**Breakpoint System:**
+- `xs`: 0px+ (mobile)
+- `sm`: 600px+ (tablet)
+- `md`: 900px+ (small desktop)
+- `lg`: 1200px+ (desktop)
+- `xl`: 1536px+ (large desktop)
+
+**Responsive Padding Pattern:**
+All pages use consistent responsive horizontal padding:
+```typescript
+sx={{ px: { xs: 2, sm: 4, md: 8, lg: 16, xl: 32 } }}
+```
+
+This creates:
+- Mobile: 16px padding (xs: 2 × 8px)
+- Tablet: 32px padding (sm: 4 × 8px)
+- Small Desktop: 64px padding (md: 8 × 8px)
+- Desktop: 128px padding (lg: 16 × 8px)
+- Large Desktop: 256px padding (xl: 32 × 8px)
+
+**Grid Spacing:**
+```typescript
+<Grid container spacing={{ xs: 2, sm: 3, md: 4 }}>
+```
+
+**Responsive Typography:**
+Headers scale based on screen size:
+```typescript
+sx={{ fontSize: { xs: '1.75rem', sm: '2rem', md: '2.125rem' } }}
+```
+
+**Card Stacking Behavior:**
+
+*Dashboard Page:*
+- **Overview cards**: Stack vertically on mobile (`xs: 12`), display in 3 columns on desktop (`md: 4`)
+  - Avoids awkward 2-1 layout on tablets by skipping `sm` breakpoint
+- **Transfer + Chart**: Stack on mobile (`xs: 12`), side-by-side on desktop (`lg: 4` / `lg: 8`)
+
+*Payments Page:*
+- **Pay Bill + Payment Methods**: Stack on mobile (`xs: 12`), 2 columns on desktop (`lg: 6`)
+- **Fixed height on desktop** (`500px`) with vertical scrolling in payment methods list
+
+**Height Management:**
+Cards use responsive heights to ensure proper layout:
+```typescript
+sx={{ height: { xs: 'auto', lg: '500px' } }}
+```
+
+On mobile, cards auto-size to their content. On desktop, fixed heights with scrolling ensure cards align properly and match heights.
+
+---
+
 ## 🗂️ Project Structure
 
 ```
@@ -176,6 +265,8 @@ frontend_service/
 │   └── entry.client.tsx           # Client-side entry point
 │
 ├── public/                        # Static assets
+│   └── relibank.png               # Logo (928x1232px portrait)
+│
 ├── vite.config.ts                 # Vite + proxy configuration
 ├── package.json
 └── README.md
@@ -206,12 +297,28 @@ Located in `app/components/payments/`:
 3. **PaymentMethodsCard.tsx**
    - Display saved bank accounts and credit cards
    - Add new Stripe test cards
+   - Uses flexbox layout with vertical scrolling for long lists
+   - Matches height of PayBillCard on desktop (500px with overflowY: 'auto')
    - IDs: `payment-method-*` prefix
 
 4. **RecentPaymentsCard.tsx**
    - Display payment history from transaction service
    - Combines mock data with real transactions
    - Shows payment status with color-coded chips
+   - Refreshes automatically when new payments are made
+
+### Transaction Service Integration
+
+**Recurring Payments Endpoint:**
+
+The frontend fetches recurring payment schedules from the transaction-service:
+
+- **Endpoint**: `GET /transaction-service/recurring-payments`
+- **Response**: Array of `RecurringScheduleRecord` objects
+- **Data**: ScheduleID, BillID, AccountID, Amount, Currency, Frequency, StartDate, Timestamp, CancellationUserID, CancellationTimestamp
+- **Filtering**: Backend automatically filters out cancelled schedules (where CancellationTimestamp exists)
+- **Frontend Integration**: RecurringPaymentsCard combines backend data with mock data for comprehensive demos
+- **Key Handling**: Mock recurring payment IDs use string prefix ('mock-1', 'mock-2') to prevent key conflicts with database numeric IDs
 
 ### Bill Pay Service Endpoint Coverage
 
@@ -233,12 +340,14 @@ Located in `app/components/payments/`:
 
 ### Payment Features
 
-**Unified Payment Method Dropdown:**
-- Shows all available payment options in one dropdown
+**Unified Payment Method Dropdown (PayBillCard):**
+- Single dropdown showing all payment options in one place
 - Format: `{Type} •••• {last4}` (e.g., "Checking •••• 6789", "Visa •••• 1234")
-- Automatically detects bank accounts vs credit cards
+- Replaces previous design that had separate payee text field and account dropdown
+- Automatically detects bank accounts vs credit cards and routes to appropriate API
 - Bank accounts use routing number last 4 digits
 - Cards show brand and last 4 digits
+- Simpler UX for bill payments
 
 **Stripe Test Cards:**
 - Pre-configured test cards for demo purposes
@@ -328,38 +437,65 @@ TransferCard accesses userData from context (no prop drilling)
 
 ---
 
-### 2. No Rollback on Transfer Errors
+### 1a. Default Transfer Amount
 
-**Location**: `app/components/dashboard/TransferCard.tsx` (lines 114-123, 167-174)
+**Location**: `app/components/dashboard/TransferCard.tsx`
+
+**Behavior**: The transfer form pre-fills with $5.00 for quicker demo testing.
+
+**Implementation**:
+```typescript
+const [amount, setAmount] = useState('5.00');  // Default value
+```
+
+After successful transfer, the amount resets to '5.00' (not empty) for convenience during repeated demos.
+
+**Purpose**:
+- Speeds up demo scenarios by having form ready to submit
+- Reduces friction during repeated transfers
+- Makes testing and demonstrations more efficient
+
+**Production difference**: Real apps typically start with empty transfer amounts to avoid accidental submissions.
+
+---
+
+### 2. Rollback on Transfer Errors
+
+**Location**: `app/components/dashboard/TransferCard.tsx` (lines 125-134, 173-180)
 
 **Behavior**:
 - UI updates immediately when transfer is initiated (optimistic update)
-- If API fails, the **incorrect balance remains visible**
-- Error is reported to New Relic but UI shows corrupted state
+- If API fails, the **balances and transactions are rolled back** to original state
+- Error is reported to New Relic and UI shows correct balances
 
 **Example Flow**:
 1. User has $100 in checking
 2. Transfer $50 to savings
-3. Balance immediately shows $50 in checking, $50 added to savings
-4. API returns 500 error
-5. **Balance stays at $50** (no rollback) + error message displays
+3. Balance immediately shows $50 in checking, $50 added to savings (optimistic)
+4. API returns 500 error or insufficient funds
+5. **Balance rolls back to $100** in checking + error message displays
 6. New Relic captures the error with context
 
-**Purpose**:
-- Visually demonstrates the impact of errors
-- Shows how errors can corrupt application state
-- Better for New Relic demos than silent failures
-
-**Production difference**: Real apps would rollback to original state on error:
+**Implementation**:
 ```typescript
-// Production would do:
+// Original state is stored before optimistic update
+const originalUserData = userData;
+const originalTransactions = transactions;
+
+setUserData(newUserData);  // Optimistic update
+
 try {
   // API call
 } catch (error) {
-  setUserData(originalUserData);        // Rollback
-  setTransactions(originalTransactions); // Rollback
+  setUserData(originalUserData);        // Rollback on error
+  setTransactions(originalTransactions); // Rollback transactions
 }
 ```
+
+**Purpose**:
+- Demonstrates proper error handling in React applications
+- Shows how to maintain data integrity with optimistic updates
+- Prevents UI state corruption when API calls fail
 
 ---
 
@@ -501,7 +637,7 @@ Requests to `http://localhost:3000/accounts-service/*` are proxied to the accoun
 3. Observe:
    - Balance updates immediately (optimistic)
    - Error message appears
-   - **Balance stays incorrect** (no rollback)
+   - **Balance rolls back to original amount**
    - Check New Relic Browser for captured error
 
 4. Restore service:
@@ -604,7 +740,7 @@ docker run -p 3000:3000 \
 2. Transfer any amount
 3. ✅ Verify: Balance updates immediately (optimistic)
 4. ✅ Verify: Error message appears
-5. ✅ Verify: **Balance stays incorrect** (no rollback)
+5. ✅ Verify: **Balance rolls back to original amount**
 6. ✅ Verify: New Relic captures error with context
 
 ### Scenario 3: Overdraft Attempt (No Frontend Validation)
@@ -655,10 +791,9 @@ docker run -p 3000:3000 \
 ❌ **Don't "fix" these:**
 
 1. **No overdraft validation** - Allows demonstrating backend errors
-2. **No rollback on failed transfers** - Shows visual impact of errors
-3. **Transfer with insufficient funds allowed** - Tests error telemetry
-4. **Broken theme toggle button** - Demonstrates frontend error tracking
-5. **Blocking Fibonacci in support chat** - Demonstrates UI performance issues
+2. **Transfer with insufficient funds allowed** - Tests error telemetry and rollback logic
+3. **Broken theme toggle button** - Demonstrates frontend error tracking
+4. **Blocking Fibonacci in support chat** - Demonstrates UI performance issues
 
 ### Actual Bugs to Report
 
