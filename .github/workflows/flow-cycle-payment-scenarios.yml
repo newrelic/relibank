@@ -1,4 +1,4 @@
-name: Cycle Payment Scenarios
+name: Flow - Cycle Payment Scenarios
 
 on:
   schedule:
@@ -9,6 +9,7 @@ on:
 jobs:
   cycle-scenario:
     runs-on: ubuntu-latest
+    environment: events
     steps:
       - name: Reset all scenarios
         run: |
