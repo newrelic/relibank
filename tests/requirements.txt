@@ -1,0 +1,8 @@
+# Relibank Test Suite Requirements
+# Install with: pip install -r requirements.txt
+
+# Core testing framework
+pytest>=7.4.0
+
+# HTTP requests
+requests>=2.31.0
