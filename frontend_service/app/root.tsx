@@ -22,6 +22,7 @@ const NEW_RELIC_CONFIG = {
   ACCOUNT_ID: import.meta.env.VITE_NEW_RELIC_ACCOUNT_ID,
   BROWSER_APPLICATION_ID: import.meta.env.VITE_NEW_RELIC_BROWSER_APPLICATION_ID,
   LICENSE_KEY: import.meta.env.VITE_NEW_RELIC_LICENSE_KEY,
+  TRUST_KEY: import.meta.env.VITE_NEW_RELIC_TRUST_KEY,
 };
 
 const generateNrScript = () => {
@@ -30,6 +31,7 @@ const generateNrScript = () => {
     script = script.replace(/accountID:"__ACCOUNT_ID__"/g, `accountID:"${NEW_RELIC_CONFIG.ACCOUNT_ID}"`);
     script = script.replace(/licenseKey:"__LICENSE_KEY__"/g, `licenseKey:"${NEW_RELIC_CONFIG.LICENSE_KEY}"`);
     script = script.replace(/applicationID:"__APPLICATION_ID__"/g, `applicationID:"${NEW_RELIC_CONFIG.BROWSER_APPLICATION_ID}"`);
+    script = script.replace(/trustKey:"__TRUST_KEY__"/g, `trustKey:"${NEW_RELIC_CONFIG.TRUST_KEY}"`);
 
     return script;
 };

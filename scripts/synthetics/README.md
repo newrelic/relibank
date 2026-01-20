@@ -78,6 +78,43 @@ These scripts are designed to be copied into **New Relic Synthetics** as Scripte
 
 ---
 
+### 4. `selenium_brute_force_login_charlie.js`
+**Purpose:** Brute force attack simulation and security monitoring
+
+**What it does:**
+- Simulates a brute force attack on Charlie's account (charlie.b@relibank.com)
+- Attempts 65 different incorrect passwords from an expanded rainbow table including:
+  - Common passwords (password123, Password123!, admin, root, etc.)
+  - Charlie-specific attempts (charlie123, Charlie2024!, charliebaker, etc.)
+  - Bank-related passwords (relibank123, banking123, finance123, etc.)
+  - Common patterns (P@ssw0rd, Passw0rd!, Summer2024, etc.)
+  - Keyboard patterns (qwerty123, qazwsx123, asdfgh123, etc.)
+  - Date/number patterns (01011990, 123456, 2024, etc.)
+- Validates each login attempt fails (stays on login page)
+- Mimics realistic brute force timing with 2.5-second delays between attempts
+
+**Errors generated:**
+- **65x FailedLoginInvalidPassword** errors in New Relic Errors Inbox for APM
+- Each error captured from `auth-service` backend with attributes:
+  - `email`: charlie.b@relibank.com
+  - `reason`: invalid_password
+  - `login_status`: failed
+  - `actor_ip`: [Synthetic monitor IP]
+  - `actor_user_agent`: [New Relic Synthetics user agent]
+  - `actor_origin`: unknown
+  - `error.class`: auth_service.FailedLoginInvalidPassword
+
+**Use case:**
+- Simulates real-world brute force attack patterns
+- Generates multiple security-related errors for demo scenarios
+- Tests failed login tracking and analytics at scale
+- Validates New Relic APM security monitoring dashboards
+- Demonstrates error grouping and pattern detection capabilities
+
+**Security Note:** This is a controlled synthetic test against your own application. Do not use this script against systems you don't own or have permission to test.
+
+---
+
 ## Configuration Notes
 
 **Base URL:** All scripts use `http://relibank.westus2.cloudapp.azure.com/`

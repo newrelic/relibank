@@ -197,9 +197,7 @@ export const RecurringPaymentsCard = () => {
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({
-          user_id: 'alice.j@relibank.com', // TODO: get from user context
-        }),
+        body: JSON.stringify({}),
       });
 
       const data = await response.json();
