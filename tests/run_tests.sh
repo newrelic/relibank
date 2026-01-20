@@ -158,6 +158,7 @@ if [[ "$ENVIRONMENT" == "remote" ]]; then
     # For remote, all services go through the same base URL
     export BASE_URL="$RELIBANK_URL"
     export ACCOUNTS_SERVICE="$RELIBANK_URL"
+    export AUTH_SERVICE="$RELIBANK_URL"
     export BILL_PAY_SERVICE="$RELIBANK_URL"
     export CHATBOT_SERVICE="$RELIBANK_URL"
     export SCENARIO_SERVICE_URL="$RELIBANK_URL/scenario-runner"

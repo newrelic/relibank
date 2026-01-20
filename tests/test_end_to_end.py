@@ -9,6 +9,7 @@ BASE_URL = os.getenv("BASE_URL", "http://localhost:3000")
 ACCOUNTS_SERVICE = os.getenv("ACCOUNTS_SERVICE", "http://localhost:5002")
 BILL_PAY_SERVICE = os.getenv("BILL_PAY_SERVICE", "http://localhost:5000")
 CHATBOT_SERVICE = os.getenv("CHATBOT_SERVICE", "http://localhost:5003")
+AUTH_SERVICE = os.getenv("AUTH_SERVICE", "http://localhost:5006")
 
 # Test user credentials
 TEST_USER = {
@@ -75,6 +76,65 @@ def test_chatbot_service_health():
     assert response.status_code == 200, f"Chatbot service health check failed: {response.status_code}"
 
     print("✓ Chatbot service is healthy")
+
+
+def test_auth_service_health():
+    """Test that auth service is healthy"""
+    print("\n=== Testing Auth Service Health ===")
+
+    response = requests.get(f"{AUTH_SERVICE}/auth-service/health")
+
+    print(f"Status: {response.status_code}")
+    assert response.status_code == 200, f"Auth service health check failed: {response.status_code}"
+
+    print("✓ Auth service is healthy")
+
+
+def test_auth_service_login():
+    """Test authentication with valid credentials"""
+    print("\n=== Testing Auth Service Login ===")
+
+    # Test with valid credentials
+    login_data = {
+        "email": "alice.j@relibank.com",
+        "password": "lightm0deisthebest"
+    }
+
+    response = requests.post(
+        f"{AUTH_SERVICE}/auth-service/login",
+        json=login_data
+    )
+
+    print(f"Status: {response.status_code}")
+    assert response.status_code == 200, f"Login failed with valid credentials: {response.status_code}"
+
+    data = response.json()
+    print(f"Login response: {data}")
+
+    # Verify response contains expected fields
+    assert "token" in data, "Response missing 'token' field"
+    assert "email" in data, "Response missing 'email' field"
+    assert "user_id" in data, "Response missing 'user_id' field"
+    assert data["email"] == login_data["email"], "Email mismatch in response"
+
+    print("✓ Auth service login successful")
+
+    # Test with invalid credentials
+    print("\nTesting with invalid credentials...")
+    invalid_login = {
+        "email": "alice.j@relibank.com",
+        "password": "wrongpassword"
+    }
+
+    response = requests.post(
+        f"{AUTH_SERVICE}/auth-service/login",
+        json=invalid_login
+    )
+
+    print(f"Status: {response.status_code}")
+    assert response.status_code == 401, f"Expected 401 for invalid credentials, got {response.status_code}"
+
+    print("✓ Invalid credentials correctly rejected")
 
 
 def test_create_user_account():
@@ -250,9 +310,34 @@ def test_bill_payment_flow():
 
 
 def test_complete_user_journey():
-    """Test complete user journey: create user → create account → make payment → chat"""
+    """Test complete user journey: login → create user → create account → make payment → chat"""
     print("\n=== Testing Complete User Journey ===")
 
+    # Use Alice's credentials for the login test
+    login_credentials = {
+        "email": "alice.j@relibank.com",
+        "password": "lightm0deisthebest"
+    }
+
+    # Step 1: Login with existing user
+    print("Step 1: Logging in...")
+    login_response = requests.post(
+        f"{AUTH_SERVICE}/auth-service/login",
+        json=login_credentials
+    )
+
+    if login_response.status_code == 200:
+        login_data = login_response.json()
+        auth_token = login_data.get("token")
+        authenticated_email = login_data.get("email")
+        print(f"✓ Logged in successfully as {authenticated_email}")
+        print(f"  Token received: {auth_token[:20]}...")
+    else:
+        print(f"⚠ Login returned {login_response.status_code}, continuing with test user creation")
+        authenticated_email = None
+        auth_token = None
+
+    # Step 2: Create a new test user for the journey
     journey_user = {
         "id": str(uuid.uuid4()),
         "name": "Journey Test User",
@@ -266,8 +351,7 @@ def test_complete_user_journey():
         "privacy_preferences": {}
     }
 
-    # Step 1: Create user
-    print("Step 1: Creating user...")
+    print("Step 2: Creating test user...")
     user_response = requests.post(
         f"{ACCOUNTS_SERVICE}/accounts-service/users",
         json=journey_user
@@ -275,8 +359,8 @@ def test_complete_user_journey():
     assert user_response.status_code in [200, 201, 500], "User creation failed"
     print("✓ User created (or already exists)")
 
-    # Step 2: Create bank account
-    print("Step 2: Creating bank account...")
+    # Step 3: Create bank account
+    print("Step 3: Creating bank account...")
     account_data = {
         "id": int(os.getpid()) + 1000,
         "name": "Journey Checking Account",
@@ -295,8 +379,8 @@ def test_complete_user_journey():
     else:
         print(f"✓ Bank account creation returned {account_response.status_code} (may already exist)")
 
-    # Step 3: Get account information
-    print("Step 3: Retrieving account info...")
+    # Step 4: Get account information
+    print("Step 4: Retrieving account info...")
     accounts_response = requests.get(f"{ACCOUNTS_SERVICE}/accounts-service/accounts/{journey_user['email']}")
     if accounts_response.status_code == 200:
         accounts = accounts_response.json()
@@ -304,8 +388,8 @@ def test_complete_user_journey():
     else:
         print(f"✓ Get accounts returned {accounts_response.status_code}")
 
-    # Step 4: Make a payment
-    print("Step 4: Making a payment...")
+    # Step 5: Make a payment
+    print("Step 5: Making a payment...")
     payment_response = requests.post(
         f"{BILL_PAY_SERVICE}/bill-pay-service/pay",
         json={
@@ -322,8 +406,8 @@ def test_complete_user_journey():
     else:
         print(f"✓ Payment returned {payment_response.status_code} (scenario may be active or validation failed)")
 
-    # Step 5: Chat with bot
-    print("Step 5: Chatting with bot...")
+    # Step 6: Chat with bot
+    print("Step 6: Chatting with bot...")
     chat_response = requests.post(
         f"{CHATBOT_SERVICE}/chatbot-service/chat",
         params={"prompt": "What's my account balance?"}

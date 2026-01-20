@@ -8,6 +8,8 @@ act-secrets.env
 __pycache__/
 *.pyc
 .venv/
+.venv-relibank-tests/
+.venv-relibank-tests
 env/
 venv/
 *.env

@@ -1,0 +1,7 @@
+fastapi>=0.116.1
+uvicorn[standard]>=0.35.0
+pydantic>=2.12.0a1
+pydantic[email]>=2.12.0a1
+newrelic>=10.17.0
+python-multipart>=0.0.20
+psycopg2-binary>=2.9.9

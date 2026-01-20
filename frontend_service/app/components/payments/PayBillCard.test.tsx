@@ -60,6 +60,10 @@ describe('PayBillCard - Payment Flow', () => {
 
     renderPayBillCard();
 
+    await waitFor(() => {
+      expect(screen.getByLabelText(/amount/i)).toBeInTheDocument();
+    });
+
     const amountField = screen.getByLabelText(/amount/i);
     const submitButton = screen.getByRole('button', { name: /pay bill/i });
 
@@ -68,7 +72,7 @@ describe('PayBillCard - Payment Flow', () => {
     fireEvent.click(submitButton);
 
     await waitFor(() => {
-      expect(screen.getByText(/please fill in all fields/i)).toBeInTheDocument();
+      expect(screen.getByText(/please enter a valid payment amount/i)).toBeInTheDocument();
     });
   });
 
@@ -147,17 +151,14 @@ describe('PayBillCard - Payment Flow', () => {
     renderPayBillCard();
 
     await waitFor(() => {
-      expect(screen.getByLabelText(/payee name/i)).toBeInTheDocument();
+      expect(screen.getByLabelText(/amount/i)).toBeInTheDocument();
     });
 
-    const payeeField = screen.getByLabelText(/payee name/i) as HTMLInputElement;
     const amountField = screen.getByLabelText(/amount/i) as HTMLInputElement;
-    const accountField = screen.getByLabelText(/account number/i) as HTMLInputElement;
 
-    // Change values
-    fireEvent.change(payeeField, { target: { value: 'Cable Company' } });
+    // Change amount value
     fireEvent.change(amountField, { target: { value: '99.99' } });
-    fireEvent.change(accountField, { target: { value: '12345' } });
+    expect(amountField.value).toBe('99.99');
 
     const submitButton = screen.getByRole('button', { name: /pay bill/i });
     fireEvent.click(submitButton);
@@ -167,10 +168,9 @@ describe('PayBillCard - Payment Flow', () => {
       expect(screen.getByText(/completed successfully/i)).toBeInTheDocument();
     });
 
+    // Verify form resets to default values
     await waitFor(() => {
-      expect(payeeField.value).toBe('Electric Company');
       expect(amountField.value).toBe('125.50');
-      expect(accountField.value).toBe('67890');
     });
   });
 
