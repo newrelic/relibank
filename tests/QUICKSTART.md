@@ -57,7 +57,6 @@ Services expected at:
 - Accounts: http://localhost:5002
 - Bill Pay: http://localhost:5000
 - Chatbot: http://localhost:5003
-- Scenario Runner: http://localhost:8000/scenario-runner
 
 ### Remote Testing
 
