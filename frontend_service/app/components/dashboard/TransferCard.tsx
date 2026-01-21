@@ -25,7 +25,7 @@ export const TransferCard = ({ transactions, setTransactions }: TransferCardProp
 
   const [fromAccount, setFromAccount] = useState('checking');
   const [toAccount, setToAccount] = useState('savings');
-  const [amount, setAmount] = useState('');
+  const [amount, setAmount] = useState('5.00');
   const [message, setMessage] = useState('');
   const [isError, setIsError] = useState(false);
 
@@ -125,13 +125,11 @@ export const TransferCard = ({ transactions, setTransactions }: TransferCardProp
     // ==========================================================================
     // OPTIMISTIC UPDATE: Update UI immediately (before API call)
     //
-    // NOTE FOR DEMO APP: We intentionally DO NOT rollback on error.
-    // This allows the UI to show incorrect balances when transfers fail,
-    // demonstrating the visual impact of errors for New Relic telemetry demos.
-    //
-    // In a production app, you would rollback to original state on error.
-    // Do not change this behavior unless explicitly updating demo scenarios.
+    // Store original state for rollback in case of error
     // ==========================================================================
+    const originalUserData = userData;
+    const originalTransactions = transactions;
+
     setUserData(newUserData);
     setTransactions([newSourceTx, newTargetTx, ...transactions]);
 
@@ -170,19 +168,16 @@ export const TransferCard = ({ transactions, setTransactions }: TransferCardProp
 
       // Success - show success message
       setMessage(`Successfully transferred $${transferAmount.toFixed(2)} from ${fromAccount} to ${toAccount}.`);
-      setAmount('');
+      setAmount('5.00');
 
     } catch (error: any) {
       console.error('Transfer API error:', error);
 
       // ==========================================================================
-      // INTENTIONAL: NO ROLLBACK ON ERROR (Demo App Behavior)
-      //
-      // The incorrect balance remains visible to demonstrate error impact.
-      // This helps with New Relic demos by showing corrupted UI state.
-      //
-      // In production: You would rollback userData and transactions here.
+      // ROLLBACK ON ERROR: Restore original balances and transactions
       // ==========================================================================
+      setUserData(originalUserData);
+      setTransactions(originalTransactions);
 
       // Report error to New Relic Browser
       if (typeof window !== 'undefined' && (window as any).newrelic) {

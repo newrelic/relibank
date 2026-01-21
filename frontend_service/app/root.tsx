@@ -12,6 +12,10 @@ import { AppLayout } from '~/components/layout/AppLayout';
 
 import nrScriptTemplate from "./nr.js?raw";
 
+export const links = () => [
+  { rel: "icon", href: "/relibank.png", type: "image/png" }
+];
+
 const NEW_RELIC_CONFIG = {
     // These values are hardcoded in nr.js
     // We'll use placeholders in the template and replace them here.

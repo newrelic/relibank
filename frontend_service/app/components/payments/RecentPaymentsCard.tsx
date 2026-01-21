@@ -11,8 +11,9 @@ import {
   TableRow,
   Chip,
   CircularProgress,
+  Button,
 } from '@mui/material';
-import { Receipt as ReceiptIcon } from '@mui/icons-material';
+import { Receipt as ReceiptIcon, ExpandMore as ExpandMoreIcon, ExpandLess as ExpandLessIcon } from '@mui/icons-material';
 
 // Mock data for recent payment history (always shown)
 const mockPaymentHistory = [
@@ -23,15 +24,15 @@ const mockPaymentHistory = [
 ];
 
 interface TransactionRecord {
-  transaction_id: number;
-  event_type: string;
-  bill_id: string;
-  amount: number;
-  currency: string;
-  account_id: number;
-  timestamp: number;
-  cancellation_user_id?: string;
-  cancellation_timestamp?: number;
+  TransactionID: number;
+  EventType: string;
+  BillID: string;
+  Amount: number;
+  Currency: string;
+  AccountID: number;
+  Timestamp: number;
+  CancellationUserID?: string;
+  CancellationTimestamp?: number;
 }
 
 interface PaymentDisplay {
@@ -43,13 +44,24 @@ interface PaymentDisplay {
   method: string;
 }
 
-export const RecentPaymentsCard = () => {
+interface RecentPaymentsCardProps {
+  refreshTrigger?: number;
+  showToggle?: boolean; // If true, shows "Show More/Less" button
+  initialDisplayCount?: number; // Number of items to show initially (default: all)
+}
+
+export const RecentPaymentsCard = ({
+  refreshTrigger,
+  showToggle = false,
+  initialDisplayCount
+}: RecentPaymentsCardProps) => {
   const [payments, setPayments] = useState<PaymentDisplay[]>(mockPaymentHistory);
   const [isLoading, setIsLoading] = useState(true);
+  const [showAll, setShowAll] = useState(false);
 
   useEffect(() => {
     fetchTransactions();
-  }, []);
+  }, [refreshTrigger]);
 
   // Helper: Parse bill_id into readable payee name
   const parseBillIdToPayee = (billId: string): string => {
@@ -70,7 +82,7 @@ export const RecentPaymentsCard = () => {
 
   // Helper: Derive status from cancellation fields
   const deriveStatus = (transaction: TransactionRecord): string => {
-    if (transaction.cancellation_timestamp) {
+    if (transaction.CancellationTimestamp) {
       return 'cancelled';
     }
     return 'completed';
@@ -88,14 +100,19 @@ export const RecentPaymentsCard = () => {
       }
 
       // Filter to only payment events
-      const paymentTransactions = data.filter(tx => tx.event_type && tx.event_type.toLowerCase() === 'payment');
+      const paymentTransactions = data.filter(tx =>
+        tx.EventType &&
+        (tx.EventType.toLowerCase().includes('payment') ||
+         tx.EventType === 'BillPaymentInitiatedFromAcct' ||
+         tx.EventType === 'BillPaymentInitiatedToAcct')
+      );
 
       // Transform transaction data to payment display format
       const realPayments: PaymentDisplay[] = paymentTransactions.map(tx => ({
-        id: `tx-${tx.transaction_id}`,
-        payee: parseBillIdToPayee(tx.bill_id),
-        amount: tx.amount,
-        date: formatTimestamp(tx.timestamp),
+        id: `tx-${tx.TransactionID}`,
+        payee: parseBillIdToPayee(tx.BillID),
+        amount: tx.Amount,
+        date: formatTimestamp(tx.Timestamp),
         status: deriveStatus(tx),
         method: 'Bank Account', // All payments from transaction service are bank transfers
       }));
@@ -133,6 +150,11 @@ export const RecentPaymentsCard = () => {
     }
   };
 
+  // Calculate which payments to display based on toggle state
+  const displayPayments = showToggle && !showAll && initialDisplayCount
+    ? payments.slice(0, initialDisplayCount)
+    : payments;
+
   return (
     <Card sx={{
       p: 3,
@@ -162,7 +184,7 @@ export const RecentPaymentsCard = () => {
               </TableRow>
             </TableHead>
             <TableBody>
-              {payments.map((payment) => (
+              {displayPayments.map((payment) => (
                 <TableRow key={payment.id}>
                   <TableCell>
                     <Typography variant="body1" sx={{ fontWeight: 'medium' }}>
@@ -192,6 +214,18 @@ export const RecentPaymentsCard = () => {
             </TableBody>
           </Table>
         </TableContainer>
+      )}
+
+      {showToggle && initialDisplayCount && payments.length > initialDisplayCount && (
+        <Box sx={{ textAlign: 'center', mt: 2 }}>
+          <Button
+            id="dashboard-payments-toggle-btn"
+            onClick={() => setShowAll(!showAll)}
+            endIcon={showAll ? <ExpandLessIcon /> : <ExpandMoreIcon />}
+          >
+            {showAll ? 'Show Less' : 'Show All'}
+          </Button>
+        </Box>
       )}
 
       {!isLoading && payments.length === 0 && (

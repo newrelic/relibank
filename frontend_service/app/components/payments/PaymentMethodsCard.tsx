@@ -157,6 +157,8 @@ export const PaymentMethodsCard = () => {
     <Card sx={{
       p: 3,
       height: '100%',
+      display: 'flex',
+      flexDirection: 'column',
       borderRadius: '12px',
       border: '1px solid #e5e7eb',
       boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)'
@@ -231,61 +233,82 @@ export const PaymentMethodsCard = () => {
         </Box>
       </Collapse>
 
-      {isLoading ? (
-        <Box sx={{ display: 'flex', justifyContent: 'center', py: 4 }}>
-          <CircularProgress />
-        </Box>
-      ) : (
-        <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-          {/* Bank Accounts */}
-          {userData?.map((account: BankAccount) => (
-            <Card key={account.routing_number} variant="outlined" sx={{ p: 2 }}>
-              <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-                  {getBankIcon()}
-                  <Box>
-                    <Typography variant="body1" sx={{ fontWeight: 'medium' }}>
-                      {formatAccountType(account.account_type)} •••• {account.routing_number.slice(-4)}
-                    </Typography>
-                    <Typography variant="body2" color="text.secondary">
-                      Balance: ${account.balance.toFixed(2)}
-                    </Typography>
+      {/* Scrollable payment methods list */}
+      <Box sx={{
+        flexGrow: 1,
+        overflowY: 'auto',
+        minHeight: 0,
+        '&::-webkit-scrollbar': {
+          width: '8px',
+        },
+        '&::-webkit-scrollbar-track': {
+          backgroundColor: '#f1f1f1',
+          borderRadius: '4px',
+        },
+        '&::-webkit-scrollbar-thumb': {
+          backgroundColor: '#888',
+          borderRadius: '4px',
+          '&:hover': {
+            backgroundColor: '#555',
+          },
+        },
+      }}>
+        {isLoading ? (
+          <Box sx={{ display: 'flex', justifyContent: 'center', py: 4 }}>
+            <CircularProgress />
+          </Box>
+        ) : (
+          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+            {/* Bank Accounts */}
+            {userData?.map((account: BankAccount) => (
+              <Card key={account.routing_number} variant="outlined" sx={{ p: 2 }}>
+                <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+                    {getBankIcon()}
+                    <Box>
+                      <Typography variant="body1" sx={{ fontWeight: 'medium' }}>
+                        {formatAccountType(account.account_type)} •••• {account.routing_number.slice(-4)}
+                      </Typography>
+                      <Typography variant="body2" color="text.secondary">
+                        Balance: ${account.balance.toFixed(2)}
+                      </Typography>
+                    </Box>
                   </Box>
+                  <Chip label="Bank Account" size="small" color="success" variant="outlined" />
                 </Box>
-                <Chip label="Bank Account" size="small" color="success" variant="outlined" />
-              </Box>
-            </Card>
-          ))}
+              </Card>
+            ))}
 
-          {/* Stripe Cards */}
-          {methods.map((method) => (
-            <Card key={method.id} variant="outlined" sx={{ p: 2 }}>
-              <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-                  {getCardIcon()}
-                  <Box>
-                    <Typography variant="body1" sx={{ fontWeight: 'medium' }}>
-                      {formatCardBrand(method.brand)} •••• {method.last4}
-                    </Typography>
-                    <Typography variant="body2" color="text.secondary">
-                      Expires {String(method.expMonth).padStart(2, '0')}/{method.expYear}
-                    </Typography>
+            {/* Stripe Cards */}
+            {methods.map((method) => (
+              <Card key={method.id} variant="outlined" sx={{ p: 2 }}>
+                <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+                    {getCardIcon()}
+                    <Box>
+                      <Typography variant="body1" sx={{ fontWeight: 'medium' }}>
+                        {formatCardBrand(method.brand)} •••• {method.last4}
+                      </Typography>
+                      <Typography variant="body2" color="text.secondary">
+                        Expires {String(method.expMonth).padStart(2, '0')}/{method.expYear}
+                      </Typography>
+                    </Box>
                   </Box>
+                  <Chip label="Stripe Test" size="small" color="primary" variant="outlined" />
                 </Box>
-                <Chip label="Stripe Test" size="small" color="primary" variant="outlined" />
-              </Box>
-            </Card>
-          ))}
-        </Box>
-      )}
+              </Card>
+            ))}
 
-      {!isLoading && methods.length === 0 && !userData?.length && (
-        <Box sx={{ textAlign: 'center', py: 4 }}>
-          <Typography variant="body2" color="text.secondary">
-            No payment methods saved yet
-          </Typography>
-        </Box>
-      )}
+            {!isLoading && methods.length === 0 && !userData?.length && (
+              <Box sx={{ textAlign: 'center', py: 4 }}>
+                <Typography variant="body2" color="text.secondary">
+                  No payment methods saved yet
+                </Typography>
+              </Box>
+            )}
+          </Box>
+        )}
+      </Box>
     </Card>
   );
 };

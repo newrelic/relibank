@@ -11,13 +11,36 @@ const theme = createTheme({
   },
   palette: {
     background: {
-      default: '#f8f9fa',
+      default: '#f8faf8',
+      paper: '#ffffff',
     },
     primary: {
-      main: '#3b82f6',
+      main: '#1a3d1a',      // Forest green from logo
+      light: '#7a9b3e',     // Sage green
+      dark: '#0f2610',      // Deeper green
     },
     secondary: {
-      main: '#6b7280',
+      main: '#8db600',      // Lime accent from logo
+      light: '#a8cc3a',
+    },
+    success: {
+      main: '#7a9b3e',      // Sage green for positive actions
+    },
+    warning: {
+      main: '#d97706',      // Amber gold (tertiary)
+      light: '#fbbf24',     // Light gold
+      dark: '#b45309',      // Deep amber
+    },
+    error: {
+      main: '#dc2626',      // Red for errors
+      light: '#f87171',
+    },
+    info: {
+      main: '#7a9b3e',      // Sage green for info
+    },
+    text: {
+      primary: '#2d3748',   // Charcoal
+      secondary: '#6b7280',
     },
   },
   components: {
@@ -41,7 +64,7 @@ export const AppLayout = ({ children }: { children: React.ReactNode }) => {
       <Box sx={{
         display: 'flex',
         height: '100vh',
-        bgcolor: '#f8f9fa'
+        bgcolor: '#f8faf8'
       }}>
         <Sidebar />
         <Box sx={{ flex: 1, display: 'flex', flexDirection: 'column', borderRadius: '0 12px 12px 0' }}>

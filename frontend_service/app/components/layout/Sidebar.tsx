@@ -13,7 +13,6 @@ import {
 import DashboardIcon from '@mui/icons-material/Dashboard';
 import SettingsIcon from '@mui/icons-material/Settings';
 import SupportAgentIcon from '@mui/icons-material/SupportAgent';
-import BusinessIcon from '@mui/icons-material/Business';
 import PaymentIcon from '@mui/icons-material/Payment';
 
 export const Sidebar = () => {
@@ -32,9 +31,11 @@ export const Sidebar = () => {
       flexDirection: 'column',
       borderRadius: '12px 0 0 12px'
     }}>
-      <Box sx={{ display: 'flex', alignItems: 'center', mb: 4 }}>
-        <BusinessIcon color="primary" sx={{ mr: 1 }} />
-        <Typography variant="h6" sx={{ fontWeight: 'bold' }}>ReliBank</Typography>
+      <Box sx={{ display: 'flex', alignItems: 'center', mb: 2, gap: 1 }}>
+        <Box sx={{ width: '64px', height: '64px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <img src="/relibank.png" alt="ReliBank Logo" style={{ maxWidth: '100%', maxHeight: '100%', objectFit: 'contain' }} />
+        </Box>
+        <Typography variant="h5" sx={{ fontWeight: 'bold', color: 'primary.main' }}>ReliBank</Typography>
       </Box>
       <List sx={{ flexGrow: 1 }}>
         <ListItem disablePadding sx={{ mb: 1, borderRadius: '8px' }}>

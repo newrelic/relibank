@@ -1,4 +1,4 @@
-import { useState, useContext } from 'react';
+import { useState, useContext, useEffect } from 'react';
 import { LoginContext } from '~/root';
 import {
   Box,
@@ -33,14 +33,28 @@ import {
 
 // Mock data for scheduled/recurring payments
 const mockScheduledPayments = [
-  { id: 1, billId: 'BILL-ELECTRIC-001', payee: 'Electric Company', amount: 125.50, frequency: 'monthly', nextDate: '2024-02-01', status: 'active', toAccountId: 67890 },
-  { id: 2, billId: 'BILL-INTERNET-002', payee: 'Internet Service', amount: 79.99, frequency: 'monthly', nextDate: '2024-02-05', status: 'active', toAccountId: 67890 },
-  { id: 3, billId: 'BILL-WATER-003', payee: 'Water Utility', amount: 45.00, frequency: 'monthly', nextDate: '2024-02-10', status: 'active', toAccountId: 67890 },
+  { id: 'mock-1', billId: 'BILL-ELECTRIC-001', payee: 'Electric Company', amount: 125.50, frequency: 'monthly', nextDate: '2024-02-01', status: 'active', toAccountId: 67890 },
+  { id: 'mock-2', billId: 'BILL-INTERNET-002', payee: 'Internet Service', amount: 79.99, frequency: 'monthly', nextDate: '2024-02-05', status: 'active', toAccountId: 67890 },
+  { id: 'mock-3', billId: 'BILL-WATER-003', payee: 'Water Utility', amount: 45.00, frequency: 'monthly', nextDate: '2024-02-10', status: 'active', toAccountId: 67890 },
 ];
+
+interface RecurringScheduleAPI {
+  ScheduleID: number;
+  BillID: string;
+  AccountID: number;
+  Amount: number;
+  Currency: string;
+  Frequency: string;
+  StartDate: string;
+  Timestamp: number;
+  CancellationUserID?: string;
+  CancellationTimestamp?: number;
+}
 
 export const RecurringPaymentsCard = () => {
   const { userData } = useContext(LoginContext);
   const [payments, setPayments] = useState(mockScheduledPayments);
+  const [isLoadingSchedules, setIsLoadingSchedules] = useState(true);
   const [showAddForm, setShowAddForm] = useState(false);
 
   // Form state (pre-filled with test values)
@@ -54,6 +68,55 @@ export const RecurringPaymentsCard = () => {
   const [message, setMessage] = useState('');
   const [isError, setIsError] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+
+  useEffect(() => {
+    fetchRecurringSchedules();
+  }, []);
+
+  // Helper: Parse bill_id into readable payee name
+  const parseBillIdToPayee = (billId: string): string => {
+    const cleaned = billId.replace(/^BILL-/i, '').replace(/-\d+$/, '');
+    return cleaned
+      .split(/[-_]/)
+      .map(word => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
+      .join(' ');
+  };
+
+  const fetchRecurringSchedules = async () => {
+    try {
+      setIsLoadingSchedules(true);
+      const response = await fetch('/transaction-service/recurring-payments');
+      const data: RecurringScheduleAPI[] = await response.json();
+
+      if (!response.ok) {
+        throw new Error('Failed to fetch recurring schedules');
+      }
+
+      // Transform API data to display format
+      const realSchedules = data
+        .filter(schedule => !schedule.CancellationTimestamp) // Only show active schedules
+        .map(schedule => ({
+          id: schedule.ScheduleID,
+          billId: schedule.BillID,
+          payee: parseBillIdToPayee(schedule.BillID),
+          amount: schedule.Amount,
+          frequency: schedule.Frequency.toLowerCase(),
+          nextDate: schedule.StartDate,
+          status: 'active',
+          toAccountId: schedule.AccountID,
+        }));
+
+      // Combine mock data with real schedules
+      const allSchedules = [...mockScheduledPayments, ...realSchedules];
+      setPayments(allSchedules);
+    } catch (error: any) {
+      console.error('Error fetching recurring schedules:', error);
+      // On error, show mock data
+      setPayments(mockScheduledPayments);
+    } finally {
+      setIsLoadingSchedules(false);
+    }
+  };
 
   const handleAddRecurring = async (event: React.FormEvent) => {
     event.preventDefault();
@@ -108,18 +171,8 @@ export const RecurringPaymentsCard = () => {
       setIsError(false);
       setMessage(`Recurring payment to ${payee} set up successfully!`);
 
-      // Add to local state (simulate the new recurring payment)
-      const newPayment = {
-        id: Date.now(),
-        billId: `BILL-${payee.toUpperCase().replace(/\s+/g, '-')}-${Date.now()}`,
-        payee,
-        amount: paymentAmount,
-        frequency,
-        nextDate: startDate,
-        status: 'active',
-        toAccountId: parseInt(accountNumber),
-      };
-      setPayments([...payments, newPayment]);
+      // Refresh the list from backend
+      await fetchRecurringSchedules();
 
       // Reset form to defaults
       setPayee('Netflix');
@@ -155,8 +208,8 @@ export const RecurringPaymentsCard = () => {
         throw new Error(data.detail || data.message || 'Failed to cancel payment');
       }
 
-      // Success - remove from local state
-      setPayments(payments.filter(p => p.billId !== billId));
+      // Success - refresh from backend
+      await fetchRecurringSchedules();
       setMessage('Payment cancelled successfully');
       setIsError(false);
     } catch (error: any) {

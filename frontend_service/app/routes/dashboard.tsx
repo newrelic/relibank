@@ -58,6 +58,7 @@ import {
 } from '@mui/icons-material';
 import { LoginContext } from '~/root';
 import { TransferCard } from '~/components/dashboard/TransferCard';
+import { RecentPaymentsCard } from '~/components/payments/RecentPaymentsCard';
 
 // --- MOCK APPLICATION DATA (Replaces Loader) ---
 
@@ -80,14 +81,6 @@ const mockTransactions = [
     { id: 9, name: "Gas Station", date: "2023-10-17", amount: -45.00, accountId: 'checking', type: 'debit' },
 ];
 
-// Mock data for recent payment history (always shown)
-const mockPaymentHistory = [
-  { id: 'mock-1', payee: 'Electric Company', amount: 125.50, date: '2024-01-01', status: 'completed', method: 'Bank Account' },
-  { id: 'mock-2', payee: 'Internet Service', amount: 79.99, date: '2024-01-05', status: 'completed', method: 'Bank Account' },
-  { id: 'mock-3', payee: 'Rent', amount: 1500.00, date: '2024-01-01', status: 'completed', method: 'Bank Account' },
-  { id: 'mock-4', payee: 'Phone Bill', amount: 65.00, date: '2023-12-28', status: 'completed', method: 'Credit Card' },
-];
-
 const mockSpendingData = [
     { name: 'Jan', value: 4000 },
     { name: 'Feb', value: 3000 },
@@ -99,11 +92,11 @@ const mockSpendingData = [
 ];
 
 const mockPieData = [
-    { name: 'Shopping', value: 300, color: '#f87171' },
-    { name: 'Food', value: 200, color: '#facc15' },
-    { name: 'Groceries', value: 150, color: '#34d399' },
-    { name: 'Utilities', value: 100, color: '#60a5fa' },
-    { name: 'Other', value: 50, color: '#c084fc' },
+    { name: 'Shopping', value: 300, color: '#0f2610' },      // Deepest green (darkest)
+    { name: 'Food', value: 200, color: '#1a3d1a' },          // Forest green
+    { name: 'Groceries', value: 150, color: '#4d6b3d' },     // Mid-tone green
+    { name: 'Utilities', value: 100, color: '#7a9b3e' },     // Sage green
+    { name: 'Other', value: 50, color: '#a8cc3a' },          // Light lime (brightest)
 ];
 
 const mockStackedBarData = [
@@ -169,171 +162,6 @@ const SpendingChart = ({ data }) => (
   </Card>
 );
 
-// Recent Transactions component
-const RecentTransactions = () => {
-  const [payments, setPayments] = useState(mockPaymentHistory);
-  const [isLoading, setIsLoading] = useState(true);
-  const [showAll, setShowAll] = useState(false);
-
-  useEffect(() => {
-    fetchTransactions();
-  }, []);
-
-  // Helper: Parse bill_id into readable payee name
-  const parseBillIdToPayee = (billId) => {
-    const cleaned = billId.replace(/^BILL-/i, '').replace(/-\d+$/, '');
-    return cleaned
-      .split(/[-_]/)
-      .map(word => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
-      .join(' ');
-  };
-
-  // Helper: Format Unix timestamp to date string
-  const formatTimestamp = (timestamp) => {
-    const date = new Date(timestamp * 1000);
-    return date.toISOString().split('T')[0];
-  };
-
-  // Helper: Derive status from cancellation fields
-  const deriveStatus = (transaction) => {
-    if (transaction.cancellation_timestamp) {
-      return 'cancelled';
-    }
-    return 'completed';
-  };
-
-  const fetchTransactions = async () => {
-    try {
-      setIsLoading(true);
-      const response = await fetch('/transaction-service/transactions');
-      const data = await response.json();
-
-      if (!response.ok) {
-        throw new Error('Failed to fetch transactions');
-      }
-
-      const paymentTransactions = data.filter(tx => tx.event_type && tx.event_type.toLowerCase() === 'payment');
-      const realPayments = paymentTransactions.map(tx => ({
-        id: `tx-${tx.transaction_id}`,
-        payee: parseBillIdToPayee(tx.bill_id),
-        amount: tx.amount,
-        date: formatTimestamp(tx.timestamp),
-        status: deriveStatus(tx),
-        method: 'Bank Account',
-      }));
-
-      const allPayments = [...mockPaymentHistory, ...realPayments];
-      const sortedPayments = allPayments
-        .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
-        .slice(0, 10);
-
-      setPayments(sortedPayments);
-    } catch (error) {
-      console.error('Error fetching transactions:', error);
-      setPayments(mockPaymentHistory);
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  const getStatusColor = (status) => {
-    switch (status) {
-      case 'completed':
-        return 'success';
-      case 'pending':
-        return 'warning';
-      case 'failed':
-        return 'error';
-      case 'cancelled':
-        return 'default';
-      default:
-        return 'default';
-    }
-  };
-
-  const displayPayments = showAll ? payments : payments.slice(0, 5);
-
-  return (
-    <Card sx={{ p: 3, height: '100%', width: '100%', display: 'flex', flexDirection: 'column' }}>
-      <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
-        <ReceiptIcon color="primary" sx={{ mr: 1 }} />
-        <Typography variant="h6">Recent Payments</Typography>
-      </Box>
-
-      {isLoading ? (
-        <Box sx={{ display: 'flex', justifyContent: 'center', py: 4 }}>
-          <CircularProgress />
-        </Box>
-      ) : (
-        <>
-          <TableContainer>
-            <Table size="small">
-              <TableHead>
-                <TableRow>
-                  <TableCell sx={{ fontWeight: 'bold' }}>Payee</TableCell>
-                  <TableCell align="right" sx={{ fontWeight: 'bold' }}>Amount</TableCell>
-                  <TableCell sx={{ fontWeight: 'bold' }}>Date</TableCell>
-                  <TableCell sx={{ fontWeight: 'bold' }}>Method</TableCell>
-                  <TableCell sx={{ fontWeight: 'bold' }}>Status</TableCell>
-                </TableRow>
-              </TableHead>
-              <TableBody>
-                {displayPayments.map((payment) => (
-                  <TableRow key={payment.id}>
-                    <TableCell>
-                      <Typography variant="body1" sx={{ fontWeight: 'medium' }}>
-                        {payment.payee}
-                      </Typography>
-                    </TableCell>
-                    <TableCell align="right">
-                      <Typography variant="body1" sx={{ fontWeight: 'medium' }}>
-                        ${payment.amount.toFixed(2)}
-                      </Typography>
-                    </TableCell>
-                    <TableCell>
-                      <Typography variant="body2" color="text.secondary">
-                        {payment.date}
-                      </Typography>
-                    </TableCell>
-                    <TableCell>{payment.method}</TableCell>
-                    <TableCell>
-                      <Chip
-                        label={payment.status}
-                        size="small"
-                        color={getStatusColor(payment.status)}
-                      />
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </TableContainer>
-
-          {payments.length > 5 && (
-            <Box sx={{ textAlign: 'center', mt: 2 }}>
-              <Button
-                id="dashboard-payments-toggle-btn"
-                onClick={() => setShowAll(!showAll)}
-                endIcon={showAll ? <ExpandLessIcon /> : <ExpandMoreIcon />}
-              >
-                {showAll ? 'Show Less' : 'Show All'}
-              </Button>
-            </Box>
-          )}
-
-          {!isLoading && payments.length === 0 && (
-            <Box sx={{ textAlign: 'center', py: 4 }}>
-              <Typography variant="body2" color="text.secondary">
-                No payment history available
-              </Typography>
-            </Box>
-          )}
-        </>
-      )}
-    </Card>
-  );
-};
-
 // Spending Categories Chart
 const SpendingCategories = ({ data }) => (
   <Card sx={{ p: 3, height: '100%', display: 'flex', flexDirection: 'column' }}>
@@ -373,8 +201,8 @@ const AccountBalanceTrends = ({ data }) => (
           <YAxis />
           <RechartsTooltip />
           <Legend />
-          <Bar dataKey="checking" stackId="a" fill="#60a5fa" name="Checking" />
-          <Bar dataKey="savings" stackId="a" fill="#34d399" name="Savings" />
+          <Bar dataKey="checking" stackId="a" fill="#1a3d1a" name="Checking" />
+          <Bar dataKey="savings" stackId="a" fill="#7a9b3e" name="Savings" />
         </BarChart>
       </ResponsiveContainer>
     </Box>
@@ -483,17 +311,17 @@ const DashboardPage = () => {
     <Box sx={{ flexGrow: 1 }}>
       {/* Hero Section with Balance Cards */}
       <Box sx={{
-        bgcolor: 'white',
+        background: 'linear-gradient(135deg, #fef7e9 0%, #fffcf7 50%, #ffffff 100%)',
         py: 2,
         mb: 3
       }}>
-        <Box sx={{ px: 32 }}>
+        <Box sx={{ px: { xs: 2, sm: 4, md: 8, lg: 16, xl: 32 } }}>
           <Typography variant="h4" component="h1" gutterBottom>
             Account Summary
           </Typography>
-          <Grid container spacing={4}>
+          <Grid container spacing={{ xs: 2, sm: 3, md: 4 }}>
           {/* Row 1: Overview Cards (4-4-4) */}
-          <Grid item size={{ xs:12, md: 4}}>
+          <Grid item size={{ xs: 12, md: 4 }}>
             <OverviewCard
               title="Total Balance"
               value={totalBalance}
@@ -501,7 +329,7 @@ const DashboardPage = () => {
               info=""
             />
           </Grid>
-          <Grid item size={{ xs:12, md: 4}}>
+          <Grid item size={{ xs: 12, md: 4 }}>
             <OverviewCard
               title="Checking"
               value={checkingBalance}
@@ -509,7 +337,7 @@ const DashboardPage = () => {
               info={checkingExtraInfo}
             />
           </Grid>
-          <Grid item size={{ xs:12, md: 4}}>
+          <Grid item size={{ xs: 12, md: 4 }}>
             <OverviewCard
               title="Savings"
               value={savingsBalance}
@@ -522,31 +350,33 @@ const DashboardPage = () => {
       </Box>
 
       {/* Rest of Dashboard Content */}
-      <Box sx={{ px: 32, pb: 3 }}>
-        <Grid container spacing={4}>
+      <Box sx={{ px: { xs: 2, sm: 4, md: 8, lg: 16, xl: 32 }, pb: 3 }}>
+        <Grid container spacing={{ xs: 2, sm: 3, md: 4 }}>
 
         {/* Row 1: Promotional Banner (12) */}
         <Grid item size={12}>
           <Card sx={{
             p: 2,
             display: 'flex',
+            flexDirection: { xs: 'column', sm: 'row' },
             alignItems: 'center',
             gap: 2,
-            background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+            background: 'linear-gradient(135deg, #1a3d1a 0%, #7a9b3e 100%)',
             color: 'white',
             borderRadius: '12px'
           }}>
             <Box sx={{
-              fontSize: '2.5rem',
-              flexShrink: 0
+              fontSize: { xs: '2rem', sm: '2.5rem' },
+              flexShrink: 0,
+              filter: 'drop-shadow(0 2px 4px rgba(217, 119, 6, 0.3))'
             }}>
-              💳
+              🪙
             </Box>
-            <Box sx={{ flexGrow: 1 }}>
-              <Typography variant="h6" sx={{ fontWeight: 'bold', mb: 0.25 }}>
-                Get 5% Cash Back on Every Purchase!
+            <Box sx={{ flexGrow: 1, textAlign: { xs: 'center', sm: 'left' } }}>
+              <Typography variant="h6" sx={{ fontWeight: 'bold', mb: 0.25, fontSize: { xs: '1rem', sm: '1.25rem' } }}>
+                Get <Box component="span" sx={{ color: '#fbbf24' }}>5%</Box> Cash Back on Every Purchase!
               </Typography>
-              <Typography variant="body2" sx={{ opacity: 0.95 }}>
+              <Typography variant="body2" sx={{ opacity: 0.95, fontSize: { xs: '0.875rem', sm: '1rem' } }}>
                 Apply now for the ReliBank Rewards Credit Card and earn unlimited cash back with no annual fee.
               </Typography>
             </Box>
@@ -555,14 +385,15 @@ const DashboardPage = () => {
               variant="contained"
               size="medium"
               sx={{
-                bgcolor: 'white',
-                color: '#667eea',
+                bgcolor: '#fbbf24',
+                color: '#1a3d1a',
                 fontWeight: 'bold',
                 px: 3,
                 '&:hover': {
-                  bgcolor: '#f0f0f0'
+                  bgcolor: '#d97706'
                 },
-                flexShrink: 0
+                flexShrink: 0,
+                width: { xs: '100%', sm: 'auto' }
               }}
             >
               Sign Up
@@ -571,14 +402,14 @@ const DashboardPage = () => {
         </Grid>
 
         {/* Row 2: Transfer Card + Line Chart (4-8) */}
-        <Grid item size={{ xs: 12, md: 4 }}>
+        <Grid item size={{ xs: 12, lg: 4 }}>
           <TransferCard
             transactions={transactions}
             setTransactions={setTransactions}
           />
         </Grid>
 
-        <Grid item size={{ xs: 12, md: 8 }}>
+        <Grid item size={{ xs: 12, lg: 8 }}>
           <SpendingChart data={appData.spendingData} />
         </Grid>
 
@@ -593,7 +424,7 @@ const DashboardPage = () => {
 
         {/* Row 4: Recent Payments (12 - full width) */}
         <Grid item size={{ xs: 12 }}>
-          <RecentTransactions />
+          <RecentPaymentsCard showToggle={true} initialDisplayCount={5} />
         </Grid>
         </Grid>
       </Box>

@@ -170,12 +170,25 @@ export default function SupportPage() {
   };
 
   return (
-    <Box sx={{ px: 32, py: 3, display: 'flex', flexDirection: 'column', height: '100%' }}>
-      <Typography variant="h4" component="h1" gutterBottom>
-        Customer Support Chat
-      </Typography>
-      
+    <Box sx={{ flexGrow: 1, display: 'flex', flexDirection: 'column', height: '100%' }}>
+      {/* Hero Section */}
+      <Box sx={{
+        background: 'linear-gradient(135deg, #fef7e9 0%, #fffcf7 50%, #ffffff 100%)',
+        py: 2,
+        mb: 3
+      }}>
+        <Box sx={{ px: 32 }}>
+          <Typography variant="h4" component="h1" gutterBottom>
+            Customer Support Chat
+          </Typography>
+          <Typography variant="body1" color="text.secondary">
+            Chat with ReliBot for instant assistance
+          </Typography>
+        </Box>
+      </Box>
+
       {/* Chat Window Container */}
+      <Box sx={{ px: 32, pb: 3, display: 'flex', flexDirection: 'column', flexGrow: 1 }}>
       <Paper 
         elevation={3} 
         sx={{ 
@@ -245,6 +258,7 @@ export default function SupportPage() {
           </Button>
         </Box>
       </Paper>
+      </Box>
     </Box>
   );
 }
