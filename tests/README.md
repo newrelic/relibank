@@ -1,143 +1,259 @@
-# Payment Scenario Tests
+# Relibank Test Suite
 
-This directory contains automated tests for the Relibank payment failure scenarios. These tests verify that the probability-based payment scenarios (gateway timeout, card decline, and stolen card) work correctly.
+This directory contains a comprehensive test suite for the Relibank application, including end-to-end tests, scenario service API tests (payment, chaos, and load testing scenarios), and payment behavior tests.
+
+## 🚀 Quick Start
+
+**New to the test suite?** See [QUICKSTART.md](QUICKSTART.md) for a 5-minute setup guide.
+
+**TL;DR:**
+```bash
+# Setup (one time)
+cd tests
+./setup_test_env.sh
+
+# Run tests locally
+./run_tests.sh
+
+# Run tests against remote
+export RELIBANK_URL="http://your-server.example.com"
+./run_tests.sh -e remote
+```
+
+---
+
+## Test Files Overview
+
+| Test File | Purpose | Key Features |
+|-----------|---------|--------------|
+| `test_end_to_end.py` | End-to-end microservice tests | Frontend, accounts service, bill pay service, chatbot service, complete user flows |
+| `test_scenario_service.py` | Scenario service API tests | Payment scenarios, chaos scenarios, locust load testing - all via API |
+| `test_payment_scenarios.py` | Payment failure scenarios | Gateway timeout, card decline, stolen card with probabilities |
+| `../frontend_service/app/**/*.test.tsx` | Frontend functional tests (Vitest) | Login, transfers, bill payment (Stripe), chatbot, form validation, API integration |
 
 ## Prerequisites
 
-1. **Services Running**: Ensure the Relibank stack is running locally:
-   ```bash
-   skaffold dev
-   ```
+### 1. Services Running
 
-2. **Python Dependencies**: Install required packages:
-   ```bash
-   pip install pytest requests
-   ```
+For **local testing**, ensure the Relibank stack is running:
+```bash
+skaffold dev
+```
 
-3. **Service Availability**: Verify services are accessible:
-   - Bill Pay Service: http://localhost:5000
-   - Scenario Service: http://localhost:8000
+For **remote testing**, ensure you have access to the deployed environment and URLs.
+
+### 2. Python Dependencies
+
+Install required packages:
+```bash
+# Python test dependencies
+pip install pytest requests
+
+# Frontend test dependencies (from frontend_service directory)
+cd ../frontend_service
+npm install
+```
+
+### 3. Service Availability
+
+Verify services are accessible:
+- **Local**:
+  - Frontend: http://localhost:3000
+  - Accounts Service: http://localhost:5002
+  - Bill Pay Service: http://localhost:5000
+  - Chatbot Service: http://localhost:5003
+- **Remote**: Set via environment variables (see below)
 
 ## Running the Tests
 
-### Run All Tests Locally
+### Run All Tests
+
 ```bash
-pytest tests/test_payment_scenarios.py -v -s
+# Run all tests in the suite (Python + Frontend)
+./run_tests.sh
+
+# Run specific test file
+pytest tests/test_end_to_end.py -v -s
+
+# Run only frontend tests
+./run_tests.sh -t frontend
 ```
 
-### Run Tests Against Remote Environment
-To test against a remote deployment, set the environment variables:
-
-```bash
-# Example: Testing against a remote server
-export SCENARIO_SERVICE_URL="https://your-server.example.com/scenario-runner"
-export BASE_URL="https://your-server.example.com"
-pytest tests/test_payment_scenarios.py -v -s
+**Expected Results**:
 ```
-
-Or as a one-liner:
-```bash
-SCENARIO_SERVICE_URL="https://your-server.example.com/scenario-runner" BASE_URL="https://your-server.example.com" pytest tests/test_payment_scenarios.py -v -s
+tests/test_end_to_end.py::test_frontend_loads PASSED
+tests/test_end_to_end.py::test_accounts_service_health PASSED
+tests/test_end_to_end.py::test_bill_pay_service_health PASSED
+tests/test_end_to_end.py::test_chatbot_service_health PASSED
+tests/test_end_to_end.py::test_create_user_account PASSED
+tests/test_end_to_end.py::test_get_user_account PASSED
+tests/test_end_to_end.py::test_create_bank_account PASSED
+tests/test_end_to_end.py::test_get_bank_accounts PASSED
+tests/test_end_to_end.py::test_chatbot_interaction PASSED
+tests/test_end_to_end.py::test_bill_payment_flow PASSED
+tests/test_end_to_end.py::test_complete_user_journey PASSED
 ```
 
 ### Run Individual Tests
+
 ```bash
-# Test gateway timeout scenario
+# End-to-end tests
+pytest tests/test_end_to_end.py::test_complete_user_journey -v -s
+pytest tests/test_end_to_end.py::test_bill_payment_flow -v -s
+pytest tests/test_end_to_end.py::test_chatbot_interaction -v -s
+
+# Scenario service tests (payment, chaos, locust)
+pytest tests/test_scenario_service.py::test_enable_gateway_timeout -v -s
+pytest tests/test_scenario_service.py::test_reset_all_scenarios -v -s
+pytest tests/test_scenario_service.py::test_chaos_scenarios_api -v -s
+pytest tests/test_scenario_service.py::test_locust_start_stop -v -s
+
+# Payment scenario tests
 pytest tests/test_payment_scenarios.py::test_gateway_timeout_scenario -v -s
-
-# Test card decline scenario
-pytest tests/test_payment_scenarios.py::test_card_decline_scenario -v -s
-
-# Test stolen card scenario
-pytest tests/test_payment_scenarios.py::test_stolen_card_scenario -v -s
-
-# Test realistic probability distribution
 pytest tests/test_payment_scenarios.py::test_realistic_probability_distribution -v -s
 
-# Test scenario reset functionality
-pytest tests/test_payment_scenarios.py::test_scenario_reset -v -s
+# Frontend tests
+./run_tests.sh -t frontend
+# Or directly: cd ../frontend_service && npm test
 ```
 
 ## Test Descriptions
 
-### 1. test_gateway_timeout_scenario
-**Purpose**: Verifies gateway timeout scenario triggers correctly
+### test_end_to_end.py - End-to-End Microservice Tests
 
-**What it does**:
-- Enables gateway timeout with 100% probability and 2s delay
-- Sends a single card payment
-- Verifies 504 timeout response
-- Confirms at least 2 second delay occurred
+Tests complete user workflows across all Relibank microservices: frontend, accounts service, bill pay service, and chatbot service.
 
-**Expected output**:
+**Key Tests**:
+- `test_frontend_loads` - Verify React frontend is accessible
+- `test_accounts_service_health` - Verify accounts service health
+- `test_bill_pay_service_health` - Verify bill pay service health
+- `test_chatbot_service_health` - Verify chatbot service health
+- `test_create_user_account` - Test user account creation
+- `test_get_user_account` - Test retrieving user information
+- `test_create_bank_account` - Test creating a bank account
+- `test_get_bank_accounts` - Test retrieving bank accounts
+- `test_chatbot_interaction` - Test chatbot service
+- `test_bill_payment_flow` - Test bill payment processing
+- `test_complete_user_journey` - Full flow: create user → create account → get accounts → make payment → chat
+
+**Expected Output Example**:
 ```
-=== Testing Gateway Timeout Scenario ===
-Enabled: Gateway timeout scenario enabled (100.0% of requests)
-Response status: 504
-Response body: {'detail': 'Payment gateway timeout - please try again later'}
-Elapsed time: 2.XX s
-✓ Gateway timeout scenario working correctly
-PASSED
-```
+=== Testing Complete User Journey ===
+Step 1: Creating user...
+✓ User created (or already exists)
+Step 2: Creating bank account...
+✓ Bank account created
+Step 3: Retrieving account info...
+✓ Account info retrieved: 1 account(s)
+Step 4: Making a payment...
+✓ Payment processed
+Step 5: Chatting with bot...
+✓ Chatbot responded
 
-### 2. test_card_decline_scenario
-**Purpose**: Verifies card decline scenario triggers correctly
-
-**What it does**:
-- Enables card decline with 100% probability
-- Sends 5 card payments with different amounts
-- Counts how many get declined (402 status)
-- Verifies all 5 are declined
-
-**Expected output**:
-```
-=== Testing Card Decline Scenario ===
-Enabled: Card decline scenario enabled (100.0% of requests)
-Payment 1: DECLINED - Payment declined by card issuer. Please try a different payment method or contact your bank.
-Payment 2: DECLINED - Payment declined by card issuer. Please try a different payment method or contact your bank.
-Payment 3: DECLINED - Payment declined by card issuer. Please try a different payment method or contact your bank.
-Payment 4: DECLINED - Payment declined by card issuer. Please try a different payment method or contact your bank.
-Payment 5: DECLINED - Payment declined by card issuer. Please try a different payment method or contact your bank.
-
-Declined: 5/5 payments
-✓ Card decline scenario working correctly
-PASSED
+✓ Complete user journey successful!
 ```
 
-### 3. test_stolen_card_scenario
-**Purpose**: Verifies stolen card scenario uses Stripe test token
+**Note**: Tests use the actual microservice APIs with proper data models:
+- **User creation**: Requires `id`, `name`, `email`, `phone`, `address`, `income`, `preferred_language`, and preference objects
+- **Account creation**: Requires `id`, `name`, `balance`, `routing_number`, `interest_rate`, `last_statement_date`, `account_type`
+- **Bill payment**: Requires `billId`, `amount`, `currency`, `fromAccountId`, `toAccountId`
+- **Chatbot**: Uses `prompt` query parameter
 
-**What it does**:
-- Enables stolen card with 100% probability
-- Sends 5 card payments
-- Verifies Stripe declines them using the stolen card test token
-- Confirms all 5 are declined with 402 status
+### test_scenario_service.py - Scenario Service API
 
-**Expected output**:
+Tests all scenario service API endpoints and configurations, including payment scenarios, chaos engineering, and load testing.
+
+**Payment Scenario Tests**:
+- `test_scenario_service_health` - Verify service is accessible
+- `test_get_all_scenarios` - Retrieve all payment scenarios
+- `test_reset_all_scenarios` - Reset all scenarios to disabled
+- `test_enable_gateway_timeout` - Enable timeout with probability/delay
+- `test_enable_card_decline` - Enable card decline scenario
+- `test_enable_stolen_card` - Enable stolen card scenario
+- `test_disable_scenario` - Disable a running scenario
+- `test_multiple_scenarios_enabled` - Run multiple scenarios simultaneously
+- `test_scenario_persistence` - Verify settings persist across requests
+
+**Chaos Scenario Smoke Tests**:
+- `test_chaos_scenarios_api` - Verify chaos API is available
+- `test_chaos_enable_disable` - Basic enable/disable chaos scenarios
+
+**Locust Load Testing Smoke Tests**:
+- `test_locust_scenarios_api` - Verify locust API is available
+- `test_locust_start_stop` - Basic start/stop load tests
+
+**Expected Output Example**:
 ```
-=== Testing Stolen Card Scenario ===
-Enabled: Stolen card scenario enabled (100.0% of requests)
-Payment 1: DECLINED - Card declined: Your card was declined.
-Payment 2: DECLINED - Card declined: Your card was declined.
-Payment 3: DECLINED - Card declined: Your card was declined.
-Payment 4: DECLINED - Card declined: Your card was declined.
-Payment 5: DECLINED - Card declined: Your card was declined.
+=== Testing Enable Gateway Timeout ===
+Status: 200
+Response: {'message': 'Gateway timeout scenario enabled'}
+✓ Gateway timeout scenario enabled successfully
 
-Declined (stolen card): 5/5 payments
-✓ Stolen card scenario working correctly
-PASSED
+=== Testing Chaos Scenarios API ===
+Available chaos scenarios: ['pod_delete', 'network_delay', 'cpu_stress']
+✓ Chaos scenarios API available
+
+=== Testing Locust Scenarios API ===
+Locust status: {'running': False, 'users': 0}
+✓ Locust scenarios API available
 ```
 
-### 4. test_realistic_probability_distribution
-**Purpose**: Verifies scenarios work with realistic probabilities
+### Frontend Tests (Vitest) - Functional User Flow Tests
 
-**What it does**:
-- Enables all 3 scenarios with 20% probability each
-- Sends 50 payment requests
-- Tracks success/timeout/decline/error counts
-- Verifies distribution matches expected probabilities
+Tests critical user workflows in the frontend application using Vitest and React Testing Library.
 
-**Expected output**:
+**Technology Stack**:
+- **Vitest** - Fast unit test framework
+- **React Testing Library** - Component testing utilities
+- **Happy DOM** - Lightweight DOM implementation
+
+**Key Test Files**:
+- `app/routes/login.test.tsx` - Login flow and authentication (4 tests)
+- `app/components/dashboard/TransferCard.test.tsx` - Fund transfers and validation (5 tests)
+- `app/routes/support.test.tsx` - Customer support chatbot integration (5 tests)
+- `app/components/payments/PayBillCard.test.tsx` - Bill payment with Stripe integration (6 tests)
+
+**Test Coverage**:
+- **Login Flow**: Form submission, API integration, error handling, field interactions
+- **Transfer Flow**: Amount validation, API requests, balance updates, error handling, transaction records
+- **Support Chat Flow**: Bot responses, message sending, API integration, input validation
+- **Bill Payment Flow**: Payment methods fetch, form validation, bank payments, Stripe card payments, error handling, form reset
+
+**Example Commands**:
+```bash
+# Run all frontend tests
+cd frontend_service && npm test
+
+# Watch mode (re-run on changes)
+npm run test:watch
+
+# UI mode (interactive test runner)
+npm run test:ui
+
+# Coverage report
+npm run test:coverage
+```
+
+**Expected Output Example**:
+```
+Test Files  4 passed (4)
+     Tests  20 passed (20)
+  Start at  12:04:56
+  Duration  1.18s
+```
+
+### test_payment_scenarios.py - Payment Failures
+
+Tests probability-based payment failure scenarios in detail.
+
+**Key Tests**:
+- `test_gateway_timeout_scenario` - Verify 504 timeout with delay
+- `test_card_decline_scenario` - Verify 402 card decline
+- `test_stolen_card_scenario` - Verify stolen card token usage
+- `test_realistic_probability_distribution` - Test with realistic probabilities (20%)
+- `test_scenario_reset` - Verify reset disables all scenarios
+
+**Expected Output Example**:
 ```
 === Testing Realistic Probability Distribution ===
 Sending 50 payment requests...
@@ -150,92 +266,66 @@ Errors:            0 (0.0%)
 Total failures:   20 (40.0%)
 
 ✓ Scenarios triggered correctly (failure rate: 40.0%)
-PASSED
 ```
 
-**Note**: Due to randomness, exact percentages will vary but should be roughly:
-- 40-60% failures total (combination of timeouts and declines)
-- Some timeouts (~10-30%)
-- Some declines (~10-30%)
-- Some successes (~40-60%)
+## Environment Variables
 
-### 5. test_scenario_reset
-**Purpose**: Verifies reset functionality disables all scenarios
+All tests support these environment variables for remote testing:
 
-**What it does**:
-- Enables all scenarios with 100% probability
-- Calls reset endpoint
-- Sends a payment
-- Verifies payment succeeds (200 status)
+| Variable | Description | Default (Local) |
+|----------|-------------|-----------------|
+| `BASE_URL` | Base URL for frontend application | `http://localhost:3000` |
+| `ACCOUNTS_SERVICE` | Accounts service API URL | `http://localhost:5002` |
+| `BILL_PAY_SERVICE` | Bill pay service API URL | `http://localhost:5000` |
+| `CHATBOT_SERVICE` | Chatbot service API URL | `http://localhost:5003` |
 
-**Expected output**:
-```
-=== Testing Scenario Reset ===
-Reset all scenarios
-Response status: 200
-✓ Scenario reset working correctly
-PASSED
-```
+## Troubleshooting
 
-## Understanding Test Results
-
-### Success Indicators
-- ✓ All tests pass
-- Status codes match expectations (504 for timeout, 402 for declines, 200 for success)
-- Probabilities result in expected failure rates
-- Delays are observed for timeout scenarios
-
-### Troubleshooting
-
-**Services not accessible**:
+### Services Not Accessible
 ```
 requests.exceptions.ConnectionError: Failed to establish a new connection
 ```
-→ Ensure `skaffold dev` is running and services are healthy
+**Solution**: Ensure services are running (`skaffold dev` for local) or verify remote URLs are correct.
 
-**All payments succeed when they should fail**:
-```
-AssertionError: Expected 5 declines with 100% probability, got 0
-```
-→ Check scenario service logs to verify scenarios are being enabled
-→ Verify bill pay service can reach scenario service
 
-**Timeouts not occurring**:
+### Chaos/Locust Smoke Tests Show Warning
 ```
-AssertionError: Expected at least 2s delay, got 0.05s
+⚠ Chaos scenarios not implemented (this may be normal)
+⚠ Locust scenarios not implemented (this may be normal)
 ```
-→ Check bill pay service is fetching scenarios from scenario service
-→ Verify gateway timeout scenario logic in bill_pay_service.py
+**Solution**: These features may not be implemented in all environments. The smoke tests gracefully handle missing endpoints without failing.
 
-**Stripe errors**:
-```
-Error: Stripe payment processing is not configured
-```
-→ Ensure STRIPE_SECRET_KEY is set in skaffold.env
-→ Verify Stripe keys are passed to bill pay service container
 
-## Cleanup
-
-Tests automatically reset scenarios before and after each test run. If tests are interrupted, you can manually reset:
-
-```bash
-curl -X POST http://localhost:8000/scenario-runner/api/payment-scenarios/reset
-```
+### Tests Fail in Remote Environment
+**Solution**: Ensure environment variables are set correctly and remote services are accessible from your testing location.
 
 ## Integration with CI/CD
 
 These tests can be added to GitHub Actions or other CI pipelines:
 
 ```yaml
-- name: Run payment scenario tests
+- name: Run Relibank test suite
   env:
     SCENARIO_SERVICE_URL: ${{ vars.SCENARIO_SERVICE_URL }}
     BASE_URL: ${{ vars.BASE_URL }}
   run: |
     pip install pytest requests
-    pytest tests/test_payment_scenarios.py -v
+    pytest tests/ -v --tb=short
 ```
 
-The tests automatically use environment variables for configuration:
-- `SCENARIO_SERVICE_URL`: URL to the scenario runner service (default: `http://localhost:8000/scenario-runner`)
-- `BASE_URL`: Base URL to the bill pay service (default: `http://localhost:5000`)
+## Test Coverage Summary
+
+- ✅ **End-to-End**: Frontend load, service health checks, user/account creation, bill payment, chatbot interaction, complete user journeys
+- ✅ **Scenario API**: Enable/disable/reset payment scenarios, chaos scenarios (smoke tests), locust load testing (smoke tests)
+- ✅ **Payment Scenarios**: Timeout, decline, stolen card with probabilities
+- ✅ **Frontend Functional Tests**: Login flow, fund transfers, bill payment with Stripe, chatbot support, form validation, API integration, error handling (Vitest)
+
+## Contributing
+
+When adding new tests:
+1. Follow the existing test structure and naming conventions
+2. Use environment variables for configuration
+3. Include cleanup in fixtures or teardown
+4. Add descriptive print statements for debugging
+5. Update this README with new test descriptions
+6. Ensure tests work both locally and remotely
