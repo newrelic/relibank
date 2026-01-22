@@ -1,0 +1,107 @@
+name: Flow - Random Stress Chaos
+
+on:
+  schedule:
+    # Run every hour
+    - cron: '0 * * * *'
+  workflow_dispatch:  # Allow manual trigger
+
+jobs:
+  trigger-stress:
+    runs-on: ubuntu-latest
+    environment: events
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: |
+          pip install requests
+
+      - name: Select random stress scenario
+        id: random
+        run: |
+          # Array of stress scenarios
+          scenarios=("relibank-cpu-stress-test" "relibank-high-cpu-stress" "relibank-memory-stress-test" "relibank-high-memory-stress" "relibank-combined-stress-test")
+
+          # Select random scenario
+          RANDOM_INDEX=$((RANDOM % ${#scenarios[@]}))
+          SCENARIO=${scenarios[$RANDOM_INDEX]}
+
+          echo "Selected stress scenario: $SCENARIO"
+          echo "scenario=$SCENARIO" >> $GITHUB_OUTPUT
+
+      - name: Reset rate limit
+        run: |
+          echo "Resetting rate limit to ensure scenario can be triggered..."
+          curl -X POST "${{ vars.SCENARIO_SERVICE_URL }}/api/chaos-rate-limit-reset" || echo "Rate limit reset failed (may not be available)"
+
+      - name: Trigger stress scenario
+        id: trigger
+        run: |
+          echo "Triggering stress scenario: ${{ steps.random.outputs.scenario }}"
+
+          RESPONSE=$(curl -s -X POST "${{ vars.SCENARIO_SERVICE_URL }}/api/trigger_stress/${{ steps.random.outputs.scenario }}")
+          echo "$RESPONSE"
+
+          STATUS=$(echo "$RESPONSE" | jq -r '.status')
+
+          if [ "$STATUS" != "success" ]; then
+            echo "Failed to trigger stress scenario"
+            echo "$RESPONSE" | jq .
+            exit 1
+          fi
+
+          echo "✓ Stress scenario triggered successfully"
+
+      - name: Wait for stress to apply
+        run: |
+          echo "Waiting 90 seconds for stress to be applied and metrics to update..."
+          sleep 90
+
+      - name: Validate stress with New Relic
+        env:
+          NEW_RELIC_API_KEY: ${{ secrets.NR_USER_API_KEY }}
+          NEW_RELIC_ACCOUNT_ID: ${{ vars.NR_ACCOUNT_ID }}
+        run: |
+          python tests/workflow_validation/validate_stress_metrics.py "${{ steps.random.outputs.scenario }}" 5
+
+      - name: Summary
+        if: always()
+        run: |
+          echo "## Stress Chaos Test Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Scenario**: ${{ steps.random.outputs.scenario }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Status**: ${{ job.status }}" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "Check New Relic dashboards for detailed metrics during the stress period." >> $GITHUB_STEP_SUMMARY
+          
+      - name: Execute New Relic Log Export Script
+        if: always()
+
+        # Set the environment variables required by export_to_newrelic.py
+        env:
+          # --- GitHub Action Context Variables ---
+          JOB_STATUS: ${{ job.status }}
+          JOB_NAME: ${{ github.job }}
+          RUN_ID: ${{ github.run_id }}
+          REPOSITORY: ${{ github.repository }}
+          SERVER_URL: ${{ github.server_url }}
+          WORKFLOW: ${{ github.workflow }}
+
+          # --- New Relic Configuration (Set these as repository secrets) ---
+          NR_LICENSE_KEY: ${{ secrets.NR_LICENSE_KEY_ALERTS }}
+          NR_ACCOUNT_ID: ${{ vars.NR_ACCOUNT_ID_ALERTS }}
+          ENVIRONMENT: ${{ matrix.environment }}
+          
+
+          # Base URL for the New Relic API endpoint (US region)
+          NR_ENDPOINT_BASE: "https://log-api.newrelic.com/log/v1"
+
+        run: |
+          cd github_action_monitoring && python export_to_newrelic.py

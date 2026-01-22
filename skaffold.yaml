@@ -285,6 +285,11 @@ profiles:
 
 # Define a profile for your production environment
 - name: azure-prod
+  build:
+    artifacts:
+    - image: mssql-custom
+      platforms:
+      - linux/amd64
   # FIX: Override the 'manifests' block instead of the 'deploy' block
   manifests:
     kustomize:
