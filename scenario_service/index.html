@@ -19,13 +19,22 @@
             <p class="text-lg text-gray-600">Trigger chaos and load testing scenarios.</p>
         </div>
 
-        <div class="grid grid-cols-1 md:grid-cols-3 gap-8">
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8">
             <!-- Chaos Mesh Scenarios Section -->
             <div class="bg-gray-50 p-6 rounded-lg border border-gray-200">
                 <h2 class="text-2xl font-bold text-gray-800 mb-4">Chaos Mesh Experiments</h2>
                 <p class="text-gray-500 mb-6">Simulate faults like pod failures and kills to test application resilience.</p>
                 <div id="chaos-buttons-container" class="space-y-4">
                     <!-- Chaos buttons will be dynamically added here -->
+                </div>
+            </div>
+
+            <!-- Stress Chaos Scenarios Section -->
+            <div class="bg-gray-50 p-6 rounded-lg border border-gray-200">
+                <h2 class="text-2xl font-bold text-gray-800 mb-4">Stress Tests</h2>
+                <p class="text-gray-500 mb-6">Inject CPU, memory, or I/O stress to test service performance under load.</p>
+                <div id="stress-buttons-container" class="space-y-4">
+                    <!-- Stress chaos buttons will be dynamically added here -->
                 </div>
             </div>
 
@@ -43,17 +52,15 @@
                 <h2 class="text-2xl font-bold text-gray-800 mb-4">Locust Load Tests</h2>
                 <p class="text-gray-500 mb-6">Simulate concurrent users to stress test your services and measure performance.</p>
                 <div class="space-y-4">
-                    <div class="flex items-center space-x-4">
-                        <select id="user-count-select" class="flex-grow p-3 rounded-lg border border-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-500 transition duration-300">
-                            <option value="1">1 User</option>
-                            <option value="10">10 Users</option>
-                            <option value="50">50 Users</option>
-                            <option value="100">100 Users</option>
-                        </select>
-                        <button id="run-locust-test" class="bg-blue-600 text-white font-semibold py-3 px-6 rounded-lg shadow-md hover:bg-blue-700 transition duration-300 transform hover:scale-105 whitespace-nowrap">
-                            Run Locust Test
-                        </button>
-                    </div>
+                    <select id="user-count-select" class="w-full p-3 rounded-lg border border-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-500 transition duration-300">
+                        <option value="1">1 User</option>
+                        <option value="10">10 Users</option>
+                        <option value="50">50 Users</option>
+                        <option value="100">100 Users</option>
+                    </select>
+                    <button id="run-locust-test" class="w-full bg-blue-600 text-white font-semibold py-3 px-6 rounded-lg shadow-md hover:bg-blue-700 transition duration-300 transform hover:scale-105">
+                        Run Locust Test
+                    </button>
                 </div>
             </div>
         </div>
@@ -66,6 +73,7 @@
         document.addEventListener('DOMContentLoaded', () => {
             const statusMessage = document.getElementById('status-message');
             const chaosButtonsContainer = document.getElementById('chaos-buttons-container');
+            const stressButtonsContainer = document.getElementById('stress-buttons-container');
             const paymentButtonsContainer = document.getElementById('payment-buttons-container');
             const runLocustBtn = document.getElementById('run-locust-test');
             const userCountSelect = document.getElementById('user-count-select');
@@ -97,14 +105,59 @@
                         if (scenario.type === 'chaos-mesh') {
                             const button = document.createElement('button');
                             button.id = scenario.name;
-                            button.className = "w-full bg-red-600 text-white font-semibold py-3 px-6 rounded-lg shadow-md hover:bg-red-700 transition duration-300 transform hover:scale-105";
-                            button.textContent = `Trigger ${scenario.description}`;
+                            button.className = "w-full bg-red-600 text-white font-semibold py-3 px-6 rounded-lg shadow-md hover:bg-red-700 transition duration-300 transform hover:scale-105 text-left";
+
+                            // Create button content with service name
+                            const titleDiv = document.createElement('div');
+                            titleDiv.textContent = `Trigger ${scenario.description}`;
+                            titleDiv.className = "font-semibold";
+
+                            const serviceDiv = document.createElement('div');
+                            serviceDiv.textContent = `Target: ${scenario.target_service}`;
+                            serviceDiv.className = "text-xs opacity-80 mt-1";
+
+                            button.appendChild(titleDiv);
+                            button.appendChild(serviceDiv);
                             chaosButtonsContainer.appendChild(button);
 
                             button.addEventListener('click', async () => {
                                 showMessage(`Triggering ${scenario.name}...`, 'info');
                                 try {
                                     const triggerResponse = await fetch(`/scenario-runner/api/trigger_chaos/${scenario.name}`, {
+                                        method: 'POST',
+                                    });
+                                    const result = await triggerResponse.json();
+                                    if (result.status === 'success') {
+                                        showMessage(`Success: ${result.message}`, 'success');
+                                    } else {
+                                        showMessage(`Error: ${result.message}`, 'error');
+                                    }
+                                } catch (e) {
+                                    showMessage(`Network error: Could not reach the server.`, 'error');
+                                }
+                            });
+                        } else if (scenario.type === 'stress-chaos') {
+                            const button = document.createElement('button');
+                            button.id = scenario.name;
+                            button.className = "w-full bg-orange-600 text-white font-semibold py-3 px-6 rounded-lg shadow-md hover:bg-orange-700 transition duration-300 transform hover:scale-105 text-left";
+
+                            // Create button content with service name
+                            const titleDiv = document.createElement('div');
+                            titleDiv.textContent = `Trigger ${scenario.description}`;
+                            titleDiv.className = "font-semibold";
+
+                            const serviceDiv = document.createElement('div');
+                            serviceDiv.textContent = `Target: ${scenario.target_service}`;
+                            serviceDiv.className = "text-xs opacity-80 mt-1";
+
+                            button.appendChild(titleDiv);
+                            button.appendChild(serviceDiv);
+                            stressButtonsContainer.appendChild(button);
+
+                            button.addEventListener('click', async () => {
+                                showMessage(`Triggering stress: ${scenario.name}...`, 'info');
+                                try {
+                                    const triggerResponse = await fetch(`/scenario-runner/api/trigger_stress/${scenario.name}`, {
                                         method: 'POST',
                                     });
                                     const result = await triggerResponse.json();

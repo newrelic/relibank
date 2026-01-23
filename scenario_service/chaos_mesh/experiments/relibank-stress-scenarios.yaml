@@ -1,0 +1,117 @@
+---
+apiVersion: chaos-mesh.org/v1alpha1
+kind: StressChaos
+metadata:
+  name: relibank-cpu-stress-test
+  namespace: relibank
+  labels:
+    app: relibank
+    experiment-type: stress-chaos
+    target-flow: cpu-stress
+spec:
+  mode: one
+  selector:
+    namespaces:
+    - relibank
+    labelSelectors:
+      app: transaction-service
+  duration: 2m
+  stressors:
+    cpu:
+      workers: 2
+      load: 50
+
+---
+apiVersion: chaos-mesh.org/v1alpha1
+kind: StressChaos
+metadata:
+  name: relibank-high-cpu-stress
+  namespace: relibank
+  labels:
+    app: relibank
+    experiment-type: stress-chaos
+    target-flow: high-cpu-stress
+spec:
+  mode: one
+  selector:
+    namespaces:
+    - relibank
+    labelSelectors:
+      app: transaction-service
+  duration: 2m
+  stressors:
+    cpu:
+      workers: 4
+      load: 95
+
+---
+apiVersion: chaos-mesh.org/v1alpha1
+kind: StressChaos
+metadata:
+  name: relibank-memory-stress-test
+  namespace: relibank
+  labels:
+    app: relibank
+    experiment-type: stress-chaos
+    target-flow: memory-stress
+spec:
+  mode: one
+  selector:
+    namespaces:
+    - relibank
+    labelSelectors:
+      app: bill-pay-service
+  duration: 2m
+  stressors:
+    memory:
+      workers: 2
+      size: 256MB
+
+---
+apiVersion: chaos-mesh.org/v1alpha1
+kind: StressChaos
+metadata:
+  name: relibank-high-memory-stress
+  namespace: relibank
+  labels:
+    app: relibank
+    experiment-type: stress-chaos
+    target-flow: high-memory-stress
+spec:
+  mode: one
+  selector:
+    namespaces:
+    - relibank
+    labelSelectors:
+      app: bill-pay-service
+  duration: 2m
+  stressors:
+    memory:
+      workers: 4
+      size: 512MB
+
+---
+apiVersion: chaos-mesh.org/v1alpha1
+kind: StressChaos
+metadata:
+  name: relibank-combined-stress-test
+  namespace: relibank
+  labels:
+    app: relibank
+    experiment-type: stress-chaos
+    target-flow: combined-stress
+spec:
+  mode: one
+  selector:
+    namespaces:
+    - relibank
+    labelSelectors:
+      app: transaction-service
+  duration: 2m
+  stressors:
+    cpu:
+      workers: 2
+      load: 50
+    memory:
+      workers: 2
+      size: 256MB
