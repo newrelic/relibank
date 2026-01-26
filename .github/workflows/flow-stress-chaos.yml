@@ -21,7 +21,7 @@ jobs:
 
       - name: Install dependencies
         run: |
-          pip install requests
+          pip install requests locust
 
       - name: Select random stress scenario
         id: random
@@ -36,6 +36,15 @@ jobs:
           echo "Selected stress scenario: $SCENARIO"
           echo "scenario=$SCENARIO" >> $GITHUB_OUTPUT
 
+          # Determine target service and locust file
+          if [[ "$SCENARIO" == *"cpu"* ]] || [[ "$SCENARIO" == *"combined"* ]]; then
+            echo "target_service=transaction-service" >> $GITHUB_OUTPUT
+            echo "locust_file=transaction_service_load.py" >> $GITHUB_OUTPUT
+          else
+            echo "target_service=bill-pay-service" >> $GITHUB_OUTPUT
+            echo "locust_file=bill_pay_service_load.py" >> $GITHUB_OUTPUT
+          fi
+
       - name: Reset rate limit
         run: |
           echo "Resetting rate limit to ensure scenario can be triggered..."
@@ -45,6 +54,7 @@ jobs:
         id: trigger
         run: |
           echo "Triggering stress scenario: ${{ steps.random.outputs.scenario }}"
+          echo "Target service: ${{ steps.random.outputs.target_service }}"
 
           RESPONSE=$(curl -s -X POST "${{ vars.SCENARIO_SERVICE_URL }}/api/trigger_stress/${{ steps.random.outputs.scenario }}")
           echo "$RESPONSE"
@@ -59,10 +69,37 @@ jobs:
 
           echo "✓ Stress scenario triggered successfully"
 
-      - name: Wait for stress to apply
+      - name: Run load test during stress
         run: |
-          echo "Waiting 90 seconds for stress to be applied and metrics to update..."
-          sleep 90
+          echo "Starting load test on ${{ steps.random.outputs.target_service }}..."
+
+          # Run locust in headless mode for 3 minutes (matching stress duration)
+          # 3 users, spawn rate of 1 user/second
+          cd demo_flows/stress_loadgen && \
+          locust -f ${{ steps.random.outputs.locust_file }} \
+            --host=${{ vars.BASE_URL }} \
+            --users=3 \
+            --spawn-rate=1 \
+            --run-time=3m \
+            --headless \
+            --only-summary &
+
+          LOCUST_PID=$!
+          echo "Locust running with PID: $LOCUST_PID"
+
+          # Wait for stress experiment to complete (3 minutes)
+          echo "Waiting 3 minutes for stress experiment and load test to complete..."
+          sleep 180
+
+          # Ensure locust has finished
+          wait $LOCUST_PID || echo "Locust completed"
+
+          echo "✓ Load test completed"
+
+      - name: Wait for metrics to stabilize
+        run: |
+          echo "Waiting 30 seconds for metrics to be ingested in New Relic..."
+          sleep 30
 
       - name: Validate stress with New Relic
         env:
