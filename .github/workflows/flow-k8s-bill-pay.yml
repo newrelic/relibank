@@ -63,7 +63,12 @@ jobs:
       - name: Send bad deployment marker
         run: |
           cd demo_flows/k8s_bill_pay/ && python send_marker_bill_pay.py badCommit ${{ secrets.NR_USER_API_KEY }} ${{ vars.NR_ACCOUNT_ID }}
-          
+
+      - name: Reset chaos rate limit
+        run: |
+          echo "Resetting chaos rate limit to ensure scenario can be triggered..."
+          curl -X POST "${{ vars.BASE_URL }}/scenario-runner/api/chaos-rate-limit-reset" || echo "Rate limit reset failed (may not be available)"
+
       - name: Trigger chaos
         run: |
           cd demo_flows/k8s_bill_pay/ && python trigger_chaos.py ${{ vars.BASE_URL }}
