@@ -47,7 +47,7 @@ var assert = require('assert');
     console.log('Entered transfer amount: $' + transferAmount);
 
     // Find the "From" dropdown
-    const fromSelect = await $browser.findElement($driver.By.id('from-account-select'));
+    const fromSelect = await $browser.findElement($driver.By.id('transfer-from-account-select'));
     console.log('Found from account dropdown');
 
     // Click to open dropdown and select checking
@@ -66,7 +66,7 @@ var assert = require('assert');
     await $browser.sleep(1000);
 
     // Find the "To" dropdown
-    const toSelect = await $browser.findElement($driver.By.id('to-account-select'));
+    const toSelect = await $browser.findElement($driver.By.id('transfer-to-account-select'));
     console.log('Found to account dropdown');
 
     // Click to open dropdown
@@ -136,7 +136,7 @@ var assert = require('assert');
     console.log('Entered reverse transfer amount: $' + transferAmount);
 
     // Find the "From" dropdown and select savings
-    const fromSelect2 = await $browser.findElement($driver.By.id('from-account-select'));
+    const fromSelect2 = await $browser.findElement($driver.By.id('transfer-from-account-select'));
     console.log('Found from account dropdown for reverse transfer');
 
     await fromSelect2.click();
@@ -153,7 +153,7 @@ var assert = require('assert');
     await $browser.sleep(1000);
 
     // Find the "To" dropdown and select checking
-    const toSelect2 = await $browser.findElement($driver.By.id('to-account-select'));
+    const toSelect2 = await $browser.findElement($driver.By.id('transfer-to-account-select'));
     console.log('Found to account dropdown');
 
     await toSelect2.click();
