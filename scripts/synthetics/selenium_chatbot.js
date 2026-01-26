@@ -48,7 +48,7 @@ var assert = require('assert');
     console.log('Entered transfer amount: $10,000 (exceeds checking balance of $8,500.25)');
 
     // Find the "From" dropdown
-    const fromSelect = await $browser.findElement($driver.By.id('from-account-select'));
+    const fromSelect = await $browser.findElement($driver.By.id('transfer-from-account-select'));
     console.log('Found from account dropdown');
 
     // Click to open dropdown and select checking
@@ -64,7 +64,7 @@ var assert = require('assert');
     console.log('Selected checking as from account');
 
     // Find the "To" dropdown
-    const toSelect = await $browser.findElement($driver.By.id('to-account-select'));
+    const toSelect = await $browser.findElement($driver.By.id('transfer-to-account-select'));
     console.log('Found to account dropdown');
 
     // Click to open dropdown
