@@ -8,6 +8,7 @@ resources:
 
 patches:
   - path: persistentvolumeclaim-patch.yaml
+  - path: otel-collector-env-patch.yaml
   # New patch to enforce ARM64 architecture affinity on all Deployments
   - path: arm64-affinity.yaml
     target:

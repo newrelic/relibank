@@ -1,0 +1,192 @@
+---
+rules:
+  # Per-topic custom metrics using custom MBean commands
+  - bean: kafka.server:type=BrokerTopicMetrics,name=MessagesInPerSec,topic=*
+    metricAttribute:
+      topic: param(topic)
+    mapping:
+      Count:
+        metric: kafka.prod.msg.count
+        type: counter
+        desc: The number of messages in per topic
+        unit: "{message}"
+
+  - bean: kafka.server:type=BrokerTopicMetrics,name=BytesInPerSec,topic=*
+    metricAttribute:
+      topic: param(topic)
+      direction: const(in)
+    mapping:
+      Count:
+        metric: kafka.topic.io
+        type: counter
+        desc: The bytes received or sent per topic
+        unit: By
+
+  - bean: kafka.server:type=BrokerTopicMetrics,name=BytesOutPerSec,topic=*
+    metricAttribute:
+      topic: param(topic)
+      direction: const(out)
+    mapping:
+      Count:
+        metric: kafka.topic.io
+        type: counter
+        desc: The bytes received or sent per topic
+        unit: By
+
+  # Cluster-level metrics using controller-based MBeans
+  - bean: kafka.controller:type=KafkaController,name=GlobalTopicCount
+    mapping:
+      Value:
+        metric: kafka.cluster.topic.count
+        type: gauge
+        desc: The total number of global topics in the cluster
+        unit: "{topic}"
+
+  - bean: kafka.controller:type=KafkaController,name=GlobalPartitionCount
+    mapping:
+      Value:
+        metric: kafka.cluster.partition.count
+        type: gauge
+        desc: The total number of global partitions in the cluster
+        unit: "{partition}"
+
+  - bean: kafka.controller:type=KafkaController,name=FencedBrokerCount
+    mapping:
+      Value:
+        metric: kafka.broker.fenced.count
+        type: gauge
+        desc: The number of fenced brokers in the cluster
+        unit: "{broker}"
+
+  - bean: kafka.controller:type=KafkaController,name=PreferredReplicaImbalanceCount
+    mapping:
+      Value:
+        metric: kafka.partition.non_preferred_leader
+        type: gauge
+        desc: The count of topic partitions for which the leader is not the preferred leader
+        unit: "{partition}"
+
+  # Broker-level metrics using ReplicaManager MBeans
+  - bean: kafka.server:type=ReplicaManager,name=UnderMinIsrPartitionCount
+    mapping:
+      Value:
+        metric: kafka.partition.under_min_isr
+        type: gauge
+        desc: The number of partitions where the number of in-sync replicas is less than the minimum
+        unit: "{partition}"
+
+  # Broker uptime metric using JVM Runtime
+  - bean: java.lang:type=Runtime
+    mapping:
+      Uptime:
+        metric: kafka.broker.uptime
+        type: gauge
+        desc: Broker uptime in milliseconds
+        unit: ms
+
+  # Leader count per broker
+  - bean: kafka.server:type=ReplicaManager,name=LeaderCount
+    mapping:
+      Value:
+        metric: kafka.broker.leader.count
+        type: gauge
+        desc: Number of partitions for which this broker is the leader
+        unit: "{partition}"
+
+  # JVM metrics
+  - bean: java.lang:type=GarbageCollector,name=*
+    mapping:
+      CollectionCount:
+        metric: jvm.gc.collections.count
+        type: counter
+        unit: "{collection}"
+        desc: total number of collections that have occurred
+        metricAttribute:
+          name: param(name)
+      CollectionTime:
+        metric: jvm.gc.collections.elapsed
+        type: counter
+        unit: ms
+        desc: the approximate accumulated collection elapsed time in milliseconds
+        metricAttribute:
+          name: param(name)
+
+  - bean: java.lang:type=Memory
+    unit: By
+    prefix: jvm.memory.
+    dropNegativeValues: true
+    mapping:
+      HeapMemoryUsage.committed:
+        metric: heap.committed
+        desc: current heap usage
+        type: gauge
+      HeapMemoryUsage.max:
+        metric: heap.max
+        desc: current heap usage
+        type: gauge
+      HeapMemoryUsage.used:
+        metric: heap.used
+        desc: current heap usage
+        type: gauge
+
+  - bean: java.lang:type=Threading
+    mapping:
+      ThreadCount:
+        metric: jvm.thread.count
+        type: gauge
+        unit: "{thread}"
+        desc: Total thread count (Kafka typical range 100-300 threads)
+
+  - bean: java.lang:type=OperatingSystem
+    prefix: jvm.
+    dropNegativeValues: true
+    mapping:
+      SystemLoadAverage:
+        metric: system.cpu.load_1m
+        type: gauge
+        unit: "{run_queue_item}"
+        desc: System load average (1 minute) - alert if > CPU count
+      AvailableProcessors:
+        metric: cpu.count
+        type: gauge
+        unit: "{cpu}"
+        desc: Number of processors available
+      ProcessCpuLoad:
+        metric: cpu.recent_utilization
+        type: gauge
+        unit: '1'
+        desc: Recent CPU utilization for JVM process (0.0 to 1.0)
+      SystemCpuLoad:
+        metric: system.cpu.utilization
+        type: gauge
+        unit: '1'
+        desc: Recent CPU utilization for whole system (0.0 to 1.0)
+      OpenFileDescriptorCount:
+        metric: jvm.file_descriptor.count
+        type: gauge
+        unit: "{file_descriptor}"
+        desc: Number of open file descriptors - alert if > 80% of ulimit
+
+  - bean: java.lang:type=ClassLoading
+    mapping:
+      LoadedClassCount:
+        metric: jvm.class.count
+        type: gauge
+        unit: "{class}"
+        desc: Currently loaded class count
+
+  - bean: java.lang:type=MemoryPool,name=*
+    type: gauge
+    unit: By
+    metricAttribute:
+      name: param(name)
+    mapping:
+      Usage.used:
+        metric: jvm.memory.pool.used
+        desc: Memory pool usage by generation (G1 Old Gen, Eden, Survivor)
+      Usage.max:
+        metric: jvm.memory.pool.max
+        desc: Maximum memory pool size
+      CollectionUsage.used:
+        metric: jvm.memory.pool.used_after_last_gc
+        desc: Memory used after last GC (shows retained memory baseline)

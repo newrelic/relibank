@@ -1,0 +1,16 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: otel-collector-kafka
+  namespace: relibank
+spec:
+  template:
+    spec:
+      containers:
+        - name: otel-collector
+          env:
+            - name: NEW_RELIC_LICENSE_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: newrelic-secret
+                  key: license_key

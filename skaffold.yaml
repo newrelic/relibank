@@ -193,6 +193,9 @@ deploy:
           dir: "."
       after:
       - host:
+          command: ["sh", "-c", "kubectl create secret generic newrelic-secret --from-literal=license_key=${NEW_RELIC_LICENSE_KEY} -n relibank --dry-run=client -o yaml | kubectl apply -f -"]
+          dir: "."
+      - host:
           command: ["kubectl", "label", "namespace", "relibank", "chaos-mesh.org/inject=enabled", "--overwrite"]
           dir: "."
       - host:
