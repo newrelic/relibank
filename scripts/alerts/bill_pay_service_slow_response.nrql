@@ -1,0 +1,4 @@
+SELECT average(duration) * 1000 AS 'responseTimeMs'
+FROM Transaction
+WHERE appName = 'Relibank - Bill Pay Service'
+  AND transactionType = 'Web'
