@@ -15,11 +15,11 @@ spec:
     - relibank
     labelSelectors:
       app: transaction-service
-  duration: 2m
+  duration: 3m
   stressors:
     cpu:
-      workers: 2
-      load: 50
+      workers: 4
+      load: 80
 
 ---
 apiVersion: chaos-mesh.org/v1alpha1
@@ -38,11 +38,11 @@ spec:
     - relibank
     labelSelectors:
       app: transaction-service
-  duration: 2m
+  duration: 3m
   stressors:
     cpu:
-      workers: 4
-      load: 95
+      workers: 8
+      load: 100
 
 ---
 apiVersion: chaos-mesh.org/v1alpha1
@@ -61,11 +61,11 @@ spec:
     - relibank
     labelSelectors:
       app: bill-pay-service
-  duration: 2m
+  duration: 3m
   stressors:
     memory:
-      workers: 2
-      size: 256MB
+      workers: 4
+      size: 512MB
 
 ---
 apiVersion: chaos-mesh.org/v1alpha1
@@ -84,11 +84,11 @@ spec:
     - relibank
     labelSelectors:
       app: bill-pay-service
-  duration: 2m
+  duration: 3m
   stressors:
     memory:
-      workers: 4
-      size: 512MB
+      workers: 8
+      size: 1024MB
 
 ---
 apiVersion: chaos-mesh.org/v1alpha1
@@ -107,11 +107,11 @@ spec:
     - relibank
     labelSelectors:
       app: transaction-service
-  duration: 2m
+  duration: 3m
   stressors:
     cpu:
-      workers: 2
-      load: 50
+      workers: 6
+      load: 90
     memory:
-      workers: 2
-      size: 256MB
+      workers: 4
+      size: 768MB
