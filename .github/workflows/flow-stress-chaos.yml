@@ -1,9 +1,9 @@
 name: Flow - Random Stress Chaos
 
 on:
-  # schedule:
+  schedule:
     # Run every hour
-    # - cron: '0 * * * *'
+    - cron: '0 * * * *'
   workflow_dispatch:  # Allow manual trigger
 
 jobs:
@@ -66,7 +66,7 @@ jobs:
 
       - name: Validate stress with New Relic
         env:
-          NEW_RELIC_API_KEY: ${{ secrets.NEW_RELIC_USER_KEY }}
+          NEW_RELIC_API_KEY: ${{ secrets.NR_USER_API_KEY }}
           NEW_RELIC_ACCOUNT_ID: ${{ vars.NR_ACCOUNT_ID }}
         run: |
           python tests/workflow_validation/validate_stress_metrics.py "${{ steps.random.outputs.scenario }}" 5
@@ -80,4 +80,28 @@ jobs:
           echo "**Status**: ${{ job.status }}" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "Check New Relic dashboards for detailed metrics during the stress period." >> $GITHUB_STEP_SUMMARY
-# 
+          
+      - name: Execute New Relic Log Export Script
+        if: always()
+
+        # Set the environment variables required by export_to_newrelic.py
+        env:
+          # --- GitHub Action Context Variables ---
+          JOB_STATUS: ${{ job.status }}
+          JOB_NAME: ${{ github.job }}
+          RUN_ID: ${{ github.run_id }}
+          REPOSITORY: ${{ github.repository }}
+          SERVER_URL: ${{ github.server_url }}
+          WORKFLOW: ${{ github.workflow }}
+
+          # --- New Relic Configuration (Set these as repository secrets) ---
+          NR_LICENSE_KEY: ${{ secrets.NR_LICENSE_KEY_ALERTS }}
+          NR_ACCOUNT_ID: ${{ vars.NR_ACCOUNT_ID_ALERTS }}
+          ENVIRONMENT: ${{ matrix.environment }}
+          
+
+          # Base URL for the New Relic API endpoint (US region)
+          NR_ENDPOINT_BASE: "https://log-api.newrelic.com/log/v1"
+
+        run: |
+          cd github_action_monitoring && python export_to_newrelic.py

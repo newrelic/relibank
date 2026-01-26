@@ -4,9 +4,9 @@ This directory contains Chaos Mesh experiments for testing the resilience of the
 
 ## 🎯 Experiments
 
-The experiments are automatically applied when deploying with Skaffold and can be triggered manually from the dashboard:
+The experiments are automatically applied when deploying with Skaffold and can be triggered manually from the Relibank Scenario Runner dashboard.
 
-### Pod Chaos Experiments (relibank-pod-chaos-examples.yaml)
+### Pod Chaos Experiments (relibank-pod-chaos-adhoc.yaml)
 
 Your setup includes 5 scheduled pod chaos experiments targeting critical Relibank services:
 
@@ -34,6 +34,37 @@ Your setup includes 5 scheduled pod chaos experiments targeting critical Reliban
    - Targets: `scheduler-service`
    - Action: Pod kill for 45 seconds
    - Schedule: Sunday 3:00 AM
+
+### Stress Chaos Experiments (relibank-stress-scenarios.yaml)
+
+Stress testing experiments inject CPU, memory, and I/O stress into services to validate performance under load:
+
+1. **CPU Stress Test** (`relibank-cpu-stress-test`)
+   - Targets: `transaction-service`
+   - Stress: 50% CPU load with 2 workers
+   - Duration: 2 minutes
+
+2. **High CPU Stress** (`relibank-high-cpu-stress`)
+   - Targets: `transaction-service`
+   - Stress: 95% CPU load with 4 workers
+   - Duration: 2 minutes
+
+3. **Memory Stress Test** (`relibank-memory-stress-test`)
+   - Targets: `bill-pay-service`
+   - Stress: 256MB memory allocation with 2 workers
+   - Duration: 2 minutes
+
+4. **High Memory Stress** (`relibank-high-memory-stress`)
+   - Targets: `bill-pay-service`
+   - Stress: 512MB memory allocation with 4 workers
+   - Duration: 2 minutes
+
+5. **Combined Stress Test** (`relibank-combined-stress-test`)
+   - Targets: `transaction-service`
+   - Stress: 50% CPU + 256MB memory (2 workers each)
+   - Duration: 2 minutes
+
+**Note**: Stress scenarios require containerd as the container runtime. They may not work on Docker Desktop which uses the Docker runtime. Use containerd-based environments (Minikube, Kind, AKS, EKS) for stress testing.
 
 ## 🚀 Usage
 
@@ -70,10 +101,12 @@ kubectl get schedules -n relibank
 kubectl get jobs -n relibank
 
 # Apply specific experiment manually
-kubectl apply -f chaos_mesh/experiments/relibank-pod-chaos-examples.yaml
+kubectl apply -f chaos_mesh/experiments/relibank-pod-chaos-adhoc.yaml
+kubectl apply -f chaos_mesh/experiments/relibank-stress-scenarios.yaml
 
 # Stop a running experiment
-kubectl delete job <job-name> -n relibank
+kubectl delete podchaos <experiment-name> -n relibank
+kubectl delete stresschaos <experiment-name> -n relibank
 
 # View experiment details in dashboard or CLI
 kubectl describe schedule relibank-payment-flow-pod-chaos-schedule -n relibank
@@ -81,14 +114,25 @@ kubectl describe schedule relibank-payment-flow-pod-chaos-schedule -n relibank
 
 ## 🔧 Customizing Experiments
 
-Edit `relibank-pod-chaos-examples.yaml` to:
-- Change target services using `labelSelectors` (currently targeting `io.kompose.service`)
-- Adjust schedule timing with cron expressions (currently Sunday early morning)
-- Modify chaos actions (pod-kill vs pod-failure)
-- Change experiment duration
-- Add new experiments to the file
+Edit experiment YAML files to customize:
+- **Target services**: Modify `labelSelectors` under `selector` (currently targeting `app: service-name`)
+- **Stress levels**: Adjust CPU load percentage, memory size, or worker counts
+- **Duration**: Change how long experiments run
+- **Chaos actions**: For pod chaos, choose between pod-kill or pod-failure
 
 All experiments target pods with matching service labels in the `relibank` namespace.
+
+## 🛡️ Rate Limiting
+
+To prevent abuse, chaos experiments have rate limiting enabled:
+- **Cooldown period**: 1 minute locally, 5 minutes in production
+- **Concurrent limit**: Maximum 3 chaos experiments running simultaneously
+- **Applies to**: Both pod chaos and stress chaos experiments
+
+Check rate limit status via Scenario Runner API:
+```bash
+curl http://localhost:8000/scenario-runner/api/chaos-rate-limit-status
+```
 
 ## 🎭 Features
 

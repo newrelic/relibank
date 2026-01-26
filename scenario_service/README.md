@@ -6,11 +6,17 @@ The Scenario Runner Service is a Python-based FastAPI application designed to he
 
 ### 🚀 Key Features
 
-* **Chaos Mesh Integration**: Trigger one-time `PodChaos` experiments to test the resilience of individual microservices.
+* **Chaos Mesh Integration**: Trigger one-time `PodChaos` and `StressChaos` experiments to test the resilience of individual microservices.
+
+* **Stress Testing**: Inject CPU, memory, and I/O stress into services to validate performance under load.
+
+* **Payment Scenarios**: Toggle payment failure scenarios (gateway timeout, card decline, stolen card) with configurable probabilities.
 
 * **Locust Integration**: Run ad-hoc load tests to simulate user traffic and evaluate service performance under stress.
 
-* **Centralized Control**: A single, simple UI to manage and execute chaos and load testing scenarios.
+* **Rate Limiting**: Built-in abuse prevention with cooldown periods (1 min local, 5 min production) and concurrent experiment limits.
+
+* **Centralized Control**: A single, simple UI to manage and execute chaos, stress, and load testing scenarios.
 
 * **Containerized**: The service is packaged in a Docker container for easy deployment in a Kubernetes environment.
 
@@ -41,10 +47,29 @@ To get the Scenario Runner Service up and running, you must deploy it to your Ku
 
 ### ⚙️ Adding Additional Scenarios
 
-**Locust**:
-- Scenarios live here -> relibank/scenario_service/locust
-- Locust profiles should have their own file
+**Locust Load Tests**:
+- Scenarios live here: `relibank/scenario_service/locust`
+- Each Locust profile should have its own file
 
-**Chaos Mesh**:
-- Scenarios live here -> relibank/scenario_service/chaos_mesh/experiments/relibank-pod-chaos-adhoc.yaml
-- The buttons are populated based on the contents of this file, so add new experiments and rebuild in skaffold to test via the button in the UI
+**Pod Chaos Experiments**:
+- Scenarios live here: `relibank/scenario_service/chaos_mesh/experiments/relibank-pod-chaos-adhoc.yaml`
+- Add new pod chaos experiments to this file and rebuild with Skaffold
+
+**Stress Chaos Experiments**:
+- Scenarios live here: `relibank/scenario_service/chaos_mesh/experiments/relibank-stress-scenarios.yaml`
+- Add new stress experiments (CPU, memory, I/O) to this file and rebuild with Skaffold
+
+**Payment Scenarios**:
+- Configured via API endpoints in `scenario_service.py`
+- Toggle via UI or REST API (`/api/payment-scenarios/*`)
+
+The UI buttons are automatically populated based on the contents of these files, so add new experiments and rebuild in Skaffold to see them in the dashboard.
+
+### 🛡️ Rate Limiting
+
+Rate limiting prevents abuse of chaos experiments:
+- **Cooldown**: 1 minute locally, 5 minutes in production (auto-detected)
+- **Concurrent limit**: Maximum 3 chaos experiments running simultaneously
+- **Applies to**: Both pod chaos and stress chaos experiments
+- **Check status**: `GET /api/chaos-rate-limit-status`
+- **Reset (admin)**: `POST /api/chaos-rate-limit-reset`
