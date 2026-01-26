@@ -29,6 +29,11 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
+      - name: Reset chaos rate limit
+        run: |
+          echo "Resetting chaos rate limit before running tests..."
+          curl -X POST "${{ vars.BASE_URL }}/scenario-runner/api/chaos-rate-limit-reset" || echo "Rate limit reset failed (may not be available)"
+
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
