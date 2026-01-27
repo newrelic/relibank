@@ -15,7 +15,7 @@ spec:
     - relibank
     labelSelectors:
       app: transaction-service
-  duration: 3m
+  duration: 10m
   stressors:
     cpu:
       workers: 4
@@ -38,7 +38,7 @@ spec:
     - relibank
     labelSelectors:
       app: transaction-service
-  duration: 3m
+  duration: 10m
   stressors:
     cpu:
       workers: 8
@@ -61,7 +61,7 @@ spec:
     - relibank
     labelSelectors:
       app: bill-pay-service
-  duration: 3m
+  duration: 10m
   stressors:
     memory:
       workers: 4
@@ -84,7 +84,7 @@ spec:
     - relibank
     labelSelectors:
       app: bill-pay-service
-  duration: 3m
+  duration: 10m
   stressors:
     memory:
       workers: 8
@@ -107,7 +107,7 @@ spec:
     - relibank
     labelSelectors:
       app: transaction-service
-  duration: 3m
+  duration: 10m
   stressors:
     cpu:
       workers: 6
