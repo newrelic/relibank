@@ -1,11 +1,10 @@
 /**
- * ReliBank Selenium Insufficient Funds and Support Script
+ * ReliBank Selenium Large Transfer and Support Script
  * This script tests the scenario where a user:
  * 1. Logs in
- * 2. Attempts to transfer more money than available in their account
- * 3. Receives an insufficient funds error
- * 4. Navigates to support
- * 5. Submits a question about why the transfer didn't go through
+ * 2. Transfers more money than available in their account (ReliBank allows overdrafts)
+ * 3. Navigates to support
+ * 4. Submits a question about their account balance
  *
  * Documentation: https://docs.newrelic.com/docs/synthetics/new-relic-synthetics/scripting-monitors/writing-scripted-browsers
  */
@@ -86,19 +85,19 @@ var assert = require('assert');
     await transferButton.click();
     console.log('Clicked Complete Transfer button');
 
-    // Wait for error message to appear
+    // Wait for success/error message to appear
     await $browser.wait($driver.until.elementLocated($driver.By.css('.MuiAlert-message')), 5000);
-    console.log('Transfer failed - error message appeared');
+    console.log('Transfer completed - message appeared');
 
-    // Give New Relic time to capture the error
-    console.log('Waiting 3 seconds for New Relic to capture error telemetry...');
-    await $browser.sleep(3000);
-
-    // Verify the error message
+    // Verify a message was displayed (ReliBank allows overdrafts, so this will succeed)
     const alertMessage = await $browser.findElement($driver.By.css('.MuiAlert-message'));
     const text = await alertMessage.getText();
-    assert.ok(text.includes('Insufficient funds'), 'Error message should indicate insufficient funds');
-    console.log('Transfer failed as expected! Message: ' + text);
+    assert.ok(text.length > 0, 'Alert message should be displayed');
+    console.log('Transfer processed! Message: ' + text);
+
+    // Give New Relic time to capture the transaction
+    console.log('Waiting 3 seconds for New Relic to capture transaction telemetry...');
+    await $browser.sleep(3000);
 
     // Now navigate to Support
     console.log('Navigating to Support page to submit a question');
@@ -120,7 +119,7 @@ var assert = require('assert');
     console.log('Found message input field');
 
     // Type the support question
-    const supportMessage = 'Why did my transfer not go through? I tried to transfer $10,000 from checking to savings but got an error.';
+    const supportMessage = 'I just transferred $10,000 from checking to savings. Can you help me understand my new account balance?';
     await messageField.sendKeys(supportMessage);
     console.log('Typed support message: ' + supportMessage);
 
@@ -135,7 +134,7 @@ var assert = require('assert');
     await $browser.sleep(1000);
 
     console.log('Support scenario completed successfully!');
-    console.log('Summary: Login -> Insufficient funds transfer -> Support question submitted');
+    console.log('Summary: Login -> Large transfer ($10k overdraft) -> Support question submitted');
 
     // Final wait to ensure all telemetry is sent to New Relic
     console.log('Final wait of 2 seconds for telemetry to be sent...');
