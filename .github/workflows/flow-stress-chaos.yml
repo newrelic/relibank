@@ -4,7 +4,20 @@ on:
   schedule:
   # Run every hour
   - cron: '0 * * * *'
-  workflow_dispatch:  # Allow manual trigger
+  workflow_dispatch:
+    inputs:
+      scenario:
+        description: 'Stress scenario to run'
+        required: false
+        type: choice
+        default: 'random'
+        options:
+          - random
+          - relibank-cpu-stress-test
+          - relibank-high-cpu-stress
+          - relibank-memory-stress-test
+          - relibank-high-memory-stress
+          - relibank-combined-stress-test
 
 jobs:
   trigger-stress:
@@ -23,17 +36,23 @@ jobs:
         run: |
           pip install requests locust
 
-      - name: Select random stress scenario
+      - name: Select stress scenario
         id: random
         run: |
-          # Array of stress scenarios
-          scenarios=("relibank-cpu-stress-test" "relibank-high-cpu-stress" "relibank-memory-stress-test" "relibank-high-memory-stress" "relibank-combined-stress-test")
+          # Use user-selected scenario if provided, otherwise random
+          if [ "${{ github.event.inputs.scenario }}" == "random" ] || [ -z "${{ github.event.inputs.scenario }}" ]; then
+            # Array of stress scenarios
+            scenarios=("relibank-cpu-stress-test" "relibank-high-cpu-stress" "relibank-memory-stress-test" "relibank-high-memory-stress" "relibank-combined-stress-test")
 
-          # Select random scenario
-          RANDOM_INDEX=$((RANDOM % ${#scenarios[@]}))
-          SCENARIO=${scenarios[$RANDOM_INDEX]}
+            # Select random scenario
+            RANDOM_INDEX=$((RANDOM % ${#scenarios[@]}))
+            SCENARIO=${scenarios[$RANDOM_INDEX]}
+            echo "Randomly selected stress scenario: $SCENARIO"
+          else
+            SCENARIO="${{ github.event.inputs.scenario }}"
+            echo "User selected stress scenario: $SCENARIO"
+          fi
 
-          echo "Selected stress scenario: $SCENARIO"
           echo "scenario=$SCENARIO" >> $GITHUB_OUTPUT
 
           # Determine target service and locust file
@@ -73,23 +92,23 @@ jobs:
         run: |
           echo "Starting load test on ${{ steps.random.outputs.target_service }}..."
 
-          # Run locust in headless mode for 3 minutes (matching stress duration)
+          # Run locust in headless mode for 10 minutes (matching stress duration)
           # 3 users, spawn rate of 1 user/second
           cd demo_flows/stress_loadgen && \
           locust -f ${{ steps.random.outputs.locust_file }} \
             --host=${{ vars.BASE_URL }} \
             --users=3 \
             --spawn-rate=1 \
-            --run-time=3m \
+            --run-time=10m \
             --headless \
             --only-summary &
 
           LOCUST_PID=$!
           echo "Locust running with PID: $LOCUST_PID"
 
-          # Wait for stress experiment to complete (3 minutes)
-          echo "Waiting 3 minutes for stress experiment and load test to complete..."
-          sleep 180
+          # Wait for stress experiment to complete (10 minutes)
+          echo "Waiting 10 minutes for stress experiment and load test to complete..."
+          sleep 600
 
           # Ensure locust has finished
           wait $LOCUST_PID || echo "Locust completed"
