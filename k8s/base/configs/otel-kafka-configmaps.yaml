@@ -54,7 +54,7 @@ data:
         attributes:
           - action: insert
             key: kafka.cluster.name
-            from_attribute: KAFKA_CLUSTER_NAME
+            value: relibank-kafka
 
       transform/remove_broker_id:
         metric_statements:
@@ -116,7 +116,7 @@ data:
     service:
       extensions: [health_check]
       pipelines:
-        metrics/brokers-cluster-topics:
+        metrics/kafka:
           receivers: [kafkametrics]
           processors: [resourcedetection, resource, transform/des_units, cumulativetodelta, metricstransform/kafka_topic_sum_aggregation, batch/aggregation]
           exporters: [otlp/newrelic]

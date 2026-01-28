@@ -26,6 +26,11 @@ spec:
           env:
             - name: KAFKA_CLUSTER_NAME
               value: "relibank-kafka"
+            - name: NEW_RELIC_LICENSE_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: newrelic-secret
+                  key: license_key
           ports:
             - containerPort: 4317
               name: otlp-grpc
@@ -40,10 +45,6 @@ spec:
             - name: otel-collector-config
               mountPath: /etc/otel/config.yaml
               subPath: config.yaml
-              readOnly: true
-            - name: kafka-jmx-config
-              mountPath: /etc/otel/kafka-jmx-config.yaml
-              subPath: kafka-jmx-config.yaml
               readOnly: true
           resources:
             requests:
@@ -72,9 +73,6 @@ spec:
         - name: otel-collector-config
           configMap:
             name: otel-collector-config
-        - name: kafka-jmx-config
-          configMap:
-            name: kafka-jmx-config
       restartPolicy: Always
 ---
 apiVersion: v1
