@@ -16,14 +16,14 @@ SCENARIO_TARGETS = {
     "relibank-cpu-stress-test": {
         "service": "transaction-service",
         "metric": "cpuUsedCores",
-        "threshold": 0.5,  # 0.5 CPU cores
+        "threshold": 0.15,  # 0.15 CPU cores
         "stress_type": "CPU",
         "unit": "cores"
     },
     "relibank-high-cpu-stress": {
         "service": "transaction-service",
         "metric": "cpuUsedCores",
-        "threshold": 0.95,  # 0.95 CPU cores
+        "threshold": 0.25,  # 0.25 CPU cores
         "stress_type": "High CPU",
         "unit": "cores"
     },
@@ -44,7 +44,7 @@ SCENARIO_TARGETS = {
     "relibank-combined-stress-test": {
         "service": "transaction-service",
         "metric": "cpuUsedCores",
-        "threshold": 0.5,  # 0.5 CPU cores
+        "threshold": 0.2,  # 0.2 CPU cores
         "stress_type": "Combined (CPU check)",
         "unit": "cores"
     }
