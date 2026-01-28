@@ -36,6 +36,16 @@ data:
           kafka.partition.current_offset:
             enabled: false
 
+      # JMX receiver for broker-specific metrics
+      jmx/kafka_broker:
+        endpoint: kafka:9999
+        jar_path: /opt/opentelemetry-jmx-scraper.jar
+        target_system: kafka,jvm
+        collection_interval: 30s
+        resource_attributes:
+          broker.id: "1"
+          broker.endpoint: "kafka:9999"
+
     processors:
       batch/aggregation:
         send_batch_size: 1024
@@ -116,9 +126,14 @@ data:
     service:
       extensions: [health_check]
       pipelines:
-        metrics/kafka:
-          receivers: [kafkametrics]
-          processors: [resourcedetection, resource, transform/des_units, cumulativetodelta, metricstransform/kafka_topic_sum_aggregation, batch/aggregation]
+        metrics/brokers-cluster-topics:
+          receivers: [kafkametrics, jmx/kafka_broker]
+          processors: [resourcedetection, resource, filter/exclude_cluster_metrics, transform/des_units, cumulativetodelta, metricstransform/kafka_topic_sum_aggregation, batch/aggregation]
+          exporters: [otlp/newrelic]
+
+        metrics/jmx-cluster:
+          receivers: [jmx/kafka_broker]
+          processors: [resourcedetection, resource, filter/include_cluster_metrics, transform/remove_broker_id, transform/des_units, cumulativetodelta, batch/aggregation]
           exporters: [otlp/newrelic]
 ---
 apiVersion: v1
