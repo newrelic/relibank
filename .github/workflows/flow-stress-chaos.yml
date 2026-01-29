@@ -99,7 +99,7 @@ jobs:
             --host=${{ vars.BASE_URL }} \
             --users=3 \
             --spawn-rate=1 \
-            --run-time=10m \
+            --run-time=15m \
             --headless \
             --only-summary &
 
