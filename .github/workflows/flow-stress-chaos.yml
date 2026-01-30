@@ -2,8 +2,8 @@ name: Flow - Random Stress Chaos
 
 on:
   schedule:
-  # Run every hour
-  - cron: '0 * * * *'
+  # Run every 2 hours
+  - cron: '0 */2 * * *'
   workflow_dispatch:
     inputs:
       scenario:
@@ -39,30 +39,38 @@ jobs:
       - name: Select stress scenario
         id: random
         run: |
-          # Use user-selected scenario if provided, otherwise random
-          if [ "${{ github.event.inputs.scenario }}" == "random" ] || [ -z "${{ github.event.inputs.scenario }}" ]; then
-            # Array of stress scenarios
-            scenarios=("relibank-cpu-stress-test" "relibank-high-cpu-stress" "relibank-memory-stress-test" "relibank-high-memory-stress" "relibank-combined-stress-test")
-
-            # Select random scenario
-            RANDOM_INDEX=$((RANDOM % ${#scenarios[@]}))
-            SCENARIO=${scenarios[$RANDOM_INDEX]}
-            echo "Randomly selected stress scenario: $SCENARIO"
-          else
-            SCENARIO="${{ github.event.inputs.scenario }}"
-            echo "User selected stress scenario: $SCENARIO"
-          fi
+          # Always use high-memory-stress on bill-pay service
+          SCENARIO="relibank-high-memory-stress"
+          echo "Using stress scenario: $SCENARIO"
 
           echo "scenario=$SCENARIO" >> $GITHUB_OUTPUT
+          echo "target_service=bill-pay-service" >> $GITHUB_OUTPUT
+          echo "locust_file=bill_pay_service_load.py" >> $GITHUB_OUTPUT
 
-          # Determine target service and locust file
-          if [[ "$SCENARIO" == *"cpu"* ]] || [[ "$SCENARIO" == *"combined"* ]]; then
-            echo "target_service=transaction-service" >> $GITHUB_OUTPUT
-            echo "locust_file=transaction_service_load.py" >> $GITHUB_OUTPUT
-          else
-            echo "target_service=bill-pay-service" >> $GITHUB_OUTPUT
-            echo "locust_file=bill_pay_service_load.py" >> $GITHUB_OUTPUT
-          fi
+          # # Use user-selected scenario if provided, otherwise random
+          # if [ "${{ github.event.inputs.scenario }}" == "random" ] || [ -z "${{ github.event.inputs.scenario }}" ]; then
+          #   # Array of stress scenarios
+          #   scenarios=("relibank-cpu-stress-test" "relibank-high-cpu-stress" "relibank-memory-stress-test" "relibank-high-memory-stress" "relibank-combined-stress-test")
+
+          #   # Select random scenario
+          #   RANDOM_INDEX=$((RANDOM % ${#scenarios[@]}))
+          #   SCENARIO=${scenarios[$RANDOM_INDEX]}
+          #   echo "Randomly selected stress scenario: $SCENARIO"
+          # else
+          #   SCENARIO="${{ github.event.inputs.scenario }}"
+          #   echo "User selected stress scenario: $SCENARIO"
+          # fi
+
+          # echo "scenario=$SCENARIO" >> $GITHUB_OUTPUT
+
+          # # Determine target service and locust file
+          # if [[ "$SCENARIO" == *"cpu"* ]] || [[ "$SCENARIO" == *"combined"* ]]; then
+          #   echo "target_service=transaction-service" >> $GITHUB_OUTPUT
+          #   echo "locust_file=transaction_service_load.py" >> $GITHUB_OUTPUT
+          # else
+          #   echo "target_service=bill-pay-service" >> $GITHUB_OUTPUT
+          #   echo "locust_file=bill_pay_service_load.py" >> $GITHUB_OUTPUT
+          # fi
 
       - name: Reset rate limit
         run: |
@@ -93,13 +101,13 @@ jobs:
           echo "Starting load test on ${{ steps.random.outputs.target_service }}..."
 
           # Run locust in headless mode for 10 minutes (matching stress duration)
-          # 3 users, spawn rate of 1 user/second
+          # 3 users, spawn rate of 3 users/second (start all immediately)
           cd demo_flows/stress_loadgen && \
           locust -f ${{ steps.random.outputs.locust_file }} \
             --host=${{ vars.BASE_URL }} \
             --users=3 \
-            --spawn-rate=1 \
-            --run-time=15m \
+            --spawn-rate=3 \
+            --run-time=10m \
             --headless \
             --only-summary &
 
