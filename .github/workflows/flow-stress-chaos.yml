@@ -115,11 +115,6 @@ jobs:
 
           echo "✓ Load test completed"
 
-      - name: Wait for metrics to stabilize
-        run: |
-          echo "Waiting 30 seconds for metrics to be ingested in New Relic..."
-          sleep 30
-
       - name: Validate stress with New Relic
         env:
           NEW_RELIC_API_KEY: ${{ secrets.NR_USER_API_KEY }}
