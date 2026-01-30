@@ -137,6 +137,168 @@ BEGIN
     INSERT INTO Ledger (AccountID, CurrentBalance) VALUES (10111, 5000.00);
 END;
 
+-- Additional user accounts
+IF NOT EXISTS (SELECT 1 FROM Ledger WHERE AccountID = 10001)
+BEGIN
+    INSERT INTO Ledger (AccountID, CurrentBalance) VALUES (10001, 2500.00);
+END;
+IF NOT EXISTS (SELECT 1 FROM Ledger WHERE AccountID = 10002)
+BEGIN
+    INSERT INTO Ledger (AccountID, CurrentBalance) VALUES (10002, 8750.50);
+END;
+IF NOT EXISTS (SELECT 1 FROM Ledger WHERE AccountID = 10003)
+BEGIN
+    INSERT INTO Ledger (AccountID, CurrentBalance) VALUES (10003, 1200.75);
+END;
+IF NOT EXISTS (SELECT 1 FROM Ledger WHERE AccountID = 10004)
+BEGIN
+    INSERT INTO Ledger (AccountID, CurrentBalance) VALUES (10004, 3400.25);
+END;
+IF NOT EXISTS (SELECT 1 FROM Ledger WHERE AccountID = 10005)
+BEGIN
+    INSERT INTO Ledger (AccountID, CurrentBalance) VALUES (10005, 15000.00);
+END;
+IF NOT EXISTS (SELECT 1 FROM Ledger WHERE AccountID = 10006)
+BEGIN
+    INSERT INTO Ledger (AccountID, CurrentBalance) VALUES (10006, 950.50);
+END;
+IF NOT EXISTS (SELECT 1 FROM Ledger WHERE AccountID = 10007)
+BEGIN
+    INSERT INTO Ledger (AccountID, CurrentBalance) VALUES (10007, 6200.00);
+END;
+IF NOT EXISTS (SELECT 1 FROM Ledger WHERE AccountID = 10008)
+BEGIN
+    INSERT INTO Ledger (AccountID, CurrentBalance) VALUES (10008, 5800.75);
+END;
+IF NOT EXISTS (SELECT 1 FROM Ledger WHERE AccountID = 10009)
+BEGIN
+    INSERT INTO Ledger (AccountID, CurrentBalance) VALUES (10009, 1100.25);
+END;
+IF NOT EXISTS (SELECT 1 FROM Ledger WHERE AccountID = 10010)
+BEGIN
+    INSERT INTO Ledger (AccountID, CurrentBalance) VALUES (10010, 450.00);
+END;
+IF NOT EXISTS (SELECT 1 FROM Ledger WHERE AccountID = 10011)
+BEGIN
+    INSERT INTO Ledger (AccountID, CurrentBalance) VALUES (10011, 9500.00);
+END;
+IF NOT EXISTS (SELECT 1 FROM Ledger WHERE AccountID = 10012)
+BEGIN
+    INSERT INTO Ledger (AccountID, CurrentBalance) VALUES (10012, 12000.50);
+END;
+IF NOT EXISTS (SELECT 1 FROM Ledger WHERE AccountID = 10013)
+BEGIN
+    INSERT INTO Ledger (AccountID, CurrentBalance) VALUES (10013, 3700.75);
+END;
+IF NOT EXISTS (SELECT 1 FROM Ledger WHERE AccountID = 10014)
+BEGIN
+    INSERT INTO Ledger (AccountID, CurrentBalance) VALUES (10014, 11200.00);
+END;
+IF NOT EXISTS (SELECT 1 FROM Ledger WHERE AccountID = 10015)
+BEGIN
+    INSERT INTO Ledger (AccountID, CurrentBalance) VALUES (10015, 8900.25);
+END;
+IF NOT EXISTS (SELECT 1 FROM Ledger WHERE AccountID = 20001)
+BEGIN
+    INSERT INTO Ledger (AccountID, CurrentBalance) VALUES (20001, 15000.00);
+END;
+IF NOT EXISTS (SELECT 1 FROM Ledger WHERE AccountID = 20002)
+BEGIN
+    INSERT INTO Ledger (AccountID, CurrentBalance) VALUES (20002, 25000.00);
+END;
+IF NOT EXISTS (SELECT 1 FROM Ledger WHERE AccountID = 20003)
+BEGIN
+    INSERT INTO Ledger (AccountID, CurrentBalance) VALUES (20003, 50000.00);
+END;
+IF NOT EXISTS (SELECT 1 FROM Ledger WHERE AccountID = 20004)
+BEGIN
+    INSERT INTO Ledger (AccountID, CurrentBalance) VALUES (20004, 18000.00);
+END;
+IF NOT EXISTS (SELECT 1 FROM Ledger WHERE AccountID = 20005)
+BEGIN
+    INSERT INTO Ledger (AccountID, CurrentBalance) VALUES (20005, 30000.00);
+END;
+IF NOT EXISTS (SELECT 1 FROM Ledger WHERE AccountID = 20006)
+BEGIN
+    INSERT INTO Ledger (AccountID, CurrentBalance) VALUES (20006, 40000.00);
+END;
+IF NOT EXISTS (SELECT 1 FROM Ledger WHERE AccountID = 20007)
+BEGIN
+    INSERT INTO Ledger (AccountID, CurrentBalance) VALUES (20007, 35000.00);
+END;
+IF NOT EXISTS (SELECT 1 FROM Ledger WHERE AccountID = 20008)
+BEGIN
+    INSERT INTO Ledger (AccountID, CurrentBalance) VALUES (20008, 28000.00);
+END;
+IF NOT EXISTS (SELECT 1 FROM Ledger WHERE AccountID = 20009)
+BEGIN
+    INSERT INTO Ledger (AccountID, CurrentBalance) VALUES (20009, 22000.00);
+END;
+IF NOT EXISTS (SELECT 1 FROM Ledger WHERE AccountID = 20010)
+BEGIN
+    INSERT INTO Ledger (AccountID, CurrentBalance) VALUES (20010, 19000.00);
+END;
+IF NOT EXISTS (SELECT 1 FROM Ledger WHERE AccountID = 30001)
+BEGIN
+    INSERT INTO Ledger (AccountID, CurrentBalance) VALUES (30001, 5000.00);
+END;
+IF NOT EXISTS (SELECT 1 FROM Ledger WHERE AccountID = 30002)
+BEGIN
+    INSERT INTO Ledger (AccountID, CurrentBalance) VALUES (30002, 3000.00);
+END;
+IF NOT EXISTS (SELECT 1 FROM Ledger WHERE AccountID = 30003)
+BEGIN
+    INSERT INTO Ledger (AccountID, CurrentBalance) VALUES (30003, 2000.00);
+END;
+IF NOT EXISTS (SELECT 1 FROM Ledger WHERE AccountID = 30004)
+BEGIN
+    INSERT INTO Ledger (AccountID, CurrentBalance) VALUES (30004, 4000.00);
+END;
+IF NOT EXISTS (SELECT 1 FROM Ledger WHERE AccountID = 30005)
+BEGIN
+    INSERT INTO Ledger (AccountID, CurrentBalance) VALUES (30005, 1500.00);
+END;
+IF NOT EXISTS (SELECT 1 FROM Ledger WHERE AccountID = 30006)
+BEGIN
+    INSERT INTO Ledger (AccountID, CurrentBalance) VALUES (30006, 1000.00);
+END;
+IF NOT EXISTS (SELECT 1 FROM Ledger WHERE AccountID = 30007)
+BEGIN
+    INSERT INTO Ledger (AccountID, CurrentBalance) VALUES (30007, 3500.00);
+END;
+IF NOT EXISTS (SELECT 1 FROM Ledger WHERE AccountID = 30008)
+BEGIN
+    INSERT INTO Ledger (AccountID, CurrentBalance) VALUES (30008, 6000.00);
+END;
+IF NOT EXISTS (SELECT 1 FROM Ledger WHERE AccountID = 30009)
+BEGIN
+    INSERT INTO Ledger (AccountID, CurrentBalance) VALUES (30009, 4500.00);
+END;
+IF NOT EXISTS (SELECT 1 FROM Ledger WHERE AccountID = 30010)
+BEGIN
+    INSERT INTO Ledger (AccountID, CurrentBalance) VALUES (30010, 2500.00);
+END;
+IF NOT EXISTS (SELECT 1 FROM Ledger WHERE AccountID = 30011)
+BEGIN
+    INSERT INTO Ledger (AccountID, CurrentBalance) VALUES (30011, 3500.00);
+END;
+IF NOT EXISTS (SELECT 1 FROM Ledger WHERE AccountID = 30012)
+BEGIN
+    INSERT INTO Ledger (AccountID, CurrentBalance) VALUES (30012, 5000.00);
+END;
+IF NOT EXISTS (SELECT 1 FROM Ledger WHERE AccountID = 30013)
+BEGIN
+    INSERT INTO Ledger (AccountID, CurrentBalance) VALUES (30013, 2000.00);
+END;
+IF NOT EXISTS (SELECT 1 FROM Ledger WHERE AccountID = 30014)
+BEGIN
+    INSERT INTO Ledger (AccountID, CurrentBalance) VALUES (30014, 4000.00);
+END;
+IF NOT EXISTS (SELECT 1 FROM Ledger WHERE AccountID = 30015)
+BEGIN
+    INSERT INTO Ledger (AccountID, CurrentBalance) VALUES (30015, 3000.00);
+END;
+
 -- Create a new table to store recurring payment schedules
 IF NOT EXISTS (SELECT * FROM sysobjects WHERE name='RecurringSchedules' and xtype='U')
 BEGIN
