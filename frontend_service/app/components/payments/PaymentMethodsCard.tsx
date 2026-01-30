@@ -64,12 +64,12 @@ export const PaymentMethodsCard = () => {
       setIsLoading(true);
 
       // TODO: Get customer ID dynamically from backend
-      // For now, hardcode Alice's customer ID since it's created on service startup
+      // For now, hardcode Solaire's customer ID since it's created on service startup
       // In production, we'd need an endpoint to lookup customer by email
-      const aliceCustomerId = 'cus_TkCwwRJbjMVQZ4';
-      setCustomerId(aliceCustomerId);
+      const solaireCustomerId = 'cus_TkCwwRJbjMVQZ4';
+      setCustomerId(solaireCustomerId);
 
-      const response = await fetch(`/bill-pay-service/payment-methods/${aliceCustomerId}`);
+      const response = await fetch(`/bill-pay-service/payment-methods/${solaireCustomerId}`);
       const data = await response.json();
 
       if (!response.ok) {
@@ -102,7 +102,7 @@ export const PaymentMethodsCard = () => {
         },
         body: JSON.stringify({
           paymentMethodToken: selectedCard,
-          customerEmail: 'alice.j@relibank.com',
+          customerEmail: 'solaire.a@sunlight.com',
           customerId: customerId || undefined,
         }),
       });
