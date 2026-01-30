@@ -29,20 +29,26 @@ spec:
               value: PLAINTEXT:PLAINTEXT,EXTERNAL:PLAINTEXT
             - name: KAFKA_CFG_ZOOKEEPER_CONNECT
               value: zookeeper:2181
+            - name: KAFKA_ENABLE_KRAFT
+              value: "no"
+            - name: KAFKA_JMX_PORT
+              value: "9999"
+            - name: JMX_PORT
+              value: "9999"
           image: kafka-with-monitoring
           livenessProbe:
-            exec:
-              command:
-                - kafka-topics.sh
-                - --bootstrap-server
-                - localhost:9092
-                - --list
-            failureThreshold: 5
-            periodSeconds: 10
+            tcpSocket:
+              port: 9092
+            initialDelaySeconds: 60
+            failureThreshold: 10
+            periodSeconds: 15
             timeoutSeconds: 5
           name: kafka
           ports:
             - containerPort: 9092
+              protocol: TCP
+            - containerPort: 9999
+              name: jmx
               protocol: TCP
       hostname: kafka
       restartPolicy: Always
@@ -62,5 +68,8 @@ spec:
   - name: "29092"
     port: 29092
     targetPort: 29092
+  - name: jmx
+    port: 9999
+    targetPort: 9999
   selector:
     app: kafka
