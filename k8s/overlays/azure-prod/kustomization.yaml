@@ -57,3 +57,6 @@ images:
 - name: kafka-with-monitoring
   newName: relibank.azurecr.io/kafka-with-monitoring
   newTag: latest
+- name: otel-collector
+  newName: relibank.azurecr.io/otel-collector
+  newTag: latest

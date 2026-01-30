@@ -158,6 +158,10 @@ build:
         NEW_RELIC_ACCOUNT_ID: "{{.NEW_RELIC_ACCOUNT_ID}}"
         NEW_RELIC_LICENSE_KEY: "{{.NEW_RELIC_LICENSE_KEY}}"
         APP_NAME: "{{.APP_NAME}}"
+  - image: otel-collector
+    context: otel-collector
+    docker:
+      dockerfile: Dockerfile
 
 # Manifests configuration - use Kustomize to handle image name mapping and resources
 manifests:
@@ -192,6 +196,9 @@ deploy:
           command: ["echo", "🚀 Starting Relibank deployment with Kustomize"]
           dir: "."
       after:
+      - host:
+          command: ["sh", "-c", "kubectl create secret generic newrelic-secret --from-literal=license_key=${NEW_RELIC_LICENSE_KEY} -n relibank --dry-run=client -o yaml | kubectl apply -f -"]
+          dir: "."
       - host:
           command: ["kubectl", "label", "namespace", "relibank", "chaos-mesh.org/inject=enabled", "--overwrite"]
           dir: "."

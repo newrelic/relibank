@@ -1,0 +1,110 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: otel-collector-kafka
+  namespace: relibank
+  labels:
+    app: otel-collector
+    component: kafka-monitoring
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: otel-collector
+      component: kafka-monitoring
+  template:
+    metadata:
+      labels:
+        app: otel-collector
+        component: kafka-monitoring
+    spec:
+      containers:
+        - name: otel-collector
+          image: otel-collector
+          args:
+            - --config=/etc/otel/config.yaml
+          env:
+            - name: KAFKA_CLUSTER_NAME
+              value: "relibank-kafka"
+            - name: NEW_RELIC_LICENSE_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: newrelic-secret
+                  key: license_key
+          ports:
+            - containerPort: 4317
+              name: otlp-grpc
+              protocol: TCP
+            - containerPort: 4318
+              name: otlp-http
+              protocol: TCP
+            - containerPort: 8888
+              name: metrics
+              protocol: TCP
+          volumeMounts:
+            - name: otel-collector-config
+              mountPath: /etc/otel/config.yaml
+              subPath: config.yaml
+              readOnly: true
+            - name: kafka-jmx-config
+              mountPath: /etc/otel/kafka-jmx-config.yaml
+              subPath: kafka-jmx-config.yaml
+              readOnly: true
+          resources:
+            requests:
+              memory: "256Mi"
+              cpu: "100m"
+            limits:
+              memory: "512Mi"
+              cpu: "500m"
+          livenessProbe:
+            httpGet:
+              path: /
+              port: 13133
+            initialDelaySeconds: 30
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 3
+          readinessProbe:
+            httpGet:
+              path: /
+              port: 13133
+            initialDelaySeconds: 10
+            periodSeconds: 5
+            timeoutSeconds: 3
+            failureThreshold: 3
+      volumes:
+        - name: otel-collector-config
+          configMap:
+            name: otel-collector-config
+        - name: kafka-jmx-config
+          configMap:
+            name: kafka-jmx-config
+      restartPolicy: Always
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: otel-collector-kafka
+  namespace: relibank
+  labels:
+    app: otel-collector
+    component: kafka-monitoring
+spec:
+  ports:
+    - name: otlp-grpc
+      port: 4317
+      targetPort: 4317
+      protocol: TCP
+    - name: otlp-http
+      port: 4318
+      targetPort: 4318
+      protocol: TCP
+    - name: metrics
+      port: 8888
+      targetPort: 8888
+      protocol: TCP
+  selector:
+    app: otel-collector
+    component: kafka-monitoring
+  type: ClusterIP
