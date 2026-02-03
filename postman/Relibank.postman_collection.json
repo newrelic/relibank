@@ -613,7 +613,7 @@
 						],
 						"body": {
 							"mode": "raw",
-							"raw": "{\n    \"email\": \"alice.j@relibank.com\",\n    \"password\": \"lightm0deisthebest\"\n}"
+							"raw": "{\n    \"email\": \"alice.j@relibank.com\",\n    \"password\": \"aJ7#kQ9mP2wX\"\n}"
 						},
 						"url": {
 							"raw": "http://localhost:5006/auth-service/login",
@@ -642,7 +642,7 @@
 						],
 						"body": {
 							"mode": "raw",
-							"raw": "{\n    \"email\": \"bob.w@relibank.com\",\n    \"password\": \"lightm0deisthebest\"\n}"
+							"raw": "{\n    \"email\": \"bob.w@relibank.com\",\n    \"password\": \"bW3$nL8vR5yT\"\n}"
 						},
 						"url": {
 							"raw": "http://localhost:5006/auth-service/login",

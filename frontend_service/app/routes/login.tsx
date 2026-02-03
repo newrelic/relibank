@@ -64,7 +64,7 @@ const theme = createTheme({
 
 const LoginPage = () => {
     const [username, setUsername] = useState('alice.j@relibank.com');
-    const [password, setPassword] = useState('lightm0deisthebest');
+    const [password, setPassword] = useState('aJ7#kQ9mP2wX');
     const [showPassword, setShowPassword] = useState(false);
     const [loginError, setLoginError] = useState('');
     const [isSubmitting, setIsSubmitting] = useState(false);

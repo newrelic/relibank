@@ -87,7 +87,7 @@ describe('Login Flow', () => {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           email: 'alice.j@relibank.com',
-          password: 'lightm0deisthebest'
+          password: 'aJ7#kQ9mP2wX'
         })
       });
 

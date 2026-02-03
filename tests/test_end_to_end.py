@@ -97,7 +97,7 @@ def test_auth_service_login():
     # Test with valid credentials
     login_data = {
         "email": "alice.j@relibank.com",
-        "password": "lightm0deisthebest"
+        "password": "aJ7#kQ9mP2wX"
     }
 
     response = requests.post(
@@ -316,7 +316,7 @@ def test_complete_user_journey():
     # Use Alice's credentials for the login test
     login_credentials = {
         "email": "alice.j@relibank.com",
-        "password": "lightm0deisthebest"
+        "password": "aJ7#kQ9mP2wX"
     }
 
     # Step 1: Login with existing user
