@@ -48,6 +48,9 @@ images:
 - name: chatbot-service
   newName: relibank.azurecr.io/chatbot-service
   newTag: latest
+- name: auth-service
+  newName: relibank.azurecr.io/auth-service
+  newTag: latest
 - name: postgres-custom
   newName: relibank.azurecr.io/postgres-custom
   newTag: latest
