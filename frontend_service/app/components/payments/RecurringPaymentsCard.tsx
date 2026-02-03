@@ -33,9 +33,9 @@ import {
 
 // Mock data for scheduled/recurring payments
 const mockScheduledPayments = [
-  { id: 'mock-1', billId: 'BILL-ELECTRIC-001', payee: 'Electric Company', amount: 125.50, frequency: 'monthly', nextDate: '2024-02-01', status: 'active', toAccountId: 67890 },
-  { id: 'mock-2', billId: 'BILL-INTERNET-002', payee: 'Internet Service', amount: 79.99, frequency: 'monthly', nextDate: '2024-02-05', status: 'active', toAccountId: 67890 },
-  { id: 'mock-3', billId: 'BILL-WATER-003', payee: 'Water Utility', amount: 45.00, frequency: 'monthly', nextDate: '2024-02-10', status: 'active', toAccountId: 67890 },
+  { id: 'mock-1', billId: 'BILL-ELECTRIC-001', payee: 'Electric Company', amount: 125.50, frequency: 'monthly', nextDate: '2024-02-01', status: 'active', toAccountId: 10001 },
+  { id: 'mock-2', billId: 'BILL-INTERNET-002', payee: 'Internet Service', amount: 79.99, frequency: 'monthly', nextDate: '2024-02-05', status: 'active', toAccountId: 10001 },
+  { id: 'mock-3', billId: 'BILL-WATER-003', payee: 'Water Utility', amount: 45.00, frequency: 'monthly', nextDate: '2024-02-10', status: 'active', toAccountId: 10001 },
 ];
 
 interface RecurringScheduleAPI {
@@ -60,7 +60,7 @@ export const RecurringPaymentsCard = () => {
   // Form state (pre-filled with test values)
   const [payee, setPayee] = useState('Netflix');
   const [amount, setAmount] = useState('149.99');
-  const [accountNumber, setAccountNumber] = useState('67890');
+  const [accountNumber, setAccountNumber] = useState('10001');
   const [fromAccount, setFromAccount] = useState('checking');
   const [frequency, setFrequency] = useState('monthly');
   const [startDate, setStartDate] = useState('2024-03-01');
@@ -177,7 +177,7 @@ export const RecurringPaymentsCard = () => {
       // Reset form to defaults
       setPayee('Netflix');
       setAmount('149.99');
-      setAccountNumber('67890');
+      setAccountNumber('10001');
       setStartDate('2024-03-01');
       setShowAddForm(false);
     } catch (error: any) {
@@ -197,7 +197,9 @@ export const RecurringPaymentsCard = () => {
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({}),
+        body: JSON.stringify({
+          user_id: 'solaire.a@sunlight.com', // TODO: get from user context
+        }),
       });
 
       const data = await response.json();
@@ -272,7 +274,7 @@ export const RecurringPaymentsCard = () => {
               size="small"
               value={accountNumber}
               onChange={(e) => setAccountNumber(e.target.value)}
-              placeholder="67890"
+              placeholder="10001"
             />
 
             <TextField

@@ -98,9 +98,9 @@ async def lifespan(app: FastAPI):
         try:
             logging.info("Seeding demo customers with payment methods...")
             demo_users = [
-                {"email": "alice.j@relibank.com", "name": "Alice Johnson"},
-                {"email": "bob.smith@relibank.com", "name": "Bob Smith"},
-                {"email": "demo@relibank.com", "name": "Demo User"},
+                {"email": "solaire.a@sunlight.com", "name": "Solaire Astora"},
+                {"email": "malenia.m@haligtree.org", "name": "Malenia Miquella"},
+                {"email": "artorias.a@darksouls.net", "name": "Artorias Abyss"},
             ]
 
             for user in demo_users:
@@ -651,9 +651,9 @@ async def seed_demo_customers():
         raise HTTPException(status_code=503, detail="Stripe is not configured")
 
     demo_users = [
-        {"email": "alice.j@relibank.com", "name": "Alice Johnson"},
-        {"email": "bob.smith@relibank.com", "name": "Bob Smith"},
-        {"email": "demo@relibank.com", "name": "Demo User"},
+        {"email": "solaire.a@sunlight.com", "name": "Solaire Astora"},
+        {"email": "malenia.m@haligtree.org", "name": "Malenia Miquella"},
+        {"email": "artorias.a@darksouls.net", "name": "Artorias Abyss"},
     ]
 
     created_customers = []

@@ -50,7 +50,7 @@
 						],
 						"body": {
 							"mode": "raw",
-							"raw": "{\n    \"user_id\": \"alice.j@relibank.com\"\n}"
+							"raw": "{\n    \"user_id\": \"solaire.a@sunlight.com\"\n}"
 						},
 						"url": {
 							"raw": "http://localhost:5000/bill-pay-service/cancel/BILL-TEST-001",
@@ -138,7 +138,7 @@
 						],
 						"body": {
 							"mode": "raw",
-							"raw": "{\n    \"paymentMethodToken\": \"pm_card_visa\",\n    \"customerEmail\": \"alice.j@relibank.com\"\n}"
+							"raw": "{\n    \"paymentMethodToken\": \"pm_card_visa\",\n    \"customerEmail\": \"solaire.a@sunlight.com\"\n}"
 						},
 						"url": {
 							"raw": "http://localhost:5000/bill-pay-service/payment-method",
@@ -539,7 +539,7 @@
 							"raw": "{\n    \"id\": 12345,\n    \"name\": \"Primary Checking\",\n    \"balance\": 1500.50,\n    \"routing_number\": \"0123456789\",\n    \"interest_rate\": 0.001,\n    \"last_statement_date\": \"2025-07-31\",\n    \"account_type\": \"checking\"\n}"
 						},
 						"url": {
-							"raw": "http://localhost:5002/accounts-service/accounts/alice.j@relibank.com",
+							"raw": "http://localhost:5002/accounts-service/accounts/solaire.a@sunlight.com",
 							"protocol": "http",
 							"host": [
 								"localhost"
@@ -548,7 +548,7 @@
 							"path": [
 								"accounts-service",
 								"accounts",
-								"alice.j@relibank.com"
+								"solaire.a@sunlight.com"
 							]
 						}
 					},
@@ -560,7 +560,7 @@
 						"method": "GET",
 						"header": [],
 						"url": {
-							"raw": "http://localhost:5002/accounts-service/accounts/alice.j@relibank.com",
+							"raw": "http://localhost:5002/accounts-service/accounts/solaire.a@sunlight.com",
 							"protocol": "http",
 							"host": [
 								"localhost"
@@ -569,7 +569,7 @@
 							"path": [
 								"accounts-service",
 								"accounts",
-								"alice.j@relibank.com"
+								"solaire.a@sunlight.com"
 							]
 						}
 					},
@@ -581,7 +581,7 @@
 						"method": "GET",
 						"header": [],
 						"url": {
-							"raw": "http://localhost:5002/accounts-service/users/alice.j@relibank.com",
+							"raw": "http://localhost:5002/accounts-service/users/solaire.a@sunlight.com",
 							"protocol": "http",
 							"host": [
 								"localhost"
@@ -590,7 +590,7 @@
 							"path": [
 								"accounts-service",
 								"users",
-								"alice.j@relibank.com"
+								"solaire.a@sunlight.com"
 							]
 						}
 					},
@@ -613,7 +613,7 @@
 						],
 						"body": {
 							"mode": "raw",
-							"raw": "{\n    \"email\": \"alice.j@relibank.com\",\n    \"password\": \"lightm0deisthebest\"\n}"
+							"raw": "{\n    \"email\": \"alice.j@relibank.com\",\n    \"password\": \"aJ7#kQ9mP2wX\"\n}"
 						},
 						"url": {
 							"raw": "http://localhost:5006/auth-service/login",
@@ -642,7 +642,7 @@
 						],
 						"body": {
 							"mode": "raw",
-							"raw": "{\n    \"email\": \"bob.w@relibank.com\",\n    \"password\": \"lightm0deisthebest\"\n}"
+							"raw": "{\n    \"email\": \"bob.w@relibank.com\",\n    \"password\": \"bW3$nL8vR5yT\"\n}"
 						},
 						"url": {
 							"raw": "http://localhost:5006/auth-service/login",
