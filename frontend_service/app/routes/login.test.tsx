@@ -7,9 +7,25 @@ import { LoginContext } from '../root';
 // Mock fetch globally
 global.fetch = vi.fn();
 
+// Mock sessionStorage
+const sessionStorageMock = (() => {
+  let store: Record<string, string> = {};
+  return {
+    getItem: (key: string) => store[key] || null,
+    setItem: (key: string, value: string) => { store[key] = value; },
+    removeItem: (key: string) => { delete store[key]; },
+    clear: () => { store = {}; }
+  };
+})();
+
+Object.defineProperty(window, 'sessionStorage', {
+  value: sessionStorageMock
+});
+
 const mockLoginContext = {
   isAuthenticated: false,
   handleLogin: vi.fn(),
+  handleLogout: vi.fn(),
   userData: null,
   setUserData: vi.fn(),
 };
@@ -28,18 +44,35 @@ describe('Login Flow', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     (global.fetch as any).mockClear();
+    sessionStorageMock.clear();
   });
 
   it('submits login form with credentials', async () => {
-    const mockUserData = {
-      id: 'alice.j@relibank.com',
-      name: 'Alice Johnson',
+    const mockAuthData = {
+      token: 'mock-jwt-token-12345',
       email: 'alice.j@relibank.com',
+      user_id: 'alice.j@relibank.com'
     };
 
+    const mockAccountData = [
+      {
+        id: 12345,
+        name: 'Primary Checking',
+        balance: 1500.50,
+        account_type: 'checking'
+      }
+    ];
+
+    // Mock auth-service/login response
     (global.fetch as any).mockResolvedValueOnce({
       ok: true,
-      json: async () => mockUserData,
+      json: async () => mockAuthData,
+    });
+
+    // Mock accounts-service response
+    (global.fetch as any).mockResolvedValueOnce({
+      ok: true,
+      json: async () => mockAccountData,
     });
 
     renderLogin();
@@ -48,14 +81,35 @@ describe('Login Flow', () => {
     fireEvent.click(submitButton);
 
     await waitFor(() => {
-      expect(global.fetch).toHaveBeenCalledWith('/accounts-service/accounts/alice.j@relibank.com');
-      expect(mockLoginContext.handleLogin).toHaveBeenCalledWith(mockUserData);
+      // First call: auth-service login
+      expect(global.fetch).toHaveBeenNthCalledWith(1, '/auth-service/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          email: 'alice.j@relibank.com',
+          password: 'lightm0deisthebest'
+        })
+      });
+
+      // Second call: accounts-service with authenticated email
+      expect(global.fetch).toHaveBeenNthCalledWith(
+        2,
+        '/accounts-service/accounts/alice.j@relibank.com'
+      );
+
+      // Verify sessionStorage stores token
+      expect(sessionStorage.getItem('authToken')).toBe(mockAuthData.token);
+
+      // Verify handleLogin called with account data
+      expect(mockLoginContext.handleLogin).toHaveBeenCalledWith(mockAccountData);
     });
   });
 
   it('shows error message on failed login', async () => {
     (global.fetch as any).mockResolvedValueOnce({
       ok: false,
+      status: 401,
+      json: async () => ({ detail: 'Invalid email or password' }),
     });
 
     renderLogin();
@@ -64,17 +118,17 @@ describe('Login Flow', () => {
     fireEvent.click(submitButton);
 
     await waitFor(() => {
-      expect(screen.getByText(/login failed/i)).toBeInTheDocument();
+      expect(screen.getByText(/invalid email or password/i)).toBeInTheDocument();
     });
   });
 
   it('updates username field on input', () => {
     renderLogin();
 
-    const usernameField = screen.getByLabelText(/username/i);
-    fireEvent.change(usernameField, { target: { value: 'testuser' } });
+    const usernameField = screen.getByLabelText(/email/i);
+    fireEvent.change(usernameField, { target: { value: 'testuser@example.com' } });
 
-    expect(usernameField).toHaveValue('testuser');
+    expect(usernameField).toHaveValue('testuser@example.com');
   });
 
   it('toggles password visibility', () => {

@@ -11,11 +11,15 @@ import {
     InputAdornment,
     IconButton,
     Paper,
-    CircularProgress
+    CircularProgress,
+    Autocomplete
 } from '@mui/material';
 import { Visibility, VisibilityOff, Lock, Person, ErrorOutline } from '@mui/icons-material';
 import { createTheme, ThemeProvider } from '@mui/material/styles';
 import { LoginContext } from '../root';
+
+// Track failed login attempts across all login attempts
+let failedLoginCounter = 0;
 
 // Create a custom theme with Inter font and ReliBank green colors
 const theme = createTheme({
@@ -59,7 +63,7 @@ const theme = createTheme({
 });
 
 const LoginPage = () => {
-    const [username, setUsername] = useState('demo');
+    const [username, setUsername] = useState('alice.j@relibank.com');
     const [password, setPassword] = useState('lightm0deisthebest');
     const [showPassword, setShowPassword] = useState(false);
     const [loginError, setLoginError] = useState('');
@@ -83,27 +87,53 @@ const LoginPage = () => {
 
         console.info('Login attempt started', { username });
 
-        // Simulate a network request. In a real application, you would replace this with a real API call.
         try {
-            console.info('Fetching user account data from accounts service');
-            const response = await fetch('/accounts-service/accounts/alice.j@relibank.com');
+            // Step 1: Authenticate with auth-service
+            console.info('Authenticating user with auth service');
+            const authResponse = await fetch('/auth-service/login', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    email: username,
+                    password: password
+                })
+            });
 
-            if (!response.ok) {
-                throw new Error('Login failed. Please check your credentials.');
+            if (!authResponse.ok) {
+                const errorData = await authResponse.json().catch(() => ({ detail: 'Invalid email or password' }));
+                throw new Error(errorData.detail || 'Invalid email or password');
             }
 
-            const userData = await response.json();
+            const authData = await authResponse.json();
+            console.info('Authentication successful', { userId: authData.user_id, email: authData.email });
+
+            // Step 2: Fetch account data from accounts-service using authenticated email
+            console.info('Fetching user account data from accounts service');
+            const accountsResponse = await fetch(`/accounts-service/accounts/${authData.email}`);
+
+            if (!accountsResponse.ok) {
+                throw new Error('Failed to fetch account data');
+            }
+
+            const userData = await accountsResponse.json();
             console.log('API Response:', userData);
             console.info('Login successful', { userId: userData.id, userName: userData.name });
+
+            // Store the auth token for future use
+            sessionStorage.setItem('authToken', authData.token);
 
             // On success, call handleLogin to set state and initiate navigation (via useEffect in root.tsx)
             handleLogin(userData);
 
             // DO NOT set isSubmitting(false) here. The spinner stays until the page unmounts.
-        } catch (error) {
+        } catch (error: any) {
+            // Increment failed login counter
+            failedLoginCounter++;
+
             console.error('Login error:', error);
-            console.info('Login failed', { error: error.message });
-            setLoginError(error.message);
+            console.warn(`FAILED LOGIN ATTEMPT #${failedLoginCounter} - User: ${username}, Error: ${error.message}`);
+            console.info('Login failed', { error: error.message, failedAttemptCount: failedLoginCounter });
+            setLoginError(error.message || 'An unexpected error occurred');
 
             // On failure, hide the spinner so the user can try again
             setIsSubmitting(false);
@@ -149,24 +179,37 @@ const LoginPage = () => {
                             </Alert>
                         )}
                         <Box component="form" onSubmit={handleLoginClick} noValidate sx={{ mt: 1, width: '100%' }}>
-                            <TextField
-                                margin="normal"
-                                required
-                                fullWidth
-                                id="username"
-                                label="Username"
-                                name="username"
-                                autoComplete="username"
-                                autoFocus
+                            <Autocomplete
+                                freeSolo
+                                options={['alice.j@relibank.com', 'bob.w@relibank.com', 'charlie.b@relibank.com']}
                                 value={username}
-                                onChange={(e: { target: { value: any; }; }) => setUsername(e.target.value)}
-                                InputProps={{
-                                    startAdornment: (
-                                        <InputAdornment position="start">
-                                            <Person />
-                                        </InputAdornment>
-                                    ),
-                                }}
+                                onInputChange={(event, newValue) => setUsername(newValue || '')}
+                                renderInput={(params) => (
+                                    <TextField
+                                        {...params}
+                                        margin="normal"
+                                        required
+                                        fullWidth
+                                        id="username"
+                                        label="Email"
+                                        name="username"
+                                        autoComplete="username"
+                                        autoFocus
+                                        slotProps={{
+                                            input: {
+                                                ...params.InputProps,
+                                                startAdornment: (
+                                                    <>
+                                                        <InputAdornment position="start">
+                                                            <Person />
+                                                        </InputAdornment>
+                                                        {params.InputProps.startAdornment}
+                                                    </>
+                                                ),
+                                            },
+                                        }}
+                                    />
+                                )}
                             />
                             <TextField
                                 margin="normal"

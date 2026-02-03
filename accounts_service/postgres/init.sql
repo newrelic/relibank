@@ -8,6 +8,7 @@ CREATE TABLE IF NOT EXISTS user_account (
     alert_preferences JSONB,
     phone VARCHAR(20),
     email VARCHAR(255) UNIQUE NOT NULL,
+    password VARCHAR(255),
     address TEXT,
     income DECIMAL(19, 4),
     preferred_language VARCHAR(50),
@@ -61,54 +62,57 @@ CREATE TABLE IF NOT EXISTS account_user (
 --
 
 -- Insert test users
-INSERT INTO user_account (id, name, email, phone) VALUES
-('b2a5c9f1-3d7f-4b0d-9a8c-9c7b5a1f2e4d', 'Alice Johnson', 'alice.j@relibank.com', '555-123-4567'),
-('f5e8d1c6-2a9b-4c3e-8f1a-6e5b0d2c9f1a', 'Bob Williams', 'bob.w@relibank.com', '555-987-6543'),
-('e1f2b3c4-5d6a-7e8f-9a0b-1c2d3e4f5a6b', 'Charlie Brown', 'charlie.b@relibank.com', '555-555-5555'),
-('f47ac10b-58cc-4372-a567-0e02b2c3d471', 'Solaire Astora', 'solaire.a@sunlight.com', '555-248-1911'),
-('d9b1e2a3-f4c5-4d6e-8f7a-9b0c1d2e3f4a', 'Malenia Miquella', 'malenia.m@haligtree.org', '555-001-9090'),
-('8c7d6e5f-4a3b-2c1d-0e9f-8a7b6c5d4e3f', 'Artorias Abyss', 'artorias.a@darksouls.net', '555-777-0001'),
-('7f6e5d4c-3b2a-1c0d-9e8f-7a6b5c4d3e2f', 'Priscilla Painted', 'priscilla.p@paintedworld.com', '555-111-2233'),
-('6e5d4c3b-2a1c-0d9e-8f7a-6b5c4d3e2f1a', 'Gwyn Cinder', 'gwyn.c@kiln.org', '555-999-0000'),
-('5d4c3b2a-1c0d-9e8f-7a6b-5c4d3e2f1a0b', 'Siegmeyer Catarina', 'siegmeyer.c@onionknight.com', '555-444-5566'),
-('4c3b2a1c-0d9e-8f7a-6b5c-4d3e2f1a0b9c', 'Ornstein Dragon', 'ornstein.d@anor.org', '555-222-7788'),
-('3b2a1c0d-9e8f-7a6b-5c4d-3e2f1a0b9c8d', 'Smough Executioner', 'smough.e@anor.org', '555-333-9900'),
-('2a1c0d9e-8f7a-6b5c-4d3e-2f1a0b9c8d7e', 'Sif Greywolf', 'sif.g@forest.net', '555-666-1122'),
-('1c0d9e8f-7a6b-5c4d-3e2f-1a0b9c8d7e6f', 'Patches Spider', 'patches.s@trustworthy.com', '555-888-3344'),
-('0d9e8f7a-6b5c-4d3e-2f1a-0b9c8d7e6f50', 'Radahn Starscourge', 'radahn.s@redmane.org', '555-123-9999'),
-('9e8f7a6b-5c4d-3e2f-1a0b-9c8d7e6f5041', 'Ranni Witch', 'ranni.w@moonlight.net', '555-456-7890'),
-('8f7a6b5c-4d3e-2f1a-0b9c-8d7e6f504032', 'Godrick Grafted', 'godrick.g@stormveil.com', '555-789-0123'),
-('7a6b5c4d-3e2f-1a0b-9c8d-7e6f50403021', 'Rennala Moon', 'rennala.m@academy.org', '555-012-3456'),
-('6b5c4d3e-2f1a-0b9c-8d7e-6f5040302010', 'Morgott King', 'morgott.k@erdtree.net', '555-345-6789'),
-('5c4d3e2f-1a0b-9c8d-7e6f-504030201001', 'Godfrey Warrior', 'godfrey.w@elden.com', '555-678-9012'),
-('4d3e2f1a-0b9c-8d7e-6f50-403020100102', 'Maliketh Beast', 'maliketh.b@destined.org', '555-901-2345'),
-('3e2f1a0b-9c8d-7e6f-5040-302010010203', 'Mohg Lord', 'mohg.l@dynasty.net', '555-234-5678'),
-('2f1a0b9c-8d7e-6f50-4030-201001020304', 'Placidusax Dragon', 'placidusax.d@time.com', '555-567-8901'),
-('1a0b9c8d-7e6f-5040-3020-100102030405', 'Blaidd Half', 'blaidd.h@mistwood.org', '555-890-1234'),
-('0b9c8d7e-6f50-4030-2010-010203040506', 'Gehrman Hunter', 'gehrman.h@dream.net', '555-123-4567'),
-('9c8d7e6f-5040-3020-1001-020304050607', 'Maria Astral', 'maria.a@clocktower.com', '555-456-7890'),
-('8d7e6f50-4030-2010-0102-030405060708', 'Ludwig Holy', 'ludwig.h@healing.org', '555-789-0123'),
-('7e6f5040-3020-1001-0203-040506070809', 'Laurence Beast', 'laurence.b@byrgenwerth.net', '555-012-3456'),
-('6f504030-2010-0102-0304-05060708090a', 'Gascoigne Father', 'gascoigne.f@yharnam.com', '555-345-6789'),
-('50403020-1001-0203-0405-0607080910ab', 'Eileen Crow', 'eileen.c@hunters.org', '555-678-9012'),
-('40302010-0102-0304-0506-070809101112', 'Djura Powder', 'djura.p@oldyharnam.net', '555-901-2345'),
-('30201001-0203-0405-0607-080910111213', 'Henryk Hunter', 'henryk.h@tomb.com', '555-234-5678'),
-('20100102-0304-0506-0708-091011121314', 'Valtr Master', 'valtr.m@league.org', '555-567-8901'),
-('10010203-0405-0607-0809-101112131415', 'Alfred Executioner', 'alfred.e@martyr.net', '555-890-1234'),
-('01020304-0506-0708-0910-111213141516', 'Isshin Sword', 'isshin.s@ashina.com', '555-123-4567'),
-('02030405-0607-0809-1011-121314151617', 'Genichiro Way', 'genichiro.w@castle.org', '555-456-7890'),
-('03040506-0708-0910-1112-131415161718', 'Emma Gentle', 'emma.g@physician.net', '555-789-0123'),
-('04050607-0809-1011-1213-141516171819', 'Sculptor Dilapidated', 'sculptor.d@temple.com', '555-012-3456'),
-('05060708-0910-1112-1314-15161718191a', 'Kuro Divine', 'kuro.d@heir.org', '555-345-6789'),
-('06070809-1011-1213-1415-161718191a1b', 'Owl Great', 'owl.g@shinobi.net', '555-678-9012'),
-('07080910-1112-1314-1516-1718191a1b1c', 'Guardian Ape', 'guardian.a@forest.com', '555-901-2345'),
-('08091011-1213-1415-1617-18191a1b1c1d', 'Corrupted Monk', 'corrupted.m@mibu.org', '555-234-5678'),
-('09101112-1314-1516-1718-191a1b1c1d1e', 'Divine Dragon', 'divine.d@palace.net', '555-567-8901'),
-('0a111213-1415-1617-1819-1a1b1c1d1e1f', 'Demon Fire', 'demon.f@hatred.com', '555-890-1234');
+-- NOTE: Passwords are stored in plain text for demo purposes only.
+-- In production, use proper password hashing (bcrypt, argon2, etc.)
+INSERT INTO user_account (id, name, email, phone, password) VALUES
+('b2a5c9f1-3d7f-4b0d-9a8c-9c7b5a1f2e4d', 'Alice Johnson', 'alice.j@relibank.com', '555-123-4567', 'aJ7#kQ9mP2wX'),
+('f5e8d1c6-2a9b-4c3e-8f1a-6e5b0d2c9f1a', 'Bob Williams', 'bob.w@relibank.com', '555-987-6543', 'bW3$nL8vR5yT'),
+('e1f2b3c4-5d6a-7e8f-9a0b-1c2d3e4f5a6b', 'Charlie Brown', 'charlie.b@relibank.com', '555-555-5555', 'cB9@hN4zD7fK'),
+('f47ac10b-58cc-4372-a567-0e02b2c3d471', 'Solaire Astora', 'solaire.a@sunlight.com', '555-248-1911', 'sA4%pR8mV3xJ'),
+('d9b1e2a3-f4c5-4d6e-8f7a-9b0c1d2e3f4a', 'Malenia Miquella', 'malenia.m@haligtree.org', '555-001-9090', 'mM6&tY2nQ9wL'),
+('8c7d6e5f-4a3b-2c1d-0e9f-8a7b6c5d4e3f', 'Artorias Abyss', 'artorias.a@darksouls.net', '555-777-0001', 'aA8#fG5kS1bN'),
+('7f6e5d4c-3b2a-1c0d-9e8f-7a6b5c4d3e2f', 'Priscilla Painted', 'priscilla.p@paintedworld.com', '555-111-2233', 'pP2$mH7vC4xR'),
+('6e5d4c3b-2a1c-0d9e-8f7a-6b5c4d3e2f1a', 'Gwyn Cinder', 'gwyn.c@kiln.org', '555-999-0000', 'gC5@nK9zL3wT'),
+('5d4c3b2a-1c0d-9e8f-7a6b-5c4d3e2f1a0b', 'Siegmeyer Catarina', 'siegmeyer.c@onionknight.com', '555-444-5566', 'sC7#qJ4mP8yD'),
+('4c3b2a1c-0d9e-8f7a-6b5c-4d3e2f1a0b9c', 'Ornstein Dragon', 'ornstein.d@anor.org', '555-222-7788', 'oD3$wN6vR2fK'),
+('3b2a1c0d-9e8f-7a6b-5c4d-3e2f1a0b9c8d', 'Smough Executioner', 'smough.e@anor.org', '555-333-9900', 'sE9@hL5xT7bM'),
+('2a1c0d9e-8f7a-6b5c-4d3e-2f1a0b9c8d7e', 'Sif Greywolf', 'sif.g@forest.net', '555-666-1122', 'sG4%pQ8nV1cJ'),
+('1c0d9e8f-7a6b-5c4d-3e2f-1a0b9c8d7e6f', 'Patches Spider', 'patches.s@trustworthy.com', '555-888-3344', 'pS6&tR2mW9xL'),
+('0d9e8f7a-6b5c-4d3e-2f1a-0b9c8d7e6f50', 'Radahn Starscourge', 'radahn.s@redmane.org', '555-123-9999', 'rS8#fY5kD3bN'),
+('9e8f7a6b-5c4d-3e2f-1a0b-9c8d7e6f5041', 'Ranni Witch', 'ranni.w@moonlight.net', '555-456-7890', 'rW2$mG7vS4xR'),
+('8f7a6b5c-4d3e-2f1a-0b9c-8d7e6f504032', 'Godrick Grafted', 'godrick.g@stormveil.com', '555-789-0123', 'gG5@nH9zC3wT'),
+('7a6b5c4d-3e2f-1a0b-9c8d-7e6f50403021', 'Rennala Moon', 'rennala.m@academy.org', '555-012-3456', 'rM7#qK4mL8yD'),
+('6b5c4d3e-2f1a-0b9c-8d7e-6f5040302010', 'Morgott King', 'morgott.k@erdtree.net', '555-345-6789', 'mK3$wJ6vP2fK'),
+('5c4d3e2f-1a0b-9c8d-7e6f-504030201001', 'Godfrey Warrior', 'godfrey.w@elden.com', '555-678-9012', 'gW9@hN5xR7bM'),
+('4d3e2f1a-0b9c-8d7e-6f50-403020100102', 'Maliketh Beast', 'maliketh.b@destined.org', '555-901-2345', 'mB4%pL8nT1cJ'),
+('3e2f1a0b-9c8d-7e6f-5040-302010010203', 'Mohg Lord', 'mohg.l@dynasty.net', '555-234-5678', 'mL6&tQ2mV9xL'),
+('2f1a0b9c-8d7e-6f50-4030-201001020304', 'Placidusax Dragon', 'placidusax.d@time.com', '555-567-8901', 'pD8#fR5kW3bN'),
+('1a0b9c8d-7e6f-5040-3020-100102030405', 'Blaidd Half', 'blaidd.h@mistwood.org', '555-890-1234', 'bH2$mY7vD4xR'),
+('0b9c8d7e-6f50-4030-2010-010203040506', 'Gehrman Hunter', 'gehrman.h@dream.net', '555-123-4567', 'gH5@nG9zS3wT'),
+('9c8d7e6f-5040-3020-1001-020304050607', 'Maria Astral', 'maria.a@clocktower.com', '555-456-7890', 'mA7#qK4mC8yD'),
+('8d7e6f50-4030-2010-0102-030405060708', 'Ludwig Holy', 'ludwig.h@healing.org', '555-789-0123', 'lH3$wJ6vL2fK'),
+('7e6f5040-3020-1001-0203-040506070809', 'Laurence Beast', 'laurence.b@byrgenwerth.net', '555-012-3456', 'lB9@hP5xR7bM'),
+('6f504030-2010-0102-0304-05060708090a', 'Gascoigne Father', 'gascoigne.f@yharnam.com', '555-345-6789', 'gF4%pN8nT1cJ'),
+('50403020-1001-0203-0405-0607080910ab', 'Eileen Crow', 'eileen.c@hunters.org', '555-678-9012', 'eC6&tL2mV9xL'),
+('40302010-0102-0304-0506-070809101112', 'Djura Powder', 'djura.p@oldyharnam.net', '555-901-2345', 'dP8#fQ5kW3bN'),
+('30201001-0203-0405-0607-080910111213', 'Henryk Hunter', 'henryk.h@tomb.com', '555-234-5678', 'hH2$mR7vD4xR'),
+('20100102-0304-0506-0708-091011121314', 'Valtr Master', 'valtr.m@league.org', '555-567-8901', 'vM5@nY9zS3wT'),
+('10010203-0405-0607-0809-101112131415', 'Alfred Executioner', 'alfred.e@martyr.net', '555-890-1234', 'aE7#qG4mC8yD'),
+('01020304-0506-0708-0910-111213141516', 'Isshin Sword', 'isshin.s@ashina.com', '555-123-4567', 'iS3$wK6vL2fK'),
+('02030405-0607-0809-1011-121314151617', 'Genichiro Way', 'genichiro.w@castle.org', '555-456-7890', 'gW9@hJ5xR7bM'),
+('03040506-0708-0910-1112-131415161718', 'Emma Gentle', 'emma.g@physician.net', '555-789-0123', 'eG4%pP8nT1cJ'),
+('04050607-0809-1011-1213-141516171819', 'Sculptor Dilapidated', 'sculptor.d@temple.com', '555-012-3456', 'sD6&tN2mV9xL'),
+('05060708-0910-1112-1314-15161718191a', 'Kuro Divine', 'kuro.d@heir.org', '555-345-6789', 'kD8#fL5kW3bN'),
+('06070809-1011-1213-1415-161718191a1b', 'Owl Great', 'owl.g@shinobi.net', '555-678-9012', 'oG2$mQ7vD4xR'),
+('07080910-1112-1314-1516-1718191a1b1c', 'Guardian Ape', 'guardian.a@forest.com', '555-901-2345', 'gA5@nR9zS3wT'),
+('08091011-1213-1415-1617-18191a1b1c1d', 'Corrupted Monk', 'corrupted.m@mibu.org', '555-234-5678', 'cM7#qY4mC8yD'),
+('09101112-1314-1516-1718-191a1b1c1d1e', 'Divine Dragon', 'divine.d@palace.net', '555-567-8901', 'dD3$wH6vL2fK'),
+('0a111213-1415-1617-1819-1a1b1c1d1e1f', 'Demon Fire', 'demon.f@hatred.com', '555-890-1234', 'dF9@hK5xR7bM');
 
 -- Insert test accounts with integer IDs
 INSERT INTO checking_accounts (id, name, balance, routing_number, interest_rate) VALUES
 (12345, 'Alice Checking', 1500.50, '0123456789', 0.001),
+(54321, 'Bob Checking', 2500.75, '5544332211', 0.001),
 (67890, 'Charlie Checking', 750.25, '9876543210', 0.001),
 (10001, 'Solaire Checking', 2500.00, '0123456790', 0.001),
 (10002, 'Malenia Checking', 8750.50, '0123456790', 0.001),
@@ -128,6 +132,8 @@ INSERT INTO checking_accounts (id, name, balance, routing_number, interest_rate)
 
 INSERT INTO savings_accounts (id, name, balance, routing_number, interest_rate) VALUES
 (56789, 'Alice Savings', 5000.00, '1122334455', 0.015),
+(98766, 'Bob Savings', 3200.00, '6677889900', 0.020),
+(67891, 'Charlie Savings', 1500.00, '9988776655', 0.018),
 (20001, 'Solaire Savings', 15000.00, '1122334456', 0.015),
 (20002, 'Malenia Savings', 25000.00, '1122334456', 0.020),
 (20003, 'Gwyn Savings', 50000.00, '1122334457', 0.025),
@@ -162,8 +168,11 @@ INSERT INTO credit_accounts (id, name, balance, outstanding_balance, routing_num
 INSERT INTO account_user (user_id, account_id) VALUES
 ('b2a5c9f1-3d7f-4b0d-9a8c-9c7b5a1f2e4d', 12345), -- Alice's checking
 ('b2a5c9f1-3d7f-4b0d-9a8c-9c7b5a1f2e4d', 56789), -- Alice's savings
+('f5e8d1c6-2a9b-4c3e-8f1a-6e5b0d2c9f1a', 54321), -- Bob's checking
+('f5e8d1c6-2a9b-4c3e-8f1a-6e5b0d2c9f1a', 98766), -- Bob's savings
 ('f5e8d1c6-2a9b-4c3e-8f1a-6e5b0d2c9f1a', 98765), -- Bob's credit
 ('e1f2b3c4-5d6a-7e8f-9a0b-1c2d3e4f5a6b', 67890), -- Charlie's checking
+('e1f2b3c4-5d6a-7e8f-9a0b-1c2d3e4f5a6b', 67891), -- Charlie's savings
 ('e1f2b3c4-5d6a-7e8f-9a0b-1c2d3e4f5a6b', 10111), -- Charlie's credit card
 ('f47ac10b-58cc-4372-a567-0e02b2c3d471', 10001), -- Solaire's checking
 ('f47ac10b-58cc-4372-a567-0e02b2c3d471', 20001), -- Solaire's savings

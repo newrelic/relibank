@@ -72,6 +72,25 @@ services:
       DB_PASSWORD: your_password
     platform: linux/arm64/v8
 
+  auth-service:
+    build:
+      context: ./auth_service
+      dockerfile: Dockerfile
+    container_name: auth-service
+    ports:
+      - "5004:5002"
+    depends_on:
+      accounts-db:
+        condition: service_healthy
+    env_file:
+      - .env
+    environment:
+      DB_HOST: accounts-db
+      DB_NAME: accountsdb
+      DB_USER: postgres
+      DB_PASSWORD: your_password
+    platform: linux/arm64/v8
+
   mssql:
     build:
       context: ./transaction_service/mssql

@@ -597,6 +597,137 @@
 					"response": []
 				}
 			]
+		},
+		{
+			"name": "auth service",
+			"item": [
+				{
+					"name": "login - Alice",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"email\": \"alice.j@relibank.com\",\n    \"password\": \"lightm0deisthebest\"\n}"
+						},
+						"url": {
+							"raw": "http://localhost:5006/auth-service/login",
+							"protocol": "http",
+							"host": [
+								"localhost"
+							],
+							"port": "5006",
+							"path": [
+								"auth-service",
+								"login"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "login - Bob",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"email\": \"bob.w@relibank.com\",\n    \"password\": \"lightm0deisthebest\"\n}"
+						},
+						"url": {
+							"raw": "http://localhost:5006/auth-service/login",
+							"protocol": "http",
+							"host": [
+								"localhost"
+							],
+							"port": "5006",
+							"path": [
+								"auth-service",
+								"login"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "login - invalid credentials",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"email\": \"alice.j@relibank.com\",\n    \"password\": \"wrongpassword\"\n}"
+						},
+						"url": {
+							"raw": "http://localhost:5006/auth-service/login",
+							"protocol": "http",
+							"host": [
+								"localhost"
+							],
+							"port": "5006",
+							"path": [
+								"auth-service",
+								"login"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "health check",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "http://localhost:5006/auth-service/health",
+							"protocol": "http",
+							"host": [
+								"localhost"
+							],
+							"port": "5006",
+							"path": [
+								"auth-service",
+								"health"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "simple health check",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "http://localhost:5006/auth-service",
+							"protocol": "http",
+							"host": [
+								"localhost"
+							],
+							"port": "5006",
+							"path": [
+								"auth-service"
+							]
+						}
+					},
+					"response": []
+				}
+			]
 		}
 	]
 }

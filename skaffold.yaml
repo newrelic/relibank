@@ -24,6 +24,7 @@ build:
         NEW_RELIC_ACCOUNT_ID: "{{.NEW_RELIC_ACCOUNT_ID}}"
         NEW_RELIC_LICENSE_KEY: "{{.NEW_RELIC_BROWSER_LICENSE_KEY}}"
         NEW_RELIC_BROWSER_APPLICATION_ID: "{{.NEW_RELIC_BROWSER_APPLICATION_ID}}"
+        NEW_RELIC_TRUST_KEY: "{{.NEW_RELIC_TRUST_KEY}}"
         APP_NAME: "{{.APP_NAME}}"
 
     # sync:
@@ -45,10 +46,15 @@ build:
         NEW_RELIC_ACCOUNT_ID: "{{.NEW_RELIC_ACCOUNT_ID}}"
         NEW_RELIC_LICENSE_KEY: "{{.NEW_RELIC_LICENSE_KEY}}"
         APP_NAME: "{{.APP_NAME}}"
-    sync:
-      manual:
-      - src: "**/*.py"
-        dest: /app
+  - image: auth-service
+    context: auth_service
+    docker:
+      dockerfile: Dockerfile
+      buildArgs:
+        NEW_RELIC_USER_API_KEY: "{{.NEW_RELIC_USER_API_KEY}}"
+        NEW_RELIC_ACCOUNT_ID: "{{.NEW_RELIC_ACCOUNT_ID}}"
+        NEW_RELIC_LICENSE_KEY: "{{.NEW_RELIC_LICENSE_KEY}}"
+        APP_NAME: "{{.APP_NAME}}"
   - image: transaction-service
     context: transaction_service
     docker:
@@ -58,10 +64,6 @@ build:
         NEW_RELIC_ACCOUNT_ID: "{{.NEW_RELIC_ACCOUNT_ID}}"
         NEW_RELIC_LICENSE_KEY: "{{.NEW_RELIC_LICENSE_KEY}}"
         APP_NAME: "{{.APP_NAME}}"
-    sync:
-      manual:
-      - src: "**/*.py"
-        dest: /app
   - image: bill-pay-service
     context: bill_pay
     docker:
@@ -73,10 +75,6 @@ build:
         APP_NAME: "{{.APP_NAME}}"
         STRIPE_SECRET_KEY: "{{.STRIPE_SECRET_KEY}}"
         STRIPE_PUBLISHABLE_KEY: "{{.STRIPE_PUBLISHABLE_KEY}}"
-    sync:
-      manual:
-      - src: "**/*.py"
-        dest: /app
   - image: notifications-service
     context: notifications_service
     docker:
@@ -90,10 +88,6 @@ build:
         AZURE_ACS_SMS_PHONE_NUMBER: "{{.AZURE_ACS_SMS_PHONE_NUMBER}}"
         AZURE_ACS_EMAIL_SENDER: "{{.AZURE_ACS_EMAIL_SENDER}}"
         AZURE_FUNCTION_URL: "{{.AZURE_FUNCTION_URL}}"
-    sync:
-      manual:
-      - src: "**/*.py"
-        dest: /app
   - image: scheduler-service
     context: scheduler_service
     docker:
@@ -103,10 +97,6 @@ build:
         NEW_RELIC_ACCOUNT_ID: "{{.NEW_RELIC_ACCOUNT_ID}}"
         NEW_RELIC_LICENSE_KEY: "{{.NEW_RELIC_LICENSE_KEY}}"
         APP_NAME: "{{.APP_NAME}}"
-    sync:
-      manual:
-      - src: "**/*.py"
-        dest: /app
   - image: mssql-custom
     context: transaction_service/mssql
     docker:
@@ -129,26 +119,10 @@ build:
         NEW_RELIC_ACCOUNT_ID: "{{.NEW_RELIC_ACCOUNT_ID}}"
         NEW_RELIC_LICENSE_KEY: "{{.NEW_RELIC_LICENSE_KEY}}"
         APP_NAME: "{{.APP_NAME}}"
-    sync:
-      manual:
-      - src: "**/*.py"
-        dest: /app
   - image: scenario-runner
     context: scenario_service
     docker:
       dockerfile: Dockerfile
-    sync:
-      manual:
-      - src: "scenario_service/requirements.txt"
-        dest: /app/requirements.txt
-      - src: "scenario_service/**/*.py"
-        dest: /app/scenario_service
-      - src: "locust/**/*.py"
-        dest: /app/locust
-      - src: "relibank/chaos_mesh/experiments/*.yaml"
-        dest: /app/relibank/chaos_mesh/experiments/
-      - src: "index.html"
-        dest: /app
   - image: kafka-with-monitoring
     context: kafka_service
     docker:
@@ -226,6 +200,11 @@ portForward:
   namespace: relibank
   port: 5002
   localPort: 5002
+- resourceType: service
+  resourceName: auth-service
+  namespace: relibank
+  port: 5002
+  localPort: 5006
 - resourceType: service
   resourceName: transaction-service
   namespace: relibank

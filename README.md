@@ -46,6 +46,7 @@ This will:
 Once deployed, you can access:
 - **Frontend UI**: http://localhost:3000 (Main banking interface)
 - Accounts: http://localhost:5002
+- Auth Service: http://localhost:5006
 - Transactions: http://localhost:5001
 - Bill Pay: http://localhost:5000
 - Chatbot: http://localhost:5003

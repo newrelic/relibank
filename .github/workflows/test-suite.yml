@@ -50,6 +50,7 @@ jobs:
           RELIBANK_URL: ${{ vars.BASE_URL }}
           BASE_URL: ${{ vars.BASE_URL }}
           ACCOUNTS_SERVICE: ${{ vars.BASE_URL }}
+          AUTH_SERVICE: ${{ vars.BASE_URL }}
           BILL_PAY_SERVICE: ${{ vars.BASE_URL }}
           CHATBOT_SERVICE: ${{ vars.BASE_URL }}
           SCENARIO_SERVICE_URL: ${{ vars.BASE_URL }}/scenario-runner
@@ -63,6 +64,7 @@ jobs:
           RELIBANK_URL: ${{ vars.BASE_URL }}
           BASE_URL: ${{ vars.BASE_URL }}
           ACCOUNTS_SERVICE: ${{ vars.BASE_URL }}
+          AUTH_SERVICE: ${{ vars.BASE_URL }}
           BILL_PAY_SERVICE: ${{ vars.BASE_URL }}
           CHATBOT_SERVICE: ${{ vars.BASE_URL }}
           SCENARIO_SERVICE_URL: ${{ vars.BASE_URL }}/scenario-runner
