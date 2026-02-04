@@ -103,14 +103,14 @@ jobs:
         run: |
           echo "Starting load test on ${{ steps.random.outputs.target_service }}..."
 
-          # Run locust in headless mode for 10 minutes (matching stress duration)
+          # Run locust in headless mode for 20 minutes
           # 3 users, spawn rate of 3 users/second (start all immediately)
           cd demo_flows/stress_loadgen && \
           locust -f ${{ steps.random.outputs.locust_file }} \
             --host=${{ vars.BASE_URL }} \
             --users=3 \
             --spawn-rate=3 \
-            --run-time=10m \
+            --run-time=20m \
             --headless \
             --only-summary &
 
@@ -121,41 +121,32 @@ jobs:
           echo "Waiting 2 minutes for stress to ramp up..."
           sleep 120
 
-          # Validate stress metrics during the experiment (5 checks over 8 minutes)
-          echo "Starting validation checks during stress experiment..."
+          # Validate stress metrics with one retry
+          echo "Validating stress experiment in New Relic..."
           cd ${{ github.workspace }}
 
-          VALIDATION_SUCCESS=false
-          for i in {1..5}; do
-            echo ""
-            echo "=== Validation Check $i/5 ==="
+          if python tests/workflow_validation/validate_stress_metrics.py "${{ steps.random.outputs.scenario }}" 2; then
+            echo "✓ Stress validated successfully"
+          else
+            echo "⚠ Stress not detected on first check, waiting 2 minutes and retrying..."
+            sleep 120
 
             if python tests/workflow_validation/validate_stress_metrics.py "${{ steps.random.outputs.scenario }}" 2; then
-              echo "✓ Stress validated successfully on check $i"
-              VALIDATION_SUCCESS=true
-              break
+              echo "✓ Stress validated successfully on retry"
             else
-              echo "⚠ Stress not yet detected on check $i"
-              if [ $i -lt 5 ]; then
-                echo "Waiting 90 seconds before next check..."
-                sleep 90
-              fi
+              echo "❌ Stress was not detected after 2 attempts"
+              # Kill locust and exit
+              kill $LOCUST_PID 2>/dev/null || true
+              exit 1
             fi
-          done
+          fi
 
           # Wait for locust to complete
           echo "Waiting for load test to complete..."
           wait $LOCUST_PID || echo "Locust completed"
 
           echo "✓ Load test completed"
-
-          # Exit with error if validation never succeeded
-          if [ "$VALIDATION_SUCCESS" = false ]; then
-            echo "❌ Stress was never detected during the experiment"
-            exit 1
-          else
-            echo "✓ Stress experiment validated successfully"
-          fi
+          echo "✓ Stress experiment validated successfully"
 
       - name: Summary
         if: always()
