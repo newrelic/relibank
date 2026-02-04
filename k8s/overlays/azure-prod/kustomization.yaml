@@ -18,6 +18,11 @@ patches:
     target:
       kind: Deployment
       name: .*
+  # MSSQL requires AMD64 architecture - override ARM64 patches
+  - path: mssql-amd64-patch.yaml
+    target:
+      kind: StatefulSet
+      name: mssql
   - path: infrastructure-config.yaml
     target:
       kind: ConfigMap

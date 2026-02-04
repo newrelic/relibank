@@ -162,7 +162,7 @@ async def get_accounts(email: str, request: Request):
             # Query checking accounts
             cursor.execute(
                 """
-                SELECT ca.id, ca.name, ca.routing_number, ca.interest_rate, ca.last_statement_date, 'checking' AS account_type FROM checking_accounts ca
+                SELECT ca.id, ca.name, ca.balance, ca.routing_number, ca.interest_rate, ca.last_statement_date, 'checking' AS account_type FROM checking_accounts ca
                 JOIN account_user au ON ca.id = au.account_id
                 WHERE au.user_id = %s
             """,
@@ -173,7 +173,7 @@ async def get_accounts(email: str, request: Request):
             # Query savings accounts
             cursor.execute(
                 """
-                SELECT sa.id, sa.name, sa.routing_number, sa.interest_rate, sa.last_statement_date, 'savings' AS account_type FROM savings_accounts sa
+                SELECT sa.id, sa.name, sa.balance, sa.routing_number, sa.interest_rate, sa.last_statement_date, 'savings' AS account_type FROM savings_accounts sa
                 JOIN account_user au ON sa.id = au.account_id
                 WHERE au.user_id = %s
             """,

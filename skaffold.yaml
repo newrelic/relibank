@@ -267,6 +267,9 @@ profiles:
   build:
     artifacts:
     - image: mssql-custom
+      context: transaction_service/mssql
+      docker:
+        dockerfile: Dockerfile
       platforms:
       - linux/amd64
   # FIX: Override the 'manifests' block instead of the 'deploy' block

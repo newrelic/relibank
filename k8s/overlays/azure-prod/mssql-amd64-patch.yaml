@@ -1,0 +1,13 @@
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: mssql
+  namespace: relibank
+spec:
+  template:
+    spec:
+      # MSSQL Server requires AMD64 architecture
+      nodeSelector:
+        kubernetes.io/arch: amd64
+      # Remove ARM64 tolerations for MSSQL
+      tolerations: []
