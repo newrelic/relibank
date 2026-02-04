@@ -16,6 +16,8 @@ spec:
       labels:
         app: mssql
     spec:
+      nodeSelector:
+        kubernetes.io/arch: amd64
       securityContext:
         fsGroup: 10001
       containers:

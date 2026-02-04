@@ -22,3 +22,4 @@ todos.md
 skaffold
 .venv/
 .venv
+build-output.json
