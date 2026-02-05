@@ -10,6 +10,9 @@ resources:
 # Secrets and ConfigMaps
 - configs/database-credentials.yaml
 - configs/infrastructure-config.yaml
+- configs/otel-collector-kafka-config.yaml
+- configs/kafka-jmx-config.yaml
+- configs/internal-telemetry-config.yaml
 
 # Persistent Volume Claims
 - storage/persistentvolumeclaim.yaml
@@ -25,6 +28,7 @@ resources:
 # Infrastructure (Kafka/Zookeeper)
 - infrastructure/zookeeper-deployment.yaml
 - infrastructure/kafka-deployment.yaml
+- infrastructure/otel-collector-kafka-deployment.yaml
 
 # Application Services
 - services/frontend-service-deployment.yaml

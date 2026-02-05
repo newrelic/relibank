@@ -20,7 +20,15 @@ Relibank simulates a banking system with separate services for accounts, transac
 - **chatbot-service** - Relibank's AI chatbot (FastAPI)
 - **notifications-service** - Sends notifications via Kafka
 - **scheduler-service** - Schedules events via Kafka
-- **Infrastructure** - Kafka, Zookeeper, databases
+- **Infrastructure:**
+  - Kafka & Zookeeper - Message streaming
+  - PostgreSQL - Accounts database
+  - MSSQL - Transactions database
+  - **otel-collector-kafka** - OpenTelemetry collector for Kafka monitoring
+    - JMX metrics (Kafka broker + JVM telemetry)
+    - Kafka protocol metrics
+    - Internal collector telemetry
+    - Exports to New Relic via OTLP
 
 ## Getting Started
 
@@ -163,6 +171,15 @@ This isn't meant to be a real banking application. It's a learning tool for:
 - **Recurring Payments Endpoint**: GET `/transaction-service/recurring-payments` to fetch recurring payment schedules from database
 - **Date Conversion**: Automatic MSSQL date-to-string conversion for proper JSON serialization
 - **Active Schedule Filtering**: Frontend filters cancelled vs active recurring payments
+
+### Infrastructure Monitoring
+- **Kafka OpenTelemetry Collector**: Comprehensive monitoring of Kafka infrastructure
+  - **JMX Metrics**: Kafka broker metrics via JMX (topics, partitions, replication, leader elections)
+  - **JVM Telemetry**: Full JVM observability (GC, memory, threads, CPU, file descriptors)
+  - **Kafka Protocol Metrics**: Native Kafka metrics (broker count, consumer lag, partition health)
+  - **Internal Telemetry**: Collector self-monitoring with detailed metrics
+  - **Export to New Relic**: All metrics sent to New Relic via OTLP
+  - See [`otel_collector_kafka/README.md`](otel_collector_kafka/README.md) for details
 
 Try breaking things with Chaos Mesh and see how the system responds!
 
