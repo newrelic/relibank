@@ -3,6 +3,7 @@ import logging
 from typing import Dict, Any
 
 from fastapi import HTTPException
+import newrelic.agent
 
 # This function is now synchronous (def) and uses time.sleep(),
 # which WILL BLOCK the entire application process.
@@ -10,6 +11,7 @@ def process_headers(headers: Dict[str, str | Any]):
     """
     Checks request headers (which have lowercase keys) for simulation/testing parameters:
     'error' and 'extra-transaction-time'.
+    Also extracts x-browser-user-id for New Relic APM user tracking.
 
     If 'error' is present and valid, it raises the corresponding HTTPException.
     If 'extra-transaction-time' is present, it performs a BLOCKING time.sleep().
@@ -17,6 +19,15 @@ def process_headers(headers: Dict[str, str | Any]):
     Args:
         headers: A dictionary (from Request.headers) where keys are all lowercase.
     """
+
+    # 0. Handle New Relic APM user tracking
+    browser_user_id = headers.get("x-browser-user-id")
+    if browser_user_id:
+        try:
+            newrelic.agent.set_user_id(browser_user_id)
+            logging.info(f"[APM User Tracking] Set user ID: {browser_user_id}")
+        except Exception as e:
+            logging.warning(f"[APM User Tracking] Failed to set user ID: {e}")
 
     # 1. Handle extra-transaction-time (Blocking sleep simulation)
     delay_str = headers.get("extra-transaction-time", "0")

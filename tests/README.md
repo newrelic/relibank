@@ -27,6 +27,8 @@ export RELIBANK_URL="http://your-server.example.com"
 | Test File | Purpose | Key Features |
 |-----------|---------|--------------|
 | `test_end_to_end.py` | End-to-end microservice tests | Frontend, accounts service, bill pay service, chatbot service, complete user flows |
+| `test_browser_user_tracking.py` | Browser user ID tracking tests | Random assignment, header override, UUID validation, consistency |
+| `test_apm_user_tracking.py` | APM user ID header propagation tests | Header acceptance, multi-service chains, concurrent requests |
 | `test_scenario_service.py` | Scenario service API tests | Payment scenarios, chaos scenarios, locust load testing - all via API |
 | `test_payment_scenarios.py` | Payment failure scenarios | Gateway timeout, card decline, stolen card with probabilities |
 | `test_stress_scenarios.py` | Stress chaos experiments | CPU stress, memory stress, combined stress testing with Chaos Mesh |
@@ -103,6 +105,10 @@ pytest tests/test_end_to_end.py::test_complete_user_journey -v -s
 pytest tests/test_end_to_end.py::test_bill_payment_flow -v -s
 pytest tests/test_end_to_end.py::test_chatbot_interaction -v -s
 
+# User tracking tests (NEW)
+pytest tests/test_browser_user_tracking.py -v -s
+pytest tests/test_apm_user_tracking.py -v -s
+
 # Scenario service tests (payment, chaos, locust)
 pytest tests/test_scenario_service.py::test_enable_gateway_timeout -v -s
 pytest tests/test_scenario_service.py::test_reset_all_scenarios -v -s
@@ -127,6 +133,8 @@ pytest tests/test_stress_scenarios.py::test_service_health_during_stress -v -s
 
 **Python Backend Tests (pytest)**:
 - **test_end_to_end.py**: 11 tests - Service health checks, user/account creation, bill payment, chatbot, complete user journeys
+- **test_browser_user_tracking.py**: 7 tests - Browser user ID assignment, header override, UUID validation, randomness, consistency
+- **test_apm_user_tracking.py**: 10 tests - APM header acceptance across services, header propagation, multi-service chains, concurrent requests
 - **test_scenario_service.py**: 12+ tests - Payment scenarios API, chaos/locust endpoints, enable/disable/reset functionality
 - **test_payment_scenarios.py**: 5 tests - Gateway timeout, card decline, stolen card scenarios with probability validation
 - **test_stress_scenarios.py**: 7 tests - CPU/memory/combined stress chaos (requires containerd, rate limited)
@@ -183,6 +191,7 @@ These tests can be added to GitHub Actions or other CI pipelines:
 ## Test Coverage Summary
 
 - ✅ **End-to-End**: Frontend load, service health checks, user/account creation, bill payment, chatbot interaction, complete user journeys
+- ✅ **User Tracking**: Browser user ID assignment (random/header-based), APM header propagation across all services, multi-service request chains
 - ✅ **Scenario API**: Enable/disable/reset payment scenarios, chaos scenarios (smoke tests), locust load testing (smoke tests)
 - ✅ **Payment Scenarios**: Timeout, decline, stolen card with probabilities
 - ✅ **Stress Chaos**: CPU stress, memory stress, combined stress testing with Chaos Mesh, service resilience under load

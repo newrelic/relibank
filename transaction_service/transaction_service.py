@@ -20,6 +20,24 @@ logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(
 
 newrelic.agent.initialize(log_file='/app/newrelic.log', log_level=logging.DEBUG)
 
+def get_propagation_headers(request: Request) -> dict:
+    """
+    Extract headers that should be propagated to downstream services.
+    Currently propagates: x-browser-user-id, error, extra-transaction-time
+    """
+    headers_to_propagate = {}
+
+    if "x-browser-user-id" in request.headers:
+        headers_to_propagate["x-browser-user-id"] = request.headers["x-browser-user-id"]
+
+    if "error" in request.headers:
+        headers_to_propagate["error"] = request.headers["error"]
+
+    if "extra-transaction-time" in request.headers:
+        headers_to_propagate["extra-transaction-time"] = request.headers["extra-transaction-time"]
+
+    return headers_to_propagate
+
 # Database connection details from environment variables
 DB_SERVER = os.getenv("DB_SERVER", "mssql")
 DB_DATABASE = os.getenv("DB_DATABASE", "RelibankDB")
@@ -164,14 +182,18 @@ def get_db_connection():
         raise ConnectionError(f"Failed to connect to {DB_DATABASE} database: {e}")
 
 
-async def get_account_type(account_id: int):
+async def get_account_type(account_id: int, headers: dict = None):
     """
     Makes an API call to the accounts service to get the account type.
+    Optionally propagates headers if provided.
     """
     accounts_service_url = os.getenv("ACCOUNTS_SERVICE_URL", "http://accounts-service:5000")
     async with httpx.AsyncClient() as client:
         try:
-            response = await client.get(f"{accounts_service_url}/account/type/{account_id}")
+            response = await client.get(
+                f"{accounts_service_url}/account/type/{account_id}",
+                headers=headers or {}
+            )
             response.raise_for_status()
             return AccountType(**response.json()).account_type
         except HTTPStatusError as e:

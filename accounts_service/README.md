@@ -24,7 +24,64 @@ The service exposes the following API endpoints, which are designed to be consum
 | `/users/{user_id}` | `GET` | Retrieves a single user's information by their unique ID. |
 | `/accounts/{user_id}` | `GET` | Retrieves all accounts (checking, savings, and credit) associated with a specific user. |
 | `/accounts/{user_id}` | `POST` | Creates a new account (checking, savings, or credit) and links it to a user. |
+| `/browser-user` | `GET` | Returns a user ID for New Relic Browser tracking (random or header-based). |
 | `/health` | `GET` | A health check endpoint that returns a status of `healthy`. |
+
+---
+
+## 🔍 New Relic APM User Tracking
+
+### Overview
+The accounts service (and all backend services) automatically extract and track user IDs from the `x-browser-user-id` header for New Relic APM monitoring. This enables end-to-end user tracking from browser sessions through all backend service calls.
+
+### Browser User Endpoint
+
+**Endpoint**: `GET /accounts-service/browser-user`
+
+**Purpose**: Assigns a user ID for New Relic Browser session tracking.
+
+**User ID Assignment Priority**:
+1. **Header Override**: If `x-browser-user-id` header is present and matches a valid user in the database, returns that ID
+2. **Random Selection**: Otherwise, returns a random user ID from the `user_account` table
+
+**Response Format**:
+```json
+{
+  "user_id": "550e8400-e29b-41d4-a716-446655440000",
+  "source": "header"  // or "random"
+}
+```
+
+**Example Usage**:
+```bash
+# Random assignment
+curl http://localhost:5002/accounts-service/browser-user
+
+# Header override (for testing)
+curl -H "x-browser-user-id: 550e8400-e29b-41d4-a716-446655440000" \
+     http://localhost:5002/accounts-service/browser-user
+```
+
+### APM User ID Tracking
+
+**Implementation**: All request handlers call `process_headers()` which:
+1. Extracts the `x-browser-user-id` header
+2. Calls `newrelic.agent.set_user_id()` to associate the request with the user
+3. Logs the user ID for debugging
+
+**Header Propagation**: The service propagates the `x-browser-user-id` header to downstream services:
+- Calls to `transaction-service` include the header
+- Helper function `get_propagation_headers(request)` extracts headers for propagation
+
+**New Relic Integration**:
+- User IDs appear in New Relic APM transactions
+- Enables filtering and grouping by user in New Relic UI
+- Provides end-to-end tracing from browser to backend services
+
+**Logging**:
+```
+[APM User Tracking] Set user ID: 550e8400-e29b-41d4-a716-446655440000
+```
 
 ---
 

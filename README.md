@@ -140,6 +140,17 @@ This isn't meant to be a real banking application. It's a learning tool for:
 
 ## Recent Updates
 
+### New Relic User ID Tracking
+- **Browser User Tracking**: Automatic user ID assignment for New Relic Browser sessions
+  - Random user selection from database or header-based override via `x-browser-user-id`
+  - Persistent across page navigation using sessionStorage
+  - New endpoint: `/accounts-service/browser-user`
+- **APM User Tracking**: Comprehensive user ID tracking across all backend services
+  - Automatic extraction of `x-browser-user-id` header in all services
+  - Header propagation through inter-service HTTP calls
+  - Unified user tracking from browser → frontend → backend services
+- **Testing**: Full test coverage for browser and APM user tracking scenarios
+
 ### UI Enhancements
 - **Responsive Design**: Mobile-first breakpoints (xs/sm/md/lg/xl) across all pages
 - **Simplified Bill Pay**: Unified payment method dropdown for easier UX
