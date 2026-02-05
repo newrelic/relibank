@@ -1,0 +1,73 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: nrdot-collector-mssql
+  namespace: relibank
+  labels:
+    app: nrdot-collector-mssql
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: nrdot-collector-mssql
+  template:
+    metadata:
+      labels:
+        app: nrdot-collector-mssql
+    spec:
+      containers:
+      - name: nrdot-collector
+        image: nrdot-collector-mssql
+        imagePullPolicy: IfNotPresent
+        command:
+          - /usr/local/bin/otelcol
+          - --config=/etc/otelcol/config.yaml
+          - --config=/etc/otelcol/internal-telemetry-config.yaml
+        env:
+        - name: MSSQL_NEWRELIC_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: nrdot-mssql-credentials
+              key: MSSQL_NEWRELIC_PASSWORD
+        - name: NEW_RELIC_LICENSE_KEY
+          valueFrom:
+            secretKeyRef:
+              name: nrdot-mssql-credentials
+              key: NEW_RELIC_LICENSE_KEY
+        - name: NEW_RELIC_OTLP_ENDPOINT
+          valueFrom:
+            secretKeyRef:
+              name: nrdot-mssql-credentials
+              key: NEW_RELIC_OTLP_ENDPOINT
+        - name: INTERNAL_TELEMETRY_SERVICE_NAME
+          value: "relibank-mssql-collector"
+        - name: INTERNAL_TELEMETRY_OTLP_ENDPOINT
+          value: "https://otlp.nr-data.net"
+        - name: INTERNAL_TELEMETRY_NEW_RELIC_LICENSE_KEY
+          valueFrom:
+            secretKeyRef:
+              name: nrdot-mssql-credentials
+              key: NEW_RELIC_LICENSE_KEY
+        volumeMounts:
+        - name: config
+          mountPath: /etc/otelcol/config.yaml
+          subPath: config.yaml
+          readOnly: true
+        - name: internal-telemetry-config
+          mountPath: /etc/otelcol/internal-telemetry-config.yaml
+          subPath: internal-telemetry-config.yaml
+          readOnly: true
+      volumes:
+      - name: config
+        configMap:
+          name: nrdot-collector-mssql-config
+          items:
+          - key: config.yaml
+            path: config.yaml
+      - name: internal-telemetry-config
+        configMap:
+          name: internal-telemetry-config
+          items:
+          - key: internal-telemetry-config.yaml
+            path: internal-telemetry-config.yaml
+      restartPolicy: Always

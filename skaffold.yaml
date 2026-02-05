@@ -132,6 +132,14 @@ build:
         NEW_RELIC_ACCOUNT_ID: "{{.NEW_RELIC_ACCOUNT_ID}}"
         NEW_RELIC_LICENSE_KEY: "{{.NEW_RELIC_LICENSE_KEY}}"
         APP_NAME: "{{.APP_NAME}}"
+  - image: otel-collector-kafka
+    context: otel_collector_kafka
+    docker:
+      dockerfile: Dockerfile
+  - image: nrdot-collector-mssql
+    context: otel_collector_mssql
+    docker:
+      dockerfile: Dockerfile
 
 # Manifests configuration - use Kustomize to handle image name mapping and resources
 manifests:

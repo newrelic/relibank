@@ -1,0 +1,96 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: nrdot-collector-mssql-config
+  namespace: relibank
+data:
+  config.yaml: |
+    # OpenTelemetry Collector Configuration for New Relic SQL Server Integration
+    receivers:
+      newrelicsqlserver:
+        hostname: "mssql-0"
+        port: "1433"
+        username: "newrelic"
+        password: ${env:MSSQL_NEWRELIC_PASSWORD}
+        monitored_databases: ["RelibankDB"]
+        timeout: 600s
+        collection_interval: 60s
+        query_monitoring_fetch_interval: 60
+        enable_query_monitoring: true
+        enable_active_running_queries: true
+        query_monitoring_response_time_threshold: 0
+        query_monitoring_count_threshold: 20
+        query_monitoring_text_truncate_limit: 4094
+        enable_interval_based_averaging: true
+        interval_calculator_cache_ttl_minutes: 10
+
+    processors:
+      memory_limiter:
+        check_interval: 1s
+        limit_mib: 256
+        spike_limit_mib: 64
+      batch:
+        timeout: 10s
+        send_batch_size: 1024
+      cumulativetodelta:
+      deltatorate:
+        metrics:
+          - sqlserver.user_connections.authentication.failed_login_events
+          - sqlserver.wait_stats.latch.wait_time_ms
+          - sqlserver.wait_stats.latch.waiting_tasks_count
+          - sqlserver.wait_stats.wait_time_ms
+          - sqlserver.wait_stats.waiting_tasks_count
+
+    exporters:
+      otlphttp:
+        endpoint: ${env:NEW_RELIC_OTLP_ENDPOINT}
+        headers:
+          api-key: ${env:NEW_RELIC_LICENSE_KEY}
+        tls:
+          insecure: true  # Set to false for production; true for local testing without CA certs
+        retry_on_failure:
+          enabled: true
+          initial_interval: 1s
+          max_interval: 30s
+          max_elapsed_time: 300s
+        sending_queue:
+          enabled: true
+          num_consumers: 2
+          queue_size: 100
+        compression: gzip
+        timeout: 30s
+      otlphttp/logs:
+        endpoint: ${env:NEW_RELIC_OTLP_ENDPOINT}
+        headers:
+          api-key: ${env:NEW_RELIC_LICENSE_KEY}
+        tls:
+          insecure: true  # Set to false for production; true for local testing without CA certs
+        retry_on_failure:
+          enabled: true
+          initial_interval: 1s
+          max_interval: 30s
+          max_elapsed_time: 300s
+        sending_queue:
+          enabled: true
+          num_consumers: 2
+          queue_size: 100
+        compression: gzip
+        timeout: 30s
+      debug:
+        verbosity: detailed
+
+    service:
+      pipelines:
+        metrics:
+          receivers: [newrelicsqlserver]
+          processors: [memory_limiter, cumulativetodelta, deltatorate, batch]
+          exporters: [otlphttp, debug]
+        logs:
+          receivers: [newrelicsqlserver]
+          processors: [memory_limiter, batch]
+          exporters: [otlphttp/logs, debug]
+      telemetry:
+        logs:
+          level: debug
+        metrics:
+          level: none

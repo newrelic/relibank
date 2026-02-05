@@ -16,8 +16,8 @@ spec:
       labels:
         app: mssql
     spec:
-      nodeSelector:
-        kubernetes.io/arch: amd64
+      # nodeSelector:
+      #   kubernetes.io/arch: amd64  # Commented out for local Apple Silicon testing
       securityContext:
         fsGroup: 10001
       containers:
