@@ -68,6 +68,11 @@ def test_trigger_memory_stress():
     """Test triggering memory stress scenario"""
     print("\n=== Testing Memory Stress Scenario ===")
 
+    # Reset rate limit before triggering
+    print("Resetting chaos rate limit...")
+    reset_response = requests.post(f"{SCENARIO_SERVICE_URL}/api/chaos-rate-limit-reset")
+    print(f"Rate limit reset status: {reset_response.status_code}")
+
     scenario_name = "relibank-memory-stress-test"
 
     response = requests.post(
@@ -92,6 +97,11 @@ def test_trigger_memory_stress():
 def test_trigger_combined_stress():
     """Test triggering combined CPU and memory stress scenario"""
     print("\n=== Testing Combined Stress Scenario ===")
+
+    # Reset rate limit before triggering
+    print("Resetting chaos rate limit...")
+    reset_response = requests.post(f"{SCENARIO_SERVICE_URL}/api/chaos-rate-limit-reset")
+    print(f"Rate limit reset status: {reset_response.status_code}")
 
     scenario_name = "relibank-combined-stress-test"
 
