@@ -20,12 +20,13 @@ ADD https://github.com/open-telemetry/opentelemetry-java-contrib/releases/downlo
 ARG USER_UID=65532
 RUN chown ${USER_UID} /opt/opentelemetry-jmx-scraper.jar
 
-# Final minimal image with Java runtime - Amazon Corretto
-FROM amazoncorretto:17-alpine
+# Final minimal image with Java runtime - Eclipse Temurin (official OpenJDK successor)
+# Supports multi-arch: arm64 (Apple Silicon) and amd64
+FROM eclipse-temurin:17-jre
 
 COPY --from=prep /opt/opentelemetry-jmx-scraper.jar /opt/opentelemetry-jmx-scraper.jar
 COPY --from=prep /otelcol-contrib /otelcol-contrib
 
 EXPOSE 4317 4318 8888 13133
 ENTRYPOINT ["/otelcol-contrib"]
-CMD ["--config", "/etc/otelcol/config.yaml", "--config", "/etc/otelcol/internal-telemetry-config.yaml"]
+CMD ["--config", "/conf/otel-agent-config.yaml"]

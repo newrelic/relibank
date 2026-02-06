@@ -21,8 +21,8 @@ spec:
         imagePullPolicy: IfNotPresent
         command:
           - /otelcol-contrib
-          - --config=/etc/otelcol/config.yaml
-          - --config=/etc/otelcol/internal-telemetry-config.yaml
+          - --config=/conf/otel-agent-config.yaml
+          - --config=/conf/internal-telemetry-config.yaml
         env:
         - name: NEW_RELIC_LICENSE_KEY
           valueFrom:
@@ -46,15 +46,15 @@ spec:
               key: NEW_RELIC_LICENSE_KEY
         volumeMounts:
         - name: config
-          mountPath: /etc/otelcol/config.yaml
+          mountPath: /conf/otel-agent-config.yaml
           subPath: config.yaml
           readOnly: true
         - name: internal-telemetry-config
-          mountPath: /etc/otelcol/internal-telemetry-config.yaml
+          mountPath: /conf/internal-telemetry-config.yaml
           subPath: internal-telemetry-config.yaml
           readOnly: true
         - name: kafka-jmx-config
-          mountPath: /etc/otelcol/kafka-jmx-config.yaml
+          mountPath: /conf/kafka-jmx-config.yaml
           subPath: kafka-jmx-config.yaml
           readOnly: true
         - name: tmp
