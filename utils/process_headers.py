@@ -24,8 +24,13 @@ def process_headers(headers: Dict[str, str | Any]):
     browser_user_id = headers.get("x-browser-user-id")
     if browser_user_id:
         try:
-            newrelic.agent.set_user_id(browser_user_id)
-            logging.info(f"[APM User Tracking] Set user ID: {browser_user_id}")
+            # Get the current transaction to ensure we're in an active transaction context
+            transaction = newrelic.agent.current_transaction()
+            if transaction:
+                newrelic.agent.set_user_id(browser_user_id)
+                logging.info(f"[APM User Tracking] Set user ID: {browser_user_id}")
+            else:
+                logging.warning(f"[APM User Tracking] No active transaction found for user ID: {browser_user_id}")
         except Exception as e:
             logging.warning(f"[APM User Tracking] Failed to set user ID: {e}")
 

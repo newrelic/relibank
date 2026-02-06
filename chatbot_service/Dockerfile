@@ -32,11 +32,14 @@ ARG OPENAI_API_TYPE
 ENV OPENAI_API_TYPE=$OPENAI_API_TYPE
 
 # Copy the requirements file and install dependencies
-COPY requirements.txt .
+COPY chatbot_service/requirements.txt .
 RUN pip install -r requirements.txt
 
+# Copy shared utilities from parent directory
+COPY utils /app/utils
+
 # Copy the application code
-COPY . .
+COPY chatbot_service/ .
 
 # Expose the port the FastAPI app will run on
 EXPOSE 5003

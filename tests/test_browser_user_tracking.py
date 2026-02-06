@@ -14,17 +14,29 @@ import pytest
 import requests
 import os
 import uuid
-from typing import Dict
+from typing import Dict, List
 
 # Configuration
 ACCOUNTS_SERVICE = os.getenv("ACCOUNTS_SERVICE", "http://localhost:5002")
 
-# Known valid user IDs from seed data
-VALID_USER_IDS = [
-    "550e8400-e29b-41d4-a716-446655440000",  # alice.j@relibank.com
-    "6ba7b810-9dad-11d1-80b4-00c04fd430c8",  # bob.smith@relibank.com
-    "6ba7b811-9dad-11d1-80b4-00c04fd430c8",  # carol.white@relibank.com
-]
+
+def get_valid_user_ids(count: int = 3) -> List[str]:
+    """
+    Fetch valid user IDs from the database by calling the browser-user endpoint.
+    Returns a list of unique user IDs.
+    """
+    user_ids = set()
+    max_attempts = count * 10  # Try up to 10x the requested count
+
+    for _ in range(max_attempts):
+        response = requests.get(f"{ACCOUNTS_SERVICE}/accounts-service/browser-user")
+        if response.status_code == 200:
+            data = response.json()
+            user_ids.add(data["user_id"])
+            if len(user_ids) >= count:
+                break
+
+    return list(user_ids)[:count]
 
 
 def test_browser_user_random_assignment():
@@ -59,8 +71,13 @@ def test_browser_user_header_override():
     """Test that endpoint respects x-browser-user-id header when provided"""
     print("\n=== Testing Header-Based Override ===")
 
-    # Use a known valid user ID
-    test_user_id = VALID_USER_IDS[0]
+    # Get a valid user ID from the database
+    valid_user_ids = get_valid_user_ids(count=1)
+    assert len(valid_user_ids) > 0, "Failed to fetch valid user IDs from database"
+
+    test_user_id = valid_user_ids[0]
+    print(f"Using test user ID: {test_user_id}")
+
     headers = {"x-browser-user-id": test_user_id}
 
     response = requests.get(
@@ -168,7 +185,13 @@ def test_browser_user_consistency():
     """Test that same header always returns same user ID"""
     print("\n=== Testing Header Consistency ===")
 
-    test_user_id = VALID_USER_IDS[1]
+    # Get a valid user ID from the database
+    valid_user_ids = get_valid_user_ids(count=1)
+    assert len(valid_user_ids) > 0, "Failed to fetch valid user IDs from database"
+
+    test_user_id = valid_user_ids[0]
+    print(f"Using test user ID: {test_user_id}")
+
     headers = {"x-browser-user-id": test_user_id}
 
     # Make multiple requests with same header
@@ -189,8 +212,14 @@ def test_browser_user_multiple_valid_headers():
     """Test that different valid headers return different user IDs"""
     print("\n=== Testing Multiple Valid Headers ===")
 
+    # Get multiple valid user IDs from the database
+    valid_user_ids = get_valid_user_ids(count=3)
+    assert len(valid_user_ids) >= 3, f"Failed to fetch 3 unique user IDs, only got {len(valid_user_ids)}"
+
+    print(f"Using test user IDs: {valid_user_ids}")
+
     results = []
-    for test_user_id in VALID_USER_IDS[:3]:
+    for test_user_id in valid_user_ids:
         headers = {"x-browser-user-id": test_user_id}
         response = requests.get(
             f"{ACCOUNTS_SERVICE}/accounts-service/browser-user",
@@ -202,7 +231,7 @@ def test_browser_user_multiple_valid_headers():
         print(f"  Header: {test_user_id} → Response: {data['user_id']}")
 
     # All responses should match their respective headers
-    for i, test_user_id in enumerate(VALID_USER_IDS[:3]):
+    for i, test_user_id in enumerate(valid_user_ids):
         assert results[i] == test_user_id, \
             f"Expected user_id='{test_user_id}', got '{results[i]}'"
 

@@ -462,8 +462,12 @@ async def get_browser_user(request: Request):
 
         with conn.cursor(cursor_factory=extras.RealDictCursor) as cursor:
             if browser_user_id:
-                # Validate header value exists in database
+                # Validate UUID format before querying database
                 try:
+                    import uuid
+                    uuid.UUID(browser_user_id)  # Validate UUID format
+
+                    # Query database for this user ID
                     cursor.execute("SELECT id FROM user_account WHERE id = %s", (browser_user_id,))
                     user = cursor.fetchone()
                     if user:
@@ -471,8 +475,8 @@ async def get_browser_user(request: Request):
                         return {"user_id": browser_user_id, "source": "header"}
                     else:
                         logging.warning(f"[Browser User] Header-provided ID {browser_user_id} not found in database, falling back to random")
-                except Exception as e:
-                    logging.warning(f"[Browser User] Invalid header format or database error: {e}, falling back to random")
+                except (ValueError, Exception) as e:
+                    logging.warning(f"[Browser User] Invalid UUID format or database error: {e}, falling back to random")
 
             # Fall back to random selection
             cursor.execute("SELECT id FROM user_account ORDER BY RANDOM() LIMIT 1")

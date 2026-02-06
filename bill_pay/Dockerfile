@@ -48,11 +48,14 @@ ENV STRIPE_PUBLISHABLE_KEY=$STRIPE_PUBLISHABLE_KEY
 # ENV NEW_RELIC_CONFIG_FILE="newrelic.ini"
 
 # Copy the requirements file and install dependencies
-COPY requirements.txt .
+COPY bill_pay/requirements.txt .
 RUN pip install -r requirements.txt
 
+# Copy shared utilities from parent directory
+COPY utils /app/utils
+
 # Copy the application code
-COPY . .
+COPY bill_pay/ .
 
 # Expose the port the FastAPI app will run on
 EXPOSE 5000
