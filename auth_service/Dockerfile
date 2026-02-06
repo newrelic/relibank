@@ -21,14 +21,11 @@ ENV NEW_RELIC_LICENSE_KEY=$NEW_RELIC_LICENSE_KEY
 ENV NEW_RELIC_DISTRIBUTED_TRACING_ENABLED=true
 
 # Copy the requirements file and install dependencies
-COPY auth_service/requirements.txt .
+COPY requirements.txt .
 RUN pip install -r requirements.txt
 
-# Copy shared utilities from parent directory
-COPY utils /app/utils
-
 # Copy the application code
-COPY auth_service/ .
+COPY . .
 
 # Expose the port the FastAPI app will run on
 EXPOSE 5002

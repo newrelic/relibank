@@ -17,12 +17,12 @@ import newrelic.agent
 
 # Add parent directory to path to import utils
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
-from utils import process_headers
+from utils.process_headers import process_headers
 
 # Configure logging
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
 
-newrelic.agent.initialize(log_file='/app/newrelic.log', log_level=logging.DEBUG)
+newrelic.agent.initialize()
 
 def get_propagation_headers(request: Request) -> dict:
     """
@@ -441,8 +441,9 @@ async def simple_health_check():
     return "ok"
 
 @app.get("/accounts-service/health")
-async def health_check():
+async def health_check(request: Request):
     """Simple health check endpoint."""
+    process_headers(dict(request.headers))
     return {"status": "healthy"}
 
 @app.get("/accounts-service/browser-user")

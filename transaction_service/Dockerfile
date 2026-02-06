@@ -38,14 +38,11 @@ RUN curl -fsSL https://packages.microsoft.com/keys/microsoft.asc | gpg --dearmor
     msodbcsql18
 
 # Copy the requirements file and install dependencies
-COPY transaction_service/requirements.txt .
+COPY requirements.txt .
 RUN pip install -r requirements.txt
 
-# Copy shared utilities from parent directory
-COPY utils /app/utils
-
 # Copy the application code
-COPY transaction_service/ .
+COPY . .
 
 # Expose the port the FastAPI app will run on
 EXPOSE 5000

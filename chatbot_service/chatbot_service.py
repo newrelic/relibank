@@ -21,13 +21,13 @@ from mcp.types import Tool
 
 # Add parent directory to path to import utils
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
-from utils import process_headers
+from utils.process_headers import process_headers
 
 # --- Logging Configuration ---
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s")
 logger = logging.getLogger(__name__)
 
-newrelic.agent.initialize('newrelic.ini', log_file='/app/newrelic.log', log_level=logging.DEBUG)
+newrelic.agent.initialize()
 
 # --- Request/Response Models ---
 class ChatResponse(BaseModel):

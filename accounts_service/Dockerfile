@@ -26,14 +26,11 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     gcc
 
 # Copy the requirements file and install dependencies
-COPY accounts_service/requirements.txt .
+COPY requirements.txt .
 RUN pip install -r requirements.txt
 
-# Copy shared utilities from parent directory
-COPY utils /app/utils
-
 # Copy the application code
-COPY accounts_service/ .
+COPY . .
 
 # Expose the port the FastAPI app will run on
 EXPOSE 5000

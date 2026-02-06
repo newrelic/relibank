@@ -21,12 +21,12 @@ import stripe
 
 # Add parent directory to path to import utils
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
-from utils import process_headers
+from utils.process_headers import process_headers
 
 # Configure logging
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
 
-newrelic.agent.initialize(log_file='/app/newrelic.log', log_level=logging.DEBUG)
+newrelic.agent.initialize()
 
 def get_propagation_headers(request: Request) -> dict:
     """
