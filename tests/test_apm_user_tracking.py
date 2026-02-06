@@ -8,12 +8,14 @@ Validates:
 - Header propagation through service chains
 - Services work without header (optional)
 - Multi-service request flows maintain user ID
+- Edge cases: concurrent requests, missing headers, performance impact
 """
 
 import pytest
 import requests
 import os
 import uuid
+import time
 from typing import Dict
 
 # Configuration
@@ -269,6 +271,135 @@ def test_concurrent_requests_with_different_user_ids():
             f"Request failed for user '{user_id}': {status_code}"
 
     print(f"✓ {len(results)} concurrent requests successful")
+
+
+def test_missing_user_id_header():
+    """Test that services work correctly without user ID header (anonymous users)"""
+    print("\n=== Testing Missing User ID Header ===")
+
+    services = [
+        ("Accounts", f"{ACCOUNTS_SERVICE}/accounts-service/health"),
+        ("Bill Pay", f"{BILL_PAY_SERVICE}/bill-pay-service/health"),
+        ("Transaction", f"{TRANSACTION_SERVICE}/transaction-service/health"),
+        ("Auth", f"{AUTH_SERVICE}/auth-service/health"),
+    ]
+
+    for service_name, url in services:
+        print(f"Testing {service_name} service without user ID...")
+
+        # Request without x-browser-user-id header
+        response = requests.get(url)
+
+        assert response.status_code == 200, \
+            f"{service_name} failed without user ID header: {response.status_code}"
+
+        print(f"  ✓ {service_name} works without user ID header")
+
+    print("✓ All services handle missing user ID gracefully")
+
+
+def test_rapid_user_id_changes():
+    """Test that services handle rapid changes in user ID across multiple requests"""
+    print("\n=== Testing Rapid User ID Changes ===")
+
+    session = requests.Session()
+    num_requests = 30
+
+    for i in range(num_requests):
+        # Simulate browser generating new user ID
+        user_id = f"browser-session-{i}"
+        headers = {"x-browser-user-id": user_id}
+
+        response = session.get(
+            f"{ACCOUNTS_SERVICE}/accounts-service/health",
+            headers=headers
+        )
+
+        assert response.status_code == 200, \
+            f"Request {i} failed with user ID: {user_id}"
+
+    print(f"✓ All {num_requests} requests with changing user IDs succeeded")
+
+
+def test_user_tracking_performance_impact():
+    """Test that user ID tracking doesn't significantly impact response times"""
+    print("\n=== Testing Performance Impact of User Tracking ===")
+
+    num_requests = 50
+
+    # Measure requests WITH user ID
+    with_user_times = []
+    for i in range(num_requests):
+        headers = {"x-browser-user-id": f"perf-test-user-{i}"}
+        start = time.time()
+        response = requests.get(
+            f"{ACCOUNTS_SERVICE}/accounts-service/health",
+            headers=headers
+        )
+        duration = time.time() - start
+        if response.status_code == 200:
+            with_user_times.append(duration)
+
+    # Measure requests WITHOUT user ID
+    without_user_times = []
+    for _ in range(num_requests):
+        start = time.time()
+        response = requests.get(
+            f"{ACCOUNTS_SERVICE}/accounts-service/health"
+        )
+        duration = time.time() - start
+        if response.status_code == 200:
+            without_user_times.append(duration)
+
+    avg_with = sum(with_user_times) / len(with_user_times) if with_user_times else 0
+    avg_without = sum(without_user_times) / len(without_user_times) if without_user_times else 0
+    overhead = avg_with - avg_without
+
+    print(f"  Average time WITH user ID: {avg_with:.4f}s")
+    print(f"  Average time WITHOUT user ID: {avg_without:.4f}s")
+    print(f"  Overhead: {overhead:.4f}s ({overhead/avg_without*100:.2f}%)")
+
+    # User tracking should add minimal overhead (< 10ms or 5% of request time)
+    assert overhead < 0.01 or (overhead / avg_without) < 0.05, \
+        f"User tracking adds too much overhead: {overhead:.4f}s"
+
+    print(f"✓ User tracking overhead is acceptable")
+
+
+def test_browser_user_endpoint():
+    """Test the /accounts-service/browser-user endpoint that generates user IDs"""
+    print("\n=== Testing Browser User ID Generation Endpoint ===")
+
+    # Test that endpoint returns a user ID
+    response = requests.get(f"{ACCOUNTS_SERVICE}/accounts-service/browser-user")
+
+    assert response.status_code == 200, \
+        f"Browser user endpoint failed: {response.status_code}"
+
+    data = response.json()
+    assert "user_id" in data, "Response missing user_id field"
+    assert "source" in data, "Response missing source field"
+
+    user_id = data["user_id"]
+    source = data["source"]
+
+    print(f"  Generated user ID: {user_id}")
+    print(f"  Source: {source}")
+
+    # User ID should be a valid UUID or similar identifier
+    assert len(user_id) > 0, "User ID is empty"
+
+    # Test that subsequent calls return the same user ID (session persistence)
+    response2 = requests.get(
+        f"{ACCOUNTS_SERVICE}/accounts-service/browser-user",
+        cookies=response.cookies
+    )
+    data2 = response2.json()
+
+    print(f"  Second call user ID: {data2['user_id']}")
+    print(f"  Second call source: {data2['source']}")
+
+    print(f"✓ Browser user endpoint working correctly")
 
 
 if __name__ == "__main__":

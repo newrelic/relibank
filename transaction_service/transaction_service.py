@@ -1,5 +1,6 @@
 import asyncio
 import os
+import sys
 import json
 import logging
 import pyodbc
@@ -13,7 +14,10 @@ import time
 import httpx
 from httpx import HTTPStatusError, RequestError
 import newrelic.agent
-from utils.process_headers import process_headers
+
+# Add parent directory to path to import utils
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
+from utils import process_headers
 
 # Configure logging
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")

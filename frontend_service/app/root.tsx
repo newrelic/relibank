@@ -6,7 +6,7 @@ import {
   ScrollRestoration,
 } from "react-router";
 
-import { useState, createContext, useEffect } from 'react';
+import { useState, createContext, useEffect, useMemo } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { AppLayout } from '~/components/layout/AppLayout';
 
@@ -25,6 +25,8 @@ const NEW_RELIC_CONFIG = {
   TRUST_KEY: import.meta.env.VITE_NEW_RELIC_TRUST_KEY,
 };
 
+// Generate New Relic script with config values replaced
+// This is computed once at module load since config values never change
 const generateNrScript = () => {
     let script = nrScriptTemplate;
 
@@ -35,6 +37,9 @@ const generateNrScript = () => {
 
     return script;
 };
+
+// Pre-compute the NR script once at module load
+const COMPUTED_NR_SCRIPT = generateNrScript();
 
 
 // Create a context for login data
@@ -190,8 +195,6 @@ export function Layout({ children }: { children: React.ReactNode }) {
     }
   }, [isAuthenticated, userData]);
 
-  const dynamicNrScriptContent = generateNrScript();
-
   const contextValue = {
     isAuthenticated,
     handleLogin,
@@ -207,7 +210,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
     return (
       <html lang="en">
         <head>
-          <script dangerouslySetInnerHTML={{ __html: dynamicNrScriptContent }}></script>
+          <script dangerouslySetInnerHTML={{ __html: COMPUTED_NR_SCRIPT }}></script>
           <meta charSet="utf-8" />
           <meta name="viewport" content="width=device-width, initial-scale=1" />
           {/* Prevent browser caching to avoid stale JS errors after Skaffold rebuilds.
@@ -235,7 +238,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en">
       <head>
-        <script dangerouslySetInnerHTML={{ __html: dynamicNrScriptContent }}></script>
+        <script dangerouslySetInnerHTML={{ __html: COMPUTED_NR_SCRIPT }}></script>
         <meta charSet="utf-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1" />
         {/* Prevent browser caching to avoid stale JS errors after Skaffold rebuilds.

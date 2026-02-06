@@ -1,5 +1,6 @@
 import asyncio
 import os
+import sys
 import logging
 from typing import Optional
 from contextlib import asynccontextmanager
@@ -9,7 +10,10 @@ from pydantic import BaseModel, EmailStr
 import psycopg2
 from psycopg2 import extras, pool
 import newrelic.agent
-from utils.process_headers import process_headers
+
+# Add parent directory to path to import utils
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
+from utils import process_headers
 
 # Configure logging
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
