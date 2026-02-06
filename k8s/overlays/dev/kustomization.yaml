@@ -30,3 +30,5 @@ images:
   newTag: latest
 - name: kafka-with-monitoring
   newTag: latest
+- name: otel-collector
+  newTag: latest
