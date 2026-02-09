@@ -30,8 +30,9 @@ data:
 
       jmx/kafka_broker-1:
         jar_path: /opt/opentelemetry-jmx-scraper.jar
-        endpoint: ${env:KAFKA_BROKER_JMX_ADDRESS}
+        endpoint: service:jmx:rmi:///jndi/rmi://${env:KAFKA_BROKER_JMX_ADDRESS}/jmxrmi
         target_system: kafka
+        jmx_configs: /conf/kafka-jmx-config.yaml
         collection_interval: 30s
         resource_attributes:
           broker.id: "1"
