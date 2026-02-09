@@ -1,5 +1,6 @@
 import asyncio
 import os
+import sys
 import json
 import logging
 import pyodbc
@@ -16,13 +17,34 @@ from httpx import HTTPStatusError, RequestError
 import uuid
 import newrelic.agent
 from typing import Annotated
-from utils.process_headers import process_headers
 import stripe
+
+# Add parent directory to path to import utils
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
+from utils import process_headers
 
 # Configure logging
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
 
-newrelic.agent.initialize(log_file='/app/newrelic.log', log_level=logging.DEBUG)
+newrelic.agent.initialize()
+
+def get_propagation_headers(request: Request) -> dict:
+    """
+    Extract headers that should be propagated to downstream services.
+    Currently propagates: x-browser-user-id, error, extra-transaction-time
+    """
+    headers_to_propagate = {}
+
+    if "x-browser-user-id" in request.headers:
+        headers_to_propagate["x-browser-user-id"] = request.headers["x-browser-user-id"]
+
+    if "error" in request.headers:
+        headers_to_propagate["error"] = request.headers["error"]
+
+    if "extra-transaction-time" in request.headers:
+        headers_to_propagate["extra-transaction-time"] = request.headers["extra-transaction-time"]
+
+    return headers_to_propagate
 
 # Initialize Stripe
 stripe.api_key = os.getenv("STRIPE_SECRET_KEY")
@@ -233,11 +255,15 @@ async def process_bill_payment(payment_details: PaymentDetails, request: Request
 
     # --- Check for duplicate billId ---
     transaction_service_url = os.getenv("TRANSACTION_SERVICE_URL", "http://transaction-service:5001")
+    propagation_headers = get_propagation_headers(request)
     async with httpx.AsyncClient() as client:
         # wait if header includes extra_transaction_time
         try:
             logging.info(f"Checking for existing transaction with BillID: {payment_details.billId}")
-            response = await client.get(f"{transaction_service_url}/transaction-service/transaction/{payment_details.billId}")
+            response = await client.get(
+                f"{transaction_service_url}/transaction-service/transaction/{payment_details.billId}",
+                headers=propagation_headers
+            )
             process_headers(dict(request.headers))
             if response.status_code == 200:
                 logging.error(f"Transaction with BillID '{payment_details.billId}' already exists.")
@@ -331,10 +357,14 @@ async def process_recurring_payment(payment_schedule: PaymentSchedule, request: 
 
     # Check for a duplicate billId before creating
     transaction_service_url = os.getenv("TRANSACTION_SERVICE_URL", "http://transaction-service:5001")
+    propagation_headers = get_propagation_headers(request)
     async with httpx.AsyncClient() as client:
         try:
             logging.info(f"Checking for existing transaction with BillID: {payment_schedule.billId}")
-            response = await client.get(f"{transaction_service_url}/transaction-service/transaction/{payment_schedule.billId}")
+            response = await client.get(
+                f"{transaction_service_url}/transaction-service/transaction/{payment_schedule.billId}",
+                headers=propagation_headers
+            )
             process_headers(dict(request.headers))
             if response.status_code == 200:
                 raise HTTPException(status_code=409, detail=f"Bill with ID '{payment_schedule.billId}' already exists.")
@@ -379,10 +409,14 @@ async def cancel_payment(bill_id: str, cancel_details: CancelPayment, request: R
 
     # --- Synchronous check with the transaction-service ---
     transaction_service_url = os.getenv("TRANSACTION_SERVICE_URL", "http://transaction-service:5001")
+    propagation_headers = get_propagation_headers(request)
     async with httpx.AsyncClient() as client:
         try:
             logging.info(f"Checking for existing transaction with BillID: {bill_id}")
-            response = await client.get(f"{transaction_service_url}/transaction-service/transaction/{bill_id}")
+            response = await client.get(
+                f"{transaction_service_url}/transaction-service/transaction/{bill_id}",
+                headers=propagation_headers
+            )
             process_headers(dict(request.headers))
             if response.status_code == 404:
                 raise HTTPException(

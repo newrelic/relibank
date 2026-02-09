@@ -38,36 +38,36 @@ build:
     #   - src: "**/*.css"
     #     dest: /app
   - image: accounts-service
-    context: accounts_service
+    context: .
     docker:
-      dockerfile: Dockerfile
+      dockerfile: accounts_service/Dockerfile
       buildArgs:
         NEW_RELIC_USER_API_KEY: "{{.NEW_RELIC_USER_API_KEY}}"
         NEW_RELIC_ACCOUNT_ID: "{{.NEW_RELIC_ACCOUNT_ID}}"
         NEW_RELIC_LICENSE_KEY: "{{.NEW_RELIC_LICENSE_KEY}}"
         APP_NAME: "{{.APP_NAME}}"
   - image: auth-service
-    context: auth_service
+    context: .
     docker:
-      dockerfile: Dockerfile
+      dockerfile: auth_service/Dockerfile
       buildArgs:
         NEW_RELIC_USER_API_KEY: "{{.NEW_RELIC_USER_API_KEY}}"
         NEW_RELIC_ACCOUNT_ID: "{{.NEW_RELIC_ACCOUNT_ID}}"
         NEW_RELIC_LICENSE_KEY: "{{.NEW_RELIC_LICENSE_KEY}}"
         APP_NAME: "{{.APP_NAME}}"
   - image: transaction-service
-    context: transaction_service
+    context: .
     docker:
-      dockerfile: Dockerfile
+      dockerfile: transaction_service/Dockerfile
       buildArgs:
         NEW_RELIC_USER_API_KEY: "{{.NEW_RELIC_USER_API_KEY}}"
         NEW_RELIC_ACCOUNT_ID: "{{.NEW_RELIC_ACCOUNT_ID}}"
         NEW_RELIC_LICENSE_KEY: "{{.NEW_RELIC_LICENSE_KEY}}"
         APP_NAME: "{{.APP_NAME}}"
   - image: bill-pay-service
-    context: bill_pay
+    context: .
     docker:
-      dockerfile: Dockerfile
+      dockerfile: bill_pay/Dockerfile
       buildArgs:
         NEW_RELIC_USER_API_KEY: "{{.NEW_RELIC_USER_API_KEY}}"
         NEW_RELIC_ACCOUNT_ID: "{{.NEW_RELIC_ACCOUNT_ID}}"
@@ -106,9 +106,9 @@ build:
     docker:
       dockerfile: Dockerfile
   - image: chatbot-service
-    context: chatbot_service
+    context: .
     docker:
-      dockerfile: Dockerfile
+      dockerfile: chatbot_service/Dockerfile
       buildArgs:
         OPENAI_LOG: "{{.OPENAI_LOG}}"
         OPENAI_API_KEY: "{{.OPENAI_API_KEY}}"

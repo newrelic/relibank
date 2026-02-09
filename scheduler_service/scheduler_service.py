@@ -15,7 +15,7 @@ import newrelic.agent
 # Configure logging
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
 
-newrelic.agent.initialize(log_file='/app/newrelic.log', log_level=logging.DEBUG)
+newrelic.agent.initialize()
 
 # Database connection details from environment variables
 DB_SERVER = os.getenv("DB_SERVER", "mssql")

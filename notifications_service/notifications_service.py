@@ -12,7 +12,7 @@ logging.basicConfig(level=logging.INFO,
                     datefmt='%Y-%m-%d %H:%M:%S')
 logger = logging.getLogger(__name__)
 
-newrelic.agent.initialize(log_file='/app/newrelic.log', log_level=logging.DEBUG)
+newrelic.agent.initialize()
 
 # Environment variables for the Azure Function
 AZURE_FUNCTION_URL = os.environ.get("AZURE_FUNCTION_URL")

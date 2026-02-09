@@ -161,6 +161,7 @@ if [[ "$ENVIRONMENT" == "remote" ]]; then
     export AUTH_SERVICE="$RELIBANK_URL"
     export BILL_PAY_SERVICE="$RELIBANK_URL"
     export CHATBOT_SERVICE="$RELIBANK_URL"
+    export TRANSACTION_SERVICE="$RELIBANK_URL"
     export SCENARIO_SERVICE_URL="$RELIBANK_URL/scenario-runner"
 
 else
