@@ -1,5 +1,6 @@
 import asyncio
 import os
+import sys
 import json
 import logging
 import psycopg2
@@ -13,12 +14,33 @@ import time
 import uuid
 import httpx
 import newrelic.agent
-from utils.process_headers import process_headers
+
+# Add parent directory to path to import utils
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
+from utils import process_headers
 
 # Configure logging
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
 
-newrelic.agent.initialize(log_file='/app/newrelic.log', log_level=logging.DEBUG)
+newrelic.agent.initialize()
+
+def get_propagation_headers(request: Request) -> dict:
+    """
+    Extract headers that should be propagated to downstream services.
+    Currently propagates: x-browser-user-id, error, extra-transaction-time
+    """
+    headers_to_propagate = {}
+
+    if "x-browser-user-id" in request.headers:
+        headers_to_propagate["x-browser-user-id"] = request.headers["x-browser-user-id"]
+
+    if "error" in request.headers:
+        headers_to_propagate["error"] = request.headers["error"]
+
+    if "extra-transaction-time" in request.headers:
+        headers_to_propagate["extra-transaction-time"] = request.headers["extra-transaction-time"]
+
+    return headers_to_propagate
 
 # Database connection details from environment variables
 DB_HOST = os.getenv("DB_HOST", "accounts-db")
@@ -198,6 +220,7 @@ async def get_accounts(email: str, request: Request):
                 raise HTTPException(status_code=404, detail="No accounts found for user.")
 
             # Fetch current balance from transaction-service for each account
+            propagation_headers = get_propagation_headers(request)
             async with httpx.AsyncClient() as client:
                 for account in all_accounts:
                     # Convert datetime fields to strings for Pydantic validation
@@ -211,7 +234,10 @@ async def get_accounts(email: str, request: Request):
                     try:
                         # Correctly passing a string UUID to the transaction service
                         print(f"URL: {TRANSACTION_SERVICE_URL}/transaction-service/ledger/{account_id_int}")
-                        response = await client.get(f"{TRANSACTION_SERVICE_URL}/transaction-service/ledger/{account_id_int}")
+                        response = await client.get(
+                            f"{TRANSACTION_SERVICE_URL}/transaction-service/ledger/{account_id_int}",
+                            headers=propagation_headers
+                        )
                         response.raise_for_status()
                         account["balance"] = response.json()["current_balance"]
                         process_headers(dict(request.headers))
@@ -415,6 +441,62 @@ async def simple_health_check():
     return "ok"
 
 @app.get("/accounts-service/health")
-async def health_check():
+async def health_check(request: Request):
     """Simple health check endpoint."""
+    process_headers(dict(request.headers))
     return {"status": "healthy"}
+
+@app.get("/accounts-service/browser-user")
+async def get_browser_user(request: Request):
+    """
+    Returns a user ID for browser tracking.
+    Priority 1: Uses x-browser-user-id header if provided and valid
+    Priority 2: Returns random user ID from database
+    """
+    conn = None
+    try:
+        conn = get_db_connection()
+        process_headers(dict(request.headers))
+
+        # Check for x-browser-user-id header
+        browser_user_id = request.headers.get("x-browser-user-id")
+
+        with conn.cursor(cursor_factory=extras.RealDictCursor) as cursor:
+            if browser_user_id:
+                # Validate UUID format before querying database
+                try:
+                    import uuid
+                    uuid.UUID(browser_user_id)  # Validate UUID format
+
+                    # Query database for this user ID
+                    cursor.execute("SELECT id FROM user_account WHERE id = %s", (browser_user_id,))
+                    user = cursor.fetchone()
+                    if user:
+                        logging.info(f"[Browser User] Using header-provided user ID: {browser_user_id}")
+                        return {"user_id": browser_user_id, "source": "header"}
+                    else:
+                        logging.warning(f"[Browser User] Header-provided ID {browser_user_id} not found in database, falling back to random")
+                except (ValueError, Exception) as e:
+                    logging.warning(f"[Browser User] Invalid UUID format or database error: {e}, falling back to random")
+
+            # Fall back to random selection
+            cursor.execute("SELECT id FROM user_account ORDER BY RANDOM() LIMIT 1")
+            random_user = cursor.fetchone()
+
+            if not random_user:
+                raise HTTPException(
+                    status_code=500,
+                    detail="No users found in database. Cannot assign browser user ID."
+                )
+
+            user_id = random_user["id"]
+            logging.info(f"[Browser User] Randomly selected user ID: {user_id}")
+            return {"user_id": user_id, "source": "random"}
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logging.error(f"Error getting browser user: {e}")
+        raise HTTPException(status_code=500, detail="Error retrieving browser user ID.")
+    finally:
+        return_db_connection(conn)

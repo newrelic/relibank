@@ -6,7 +6,7 @@ import {
   ScrollRestoration,
 } from "react-router";
 
-import { useState, createContext, useEffect } from 'react';
+import { useState, createContext, useEffect, useMemo } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { AppLayout } from '~/components/layout/AppLayout';
 
@@ -25,6 +25,8 @@ const NEW_RELIC_CONFIG = {
   TRUST_KEY: import.meta.env.VITE_NEW_RELIC_TRUST_KEY,
 };
 
+// Generate New Relic script with config values replaced
+// This is computed once at module load since config values never change
 const generateNrScript = () => {
     let script = nrScriptTemplate;
 
@@ -36,6 +38,9 @@ const generateNrScript = () => {
     return script;
 };
 
+// Pre-compute the NR script once at module load
+const COMPUTED_NR_SCRIPT = generateNrScript();
+
 
 // Create a context for login data
 interface LoginContextType {
@@ -44,6 +49,8 @@ interface LoginContextType {
   handleLogout: () => void;
   userData: any;
   setUserData: (data: any) => void;
+  browserUserId: string | null;
+  setBrowserUserId: (id: string | null) => void;
 }
 
 export const LoginContext = createContext<LoginContextType>({
@@ -52,6 +59,8 @@ export const LoginContext = createContext<LoginContextType>({
   handleLogout: () => {},
   userData: null,
   setUserData: () => {},
+  browserUserId: null,
+  setBrowserUserId: () => {},
 });
 
 // Create a context for the page data
@@ -68,6 +77,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [userData, setUserData] = useState(null);
   const [isHydrated, setIsHydrated] = useState(false);
+  const [browserUserId, setBrowserUserId] = useState<string | null>(null);
 
   const navigate = useNavigate();
 
@@ -91,6 +101,54 @@ export function Layout({ children }: { children: React.ReactNode }) {
       setIsHydrated(true);
     }
   }, []);
+
+  // Fetch browser user ID on app load
+  useEffect(() => {
+    if (typeof window !== 'undefined' && isHydrated) {
+      // Check sessionStorage first
+      const storedUserId = sessionStorage.getItem('browserUserId');
+      if (storedUserId) {
+        console.log('[Browser User] Loaded from sessionStorage:', storedUserId);
+        setBrowserUserId(storedUserId);
+        return;
+      }
+
+      // Fetch from API
+      const fetchBrowserUserId = async () => {
+        try {
+          const response = await fetch('/accounts-service/browser-user');
+          if (response.ok) {
+            const data = await response.json();
+            console.log(`[Browser User] Received: ${data.user_id} Source: ${data.source}`);
+            setBrowserUserId(data.user_id);
+            sessionStorage.setItem('browserUserId', data.user_id);
+          } else {
+            console.error('[Browser User] Failed to fetch user ID:', response.status);
+          }
+        } catch (error) {
+          console.error('[Browser User] Error fetching user ID:', error);
+        }
+      };
+
+      fetchBrowserUserId();
+    }
+  }, [isHydrated]);
+
+  // Call New Relic setUserId when browserUserId changes
+  useEffect(() => {
+    if (typeof window !== 'undefined' && browserUserId) {
+      if (window.newrelic && typeof window.newrelic.setUserId === 'function') {
+        try {
+          window.newrelic.setUserId(browserUserId);
+          console.log('[New Relic] User ID set successfully:', browserUserId);
+        } catch (error) {
+          console.error('[New Relic] Failed to set user ID:', error);
+        }
+      } else {
+        console.warn('[New Relic] Browser agent not available or setUserId method not found');
+      }
+    }
+  }, [browserUserId]);
 
   // Wrapper to automatically sync to sessionStorage
   const updateUserData = (data: any) => {
@@ -117,8 +175,10 @@ export function Layout({ children }: { children: React.ReactNode }) {
   const handleLogout = () => {
     setIsAuthenticated(false);
     updateUserData(null);
+    setBrowserUserId(null);
     if (typeof window !== 'undefined') {
       sessionStorage.removeItem('isAuthenticated');
+      sessionStorage.removeItem('browserUserId');
     }
     navigate('/');
   };
@@ -135,14 +195,14 @@ export function Layout({ children }: { children: React.ReactNode }) {
     }
   }, [isAuthenticated, userData]);
 
-  const dynamicNrScriptContent = generateNrScript();
-
   const contextValue = {
     isAuthenticated,
     handleLogin,
     handleLogout,
     userData,
-    setUserData: updateUserData
+    setUserData: updateUserData,
+    browserUserId,
+    setBrowserUserId
   };
 
   // The login page is a separate layout
@@ -150,7 +210,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
     return (
       <html lang="en">
         <head>
-          <script dangerouslySetInnerHTML={{ __html: dynamicNrScriptContent }}></script>
+          <script dangerouslySetInnerHTML={{ __html: COMPUTED_NR_SCRIPT }}></script>
           <meta charSet="utf-8" />
           <meta name="viewport" content="width=device-width, initial-scale=1" />
           {/* Prevent browser caching to avoid stale JS errors after Skaffold rebuilds.
@@ -178,7 +238,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en">
       <head>
-        <script dangerouslySetInnerHTML={{ __html: dynamicNrScriptContent }}></script>
+        <script dangerouslySetInnerHTML={{ __html: COMPUTED_NR_SCRIPT }}></script>
         <meta charSet="utf-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1" />
         {/* Prevent browser caching to avoid stale JS errors after Skaffold rebuilds.

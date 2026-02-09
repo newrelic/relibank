@@ -52,7 +52,79 @@ A React-based banking demo application built with React Router v7, Material-UI, 
 - Responsive dashboard with real-time balance updates
 - Fund transfer functionality with optimistic updates and error rollback
 - New Relic Browser instrumentation for error tracking
+- **Browser User ID Tracking**: Automatic user ID assignment and tracking for New Relic sessions
+  - Random user selection from database or header-based override
+  - Persistent across navigation using sessionStorage
+  - Integrated with New Relic Browser's `setUserId()` method
 - Recurring payments integration with transaction-service backend
+
+---
+
+## 🔍 New Relic Browser User ID Tracking
+
+### Overview
+The frontend automatically assigns and tracks user IDs for New Relic Browser sessions, enabling granular session tracking and user behavior analysis in New Relic.
+
+### How It Works
+
+**On Application Load**:
+1. Checks `sessionStorage` for existing `browserUserId`
+2. If not found, fetches a user ID from `/accounts-service/browser-user` endpoint
+3. Stores user ID in `sessionStorage` for persistence across navigation
+4. Calls `window.newrelic.setUserId()` to associate the ID with the New Relic session
+
+**Header Override for Testing**:
+- Send `x-browser-user-id: <uuid>` header to the browser-user endpoint
+- Useful for automated testing (Postman, Selenium) to track specific user sessions
+
+**User ID Assignment**:
+- **Priority 1**: Uses `x-browser-user-id` header if provided and valid (exists in database)
+- **Priority 2**: Randomly selects a user ID from the `user_account` table
+- Returns both `user_id` and `source` (header/random) for debugging
+
+### Implementation Details
+
+**TypeScript Definitions** (`app/types/newrelic.d.ts`):
+```typescript
+interface NewRelicBrowserAgent {
+  setUserId(userId: string): void;
+  setCustomAttribute(name: string, value: string | number | boolean): void;
+  // ... other methods
+}
+```
+
+**State Management** (`app/root.tsx`):
+- `browserUserId` state in `LoginContext`
+- Three useEffect hooks:
+  1. Hydration and sessionStorage loading
+  2. Browser user ID fetching from API
+  3. New Relic `setUserId()` call when ID changes
+
+**Session Persistence**:
+- Stored in `sessionStorage.browserUserId`
+- Cleared on logout
+- Separate per browser tab (sessionStorage behavior)
+
+### Testing
+
+**Manual Testing**:
+```bash
+# Test random assignment
+curl http://localhost:5002/accounts-service/browser-user
+
+# Test header override
+curl -H "x-browser-user-id: 550e8400-e29b-41d4-a716-446655440000" \
+     http://localhost:5002/accounts-service/browser-user
+```
+
+**Automated Tests**:
+- `tests/test_browser_user_tracking.py` - Browser endpoint tests
+- `tests/test_apm_user_tracking.py` - Header propagation tests
+
+**New Relic Verification**:
+1. Open New Relic Browser UI → Sessions
+2. Filter by user ID to see specific user sessions
+3. Check session attributes for `userId` field
 
 ---
 
