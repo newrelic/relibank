@@ -113,11 +113,18 @@ export const PayBillCard = ({ onPaymentSuccess }: PayBillCardProps) => {
       }),
     });
 
-    const data = await response.json();
-
     if (!response.ok) {
-      throw new Error(data.detail || data.message || 'Payment failed');
+      let errorMessage = 'Payment failed';
+      try {
+        const data = await response.json();
+        errorMessage = data.detail || data.message || errorMessage;
+      } catch (e) {
+        errorMessage = `Payment failed with status ${response.status}`;
+      }
+      throw new Error(errorMessage);
     }
+
+    const data = await response.json();
 
     const accountDisplay = accountType.charAt(0).toUpperCase() + accountType.slice(1);
     setIsError(false);
@@ -150,18 +157,25 @@ export const PayBillCard = ({ onPaymentSuccess }: PayBillCardProps) => {
       }),
     });
 
-    const data = await response.json();
-
     if (!response.ok) {
-      // Handle card-specific errors
-      if (response.status === 402) {
-        throw new Error(data.detail || 'Card declined by issuer. Please try a different card or contact your bank.');
-      } else if (response.status === 504) {
-        throw new Error('Payment gateway timeout. Please try again later.');
-      } else {
-        throw new Error(data.detail || data.message || 'Card payment failed');
+      let errorMessage = 'Card payment failed';
+      try {
+        const data = await response.json();
+        // Handle card-specific errors
+        if (response.status === 402) {
+          errorMessage = data.detail || 'Card declined by issuer. Please try a different card or contact your bank.';
+        } else if (response.status === 504) {
+          errorMessage = 'Payment gateway timeout. Please try again later.';
+        } else {
+          errorMessage = data.detail || data.message || errorMessage;
+        }
+      } catch (e) {
+        errorMessage = `Card payment failed with status ${response.status}`;
       }
+      throw new Error(errorMessage);
     }
+
+    const data = await response.json();
 
     const selectedCardData = savedCards.find(c => c.id === cardId);
     const cardDisplay = selectedCardData
