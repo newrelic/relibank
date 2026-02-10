@@ -132,6 +132,12 @@ build:
         NEW_RELIC_ACCOUNT_ID: "{{.NEW_RELIC_ACCOUNT_ID}}"
         NEW_RELIC_LICENSE_KEY: "{{.NEW_RELIC_LICENSE_KEY}}"
         APP_NAME: "{{.APP_NAME}}"
+  - image: otel-collector-kafka
+    context: .
+    docker:
+      dockerfile: otel_collector_kafka/Dockerfile
+      buildArgs:
+        NEW_RELIC_LICENSE_KEY: "{{.NEW_RELIC_LICENSE_KEY}}"
 
 # Manifests configuration - use Kustomize to handle image name mapping and resources
 manifests:
