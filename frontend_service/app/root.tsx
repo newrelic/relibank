@@ -41,6 +41,18 @@ const generateNrScript = () => {
 // Pre-compute the NR script once at module load
 const COMPUTED_NR_SCRIPT = generateNrScript();
 
+// Helper function to map route paths to New Relic page view names
+const getPageNameFromPath = (pathname: string): string => {
+  const routeNameMap: Record<string, string> = {
+    '/': 'Login',
+    '/dashboard': 'Dashboard',
+    '/payments': 'Payments',
+    '/support': 'Support',
+  };
+
+  return routeNameMap[pathname] || `Unknown (${pathname})`;
+};
+
 
 // Create a context for login data
 interface LoginContextType {
@@ -150,6 +162,42 @@ export function Layout({ children }: { children: React.ReactNode }) {
     }
   }, [browserUserId]);
 
+  // Call New Relic APIs to track page views and route changes
+  useEffect(() => {
+    if (typeof window !== 'undefined' && isHydrated) {
+      if (window.newrelic) {
+        try {
+          const pageName = getPageNameFromPath(location.pathname);
+
+          // For SPA route changes: set attribute on current interaction
+          if (typeof window.newrelic.interaction === 'function') {
+            window.newrelic.interaction()
+              .setAttribute('pageViewName', pageName)
+              .setName(pageName)
+              .save();
+            console.log('[New Relic] Interaction attribute pageViewName set:', pageName);
+          }
+
+          // Set global custom attribute for all events
+          if (typeof window.newrelic.setCustomAttribute === 'function') {
+            window.newrelic.setCustomAttribute('pageViewName', pageName);
+            console.log('[New Relic] Global custom attribute pageViewName set:', pageName);
+          }
+
+          // Set page view name for initial page loads
+          if (typeof window.newrelic.setPageViewName === 'function') {
+            window.newrelic.setPageViewName(pageName);
+            console.log('[New Relic] setPageViewName called:', pageName);
+          }
+        } catch (error) {
+          console.error('[New Relic] Failed to set page view tracking:', error);
+        }
+      } else {
+        console.warn('[New Relic] Browser agent not available');
+      }
+    }
+  }, [location.pathname, isHydrated]);
+
   // Wrapper to automatically sync to sessionStorage
   const updateUserData = (data: any) => {
     console.log('[Layout updateUserData] Updating userData:', data);
@@ -211,6 +259,24 @@ export function Layout({ children }: { children: React.ReactNode }) {
       <html lang="en">
         <head>
           <script dangerouslySetInnerHTML={{ __html: COMPUTED_NR_SCRIPT }}></script>
+          <script dangerouslySetInnerHTML={{ __html: `
+            // Set page view name immediately after New Relic loads
+            (function() {
+              var routeNameMap = {
+                '/': 'Login',
+                '/dashboard': 'Dashboard',
+                '/payments': 'Payments',
+                '/support': 'Support'
+              };
+              var pathname = window.location.pathname;
+              var pageName = routeNameMap[pathname] || 'Unknown (' + pathname + ')';
+
+              if (window.newrelic && typeof window.newrelic.setPageViewName === 'function') {
+                window.newrelic.setPageViewName(pageName);
+                console.log('[New Relic Inline] Page view name set:', pageName);
+              }
+            })();
+          ` }}></script>
           <meta charSet="utf-8" />
           <meta name="viewport" content="width=device-width, initial-scale=1" />
           {/* Prevent browser caching to avoid stale JS errors after Skaffold rebuilds.
@@ -239,6 +305,24 @@ export function Layout({ children }: { children: React.ReactNode }) {
     <html lang="en">
       <head>
         <script dangerouslySetInnerHTML={{ __html: COMPUTED_NR_SCRIPT }}></script>
+        <script dangerouslySetInnerHTML={{ __html: `
+          // Set page view name immediately after New Relic loads
+          (function() {
+            var routeNameMap = {
+              '/': 'Login',
+              '/dashboard': 'Dashboard',
+              '/payments': 'Payments',
+              '/support': 'Support'
+            };
+            var pathname = window.location.pathname;
+            var pageName = routeNameMap[pathname] || 'Unknown (' + pathname + ')';
+
+            if (window.newrelic && typeof window.newrelic.setPageViewName === 'function') {
+              window.newrelic.setPageViewName(pageName);
+              console.log('[New Relic Inline] Page view name set:', pageName);
+            }
+          })();
+        ` }}></script>
         <meta charSet="utf-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1" />
         {/* Prevent browser caching to avoid stale JS errors after Skaffold rebuilds.
