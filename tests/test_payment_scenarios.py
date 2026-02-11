@@ -14,9 +14,11 @@ def reset_scenarios():
     """Reset all scenarios before and after tests"""
     response = requests.post(f"{SCENARIO_SERVICE_URL}/api/payment-scenarios/reset")
     assert response.status_code == 200
+    time.sleep(2.0)  # Allow service to fully process the reset
     yield
     # Cleanup after test
     requests.post(f"{SCENARIO_SERVICE_URL}/api/payment-scenarios/reset")
+    time.sleep(2.0)  # Allow service to fully process the reset
 
 
 def enable_scenario(scenario_name: str, probability: float = None, delay: float = None) -> Dict:
@@ -35,6 +37,7 @@ def enable_scenario(scenario_name: str, probability: float = None, delay: float 
 
     response = requests.post(endpoints[scenario_name], params=params)
     assert response.status_code == 200
+    time.sleep(1.0)  # Allow scenario to propagate before making payments
     return response.json()
 
 
@@ -55,6 +58,7 @@ def send_card_payment(bill_id: str, amount: float = 100.00) -> requests.Response
     return response
 
 
+@pytest.mark.xdist_group(name="scenario_service")
 def test_gateway_timeout_scenario(reset_scenarios):
     """Test that gateway timeout scenario triggers with high probability"""
     print("\n=== Testing Gateway Timeout Scenario ===")
@@ -80,6 +84,7 @@ def test_gateway_timeout_scenario(reset_scenarios):
     print("✓ Gateway timeout scenario working correctly")
 
 
+@pytest.mark.xdist_group(name="scenario_service")
 def test_card_decline_scenario(reset_scenarios):
     """Test that card decline scenario triggers with high probability"""
     print("\n=== Testing Card Decline Scenario ===")
@@ -109,6 +114,7 @@ def test_card_decline_scenario(reset_scenarios):
     print("✓ Card decline scenario working correctly")
 
 
+@pytest.mark.xdist_group(name="scenario_service")
 def test_stolen_card_scenario(reset_scenarios):
     """Test that stolen card scenario triggers with high probability"""
     print("\n=== Testing Stolen Card Scenario ===")
@@ -135,6 +141,7 @@ def test_stolen_card_scenario(reset_scenarios):
     print("✓ Stolen card scenario working correctly")
 
 
+@pytest.mark.xdist_group(name="scenario_service")
 def test_realistic_probability_distribution(reset_scenarios):
     """Test scenarios with realistic probabilities to verify distribution"""
     print("\n=== Testing Realistic Probability Distribution ===")
@@ -187,6 +194,7 @@ def test_realistic_probability_distribution(reset_scenarios):
     print(f"\n✓ Scenarios triggered correctly (failure rate: {failure_rate:.1f}%)")
 
 
+@pytest.mark.xdist_group(name="scenario_service")
 def test_scenario_reset(reset_scenarios):
     """Test that reset disables all scenarios"""
     print("\n=== Testing Scenario Reset ===")

@@ -27,6 +27,11 @@ spec:
                 configMapKeyRef:
                   key: TRANSACTION_SERVICE_URL
                   name: infrastructure-config
+            - name: SCENARIO_SERVICE_URL
+              valueFrom:
+                configMapKeyRef:
+                  key: SCENARIO_RUNNER_SERVICE_URL
+                  name: infrastructure-config
           image: bill-pay-service
           name: bill-pay-service
           ports:

@@ -8,6 +8,25 @@ from typing import Dict
 SCENARIO_SERVICE_URL = os.getenv("SCENARIO_SERVICE_URL", "http://localhost:8000/scenario-runner")
 
 
+@pytest.fixture(autouse=True)
+def reset_scenarios_after_test():
+    """Automatically reset scenarios after each test to prevent state leakage"""
+    # Reset before test
+    try:
+        requests.post(f"{SCENARIO_SERVICE_URL}/api/payment-scenarios/reset", timeout=5)
+        time.sleep(2.0)  # Allow service to fully process the reset
+    except:
+        pass  # Ignore cleanup errors
+    yield
+    # Cleanup after each test
+    try:
+        requests.post(f"{SCENARIO_SERVICE_URL}/api/payment-scenarios/reset", timeout=5)
+        time.sleep(2.0)  # Allow service to fully process the reset
+    except:
+        pass  # Ignore cleanup errors
+
+
+@pytest.mark.xdist_group(name="scenario_service")
 def test_scenario_service_health():
     """Test that scenario service is accessible"""
     print("\n=== Testing Scenario Service Health ===")
@@ -21,6 +40,7 @@ def test_scenario_service_health():
         pytest.fail("Cannot connect to scenario service")
 
 
+@pytest.mark.xdist_group(name="scenario_service")
 def test_get_all_scenarios():
     """Test retrieving all payment scenarios configuration"""
     print("\n=== Testing Get All Scenarios ===")
@@ -52,6 +72,7 @@ def test_get_all_scenarios():
     print("✓ All scenarios retrieved successfully")
 
 
+@pytest.mark.xdist_group(name="scenario_service")
 def test_reset_all_scenarios():
     """Test resetting all scenarios to disabled state"""
     print("\n=== Testing Reset All Scenarios ===")
@@ -76,6 +97,7 @@ def test_reset_all_scenarios():
     print("✓ All scenarios reset successfully")
 
 
+@pytest.mark.xdist_group(name="scenario_service")
 def test_enable_gateway_timeout():
     """Test enabling gateway timeout scenario"""
     print("\n=== Testing Enable Gateway Timeout ===")
@@ -105,6 +127,7 @@ def test_enable_gateway_timeout():
     print("✓ Gateway timeout scenario enabled successfully")
 
 
+@pytest.mark.xdist_group(name="scenario_service")
 def test_enable_card_decline():
     """Test enabling card decline scenario"""
     print("\n=== Testing Enable Card Decline ===")
@@ -130,6 +153,7 @@ def test_enable_card_decline():
     print("✓ Card decline scenario enabled successfully")
 
 
+@pytest.mark.xdist_group(name="scenario_service")
 def test_enable_stolen_card():
     """Test enabling stolen card scenario"""
     print("\n=== Testing Enable Stolen Card ===")
@@ -155,6 +179,7 @@ def test_enable_stolen_card():
     print("✓ Stolen card scenario enabled successfully")
 
 
+@pytest.mark.xdist_group(name="scenario_service")
 def test_disable_scenario():
     """Test disabling a previously enabled scenario"""
     print("\n=== Testing Disable Scenario ===")
@@ -182,6 +207,7 @@ def test_disable_scenario():
     print("✓ Scenario disabled successfully")
 
 
+@pytest.mark.xdist_group(name="scenario_service")
 def test_multiple_scenarios_enabled():
     """Test enabling multiple scenarios simultaneously"""
     print("\n=== Testing Multiple Scenarios Enabled ===")
@@ -216,6 +242,7 @@ def test_multiple_scenarios_enabled():
     print("✓ Multiple scenarios enabled successfully")
 
 
+@pytest.mark.xdist_group(name="scenario_service")
 def test_chatbot_slowness_scenario():
     """Test chatbot slowness scenario if available"""
     print("\n=== Testing Chatbot Slowness Scenario ===")
@@ -246,6 +273,7 @@ def test_chatbot_slowness_scenario():
         print(f"⚠ Chatbot scenarios not available: {e}")
 
 
+@pytest.mark.xdist_group(name="scenario_service")
 def test_invalid_probability_values():
     """Test that invalid probability values are handled"""
     print("\n=== Testing Invalid Probability Values ===")
@@ -272,6 +300,7 @@ def test_invalid_probability_values():
     print("✓ Invalid probability handling verified")
 
 
+@pytest.mark.xdist_group(name="scenario_service")
 def test_scenario_persistence():
     """Test that scenario settings persist across requests"""
     print("\n=== Testing Scenario Persistence ===")
@@ -298,6 +327,7 @@ def test_scenario_persistence():
 
 # ===== CHAOS SCENARIOS SMOKE TESTS =====
 
+@pytest.mark.xdist_group(name="scenario_service")
 def test_chaos_scenarios_api():
     """Smoke test for chaos scenarios API availability"""
     print("\n=== Testing Chaos Scenarios API ===")
@@ -319,6 +349,7 @@ def test_chaos_scenarios_api():
         print(f"⚠ Chaos scenarios not available: {e}")
 
 
+@pytest.mark.xdist_group(name="scenario_service")
 def test_chaos_enable_disable():
     """Smoke test for enabling/disabling chaos scenarios"""
     print("\n=== Testing Chaos Enable/Disable ===")
@@ -358,6 +389,7 @@ def test_chaos_enable_disable():
 
 # ===== LOCUST LOAD TESTING SMOKE TESTS =====
 
+@pytest.mark.xdist_group(name="scenario_service")
 def test_locust_scenarios_api():
     """Smoke test for locust load testing API availability"""
     print("\n=== Testing Locust Scenarios API ===")
@@ -379,6 +411,7 @@ def test_locust_scenarios_api():
         print(f"⚠ Locust scenarios not available: {e}")
 
 
+@pytest.mark.xdist_group(name="scenario_service")
 def test_locust_start_stop():
     """Smoke test for starting/stopping locust load tests"""
     print("\n=== Testing Locust Start/Stop ===")
