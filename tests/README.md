@@ -197,6 +197,69 @@ These tests can be added to GitHub Actions or other CI pipelines:
 - ✅ **Stress Chaos**: CPU stress, memory stress, combined stress testing with Chaos Mesh, service resilience under load
 - ✅ **Frontend Functional Tests**: Login flow, fund transfers, bill payment with Stripe, chatbot support, form validation, API integration, error handling (Vitest)
 
+## Parallel Test Execution
+
+The test suite uses `pytest-xdist` to run tests in parallel (with `-n auto`). This speeds up test execution but requires special handling for tests that share global state.
+
+### When Tests Need Sequential Execution
+
+Some tests modify shared application state (like the scenario service configuration) and cannot run in parallel. These tests are grouped using the `@pytest.mark.xdist_group` decorator.
+
+**Current Groups:**
+- `scenario_service` - All tests in `test_scenario_service.py` and `test_payment_scenarios.py` that interact with the scenario service
+
+**Example:**
+```python
+@pytest.mark.xdist_group(name="scenario_service")
+def test_enable_gateway_timeout():
+    """Test enabling gateway timeout scenario"""
+    # Test modifies shared scenario service state
+    ...
+```
+
+### Adding New Sequential Tests
+
+When writing new tests that modify shared state:
+
+1. **Identify the shared resource** - Does your test modify state that other tests depend on?
+   - Scenario service configuration
+   - Database records that aren't isolated per test
+   - Global service settings
+
+2. **Use the appropriate group** - If your test interacts with the scenario service:
+   ```python
+   @pytest.mark.xdist_group(name="scenario_service")
+   def test_my_new_scenario():
+       # Your test here
+       ...
+   ```
+
+3. **Create a new group if needed** - For other shared resources:
+   ```python
+   @pytest.mark.xdist_group(name="database_setup")
+   def test_database_migration():
+       # Your test here
+       ...
+   ```
+
+4. **Add cleanup** - Always reset shared state in fixtures:
+   ```python
+   @pytest.fixture
+   def reset_scenarios():
+       """Reset scenarios before and after tests"""
+       requests.post(f"{SCENARIO_SERVICE_URL}/api/payment-scenarios/reset")
+       yield
+       requests.post(f"{SCENARIO_SERVICE_URL}/api/payment-scenarios/reset")
+   ```
+
+### Running Tests Sequentially
+
+To disable parallel execution entirely (useful for debugging):
+```bash
+# Run without xdist parallelization
+pytest tests/ -v --tb=short
+```
+
 ## Contributing
 
 When adding new tests:
@@ -204,5 +267,6 @@ When adding new tests:
 2. Use environment variables for configuration
 3. Include cleanup in fixtures or teardown
 4. Add descriptive print statements for debugging
-5. Update this README with new test descriptions
-6. Ensure tests work both locally and remotely
+5. **Add `@pytest.mark.xdist_group` if the test modifies shared state**
+6. Update this README with new test descriptions
+7. Ensure tests work both locally and remotely
