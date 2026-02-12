@@ -30,6 +30,9 @@ List each significant change made in this PR. For each, provide a brief justific
 -----------
 Describe how you tested this PR. The quality of testing directly impacts the speed of review and deployment.
 
+Run the test suite locally with this in-development branch, and upload the results. If new tests are required, like for new features, add those tests and call them out here.
+`cd tests && ./run_tests.sh > ../../test_results.txt`
+
 ### Testing Strategy
 -   **Environment Used:** (e.g., Local, Sandbox, Staging)
 -   **Production Safety Assessment:** [Why do you believe this change is safe to deploy to production? (e.g., "Covered by comprehensive unit and integration tests," "It's an idempotent, non-breaking change," "Only touches static asset files.")]
@@ -62,3 +65,4 @@ Confirm the following prerequisites have been met by checking the boxes:
 -   [ ] Relevant documentation and runbooks have been updated, if necessary.
 -   [ ] My changes generate no new warnings or errors.
 -   [ ] My commits are squashed into a single, descriptive commit.
+-   [ ] My test results are uploaded as a text file, and new tests were created where required.

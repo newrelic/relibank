@@ -465,13 +465,13 @@ async def process_card_payment(payment: CardPaymentRequest, request: Request):
         scenarios = await get_payment_scenarios()
 
         # Check for stolen card scenario (probability-based)
-        if scenarios["stolen_card_enabled"] and random.random() * 100 < scenarios["stolen_card_probability"]:
+        if scenarios["stolen_card_enabled"] and random.random() * 100 <= scenarios["stolen_card_probability"]:
             payment_method_to_use = "pm_card_visa_chargeDeclinedStolenCard"
         else:
             payment_method_to_use = payment.paymentMethodId
 
         # Check for card decline scenario (probability-based)
-        if scenarios["card_decline_enabled"] and random.random() * 100 < scenarios["card_decline_probability"]:
+        if scenarios["card_decline_enabled"] and random.random() * 100 <= scenarios["card_decline_probability"]:
             logging.error(f"Payment processor declined transaction")
             newrelic.agent.record_custom_event("PaymentDeclined", {
                 "billId": payment.billId,
@@ -486,7 +486,7 @@ async def process_card_payment(payment: CardPaymentRequest, request: Request):
             )
 
         # Check for gateway timeout scenario (probability-based)
-        if scenarios["gateway_timeout_enabled"] and random.random() * 100 < scenarios["gateway_timeout_probability"]:
+        if scenarios["gateway_timeout_enabled"] and random.random() * 100 <= scenarios["gateway_timeout_probability"]:
             delay = scenarios["gateway_timeout_delay"]
             logging.warning(f"Payment gateway experiencing delays (waiting {delay}s)")
             await asyncio.sleep(delay)

@@ -42,10 +42,11 @@ jobs:
       - name: Install dependencies
         run: |
           cd tests
-          pip install pytest requests
+          pip install pytest pytest-xdist pytest-timeout requests
 
       - name: Run all Python tests
         if: ${{ github.event.inputs.test_suite == 'all' || github.event.inputs.test_suite == '' }}
+        timeout-minutes: 15
         env:
           RELIBANK_URL: ${{ vars.BASE_URL }}
           BASE_URL: ${{ vars.BASE_URL }}
@@ -53,10 +54,11 @@ jobs:
           AUTH_SERVICE: ${{ vars.BASE_URL }}
           BILL_PAY_SERVICE: ${{ vars.BASE_URL }}
           CHATBOT_SERVICE: ${{ vars.BASE_URL }}
+          TRANSACTION_SERVICE: ${{ vars.BASE_URL }}
           SCENARIO_SERVICE_URL: ${{ vars.BASE_URL }}/scenario-runner
         run: |
           cd tests
-          pytest . -v --tb=short
+          pytest . -n auto --tb=line --timeout=300
 
       - name: Run end-to-end tests only
         if: ${{ github.event.inputs.test_suite == 'e2e' }}
@@ -67,10 +69,11 @@ jobs:
           AUTH_SERVICE: ${{ vars.BASE_URL }}
           BILL_PAY_SERVICE: ${{ vars.BASE_URL }}
           CHATBOT_SERVICE: ${{ vars.BASE_URL }}
+          TRANSACTION_SERVICE: ${{ vars.BASE_URL }}
           SCENARIO_SERVICE_URL: ${{ vars.BASE_URL }}/scenario-runner
         run: |
           cd tests
-          pytest test_end_to_end.py -v --tb=short
+          pytest test_end_to_end.py -n auto --tb=line
 
       - name: Run scenario service tests only
         if: ${{ github.event.inputs.test_suite == 'scenario' }}
@@ -79,7 +82,7 @@ jobs:
           SCENARIO_SERVICE_URL: ${{ vars.BASE_URL }}/scenario-runner
         run: |
           cd tests
-          pytest test_scenario_service.py -v --tb=short
+          pytest test_scenario_service.py -n auto --tb=line
 
       - name: Run payment scenario tests only
         if: ${{ github.event.inputs.test_suite == 'payment' }}
@@ -89,7 +92,7 @@ jobs:
           BILL_PAY_SERVICE: ${{ vars.BASE_URL }}
         run: |
           cd tests
-          pytest test_payment_scenarios.py -v --tb=short
+          pytest test_payment_scenarios.py -n auto --tb=line
 
       - name: Run smoke tests only
         if: ${{ github.event.inputs.test_suite == 'smoke' }}
@@ -99,7 +102,7 @@ jobs:
           SCENARIO_SERVICE_URL: ${{ vars.BASE_URL }}/scenario-runner
         run: |
           cd tests
-          pytest test_end_to_end.py::test_frontend_loads test_scenario_service.py::test_scenario_service_health -v --tb=short
+          pytest test_end_to_end.py::test_frontend_loads test_scenario_service.py::test_scenario_service_health -n auto --tb=line
 
   frontend-tests:
     runs-on: ubuntu-latest
