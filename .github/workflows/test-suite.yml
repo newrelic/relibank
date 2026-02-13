@@ -42,10 +42,11 @@ jobs:
       - name: Install dependencies
         run: |
           cd tests
-          pip install pytest pytest-xdist requests
+          pip install pytest pytest-xdist pytest-timeout requests
 
       - name: Run all Python tests
         if: ${{ github.event.inputs.test_suite == 'all' || github.event.inputs.test_suite == '' }}
+        timeout-minutes: 15
         env:
           RELIBANK_URL: ${{ vars.BASE_URL }}
           BASE_URL: ${{ vars.BASE_URL }}
@@ -57,7 +58,7 @@ jobs:
           SCENARIO_SERVICE_URL: ${{ vars.BASE_URL }}/scenario-runner
         run: |
           cd tests
-          pytest . -n auto --tb=line
+          pytest . -n auto --tb=line --timeout=300
 
       - name: Run end-to-end tests only
         if: ${{ github.event.inputs.test_suite == 'e2e' }}

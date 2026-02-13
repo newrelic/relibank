@@ -8,20 +8,13 @@ from typing import Dict
 SCENARIO_SERVICE_URL = os.getenv("SCENARIO_SERVICE_URL", "http://localhost:8000/scenario-runner")
 
 
-@pytest.fixture(autouse=True)
+@pytest.fixture
 def reset_scenarios_after_test():
-    """Automatically reset scenarios after each test to prevent state leakage"""
-    # Reset before test
-    try:
-        requests.post(f"{SCENARIO_SERVICE_URL}/api/payment-scenarios/reset", timeout=5)
-        time.sleep(2.0)  # Allow service to fully process the reset
-    except:
-        pass  # Ignore cleanup errors
+    """Reset scenarios after test to prevent state leakage (use only when needed)"""
     yield
-    # Cleanup after each test
+    # Cleanup after test
     try:
         requests.post(f"{SCENARIO_SERVICE_URL}/api/payment-scenarios/reset", timeout=5)
-        time.sleep(2.0)  # Allow service to fully process the reset
     except:
         pass  # Ignore cleanup errors
 

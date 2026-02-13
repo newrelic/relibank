@@ -12,13 +12,17 @@ NUM_PAYMENT_ATTEMPTS = 50  # Send enough to trigger scenarios
 @pytest.fixture
 def reset_scenarios():
     """Reset all scenarios before and after tests"""
-    response = requests.post(f"{SCENARIO_SERVICE_URL}/api/payment-scenarios/reset")
+    # Reset before test
+    response = requests.post(f"{SCENARIO_SERVICE_URL}/api/payment-scenarios/reset", timeout=10)
     assert response.status_code == 200
-    time.sleep(2.0)  # Allow service to fully process the reset
+    time.sleep(0.5)  # Allow reset to propagate
     yield
     # Cleanup after test
-    requests.post(f"{SCENARIO_SERVICE_URL}/api/payment-scenarios/reset")
-    time.sleep(2.0)  # Allow service to fully process the reset
+    try:
+        requests.post(f"{SCENARIO_SERVICE_URL}/api/payment-scenarios/reset", timeout=10)
+        time.sleep(0.5)  # Allow reset to propagate
+    except:
+        pass  # Ignore cleanup errors
 
 
 def enable_scenario(scenario_name: str, probability: float = None, delay: float = None) -> Dict:
@@ -37,7 +41,7 @@ def enable_scenario(scenario_name: str, probability: float = None, delay: float 
 
     response = requests.post(endpoints[scenario_name], params=params)
     assert response.status_code == 200
-    time.sleep(1.0)  # Allow scenario to propagate before making payments
+    time.sleep(0.5)  # Allow scenario to propagate before making payments
     return response.json()
 
 
