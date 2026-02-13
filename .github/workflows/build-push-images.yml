@@ -1,0 +1,212 @@
+name: Build & Push Container Images
+
+on:
+  workflow_dispatch:
+    inputs:
+      deploy:
+        description: 'Deploy to AKS after build/push'
+        required: false
+        type: boolean
+        default: false
+  push:
+    branches:
+      - main
+
+env:
+  ACR_NAME: relibank
+  ACR_SERVER: relibank.azurecr.io
+  REQUIRED_CONTEXT: relibank-prod
+  APP_NAME: ${{ vars.APP_NAME }}
+  BASE_URL: ${{ vars.BASE_URL }}
+  NR_ACCOUNT_ID: ${{ vars.NR_ACCOUNT_ID }}
+  OPENAI_API_TYPE: ${{ vars.OPENAI_API_TYPE }}
+  OPENAI_API_VERSION: ${{ vars.OPENAI_API_VERSION }}
+  OPENAI_LOG: ${{ vars.OPENAI_LOG }}
+  SCENARIO_SERVICE_URL: ${{ vars.SCENARIO_SERVICE_URL }}
+
+jobs:
+  build-push-deploy:
+    runs-on: ubuntu-latest
+    environment: production
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Azure Login
+        uses: azure/login@v2
+        with:
+          creds: ${{ secrets.AZURE_ACS_CONNECTION_STRING }}
+
+      - name: ACR Login
+        run: az acr login --name ${{ env.ACR_NAME }}
+
+      - name: Set up kubectl
+        uses: azure/setup-kubectl@v4
+
+      - name: Set up Helm
+        uses: azure/setup-helm@v4
+        with:
+          version: 'latest'
+
+      - name: Configure kubectl context
+        run: |
+          az aks get-credentials --resource-group relibank-rg --name relibank-prod --overwrite-existing
+          kubectl config use-context ${{ env.REQUIRED_CONTEXT }}
+          echo "Current context: $(kubectl config current-context)"
+
+      - name: Install Skaffold
+        run: |
+          curl -Lo skaffold https://storage.googleapis.com/skaffold/releases/latest/skaffold-linux-amd64
+          sudo install skaffold /usr/local/bin/
+          skaffold version
+
+      - name: Create skaffold.env file
+        run: |
+          cat > skaffold.env << EOF
+          APP_NAME=${{ vars.APP_NAME }}
+          BASE_URL=${{ vars.BASE_URL }}
+          NEW_RELIC_ACCOUNT_ID=${{ vars.NR_ACCOUNT_ID }}
+          NEW_RELIC_USER_API_KEY=${{ secrets.NR_USER_API_KEY }}
+          NEW_RELIC_LICENSE_KEY=${{ secrets.NR_LICENSE_KEY }}
+          NEW_RELIC_BROWSER_LICENSE_KEY=${{ secrets.NR_BROWSER_LICENSE_KEY }}
+          NEW_RELIC_BROWSER_APPLICATION_ID=${{ secrets.NR_BROWSER_APPLICATION_ID }}
+          NEW_RELIC_TRUST_KEY=${{ secrets.NR_TRUST_KEY }}
+          OPENAI_API_KEY=${{ secrets.OPENAI_API_KEY }}
+          OPENAI_BASE_URL=${{ secrets.OPENAI_BASE_URL }}
+          OPENAI_API_TYPE=${{ vars.OPENAI_API_TYPE }}
+          OPENAI_API_VERSION=${{ vars.OPENAI_API_VERSION }}
+          OPENAI_LOG=${{ vars.OPENAI_LOG }}
+          AZURE_ACS_CONNECTION_STRING=${{ secrets.AZURE_ACS_CONNECTION_STRING }}
+          AZURE_ACS_EMAIL_SENDER=${{ secrets.AZURE_ACS_EMAIL_SENDER }}
+          AZURE_ACS_SMS_PHONE_NUMBER=${{ secrets.AZURE_ACS_SMS_PHONE_NUMBER }}
+          AZURE_FUNCTION_URL=${{ secrets.AZURE_FUNCTION_URL }}
+          STRIPE_SECRET_KEY=${{ secrets.STRIPE_SECRET_KEY }}
+          STRIPE_PUBLISHABLE_KEY=${{ secrets.STRIPE_PUBLISHABLE_KEY }}
+          SCENARIO_SERVICE_URL=${{ vars.SCENARIO_SERVICE_URL }}
+          EOF
+
+      - name: Validate APP_NAME
+        run: |
+          APP_NAME_VALUE=$(grep "^APP_NAME=" skaffold.env | cut -d'=' -f2)
+          if [ "${APP_NAME_VALUE}" != "ReliBank" ]; then
+            echo "ERROR: APP_NAME is '${APP_NAME_VALUE}', expected 'ReliBank'"
+            exit 1
+          fi
+          echo "✅ APP_NAME=ReliBank verified"
+
+      - name: Build images with Skaffold
+        run: |
+          set -a
+          source skaffold.env
+          set +a
+          echo "✅ Loaded environment variables from skaffold.env"
+
+          skaffold build --cache-artifacts=false --file-output=build-output.json
+          echo "✅ Skaffold build completed"
+
+      - name: Tag and push images to ACR
+        run: |
+          IMAGES=(
+            "frontend-service"
+            "accounts-service"
+            "auth-service"
+            "transaction-service"
+            "bill-pay-service"
+            "notifications-service"
+            "scheduler-service"
+            "mssql-custom"
+            "postgres-custom"
+            "chatbot-service"
+            "scenario-runner"
+            "otel-collector-kafka"
+            "kafka-with-monitoring"
+          )
+
+          for IMAGE_NAME in "${IMAGES[@]}"; do
+            echo "--- Processing: ${IMAGE_NAME} ---"
+            LOCAL_IMAGES=$(docker images --format "{{.Repository}}:{{.Tag}}" | grep "^${IMAGE_NAME}:")
+
+            if [ -z "${LOCAL_IMAGES}" ]; then
+              echo "WARNING: No local image found for ${IMAGE_NAME}. Skipping."
+              continue
+            fi
+
+            LOCAL_TAG=$(echo "${LOCAL_IMAGES}" | head -1)
+            ACR_TAG="${{ env.ACR_SERVER }}/${IMAGE_NAME}:latest"
+
+            echo "Tagging ${LOCAL_TAG} -> ${ACR_TAG}"
+            docker tag "${LOCAL_TAG}" "${ACR_TAG}"
+
+            echo "Pushing ${ACR_TAG} to ACR..."
+            docker push "${ACR_TAG}"
+
+            if [ $? -ne 0 ]; then
+              echo "ERROR: Push failed for ${IMAGE_NAME}"
+              exit 1
+            fi
+            echo "✅ Push successful for ${IMAGE_NAME}"
+          done
+
+      - name: Deploy to AKS
+        if: inputs.deploy == true || inputs.deploy == 'true'
+        run: |
+          echo "Applying azure-prod overlay to cluster..."
+          kubectl apply -k k8s/overlays/azure-prod
+          echo "✅ Manifests applied successfully"
+
+      - name: Install Chaos Mesh
+        if: inputs.deploy == true || inputs.deploy == 'true'
+        run: |
+          echo "Adding Chaos Mesh Helm repository..."
+          helm repo add chaos-mesh https://charts.chaos-mesh.org
+          helm repo update
+
+          echo "Installing Chaos Mesh via Helm..."
+          helm upgrade --install chaos-mesh chaos-mesh/chaos-mesh \
+            --namespace chaos-mesh \
+            --create-namespace \
+            --version 2.6.2 \
+            -f scenario_service/chaos_mesh/values.yaml \
+            --wait
+          echo "✅ Chaos Mesh installed successfully"
+
+      - name: Configure Chaos Experiments
+        if: inputs.deploy == true || inputs.deploy == 'true'
+        run: |
+          echo "Labeling relibank namespace for chaos injection..."
+          kubectl label namespace relibank chaos-mesh.org/inject=enabled --overwrite
+
+          echo "Applying chaos experiments..."
+          kubectl apply -f scenario_service/chaos_mesh/experiments/relibank-pod-chaos-adhoc.yaml
+          kubectl apply -f scenario_service/chaos_mesh/experiments/relibank-stress-scenarios.yaml
+          echo "✅ Chaos experiments applied successfully"
+
+      - name: Cleanup
+        if: always()
+        run: |
+          echo "Removing temporary build artifacts..."
+          rm -f build-output.json skaffold.env
+          echo "✅ Cleanup complete"
+
+      - name: Deployment Summary
+        if: inputs.deploy == true || inputs.deploy == 'true'
+        run: |
+          echo "========================================"
+          echo "✅ BUILD, PUSH, AND DEPLOY COMPLETE"
+          echo "========================================"
+          echo "All images successfully built and pushed to ${{ env.ACR_SERVER }}"
+          echo "Manifests deployed to ${{ env.REQUIRED_CONTEXT }}"
+          echo "Chaos Mesh installed and experiments configured"
+
+      - name: Build Summary
+        if: inputs.deploy != true && inputs.deploy != 'true'
+        run: |
+          echo "========================================"
+          echo "✅ BUILD AND PUSH COMPLETE"
+          echo "========================================"
+          echo "All images successfully built and pushed to ${{ env.ACR_SERVER }}"
+          echo "Deployment skipped (deploy input not enabled)"
