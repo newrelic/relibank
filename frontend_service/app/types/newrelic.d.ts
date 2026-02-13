@@ -13,6 +13,15 @@ interface NewRelicBrowserAgent {
   setUserId(userId: string): void;
 
   /**
+   * Sets the page view name for the current page.
+   * Groups page views under a custom name for better analytics.
+   *
+   * @param name - The name to assign to the page view
+   * @param host - Optional host parameter (rarely used)
+   */
+  setPageViewName(name: string, host?: string): void;
+
+  /**
    * Sets a custom attribute that will be attached to all events.
    *
    * @param name - The name of the attribute
@@ -35,6 +44,41 @@ interface NewRelicBrowserAgent {
    * @param customAttributes - Optional custom attributes
    */
   noticeError(error: Error | string, customAttributes?: Record<string, any>): void;
+
+  /**
+   * Returns the current browser interaction for SPA monitoring.
+   * Use this to add custom attributes to browser interactions.
+   *
+   * @returns The current browser interaction
+   */
+  interaction(): NewRelicInteraction;
+}
+
+interface NewRelicInteraction {
+  /**
+   * Sets a custom attribute on the current browser interaction.
+   *
+   * @param name - The name of the attribute
+   * @param value - The value of the attribute
+   */
+  setAttribute(name: string, value: string | number | boolean): NewRelicInteraction;
+
+  /**
+   * Saves the browser interaction.
+   */
+  save(): void;
+
+  /**
+   * Ignores the current browser interaction.
+   */
+  ignore(): void;
+
+  /**
+   * Sets the name of the browser interaction.
+   *
+   * @param name - The name to set
+   */
+  setName(name: string): NewRelicInteraction;
 }
 
 interface Window {

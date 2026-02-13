@@ -31,7 +31,7 @@ List each significant change made in this PR. For each, provide a brief justific
 Describe how you tested this PR. The quality of testing directly impacts the speed of review and deployment.
 
 Run the test suite locally with this in-development branch, and upload the results. If new tests are required, like for new features, add those tests and call them out here.
-`cd tests && ./run_tests.sh > ../../test_results.txt`
+```cd tests && ./run_tests.sh > ../../test_results.txt```
 
 ### Testing Strategy
 -   **Environment Used:** (e.g., Local, Sandbox, Staging)

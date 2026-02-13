@@ -8,6 +8,8 @@
  * 5. Asks to "Analyze my spending" (triggers blocking JS demo)
  * 6. Rage clicks during UI freeze
  *
+ * Note: Mobile devices will skip the transfer step automatically if selectors fail
+ *
  * Documentation: https://docs.newrelic.com/docs/synthetics/new-relic-synthetics/scripting-monitors/writing-scripted-browsers
  */
 
@@ -41,7 +43,7 @@ var assert = require('assert');
     assert.ok(url.includes('dashboard'), 'Should be on dashboard page after login');
     console.log('Login successful! Current URL: ' + url);
 
-    // Try to perform a transfer
+    // Try to perform a transfer (desktop only - will skip on mobile)
     try {
       // Wait for the Transfer Funds card to load
       await $browser.wait($driver.until.elementLocated($driver.By.css('input[type="number"]')), 5000);
@@ -55,7 +57,7 @@ var assert = require('assert');
     console.log('Entered transfer amount: $' + transferAmount);
 
     // Find the "From" dropdown
-    const fromSelect = await $browser.findElement($driver.By.id('transfer-from-account-select'));
+    const fromSelect = await $browser.findElement($driver.By.id('from-account-select'));
     console.log('Found from account dropdown');
 
     // Click to open dropdown and select checking
@@ -72,7 +74,7 @@ var assert = require('assert');
     await $browser.sleep(1000);
 
     // Find the "To" dropdown
-    const toSelect = await $browser.findElement($driver.By.id('transfer-to-account-select'));
+    const toSelect = await $browser.findElement($driver.By.id('to-account-select'));
     console.log('Found to account dropdown');
 
     // Click to open dropdown
@@ -121,7 +123,7 @@ var assert = require('assert');
     console.log('Successfully navigated to support page');
 
     // Wait for the chat input field to load
-    await $browser.wait($driver.until.elementLocated($driver.By.css('input[type="text"]')), 5000);
+    await $browser.wait($driver.until.elementLocated($driver.By.css('input[type="text"]')), 7000);
     console.log('Support chat loaded');
 
     // Find the message input field
@@ -185,14 +187,14 @@ var assert = require('assert');
 
     // Wait for the blocking operation to complete and chatbot response
     console.log('Waiting for blocking calculation to complete and chatbot response...');
-    await $browser.sleep(4000);
+    await $browser.sleep(10000);
 
     console.log('Spending analysis scenario completed successfully!');
     console.log('Summary: Login -> Transfer -> Support -> Normal question -> Spending analysis (blocking JS)');
 
     // Final wait to ensure all telemetry is sent to New Relic
     console.log('Final wait for telemetry to be sent...');
-    await $browser.sleep(2000);
+    await $browser.sleep(3000);
     console.log('Script completed!');
 
   } catch (error) {
