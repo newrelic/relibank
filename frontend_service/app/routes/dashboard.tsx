@@ -224,6 +224,24 @@ const DashboardPage = () => {
   const [transactions, setTransactions] = useState(mockTransactions);
   // NEW: Loading state for the additional, client-side fetch
   const [isLoadingDetails, setIsLoadingDetails] = useState(false);
+  // A/B Test: Loading state for LCP delay
+  const [isApplyingLcpDelay, setIsApplyingLcpDelay] = useState(true);
+
+  // A/B Test: Apply LCP delay if user is in slow cohort
+  useEffect(() => {
+    const applyLcpDelay = async () => {
+      const lcpDelay = parseInt(sessionStorage.getItem('lcpDelayMs') || '0');
+
+      if (lcpDelay > 0) {
+        console.log(`[A/B Test] Applying ${lcpDelay}ms LCP delay for slow cohort`);
+        await new Promise(resolve => setTimeout(resolve, lcpDelay));
+      }
+
+      setIsApplyingLcpDelay(false);
+    };
+
+    applyLcpDelay();
+  }, []);
 
   // 2. Secondary Fetch: Get additional account details after initial data is set
   useEffect(() => {
@@ -276,7 +294,16 @@ const DashboardPage = () => {
       stackedBarData: mockStackedBarData,
   };
 
-  if (!userData) { 
+  // Show loading spinner while applying LCP delay (A/B test)
+  if (isApplyingLcpDelay) {
+    return (
+      <Box display="flex" justifyContent="center" alignItems="center" minHeight="100vh">
+        <CircularProgress />
+      </Box>
+    );
+  }
+
+  if (!userData) {
     return <CircularProgress />;
   }
 

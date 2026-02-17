@@ -3,6 +3,7 @@ import os
 import sys
 import json
 import logging
+import hashlib
 import psycopg2
 from psycopg2 import extras, pool
 from pydantic import BaseModel, Field
@@ -42,6 +43,27 @@ def get_propagation_headers(request: Request) -> dict:
 
     return headers_to_propagate
 
+async def get_ab_test_config():
+    """Fetch A/B test configuration from scenario service"""
+    try:
+        async with httpx.AsyncClient() as client:
+            response = await client.get(
+                f"{SCENARIO_SERVICE_URL}/scenario-runner/api/ab-testing/config",
+                timeout=2.0
+            )
+            if response.status_code == 200:
+                data = response.json()
+                return data.get("config", {})
+    except Exception as e:
+        logging.debug(f"Could not fetch A/B test config: {e}")
+
+    # Return defaults if scenario service unavailable
+    return {
+        "lcp_slowness_enabled": False,
+        "lcp_slowness_percentage": 0.0,
+        "lcp_slowness_delay_ms": 0
+    }
+
 # Database connection details from environment variables
 DB_HOST = os.getenv("DB_HOST", "accounts-db")
 DB_NAME = os.getenv("DB_NAME", "accountsdb")
@@ -53,6 +75,9 @@ CONNECTION_STRING = f"host={DB_HOST} dbname={DB_NAME} user={DB_USER} password={D
 # tries to retrieve from host env TRANSACTION_SERVICE_URL and TRANSACTION_SERVICE_SERVICE_PORT
 # if not, default to local development variables
 TRANSACTION_SERVICE_URL = f"http://{os.getenv("TRANSACTION_SERVICE_SERVICE_HOST", "transaction-service")}:{os.getenv("TRANSACTION_SERVICE_SERVICE_PORT", "5001")}"
+
+# Scenario service API URL
+SCENARIO_SERVICE_URL = f"http://{os.getenv("SCENARIO_RUNNER_SERVICE_SERVICE_HOST", "scenario-runner-service")}:{os.getenv("SCENARIO_RUNNER_SERVICE_SERVICE_PORT", "8000")}"
 
 # Global connection pool
 connection_pool = None
@@ -473,7 +498,26 @@ async def get_browser_user(request: Request):
                     user = cursor.fetchone()
                     if user:
                         logging.info(f"[Browser User] Using header-provided user ID: {browser_user_id}")
-                        return {"user_id": browser_user_id, "source": "header"}
+
+                        # Fetch A/B test config and assign LCP slowness cohort
+                        ab_config = await get_ab_test_config()
+                        lcp_delay_ms = 0
+
+                        if ab_config.get("lcp_slowness_enabled"):
+                            percentage = ab_config.get("lcp_slowness_percentage", 0.0)
+                            # Deterministically assign cohort based on user_id hash
+                            user_hash = int(hashlib.md5(browser_user_id.encode()).hexdigest(), 16)
+                            if (user_hash % 100) < percentage:
+                                lcp_delay_ms = ab_config.get("lcp_slowness_delay_ms", 0)
+                                logging.info(f"[Browser User] User {browser_user_id} assigned to SLOW LCP cohort ({lcp_delay_ms}ms delay)")
+                            else:
+                                logging.info(f"[Browser User] User {browser_user_id} assigned to NORMAL LCP cohort")
+
+                        return {
+                            "user_id": browser_user_id,
+                            "source": "header",
+                            "lcp_delay_ms": lcp_delay_ms
+                        }
                     else:
                         logging.warning(f"[Browser User] Header-provided ID {browser_user_id} not found in database, falling back to random")
                 except (ValueError, Exception) as e:
@@ -491,7 +535,26 @@ async def get_browser_user(request: Request):
 
             user_id = random_user["id"]
             logging.info(f"[Browser User] Randomly selected user ID: {user_id}")
-            return {"user_id": user_id, "source": "random"}
+
+            # Fetch A/B test config and assign LCP slowness cohort
+            ab_config = await get_ab_test_config()
+            lcp_delay_ms = 0
+
+            if ab_config.get("lcp_slowness_enabled"):
+                percentage = ab_config.get("lcp_slowness_percentage", 0.0)
+                # Deterministically assign cohort based on user_id hash
+                user_hash = int(hashlib.md5(user_id.encode()).hexdigest(), 16)
+                if (user_hash % 100) < percentage:
+                    lcp_delay_ms = ab_config.get("lcp_slowness_delay_ms", 0)
+                    logging.info(f"[Browser User] User {user_id} assigned to SLOW LCP cohort ({lcp_delay_ms}ms delay)")
+                else:
+                    logging.info(f"[Browser User] User {user_id} assigned to NORMAL LCP cohort")
+
+            return {
+                "user_id": user_id,
+                "source": "random",
+                "lcp_delay_ms": lcp_delay_ms
+            }
 
     except HTTPException:
         raise

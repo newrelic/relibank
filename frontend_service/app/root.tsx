@@ -134,6 +134,17 @@ export function Layout({ children }: { children: React.ReactNode }) {
             console.log(`[Browser User] Received: ${data.user_id} Source: ${data.source}`);
             setBrowserUserId(data.user_id);
             sessionStorage.setItem('browserUserId', data.user_id);
+
+            // Store LCP delay for A/B testing
+            const lcpDelay = data.lcp_delay_ms || 0;
+            sessionStorage.setItem('lcpDelayMs', lcpDelay.toString());
+            console.log(`[Browser User] LCP Delay: ${lcpDelay}ms`);
+
+            // Set New Relic custom attribute for A/B test cohort tracking
+            if (window.newrelic && typeof window.newrelic.setCustomAttribute === 'function') {
+              window.newrelic.setCustomAttribute('lcp_delay_ms', lcpDelay);
+              window.newrelic.setCustomAttribute('lcp_treatment', lcpDelay > 0 ? 'slow' : 'normal');
+            }
           } else {
             console.error('[Browser User] Failed to fetch user ID:', response.status);
           }

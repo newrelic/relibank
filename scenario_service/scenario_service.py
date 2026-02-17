@@ -33,6 +33,13 @@ PAYMENT_SCENARIOS = {
     "stolen_card_probability": 0.0,  # 0-100 percent
 }
 
+# A/B Testing scenario configuration (runtime toggleable)
+AB_TEST_SCENARIOS = {
+    "lcp_slowness_enabled": False,
+    "lcp_slowness_percentage": 50.0,  # 0-100 percent of users
+    "lcp_slowness_delay_ms": 3000,  # Milliseconds of delay for LCP elements
+}
+
 # Rate limiting for chaos scenarios (abuse prevention)
 # Use shorter cooldown for local development environments
 def get_cooldown_minutes():
@@ -211,6 +218,17 @@ async def get_scenarios():
         "type": "payment",
         "enabled": PAYMENT_SCENARIOS["stolen_card_enabled"],
         "config": {"probability": PAYMENT_SCENARIOS["stolen_card_probability"]}
+    })
+    # A/B Testing scenarios
+    scenarios_list.append({
+        "name": "lcp_slowness",
+        "description": "LCP Slowness A/B Test",
+        "type": "ab_test",
+        "enabled": AB_TEST_SCENARIOS["lcp_slowness_enabled"],
+        "config": {
+            "percentage": AB_TEST_SCENARIOS["lcp_slowness_percentage"],
+            "delay_ms": AB_TEST_SCENARIOS["lcp_slowness_delay_ms"]
+        }
     })
     return scenarios_list
 
@@ -653,4 +671,51 @@ async def reset_payment_scenarios():
         "status": "success",
         "message": "All payment scenarios reset to defaults",
         "scenarios": PAYMENT_SCENARIOS
+    }
+
+
+# ============================================================================
+# A/B Testing Scenario Control Endpoints
+# ============================================================================
+
+@app.get("/scenario-runner/api/ab-testing/config")
+async def get_ab_test_config():
+    """Get current A/B testing configuration"""
+    return {
+        "status": "success",
+        "config": AB_TEST_SCENARIOS
+    }
+
+
+@app.post("/scenario-runner/api/ab-testing/lcp-slowness")
+async def toggle_lcp_slowness(enabled: bool, percentage: float = 50.0, delay_ms: int = 3000):
+    """Enable/disable LCP slowness for A/B testing"""
+    if percentage < 0 or percentage > 100:
+        return {"status": "error", "message": "Percentage must be between 0 and 100"}
+    if delay_ms < 0 or delay_ms > 30000:
+        return {"status": "error", "message": "Delay must be between 0 and 30000 milliseconds"}
+
+    AB_TEST_SCENARIOS["lcp_slowness_enabled"] = enabled
+    AB_TEST_SCENARIOS["lcp_slowness_percentage"] = percentage
+    AB_TEST_SCENARIOS["lcp_slowness_delay_ms"] = delay_ms
+
+    status_msg = "enabled" if enabled else "disabled"
+    return {
+        "status": "success",
+        "message": f"LCP slowness {status_msg} for {percentage}% of users ({delay_ms}ms delay)",
+        "config": AB_TEST_SCENARIOS
+    }
+
+
+@app.post("/scenario-runner/api/ab-testing/reset")
+async def reset_ab_test_scenarios():
+    """Reset all A/B test scenarios to default values"""
+    AB_TEST_SCENARIOS["lcp_slowness_enabled"] = False
+    AB_TEST_SCENARIOS["lcp_slowness_percentage"] = 50.0
+    AB_TEST_SCENARIOS["lcp_slowness_delay_ms"] = 3000
+
+    return {
+        "status": "success",
+        "message": "All A/B test scenarios reset to defaults",
+        "config": AB_TEST_SCENARIOS
     }
