@@ -15,18 +15,62 @@ def reset_scenarios():
     # Reset before test
     response = requests.post(f"{SCENARIO_SERVICE_URL}/api/payment-scenarios/reset", timeout=10)
     assert response.status_code == 200
-    time.sleep(0.5)  # Allow reset to propagate
+
+    # Verify all scenarios are disabled
+    for scenario in ["gateway_timeout", "card_decline", "stolen_card"]:
+        confirmed = wait_for_scenario_active(scenario, False)
+        assert confirmed, f"Failed to confirm {scenario} is disabled after reset"
+
     yield
     # Cleanup after test
     try:
         requests.post(f"{SCENARIO_SERVICE_URL}/api/payment-scenarios/reset", timeout=10)
-        time.sleep(0.5)  # Allow reset to propagate
     except:
         pass  # Ignore cleanup errors
 
 
+def wait_for_scenario_active(scenario_name: str, expected_enabled: bool, expected_probability: float = None, timeout: int = 10) -> bool:
+    """Poll the API to confirm scenario is in the expected state"""
+    field_map = {
+        "gateway_timeout": "gateway_timeout_enabled",
+        "card_decline": "card_decline_enabled",
+        "stolen_card": "stolen_card_enabled"
+    }
+    prob_field_map = {
+        "gateway_timeout": "gateway_timeout_probability",
+        "card_decline": "card_decline_probability",
+        "stolen_card": "stolen_card_probability"
+    }
+
+    enabled_field = field_map[scenario_name]
+    prob_field = prob_field_map[scenario_name]
+
+    start_time = time.time()
+    while time.time() - start_time < timeout:
+        response = requests.get(f"{SCENARIO_SERVICE_URL}/api/payment-scenarios", timeout=5)
+        if response.status_code == 200:
+            data = response.json()
+            scenarios = data.get("scenarios", {})
+
+            # Check if enabled state matches
+            if scenarios.get(enabled_field) == expected_enabled:
+                # If checking probability, verify it too
+                if expected_probability is not None:
+                    if scenarios.get(prob_field) == expected_probability:
+                        print(f"Confirmed: {scenario_name} enabled={expected_enabled}, probability={expected_probability}")
+                        return True
+                else:
+                    print(f"Confirmed: {scenario_name} enabled={expected_enabled}")
+                    return True
+
+        time.sleep(0.2)  # Poll every 200ms
+
+    print(f"Timeout waiting for {scenario_name} to reach expected state")
+    return False
+
+
 def enable_scenario(scenario_name: str, probability: float = None, delay: float = None) -> Dict:
-    """Enable a payment scenario"""
+    """Enable a payment scenario and wait for confirmation"""
     endpoints = {
         "gateway_timeout": f"{SCENARIO_SERVICE_URL}/api/payment-scenarios/gateway-timeout",
         "card_decline": f"{SCENARIO_SERVICE_URL}/api/payment-scenarios/card-decline",
@@ -41,7 +85,11 @@ def enable_scenario(scenario_name: str, probability: float = None, delay: float 
 
     response = requests.post(endpoints[scenario_name], params=params)
     assert response.status_code == 200
-    time.sleep(0.5)  # Allow scenario to propagate before making payments
+
+    # Wait for the scenario to be confirmed active via GET API
+    confirmed = wait_for_scenario_active(scenario_name, True, probability)
+    assert confirmed, f"Failed to confirm {scenario_name} is active"
+
     return response.json()
 
 
