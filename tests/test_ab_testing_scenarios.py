@@ -60,7 +60,7 @@ def test_enable_lcp_slowness(reset_ab_tests):
     print(f"Response: {data}")
 
     assert data["status"] == "success", "Status is not success"
-    assert "50%" in data["message"], "Message doesn't mention 50%"
+    assert ("50%" in data["message"] or "50.0%" in data["message"]), "Message doesn't mention 50%"
     assert "3000ms" in data["message"], "Message doesn't mention 3000ms"
 
     # Verify scenario is enabled with correct settings

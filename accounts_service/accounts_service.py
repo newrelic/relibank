@@ -488,40 +488,36 @@ async def get_browser_user(request: Request):
 
         with conn.cursor(cursor_factory=extras.RealDictCursor) as cursor:
             if browser_user_id:
-                # Validate UUID format before querying database
+                # Validate UUID format
                 try:
                     import uuid
                     uuid.UUID(browser_user_id)  # Validate UUID format
 
-                    # Query database for this user ID
-                    cursor.execute("SELECT id FROM user_account WHERE id = %s", (browser_user_id,))
-                    user = cursor.fetchone()
-                    if user:
-                        logging.info(f"[Browser User] Using header-provided user ID: {browser_user_id}")
+                    # Accept the header user ID for A/B testing even if not in database
+                    # This allows deterministic cohort assignment for testing and analytics
+                    logging.info(f"[Browser User] Using header-provided user ID: {browser_user_id}")
 
-                        # Fetch A/B test config and assign LCP slowness cohort
-                        ab_config = await get_ab_test_config()
-                        lcp_delay_ms = 0
+                    # Fetch A/B test config and assign LCP slowness cohort
+                    ab_config = await get_ab_test_config()
+                    lcp_delay_ms = 0
 
-                        if ab_config.get("lcp_slowness_enabled"):
-                            percentage = ab_config.get("lcp_slowness_percentage", 0.0)
-                            # Deterministically assign cohort based on user_id hash
-                            user_hash = int(hashlib.md5(browser_user_id.encode()).hexdigest(), 16)
-                            if (user_hash % 100) < percentage:
-                                lcp_delay_ms = ab_config.get("lcp_slowness_delay_ms", 0)
-                                logging.info(f"[Browser User] User {browser_user_id} assigned to SLOW LCP cohort ({lcp_delay_ms}ms delay)")
-                            else:
-                                logging.info(f"[Browser User] User {browser_user_id} assigned to NORMAL LCP cohort")
+                    if ab_config.get("lcp_slowness_enabled"):
+                        percentage = ab_config.get("lcp_slowness_percentage", 0.0)
+                        # Deterministically assign cohort based on user_id hash
+                        user_hash = int(hashlib.md5(browser_user_id.encode()).hexdigest(), 16)
+                        if (user_hash % 100) < percentage:
+                            lcp_delay_ms = ab_config.get("lcp_slowness_delay_ms", 0)
+                            logging.info(f"[Browser User] User {browser_user_id} assigned to SLOW LCP cohort ({lcp_delay_ms}ms delay)")
+                        else:
+                            logging.info(f"[Browser User] User {browser_user_id} assigned to NORMAL LCP cohort")
 
-                        return {
-                            "user_id": browser_user_id,
-                            "source": "header",
-                            "lcp_delay_ms": lcp_delay_ms
-                        }
-                    else:
-                        logging.warning(f"[Browser User] Header-provided ID {browser_user_id} not found in database, falling back to random")
+                    return {
+                        "user_id": browser_user_id,
+                        "source": "header",
+                        "lcp_delay_ms": lcp_delay_ms
+                    }
                 except (ValueError, Exception) as e:
-                    logging.warning(f"[Browser User] Invalid UUID format or database error: {e}, falling back to random")
+                    logging.warning(f"[Browser User] Invalid UUID format: {e}, falling back to random")
 
             # Fall back to random selection
             cursor.execute("SELECT id FROM user_account ORDER BY RANDOM() LIMIT 1")
