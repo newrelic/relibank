@@ -38,6 +38,5 @@ line-ending = "auto"
 
 [tool.pytest.ini_options]
 markers = [
-    "xdist_group: run tests in the same xdist group sequentially",
     "slow: marks tests as slow"
 ]

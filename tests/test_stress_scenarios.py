@@ -46,7 +46,6 @@ def reset_chaos_rate_limit():
     yield
 
 
-@pytest.mark.xdist_group(name="stress_tests")
 def test_trigger_high_memory_stress_bill_pay(reset_chaos_rate_limit):
     """Test triggering high memory stress scenario on bill-pay service"""
     print("\n=== Testing High Memory Stress on Bill Pay Service ===")
