@@ -27,7 +27,7 @@ env:
 jobs:
   build-push-deploy:
     runs-on: ubuntu-latest
-    environment: production
+    environment: events
 
     steps:
       - name: Checkout code
@@ -39,7 +39,7 @@ jobs:
       - name: Azure Login
         uses: azure/login@v2
         with:
-          creds: ${{ secrets.AZURE_ACS_CONNECTION_STRING }}
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
 
       - name: ACR Login
         run: az acr login --name ${{ env.ACR_NAME }}
@@ -54,7 +54,7 @@ jobs:
 
       - name: Configure kubectl context
         run: |
-          az aks get-credentials --resource-group relibank-rg --name relibank-prod --overwrite-existing
+          az aks get-credentials --resource-group ReliBank --name relibank-prod --overwrite-existing
           kubectl config use-context ${{ env.REQUIRED_CONTEXT }}
           echo "Current context: $(kubectl config current-context)"
 
@@ -157,6 +157,34 @@ jobs:
           echo "Applying azure-prod overlay to cluster..."
           kubectl apply -k k8s/overlays/azure-prod
           echo "✅ Manifests applied successfully"
+
+      - name: Restart services and databases
+        if: inputs.deploy == true || inputs.deploy == 'true'
+        run: |
+          echo "=== Restarting Services ==="
+
+          # Restart regular deployments (excludes databases)
+          echo "Restarting application services..."
+          kubectl rollout restart deployment -n relibank \
+            --selector='app notin (accounts-db)'
+
+          # Restart database deployments (with PVC handling)
+          echo "Restarting database deployments..."
+          # Delete old database pods first to release PVCs before rollout
+          kubectl delete pod -n relibank -l app=accounts-db --force --grace-period=0 || true
+          sleep 5
+          kubectl rollout restart deployment accounts-db -n relibank
+
+          # Restart StatefulSets (MSSQL)
+          echo "Restarting StatefulSets..."
+          kubectl rollout restart statefulset -n relibank
+
+          # Wait for rollouts to complete
+          echo "Waiting for rollouts to complete..."
+          kubectl rollout status deployment -n relibank --timeout=5m
+          kubectl rollout status statefulset -n relibank --timeout=5m
+
+          echo "✅ All services, databases, and StatefulSets restarted successfully"
 
       - name: Install Chaos Mesh
         if: inputs.deploy == true || inputs.deploy == 'true'
