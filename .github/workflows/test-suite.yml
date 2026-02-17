@@ -58,7 +58,10 @@ jobs:
           SCENARIO_SERVICE_URL: ${{ vars.BASE_URL }}/scenario-runner
         run: |
           cd tests
-          pytest . -n auto --tb=line --timeout=300
+          # Run scenario tests sequentially to avoid race conditions
+          pytest test_scenario_service.py test_payment_scenarios.py --tb=line --timeout=300
+          # Run other tests in parallel
+          pytest . --ignore=test_scenario_service.py --ignore=test_payment_scenarios.py -n auto --tb=line --timeout=300
 
       - name: Run end-to-end tests only
         if: ${{ github.event.inputs.test_suite == 'e2e' }}
@@ -82,7 +85,7 @@ jobs:
           SCENARIO_SERVICE_URL: ${{ vars.BASE_URL }}/scenario-runner
         run: |
           cd tests
-          pytest test_scenario_service.py -n auto --tb=line
+          pytest test_scenario_service.py --tb=line
 
       - name: Run payment scenario tests only
         if: ${{ github.event.inputs.test_suite == 'payment' }}
@@ -92,7 +95,7 @@ jobs:
           BILL_PAY_SERVICE: ${{ vars.BASE_URL }}
         run: |
           cd tests
-          pytest test_payment_scenarios.py -n auto --tb=line
+          pytest test_payment_scenarios.py --tb=line
 
       - name: Run smoke tests only
         if: ${{ github.event.inputs.test_suite == 'smoke' }}
