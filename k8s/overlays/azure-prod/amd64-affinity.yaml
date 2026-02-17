@@ -5,6 +5,6 @@ metadata:
 spec:
   template:
     spec:
-      # This standard Kubernetes label restricts pods to nodes with the ARM64 architecture.
+      # This standard Kubernetes label restricts pods to nodes with the AMD64 architecture.
       nodeSelector:
-        kubernetes.io/arch: arm64
+        kubernetes.io/arch: amd64

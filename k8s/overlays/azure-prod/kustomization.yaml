@@ -8,13 +8,13 @@ resources:
 
 patches:
   - path: persistentvolumeclaim-patch.yaml
-  # New patch to enforce ARM64 architecture affinity on all Deployments
-  - path: arm64-affinity.yaml
+  # New patch to enforce AMD64 architecture affinity on all Deployments
+  - path: amd64-affinity.yaml
     target:
       kind: Deployment
       # This target applies the patch to all Deployment resources found in the base.
       name: .*
-  - path: arm64-toleration.yaml
+  - path: amd64-toleration.yaml
     target:
       kind: Deployment
       name: .*
