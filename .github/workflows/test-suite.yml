@@ -135,6 +135,7 @@ jobs:
 
   test-summary:
     runs-on: ubuntu-latest
+    environment: events
     needs: [python-tests, frontend-tests]
     if: always()
 
