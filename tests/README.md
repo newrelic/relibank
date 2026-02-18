@@ -31,6 +31,7 @@ export RELIBANK_URL="http://your-server.example.com"
 | `test_apm_user_tracking.py` | APM user ID header propagation tests | Header acceptance, multi-service chains, concurrent requests |
 | `test_scenario_service.py` | Scenario service API tests | Payment scenarios, chaos scenarios, locust load testing - all via API |
 | `test_payment_scenarios.py` | Payment failure scenarios | Gateway timeout, card decline, stolen card with probabilities |
+| `test_ab_testing_scenarios.py` | A/B testing scenarios | LCP slowness, cohort assignment, deterministic distribution, percentage validation |
 | `test_stress_scenarios.py` | Stress chaos experiments | CPU stress, memory stress, combined stress testing with Chaos Mesh |
 | `../frontend_service/app/**/*.test.tsx` | Frontend functional tests (Vitest) | Login, transfers, bill payment (Stripe), chatbot, form validation, API integration |
 
@@ -194,6 +195,7 @@ These tests can be added to GitHub Actions or other CI pipelines:
 - ✅ **User Tracking**: Browser user ID assignment (random/header-based), APM header propagation across all services, multi-service request chains
 - ✅ **Scenario API**: Enable/disable/reset payment scenarios, chaos scenarios (smoke tests), locust load testing (smoke tests)
 - ✅ **Payment Scenarios**: Timeout, decline, stolen card with probabilities
+- ✅ **A/B Testing**: LCP slowness cohort assignment, deterministic distribution, percentage validation (0%, 50%, 100%)
 - ✅ **Stress Chaos**: CPU stress, memory stress, combined stress testing with Chaos Mesh, service resilience under load
 - ✅ **Frontend Functional Tests**: Login flow, fund transfers, bill payment with Stripe, chatbot support, form validation, API integration, error handling (Vitest)
 
@@ -203,18 +205,20 @@ The test suite uses `pytest-xdist` to run tests in parallel (with `-n auto`). Th
 
 ### When Tests Need Sequential Execution
 
-Some tests modify shared application state (like the scenario service configuration) and cannot run in parallel. These tests are grouped using the `@pytest.mark.xdist_group` decorator.
+Some tests modify shared application state (like the scenario service configuration) and cannot run in parallel. These tests are run sequentially by explicitly separating them in the test workflow.
 
-**Current Groups:**
-- `scenario_service` - All tests in `test_scenario_service.py` and `test_payment_scenarios.py` that interact with the scenario service
+**Tests that run sequentially:**
+- `test_scenario_service.py` - Scenario service API tests
+- `test_payment_scenarios.py` - Payment failure scenario tests
+- `test_ab_testing_scenarios.py` - A/B testing scenario tests
 
-**Example:**
-```python
-@pytest.mark.xdist_group(name="scenario_service")
-def test_enable_gateway_timeout():
-    """Test enabling gateway timeout scenario"""
-    # Test modifies shared scenario service state
-    ...
+**Why sequential?** These tests all modify the scenario service's in-memory configuration state. Running them in parallel causes race conditions where tests overwrite each other's settings.
+
+**Implementation:**
+```bash
+# In .github/workflows/test-suite.yml
+pytest test_scenario_service.py test_payment_scenarios.py test_ab_testing_scenarios.py --tb=line --timeout=300
+pytest . --ignore=test_scenario_service.py --ignore=test_payment_scenarios.py --ignore=test_ab_testing_scenarios.py -n auto --tb=line --timeout=300
 ```
 
 ### Adding New Sequential Tests
@@ -226,15 +230,9 @@ When writing new tests that modify shared state:
    - Database records that aren't isolated per test
    - Global service settings
 
-2. **Use the appropriate group** - If your test interacts with the scenario service:
-   ```python
-   @pytest.mark.xdist_group(name="scenario_service")
-   def test_my_new_scenario():
-       # Your test here
-       ...
-   ```
+2. **Add to sequential test list** - If your test interacts with the scenario service, add it to the first pytest command in the workflow
 
-3. **Create a new group if needed** - For other shared resources:
+3. **Add to ignore list** - Also add it to the `--ignore` flags in the second pytest command to prevent duplicate execution
    ```python
    @pytest.mark.xdist_group(name="database_setup")
    def test_database_migration():
