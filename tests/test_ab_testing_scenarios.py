@@ -197,8 +197,14 @@ def test_100_percent_assignment(reset_ab_tests):
 
     print("Checking 10 users...")
 
+    import uuid
     for i in range(10):
-        response = requests.get(f"{ACCOUNTS_SERVICE_URL}/accounts-service/browser-user", timeout=10)
+        test_uuid = str(uuid.uuid4())
+        response = requests.get(
+            f"{ACCOUNTS_SERVICE_URL}/accounts-service/browser-user",
+            headers={"x-browser-user-id": test_uuid},
+            timeout=10
+        )
         assert response.status_code == 200
 
         data = response.json()
@@ -222,8 +228,14 @@ def test_0_percent_assignment(reset_ab_tests):
 
     print("Checking 10 users...")
 
+    import uuid
     for i in range(10):
-        response = requests.get(f"{ACCOUNTS_SERVICE_URL}/accounts-service/browser-user", timeout=10)
+        test_uuid = str(uuid.uuid4())
+        response = requests.get(
+            f"{ACCOUNTS_SERVICE_URL}/accounts-service/browser-user",
+            headers={"x-browser-user-id": test_uuid},
+            timeout=10
+        )
         assert response.status_code == 200
 
         data = response.json()
