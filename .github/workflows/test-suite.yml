@@ -55,7 +55,7 @@ jobs:
           BILL_PAY_SERVICE: ${{ vars.BASE_URL }}
           CHATBOT_SERVICE: ${{ vars.BASE_URL }}
           TRANSACTION_SERVICE: ${{ vars.BASE_URL }}
-          SCENARIO_SERVICE_URL: ${{ vars.BASE_URL }}
+          SCENARIO_SERVICE_URL: ${{ vars.BASE_URL }}/scenario-runner
         run: |
           cd tests
           # Run scenario tests sequentially to avoid race conditions
@@ -73,7 +73,7 @@ jobs:
           BILL_PAY_SERVICE: ${{ vars.BASE_URL }}
           CHATBOT_SERVICE: ${{ vars.BASE_URL }}
           TRANSACTION_SERVICE: ${{ vars.BASE_URL }}
-          SCENARIO_SERVICE_URL: ${{ vars.BASE_URL }}
+          SCENARIO_SERVICE_URL: ${{ vars.BASE_URL }}/scenario-runner
         run: |
           cd tests
           pytest test_end_to_end.py -n auto --tb=line
@@ -82,7 +82,7 @@ jobs:
         if: ${{ github.event.inputs.test_suite == 'scenario' }}
         env:
           RELIBANK_URL: ${{ vars.BASE_URL }}
-          SCENARIO_SERVICE_URL: ${{ vars.BASE_URL }}
+          SCENARIO_SERVICE_URL: ${{ vars.BASE_URL }}/scenario-runner
         run: |
           cd tests
           pytest test_scenario_service.py --tb=line
@@ -91,7 +91,7 @@ jobs:
         if: ${{ github.event.inputs.test_suite == 'payment' }}
         env:
           RELIBANK_URL: ${{ vars.BASE_URL }}
-          SCENARIO_SERVICE_URL: ${{ vars.BASE_URL }}
+          SCENARIO_SERVICE_URL: ${{ vars.BASE_URL }}/scenario-runner
           BILL_PAY_SERVICE: ${{ vars.BASE_URL }}
         run: |
           cd tests
@@ -102,7 +102,7 @@ jobs:
         env:
           RELIBANK_URL: ${{ vars.BASE_URL }}
           BASE_URL: ${{ vars.BASE_URL }}
-          SCENARIO_SERVICE_URL: ${{ vars.BASE_URL }}
+          SCENARIO_SERVICE_URL: ${{ vars.BASE_URL }}/scenario-runner
         run: |
           cd tests
           pytest test_end_to_end.py::test_frontend_loads test_scenario_service.py::test_scenario_service_health -n auto --tb=line

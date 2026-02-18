@@ -13,13 +13,13 @@ ACCOUNTS_SERVICE_URL = os.getenv("ACCOUNTS_SERVICE", "http://localhost:5002")
 def reset_ab_tests():
     """Reset all A/B test scenarios before and after tests"""
     # Reset before test
-    response = requests.post(f"{SCENARIO_SERVICE_URL}/scenario-runner/api/ab-testing/reset", timeout=10)
+    response = requests.post(f"{SCENARIO_SERVICE_URL}/api/ab-testing/reset", timeout=10)
     assert response.status_code == 200
     time.sleep(0.5)
     yield
     # Cleanup after test
     try:
-        requests.post(f"{SCENARIO_SERVICE_URL}/scenario-runner/api/ab-testing/reset", timeout=10)
+        requests.post(f"{SCENARIO_SERVICE_URL}/api/ab-testing/reset", timeout=10)
         time.sleep(0.5)
     except:
         pass  # Ignore cleanup errors
@@ -29,7 +29,7 @@ def test_ab_test_service_health():
     """Test that A/B testing endpoints are accessible"""
     print("\n=== Testing A/B Test Service Health ===")
 
-    response = requests.get(f"{SCENARIO_SERVICE_URL}/scenario-runner/api/ab-testing/config", timeout=10)
+    response = requests.get(f"{SCENARIO_SERVICE_URL}/api/ab-testing/config", timeout=10)
     print(f"Status: {response.status_code}")
 
     assert response.status_code == 200, f"A/B test config endpoint failed: {response.status_code}"
@@ -48,7 +48,7 @@ def test_enable_lcp_slowness(reset_ab_tests):
 
     # Enable with 50% probability and 3000ms delay
     response = requests.post(
-        f"{SCENARIO_SERVICE_URL}/scenario-runner/api/ab-testing/lcp-slowness",
+        f"{SCENARIO_SERVICE_URL}/api/ab-testing/lcp-slowness",
         params={"enabled": True, "percentage": 50.0, "delay_ms": 3000},
         timeout=10
     )
@@ -64,7 +64,7 @@ def test_enable_lcp_slowness(reset_ab_tests):
     assert "3000ms" in data["message"], "Message doesn't mention 3000ms"
 
     # Verify scenario is enabled with correct settings
-    config_response = requests.get(f"{SCENARIO_SERVICE_URL}/scenario-runner/api/ab-testing/config", timeout=10)
+    config_response = requests.get(f"{SCENARIO_SERVICE_URL}/api/ab-testing/config", timeout=10)
     config = config_response.json()["config"]
 
     assert config["lcp_slowness_enabled"] is True, "LCP slowness not enabled"
@@ -80,14 +80,14 @@ def test_disable_lcp_slowness(reset_ab_tests):
 
     # First enable it
     requests.post(
-        f"{SCENARIO_SERVICE_URL}/scenario-runner/api/ab-testing/lcp-slowness",
+        f"{SCENARIO_SERVICE_URL}/api/ab-testing/lcp-slowness",
         params={"enabled": True, "percentage": 50.0, "delay_ms": 3000},
         timeout=10
     )
 
     # Now disable it
     response = requests.post(
-        f"{SCENARIO_SERVICE_URL}/scenario-runner/api/ab-testing/lcp-slowness",
+        f"{SCENARIO_SERVICE_URL}/api/ab-testing/lcp-slowness",
         params={"enabled": False},
         timeout=10
     )
@@ -95,7 +95,7 @@ def test_disable_lcp_slowness(reset_ab_tests):
     assert response.status_code == 200, f"Failed to disable LCP slowness: {response.status_code}"
 
     # Verify scenario is disabled
-    config_response = requests.get(f"{SCENARIO_SERVICE_URL}/scenario-runner/api/ab-testing/config", timeout=10)
+    config_response = requests.get(f"{SCENARIO_SERVICE_URL}/api/ab-testing/config", timeout=10)
     config = config_response.json()["config"]
 
     assert config["lcp_slowness_enabled"] is False, "LCP slowness still enabled"
@@ -109,7 +109,7 @@ def test_cohort_assignment_distribution(reset_ab_tests):
 
     # Enable LCP slowness for 50% of users
     requests.post(
-        f"{SCENARIO_SERVICE_URL}/scenario-runner/api/ab-testing/lcp-slowness",
+        f"{SCENARIO_SERVICE_URL}/api/ab-testing/lcp-slowness",
         params={"enabled": True, "percentage": 50.0, "delay_ms": 3000},
         timeout=10
     )
@@ -147,7 +147,7 @@ def test_deterministic_cohort_assignment(reset_ab_tests):
 
     # Enable LCP slowness
     requests.post(
-        f"{SCENARIO_SERVICE_URL}/scenario-runner/api/ab-testing/lcp-slowness",
+        f"{SCENARIO_SERVICE_URL}/api/ab-testing/lcp-slowness",
         params={"enabled": True, "percentage": 50.0, "delay_ms": 3000},
         timeout=10
     )
@@ -183,7 +183,7 @@ def test_100_percent_assignment(reset_ab_tests):
 
     # Enable LCP slowness for 100% of users
     requests.post(
-        f"{SCENARIO_SERVICE_URL}/scenario-runner/api/ab-testing/lcp-slowness",
+        f"{SCENARIO_SERVICE_URL}/api/ab-testing/lcp-slowness",
         params={"enabled": True, "percentage": 100.0, "delay_ms": 5000},
         timeout=10
     )
@@ -208,7 +208,7 @@ def test_0_percent_assignment(reset_ab_tests):
 
     # Enable LCP slowness for 0% of users (effectively disabled)
     requests.post(
-        f"{SCENARIO_SERVICE_URL}/scenario-runner/api/ab-testing/lcp-slowness",
+        f"{SCENARIO_SERVICE_URL}/api/ab-testing/lcp-slowness",
         params={"enabled": True, "percentage": 0.0, "delay_ms": 3000},
         timeout=10
     )
@@ -233,7 +233,7 @@ def test_invalid_percentage_values(reset_ab_tests):
 
     # Test percentage > 100
     response = requests.post(
-        f"{SCENARIO_SERVICE_URL}/scenario-runner/api/ab-testing/lcp-slowness",
+        f"{SCENARIO_SERVICE_URL}/api/ab-testing/lcp-slowness",
         params={"enabled": True, "percentage": 150.0},
         timeout=10
     )
@@ -245,7 +245,7 @@ def test_invalid_percentage_values(reset_ab_tests):
 
     # Test negative percentage
     response = requests.post(
-        f"{SCENARIO_SERVICE_URL}/scenario-runner/api/ab-testing/lcp-slowness",
+        f"{SCENARIO_SERVICE_URL}/api/ab-testing/lcp-slowness",
         params={"enabled": True, "percentage": -10.0},
         timeout=10
     )
@@ -262,21 +262,21 @@ def test_reset_ab_tests_endpoint(reset_ab_tests):
 
     # Enable LCP slowness
     requests.post(
-        f"{SCENARIO_SERVICE_URL}/scenario-runner/api/ab-testing/lcp-slowness",
+        f"{SCENARIO_SERVICE_URL}/api/ab-testing/lcp-slowness",
         params={"enabled": True, "percentage": 75.0, "delay_ms": 5000},
         timeout=10
     )
 
     # Verify it's enabled
-    config = requests.get(f"{SCENARIO_SERVICE_URL}/scenario-runner/api/ab-testing/config", timeout=10).json()["config"]
+    config = requests.get(f"{SCENARIO_SERVICE_URL}/api/ab-testing/config", timeout=10).json()["config"]
     assert config["lcp_slowness_enabled"] is True
 
     # Reset
-    response = requests.post(f"{SCENARIO_SERVICE_URL}/scenario-runner/api/ab-testing/reset", timeout=10)
+    response = requests.post(f"{SCENARIO_SERVICE_URL}/api/ab-testing/reset", timeout=10)
     assert response.status_code == 200
 
     # Verify all scenarios are disabled with default values
-    config = requests.get(f"{SCENARIO_SERVICE_URL}/scenario-runner/api/ab-testing/config", timeout=10).json()["config"]
+    config = requests.get(f"{SCENARIO_SERVICE_URL}/api/ab-testing/config", timeout=10).json()["config"]
 
     assert config["lcp_slowness_enabled"] is False, "LCP slowness still enabled after reset"
     assert config["lcp_slowness_percentage"] == 50.0, "Percentage not reset to default"
