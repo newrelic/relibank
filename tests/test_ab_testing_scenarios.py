@@ -119,8 +119,15 @@ def test_cohort_assignment_distribution(reset_ab_tests):
     slow_users = 0
     normal_users = 0
 
+    # Generate unique UUIDs to ensure proper distribution testing
+    import uuid
     for i in range(100):
-        response = requests.get(f"{ACCOUNTS_SERVICE_URL}/accounts-service/browser-user", timeout=10)
+        test_uuid = str(uuid.uuid4())
+        response = requests.get(
+            f"{ACCOUNTS_SERVICE_URL}/accounts-service/browser-user",
+            headers={"x-browser-user-id": test_uuid},
+            timeout=10
+        )
         assert response.status_code == 200, f"Failed to get browser user: {response.status_code}"
 
         data = response.json()
