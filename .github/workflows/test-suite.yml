@@ -59,9 +59,9 @@ jobs:
         run: |
           cd tests
           # Run scenario tests sequentially to avoid race conditions
-          pytest test_scenario_service.py test_payment_scenarios.py --tb=line --timeout=300
+          pytest test_scenario_service.py test_payment_scenarios.py test_ab_testing_scenarios.py --tb=line --timeout=300
           # Run other tests in parallel
-          pytest . --ignore=test_scenario_service.py --ignore=test_payment_scenarios.py -n auto --tb=line --timeout=300
+          pytest . --ignore=test_scenario_service.py --ignore=test_payment_scenarios.py --ignore=test_ab_testing_scenarios.py -n auto --tb=line --timeout=300
 
       - name: Run end-to-end tests only
         if: ${{ github.event.inputs.test_suite == 'e2e' }}
