@@ -1,0 +1,87 @@
+name: Flow - Chatbot Specialist Delay
+
+run-name: Chatbot Specialist Delay demo scenario kickoff
+
+on:
+  workflow_dispatch:
+    # inputs:
+    #   duration:
+    #     description: "Scenario duration in minutes"
+    #     type: choice
+    #     required: true
+    #     default: "30"
+    #     options:
+    #      - "5"
+    #      - "10"
+    #      - "15"
+    #      - "30"
+
+  # schedule:
+  # # Run every 6 hours
+  # - cron: "0 */6 * * *"
+
+
+
+jobs:
+
+  chatbot-specialist-flow:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    strategy:
+      fail-fast: false
+      matrix:
+        # environment: [sandbox, staging, prod]
+        environment: [events]
+
+    environment: ${{ matrix.environment }}
+
+# --------------- runner setup ---------------
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v4
+        with:
+          python-version: '3.10'
+
+      - name: pip installs
+        run: |
+          pip install requests
+
+# --------------- demo flow ---------------
+      - name: Send deployment marker (coordinator update)
+        run: |
+          cd demo_flows/chatbot_specialist/ && python send_marker_chatbot.py badCommit ${{ secrets.NR_USER_API_KEY }} ${{ vars.NR_ACCOUNT_ID }} production
+
+      - name: Generate specialist request load for 60 minutes (triggers 8s delay)
+        run: |
+          cd demo_flows/chatbot_specialist/
+          # Run for 60 minutes with randomized delays between 10-30 seconds
+          # Each request will trigger the specialist agent with ASSISTANT_B_DELAY_SECONDS=8
+
+          echo "Starting 60-minute load generation with random delays (10-30s between requests)..."
+          START_TIME=$(date +%s)
+          END_TIME=$((START_TIME + 3600))
+          REQUEST_COUNT=0
+
+          while [ $(date +%s) -lt $END_TIME ]; do
+            REQUEST_COUNT=$((REQUEST_COUNT + 1))
+            ELAPSED=$(($(date +%s) - START_TIME))
+
+            echo "[$ELAPSED s] Sending specialist request #$REQUEST_COUNT"
+            python chatbot_specialist_loadgen.py ${{ vars.BASE_URL }}/chatbot-service/chat --count 1 &
+
+            # Random delay between 10 and 30 seconds
+            DELAY=$((10 + RANDOM % 21))
+            echo "Waiting ${DELAY}s before next request..."
+            sleep $DELAY
+          done
+
+          echo "Load generation complete. Sent $REQUEST_COUNT specialist requests over 60 minutes."
+          echo "Waiting for final requests to complete..."
+          wait
+
+      # - name: Send rollback deployment marker
+      #   if: always()
+      #   run: |
+      #     cd demo_flows/chatbot_specialist/ && python send_marker_chatbot.py goodCommit ${{ secrets.NR_USER_API_KEY }} ${{ vars.NR_ACCOUNT_ID }} production
