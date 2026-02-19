@@ -167,20 +167,7 @@ jobs:
         if: (inputs.deploy == true || inputs.deploy == 'true') || inputs.skip_build == true
         run: |
           echo "Applying azure-prod overlay to cluster..."
-
-          # Load environment variables from skaffold.env for kustomize variable substitution
-          set -a
-          source skaffold.env
-          set +a
-
-          # Delete old Azure OpenAI secrets/configmaps to force recreation with new values
-          echo "Deleting existing Azure OpenAI secrets and configmaps to force recreation..."
-          kubectl get secret -n relibank -o name | grep azure-openai-secrets | xargs -r kubectl delete -n relibank --ignore-not-found=true || true
-          kubectl get configmap -n relibank -o name | grep azure-assistant-config | xargs -r kubectl delete -n relibank --ignore-not-found=true || true
-
-          # Build manifests with kustomize, substitute env vars with envsubst, then apply
-          echo "Building kustomize manifests and substituting environment variables..."
-          kustomize build k8s/overlays/azure-prod | envsubst | kubectl apply -f -
+          kubectl apply -k k8s/overlays/azure-prod
           echo "✅ Manifests applied successfully"
 
       - name: Restart services and databases
