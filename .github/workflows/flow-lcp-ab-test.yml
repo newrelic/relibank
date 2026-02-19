@@ -1,0 +1,132 @@
+name: Flow - LCP A/B Test Scenario
+
+on:
+  schedule:
+    # Run every 6 hours
+    - cron: '0 */6 * * *'
+  workflow_dispatch:  # Allow manual trigger
+
+jobs:
+  lcp-ab-test:
+    runs-on: ubuntu-latest
+    environment: events
+
+    steps:
+      - name: Enable LCP slowness for 50% of users
+        run: |
+          echo "Enabling LCP slowness A/B test (50% of users, 3000ms delay)..."
+          curl -X POST "${{ vars.BASE_URL }}/scenario-runner/api/ab-testing/lcp-slowness?enabled=true&percentage=50.0&delay_ms=3000" \
+            --fail-with-body || {
+              echo "Failed to enable LCP slowness scenario"
+              exit 1
+            }
+
+      - name: Verify scenario is enabled
+        run: |
+          echo "Verifying LCP slowness scenario configuration..."
+          response=$(curl -s "${{ vars.BASE_URL }}/scenario-runner/api/ab-testing/config")
+          echo "Response: $response"
+
+          enabled=$(echo $response | jq -r '.config.lcp_slowness_enabled')
+          percentage=$(echo $response | jq -r '.config.lcp_slowness_percentage')
+          delay=$(echo $response | jq -r '.config.lcp_slowness_delay_ms')
+
+          if [ "$enabled" != "true" ]; then
+            echo "ERROR: LCP slowness not enabled"
+            exit 1
+          fi
+
+          echo "✓ LCP slowness enabled: $percentage% of users with ${delay}ms delay"
+
+      - name: Create deployment marker (A/B test enabled)
+        env:
+          NEW_RELIC_API_KEY: ${{ secrets.NEW_RELIC_API_KEY }}
+          NEW_RELIC_APP_ID: ${{ secrets.NEW_RELIC_BROWSER_APP_ID }}
+        run: |
+          echo "Creating deployment marker in New Relic..."
+          curl -X POST "https://api.newrelic.com/v2/applications/${NEW_RELIC_APP_ID}/deployments.json" \
+            -H "Api-Key: ${NEW_RELIC_API_KEY}" \
+            -H "Content-Type: application/json" \
+            -d '{
+              "deployment": {
+                "revision": "LCP-AB-Test-Enabled-50%",
+                "description": "Feature flag: LCP slowness enabled for 50% of users (3000ms delay)",
+                "user": "GitHub Actions",
+                "changelog": "A/B test started to measure LCP impact"
+              }
+            }' || echo "Warning: Could not create deployment marker"
+
+      - name: Wait for data collection (20 minutes)
+        run: |
+          echo "Collecting data for 20 minutes..."
+          echo "Monitor LCP metrics at: https://one.newrelic.com/"
+          echo ""
+          echo "NRQL Query to see A/B test impact:"
+          echo "SELECT percentile(largestContentfulPaint, 50, 75, 95) as 'LCP (ms)', count(*) as 'Sessions'"
+          echo "FROM PageViewTiming"
+          echo "WHERE appName = 'ReliBank Frontend' AND pageUrl LIKE '%/dashboard%'"
+          echo "FACET custom.lcp_treatment TIMESERIES"
+          echo ""
+          sleep 1200  # 20 minutes
+
+      - name: Disable LCP slowness
+        run: |
+          echo "Disabling LCP slowness A/B test..."
+          curl -X POST "${{ vars.BASE_URL }}/scenario-runner/api/ab-testing/lcp-slowness?enabled=false" \
+            --fail-with-body || {
+              echo "Warning: Failed to disable LCP slowness scenario"
+            }
+
+      - name: Verify scenario is disabled
+        run: |
+          echo "Verifying LCP slowness scenario is disabled..."
+          response=$(curl -s "${{ vars.BASE_URL }}/scenario-runner/api/ab-testing/config")
+          enabled=$(echo $response | jq -r '.config.lcp_slowness_enabled')
+
+          if [ "$enabled" == "true" ]; then
+            echo "WARNING: LCP slowness still enabled!"
+            exit 1
+          fi
+
+          echo "✓ LCP slowness disabled successfully"
+
+      - name: Create rollback marker (A/B test disabled)
+        env:
+          NEW_RELIC_API_KEY: ${{ secrets.NEW_RELIC_API_KEY }}
+          NEW_RELIC_APP_ID: ${{ secrets.NEW_RELIC_BROWSER_APP_ID }}
+        run: |
+          echo "Creating rollback marker in New Relic..."
+          curl -X POST "https://api.newrelic.com/v2/applications/${NEW_RELIC_APP_ID}/deployments.json" \
+            -H "Api-Key: ${NEW_RELIC_API_KEY}" \
+            -H "Content-Type: application/json" \
+            -d '{
+              "deployment": {
+                "revision": "LCP-AB-Test-Disabled",
+                "description": "Rollback: LCP slowness disabled, all users back to normal",
+                "user": "GitHub Actions",
+                "changelog": "A/B test completed"
+              }
+            }' || echo "Warning: Could not create rollback marker"
+
+      - name: Test Summary
+        if: always()
+        run: |
+          echo "## LCP A/B Test Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "- **Duration**: 20 minutes" >> $GITHUB_STEP_SUMMARY
+          echo "- **Cohort Split**: 50% slow / 50% normal" >> $GITHUB_STEP_SUMMARY
+          echo "- **LCP Delay**: 3000ms for slow cohort" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Analysis" >> $GITHUB_STEP_SUMMARY
+          echo "Review LCP metrics in New Relic to compare:" >> $GITHUB_STEP_SUMMARY
+          echo "- \`lcp_treatment = normal\` (control group)" >> $GITHUB_STEP_SUMMARY
+          echo "- \`lcp_treatment = slow\` (test group with 3s delay)" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### NRQL Query" >> $GITHUB_STEP_SUMMARY
+          echo '```sql' >> $GITHUB_STEP_SUMMARY
+          echo 'SELECT percentile(largestContentfulPaint, 50, 75, 95) as "LCP (ms)", count(*) as "Sessions"' >> $GITHUB_STEP_SUMMARY
+          echo 'FROM PageViewTiming' >> $GITHUB_STEP_SUMMARY
+          echo "WHERE appName = 'ReliBank Frontend' AND pageUrl LIKE '%/dashboard%'" >> $GITHUB_STEP_SUMMARY
+          echo 'FACET custom.lcp_treatment' >> $GITHUB_STEP_SUMMARY
+          echo 'SINCE 30 minutes ago' >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY

@@ -19,7 +19,8 @@
             <p class="text-lg text-gray-600">Trigger chaos and load testing scenarios.</p>
         </div>
 
-        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8">
+        <!-- Chaos and Stress Scenarios Grid -->
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-8 mb-8">
             <!-- Chaos Mesh Scenarios Section -->
             <div class="bg-gray-50 p-6 rounded-lg border border-gray-200">
                 <h2 class="text-2xl font-bold text-gray-800 mb-4">Chaos Mesh Experiments</h2>
@@ -37,31 +38,46 @@
                     <!-- Stress chaos buttons will be dynamically added here -->
                 </div>
             </div>
+        </div>
 
-            <!-- Payment Scenarios Section -->
-            <div class="bg-gray-50 p-6 rounded-lg border border-gray-200">
-                <h2 class="text-2xl font-bold text-gray-800 mb-4">Payment Scenarios</h2>
-                <p class="text-gray-500 mb-6">Toggle payment failure scenarios for card transactions.</p>
-                <div id="payment-buttons-container" class="space-y-4">
-                    <!-- Payment scenario toggles will be dynamically added here -->
+        <!-- Feature Flag Scenarios Section -->
+        <div class="bg-gray-50 p-6 rounded-lg border border-gray-200 mb-8">
+            <h2 class="text-2xl font-bold text-gray-800 mb-4">Feature Flag Scenarios</h2>
+            <p class="text-gray-500 mb-6">Toggle runtime scenarios for payment failures and A/B testing experiments.</p>
+
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <!-- Payment Scenarios -->
+                <div>
+                    <h3 class="text-lg font-semibold text-gray-700 mb-3">Payment Scenarios</h3>
+                    <div id="payment-buttons-container" class="space-y-3">
+                        <!-- Payment scenario toggles will be dynamically added here -->
+                    </div>
+                </div>
+
+                <!-- A/B Testing Scenarios -->
+                <div>
+                    <h3 class="text-lg font-semibold text-gray-700 mb-3">A/B Testing</h3>
+                    <div id="ab-test-buttons-container" class="space-y-3">
+                        <!-- A/B test scenario toggles will be dynamically added here -->
+                    </div>
                 </div>
             </div>
+        </div>
 
-            <!-- Locust Scenarios Section -->
-            <div class="bg-gray-50 p-6 rounded-lg border border-gray-200">
-                <h2 class="text-2xl font-bold text-gray-800 mb-4">Locust Load Tests</h2>
-                <p class="text-gray-500 mb-6">Simulate concurrent users to stress test your services and measure performance.</p>
-                <div class="space-y-4">
-                    <select id="user-count-select" class="w-full p-3 rounded-lg border border-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-500 transition duration-300">
-                        <option value="1">1 User</option>
-                        <option value="10">10 Users</option>
-                        <option value="50">50 Users</option>
-                        <option value="100">100 Users</option>
-                    </select>
-                    <button id="run-locust-test" class="w-full bg-blue-600 text-white font-semibold py-3 px-6 rounded-lg shadow-md hover:bg-blue-700 transition duration-300 transform hover:scale-105">
-                        Run Locust Test
-                    </button>
-                </div>
+        <!-- Locust Load Tests Section -->
+        <div class="bg-gray-50 p-6 rounded-lg border border-gray-200">
+            <h2 class="text-2xl font-bold text-gray-800 mb-4">Locust Load Tests</h2>
+            <p class="text-gray-500 mb-6">Simulate concurrent users to stress test your services and measure performance.</p>
+            <div class="flex gap-4 max-w-md">
+                <select id="user-count-select" class="flex-1 p-3 rounded-lg border border-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-500 transition duration-300">
+                    <option value="1">1 User</option>
+                    <option value="10">10 Users</option>
+                    <option value="50">50 Users</option>
+                    <option value="100">100 Users</option>
+                </select>
+                <button id="run-locust-test" class="flex-1 bg-blue-600 text-white font-semibold py-3 px-6 rounded-lg shadow-md hover:bg-blue-700 transition duration-300 transform hover:scale-105">
+                    Run Locust Test
+                </button>
             </div>
         </div>
 
@@ -75,6 +91,7 @@
             const chaosButtonsContainer = document.getElementById('chaos-buttons-container');
             const stressButtonsContainer = document.getElementById('stress-buttons-container');
             const paymentButtonsContainer = document.getElementById('payment-buttons-container');
+            const abTestButtonsContainer = document.getElementById('ab-test-buttons-container');
             const runLocustBtn = document.getElementById('run-locust-test');
             const userCountSelect = document.getElementById('user-count-select');
 
@@ -241,6 +258,71 @@
                                             configDiv.textContent = `${prob}% probability`;
                                             scenario.config.probability = prob;
                                         }
+                                    } else {
+                                        showMessage(`Error: ${result.message}`, 'error');
+                                    }
+                                } catch (e) {
+                                    showMessage(`Network error: ${e.message}`, 'error');
+                                }
+                            });
+                        } else if (scenario.type === 'ab_test') {
+                            const container = document.createElement('div');
+                            container.className = 'bg-white p-4 rounded-lg border border-gray-300';
+
+                            const titleDiv = document.createElement('div');
+                            titleDiv.className = 'flex items-center justify-between mb-2';
+
+                            const title = document.createElement('span');
+                            title.className = 'font-semibold text-gray-800';
+                            title.textContent = scenario.description;
+
+                            const toggle = document.createElement('button');
+                            toggle.className = scenario.enabled
+                                ? 'bg-green-500 text-white px-3 py-1 rounded-md text-sm font-medium hover:bg-green-600 transition'
+                                : 'bg-gray-300 text-gray-700 px-3 py-1 rounded-md text-sm font-medium hover:bg-gray-400 transition';
+                            toggle.textContent = scenario.enabled ? 'ON' : 'OFF';
+                            toggle.id = `toggle-${scenario.name}`;
+
+                            titleDiv.appendChild(title);
+                            titleDiv.appendChild(toggle);
+                            container.appendChild(titleDiv);
+
+                            const configDiv = document.createElement('div');
+                            configDiv.className = 'text-sm text-gray-600';
+                            if (scenario.name === 'lcp_slowness_percentage') {
+                                configDiv.textContent = `${scenario.config.percentage}% users, ${scenario.config.delay_ms}ms delay`;
+                            } else if (scenario.name === 'lcp_slowness_cohort') {
+                                configDiv.textContent = `${scenario.config.user_count} test users, ${scenario.config.delay_ms}ms delay`;
+                            }
+                            container.appendChild(configDiv);
+
+                            abTestButtonsContainer.appendChild(container);
+
+                            toggle.addEventListener('click', async (e) => {
+                                e.preventDefault();
+                                e.stopPropagation();
+                                const newState = !scenario.enabled;
+                                try {
+                                    let endpoint;
+                                    if (scenario.name === 'lcp_slowness_percentage') {
+                                        const percentage = scenario.config.percentage || 50.0;
+                                        const delay_ms = scenario.config.delay_ms || 3000;
+                                        endpoint = `/scenario-runner/api/ab-testing/lcp-slowness-percentage?enabled=${newState}&percentage=${percentage}&delay_ms=${delay_ms}`;
+                                    } else if (scenario.name === 'lcp_slowness_cohort') {
+                                        const delay_ms = scenario.config.delay_ms || 3000;
+                                        endpoint = `/scenario-runner/api/ab-testing/lcp-slowness-cohort?enabled=${newState}&delay_ms=${delay_ms}`;
+                                    }
+
+                                    const response = await fetch(endpoint, { method: 'POST' });
+                                    const result = await response.json();
+
+                                    if (result.status === 'success') {
+                                        scenario.enabled = newState;
+                                        toggle.textContent = newState ? 'ON' : 'OFF';
+                                        toggle.className = newState
+                                            ? 'bg-green-500 text-white px-3 py-1 rounded-md text-sm font-medium hover:bg-green-600 transition'
+                                            : 'bg-gray-300 text-gray-700 px-3 py-1 rounded-md text-sm font-medium hover:bg-gray-400 transition';
+                                        showMessage(result.message, 'success');
                                     } else {
                                         showMessage(`Error: ${result.message}`, 'error');
                                     }
