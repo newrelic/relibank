@@ -173,8 +173,9 @@ jobs:
           source skaffold.env
           set +a
 
-          # Apply manifests with kustomize (environment variables are now available)
-          kubectl apply -k k8s/overlays/azure-prod
+          # Build manifests with kustomize, substitute env vars with envsubst, then apply
+          echo "Building kustomize manifests and substituting environment variables..."
+          kustomize build k8s/overlays/azure-prod | envsubst | kubectl apply -f -
           echo "✅ Manifests applied successfully"
 
       - name: Restart services and databases
