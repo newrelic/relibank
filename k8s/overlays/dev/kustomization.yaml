@@ -5,6 +5,7 @@ resources:
   - ../../base
   - scenario-runner-rbac.yaml
   - relibank-ingress.yaml
+  - chatbot-azure-config.yaml
 
 patches:
   - path: persistentvolumeclaim-patch.yaml

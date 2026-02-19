@@ -119,6 +119,12 @@ build:
         NEW_RELIC_ACCOUNT_ID: "{{.NEW_RELIC_ACCOUNT_ID}}"
         NEW_RELIC_LICENSE_KEY: "{{.NEW_RELIC_LICENSE_KEY}}"
         APP_NAME: "{{.APP_NAME}}"
+        # Azure OpenAI Assistants configuration
+        AZURE_OPENAI_ENDPOINT: "{{.AZURE_OPENAI_ENDPOINT}}"
+        AZURE_OPENAI_API_KEY: "{{.AZURE_OPENAI_API_KEY}}"
+        ASSISTANT_A_ID: "{{.ASSISTANT_A_ID}}"
+        ASSISTANT_B_ID: "{{.ASSISTANT_B_ID}}"
+        ASSISTANT_B_DELAY_SECONDS: "{{.ASSISTANT_B_DELAY_SECONDS}}"
   - image: scenario-runner
     context: scenario_service
     docker:
