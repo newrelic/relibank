@@ -35,7 +35,6 @@ configMapGenerator:
     literals:
       - assistant-a-id=${ASSISTANT_A_ID}
       - assistant-b-id=${ASSISTANT_B_ID}
-    behavior: replace
 
 secretGenerator:
   - name: azure-openai-secrets
@@ -44,7 +43,6 @@ secretGenerator:
       - endpoint=${AZURE_OPENAI_ENDPOINT}
       - api-key=${AZURE_OPENAI_API_KEY}
     type: Opaque
-    behavior: replace
 
 images:
 - name: frontend-service
