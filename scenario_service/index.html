@@ -289,8 +289,10 @@
 
                             const configDiv = document.createElement('div');
                             configDiv.className = 'text-sm text-gray-600';
-                            if (scenario.name === 'lcp_slowness') {
+                            if (scenario.name === 'lcp_slowness_percentage') {
                                 configDiv.textContent = `${scenario.config.percentage}% users, ${scenario.config.delay_ms}ms delay`;
+                            } else if (scenario.name === 'lcp_slowness_cohort') {
+                                configDiv.textContent = `${scenario.config.user_count} test users, ${scenario.config.delay_ms}ms delay`;
                             }
                             container.appendChild(configDiv);
 
@@ -302,10 +304,13 @@
                                 const newState = !scenario.enabled;
                                 try {
                                     let endpoint;
-                                    if (scenario.name === 'lcp_slowness') {
+                                    if (scenario.name === 'lcp_slowness_percentage') {
                                         const percentage = scenario.config.percentage || 50.0;
                                         const delay_ms = scenario.config.delay_ms || 3000;
-                                        endpoint = `/scenario-runner/api/ab-testing/lcp-slowness?enabled=${newState}&percentage=${percentage}&delay_ms=${delay_ms}`;
+                                        endpoint = `/scenario-runner/api/ab-testing/lcp-slowness-percentage?enabled=${newState}&percentage=${percentage}&delay_ms=${delay_ms}`;
+                                    } else if (scenario.name === 'lcp_slowness_cohort') {
+                                        const delay_ms = scenario.config.delay_ms || 3000;
+                                        endpoint = `/scenario-runner/api/ab-testing/lcp-slowness-cohort?enabled=${newState}&delay_ms=${delay_ms}`;
                                     }
 
                                     const response = await fetch(endpoint, { method: 'POST' });

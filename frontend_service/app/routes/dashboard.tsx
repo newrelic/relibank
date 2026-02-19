@@ -224,8 +224,8 @@ const DashboardPage = () => {
   const [transactions, setTransactions] = useState(mockTransactions);
   // NEW: Loading state for the additional, client-side fetch
   const [isLoadingDetails, setIsLoadingDetails] = useState(false);
-  // A/B Test: Loading state for LCP delay
-  const [isApplyingLcpDelay, setIsApplyingLcpDelay] = useState(true);
+  // A/B Test: Loading state for LCP delay (delay content, not entire page)
+  const [isLcpContentReady, setIsLcpContentReady] = useState(false);
 
   // A/B Test: Apply LCP delay if user is in slow cohort
   useEffect(() => {
@@ -237,7 +237,7 @@ const DashboardPage = () => {
         await new Promise(resolve => setTimeout(resolve, lcpDelay));
       }
 
-      setIsApplyingLcpDelay(false);
+      setIsLcpContentReady(true);
     };
 
     applyLcpDelay();
@@ -294,15 +294,6 @@ const DashboardPage = () => {
       stackedBarData: mockStackedBarData,
   };
 
-  // Show loading spinner while applying LCP delay (A/B test)
-  if (isApplyingLcpDelay) {
-    return (
-      <Box display="flex" justifyContent="center" alignItems="center" minHeight="100vh">
-        <CircularProgress />
-      </Box>
-    );
-  }
-
   if (!userData) {
     return <CircularProgress />;
   }
@@ -347,31 +338,53 @@ const DashboardPage = () => {
             Account Summary
           </Typography>
           <Grid container spacing={{ xs: 2, sm: 3, md: 4 }}>
-          {/* Row 1: Overview Cards (4-4-4) */}
-          <Grid item size={{ xs: 12, md: 4 }}>
-            <OverviewCard
-              title="Total Balance"
-              value={totalBalance}
-              icon={<MonetizationOnIcon color="disabled" />}
-              info=""
-            />
-          </Grid>
-          <Grid item size={{ xs: 12, md: 4 }}>
-            <OverviewCard
-              title="Checking"
-              value={checkingBalance}
-              icon={<CreditCardIcon color="disabled" />}
-              info={checkingExtraInfo}
-            />
-          </Grid>
-          <Grid item size={{ xs: 12, md: 4 }}>
-            <OverviewCard
-              title="Savings"
-              value={savingsBalance}
-              icon={<AccountBalanceWalletIcon color="disabled" />}
-              info={savingsExtraInfo}
-            />
-          </Grid>
+          {/* Row 1: Overview Cards (4-4-4) - LCP elements delayed for A/B test */}
+          {!isLcpContentReady ? (
+            <>
+              <Grid item size={{ xs: 12, md: 4 }}>
+                <Card sx={{ p: 3, height: '100%' }}>
+                  <CircularProgress />
+                </Card>
+              </Grid>
+              <Grid item size={{ xs: 12, md: 4 }}>
+                <Card sx={{ p: 3, height: '100%' }}>
+                  <CircularProgress />
+                </Card>
+              </Grid>
+              <Grid item size={{ xs: 12, md: 4 }}>
+                <Card sx={{ p: 3, height: '100%' }}>
+                  <CircularProgress />
+                </Card>
+              </Grid>
+            </>
+          ) : (
+            <>
+              <Grid item size={{ xs: 12, md: 4 }}>
+                <OverviewCard
+                  title="Total Balance"
+                  value={totalBalance}
+                  icon={<MonetizationOnIcon color="disabled" />}
+                  info=""
+                />
+              </Grid>
+              <Grid item size={{ xs: 12, md: 4 }}>
+                <OverviewCard
+                  title="Checking"
+                  value={checkingBalance}
+                  icon={<CreditCardIcon color="disabled" />}
+                  info={checkingExtraInfo}
+                />
+              </Grid>
+              <Grid item size={{ xs: 12, md: 4 }}>
+                <OverviewCard
+                  title="Savings"
+                  value={savingsBalance}
+                  icon={<AccountBalanceWalletIcon color="disabled" />}
+                  info={savingsExtraInfo}
+                />
+              </Grid>
+            </>
+          )}
           </Grid>
         </Box>
       </Box>

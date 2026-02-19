@@ -119,13 +119,16 @@ export function Layout({ children }: { children: React.ReactNode }) {
     if (typeof window !== 'undefined' && isHydrated) {
       // Check sessionStorage first
       const storedUserId = sessionStorage.getItem('browserUserId');
-      if (storedUserId) {
+      const storedLcpDelay = sessionStorage.getItem('lcpDelayMs');
+
+      if (storedUserId && storedLcpDelay !== null) {
         console.log('[Browser User] Loaded from sessionStorage:', storedUserId);
+        console.log('[Browser User] LCP Delay from sessionStorage:', storedLcpDelay + 'ms');
         setBrowserUserId(storedUserId);
         return;
       }
 
-      // Fetch from API
+      // Fetch from API (either no user ID or no LCP delay stored)
       const fetchBrowserUserId = async () => {
         try {
           const response = await fetch('/accounts-service/browser-user');

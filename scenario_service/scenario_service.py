@@ -34,10 +34,31 @@ PAYMENT_SCENARIOS = {
 }
 
 # A/B Testing scenario configuration (runtime toggleable)
+# Hardcoded list of 11 test users who will experience LCP slowness when cohort scenario is enabled
+LCP_SLOW_USERS = {
+    'b2a5c9f1-3d7f-4b0d-9a8c-9c7b5a1f2e4d',  # Alice Johnson
+    'f5e8d1c6-2a9b-4c3e-8f1a-6e5b0d2c9f1a',  # Bob Williams
+    'e1f2b3c4-5d6a-7e8f-9a0b-1c2d3e4f5a6b',  # Charlie Brown
+    'f47ac10b-58cc-4372-a567-0e02b2c3d471',  # Solaire Astora
+    'd9b1e2a3-f4c5-4d6e-8f7a-9b0c1d2e3f4a',  # Malenia Miquella
+    '8c7d6e5f-4a3b-2c1d-0e9f-8a7b6c5d4e3f',  # Artorias Abyss
+    '7f6e5d4c-3b2a-1c0d-9e8f-7a6b5c4d3e2f',  # Priscilla Painted
+    '6e5d4c3b-2a1c-0d9e-8f7a-6b5c4d3e2f1a',  # Gwyn Cinder
+    '5d4c3b2a-1c0d-9e8f-7a6b-5c4d3e2f1a0b',  # Siegmeyer Catarina
+    '4c3b2a1c-0d9e-8f7a-6b5c-4d3e2f1a0b9c',  # Ornstein Dragon
+    '3b2a1c0d-9e8f-7a6b-5c4d-3e2f1a0b9c8d',  # Smough Executioner
+}
+
 AB_TEST_SCENARIOS = {
-    "lcp_slowness_enabled": False,
+    # Percentage-based scenario (50% of all users)
+    "lcp_slowness_percentage_enabled": False,
     "lcp_slowness_percentage": 50.0,  # 0-100 percent of users
-    "lcp_slowness_delay_ms": 3000,  # Milliseconds of delay for LCP elements
+    "lcp_slowness_percentage_delay_ms": 3000,  # Milliseconds of delay
+
+    # Cohort-based scenario (11 hardcoded test users)
+    "lcp_slowness_cohort_enabled": False,
+    "lcp_slowness_cohort_delay_ms": 3000,  # Milliseconds of delay
+    "lcp_slowness_cohort_user_count": len(LCP_SLOW_USERS),  # Number of users in cohort
 }
 
 # Rate limiting for chaos scenarios (abuse prevention)
@@ -221,13 +242,23 @@ async def get_scenarios():
     })
     # A/B Testing scenarios
     scenarios_list.append({
-        "name": "lcp_slowness",
-        "description": "LCP Slowness A/B Test",
+        "name": "lcp_slowness_percentage",
+        "description": "LCP Slowness A/B Test (Percentage-based)",
         "type": "ab_test",
-        "enabled": AB_TEST_SCENARIOS["lcp_slowness_enabled"],
+        "enabled": AB_TEST_SCENARIOS["lcp_slowness_percentage_enabled"],
         "config": {
             "percentage": AB_TEST_SCENARIOS["lcp_slowness_percentage"],
-            "delay_ms": AB_TEST_SCENARIOS["lcp_slowness_delay_ms"]
+            "delay_ms": AB_TEST_SCENARIOS["lcp_slowness_percentage_delay_ms"]
+        }
+    })
+    scenarios_list.append({
+        "name": "lcp_slowness_cohort",
+        "description": "LCP Slowness A/B Test (Cohort-based - 11 users)",
+        "type": "ab_test",
+        "enabled": AB_TEST_SCENARIOS["lcp_slowness_cohort_enabled"],
+        "config": {
+            "user_count": AB_TEST_SCENARIOS["lcp_slowness_cohort_user_count"],
+            "delay_ms": AB_TEST_SCENARIOS["lcp_slowness_cohort_delay_ms"]
         }
     })
     return scenarios_list
@@ -687,22 +718,40 @@ async def get_ab_test_config():
     }
 
 
-@app.post("/scenario-runner/api/ab-testing/lcp-slowness")
-async def toggle_lcp_slowness(enabled: bool, percentage: float = 50.0, delay_ms: int = 3000):
-    """Enable/disable LCP slowness for A/B testing"""
+@app.post("/scenario-runner/api/ab-testing/lcp-slowness-percentage")
+async def toggle_lcp_slowness_percentage(enabled: bool, percentage: float = 50.0, delay_ms: int = 3000):
+    """Enable/disable LCP slowness for A/B testing (percentage-based: affects X% of all users)"""
     if percentage < 0 or percentage > 100:
         return {"status": "error", "message": "Percentage must be between 0 and 100"}
     if delay_ms < 0 or delay_ms > 30000:
         return {"status": "error", "message": "Delay must be between 0 and 30000 milliseconds"}
 
-    AB_TEST_SCENARIOS["lcp_slowness_enabled"] = enabled
+    AB_TEST_SCENARIOS["lcp_slowness_percentage_enabled"] = enabled
     AB_TEST_SCENARIOS["lcp_slowness_percentage"] = percentage
-    AB_TEST_SCENARIOS["lcp_slowness_delay_ms"] = delay_ms
+    AB_TEST_SCENARIOS["lcp_slowness_percentage_delay_ms"] = delay_ms
 
     status_msg = "enabled" if enabled else "disabled"
     return {
         "status": "success",
-        "message": f"LCP slowness {status_msg} for {percentage}% of users ({delay_ms}ms delay)",
+        "message": f"LCP slowness (percentage) {status_msg} for {percentage}% of users ({delay_ms}ms delay)",
+        "config": AB_TEST_SCENARIOS
+    }
+
+
+@app.post("/scenario-runner/api/ab-testing/lcp-slowness-cohort")
+async def toggle_lcp_slowness_cohort(enabled: bool, delay_ms: int = 3000):
+    """Enable/disable LCP slowness for A/B testing (cohort-based: affects 11 hardcoded test users)"""
+    if delay_ms < 0 or delay_ms > 30000:
+        return {"status": "error", "message": "Delay must be between 0 and 30000 milliseconds"}
+
+    AB_TEST_SCENARIOS["lcp_slowness_cohort_enabled"] = enabled
+    AB_TEST_SCENARIOS["lcp_slowness_cohort_delay_ms"] = delay_ms
+
+    status_msg = "enabled" if enabled else "disabled"
+    user_count = AB_TEST_SCENARIOS["lcp_slowness_cohort_user_count"]
+    return {
+        "status": "success",
+        "message": f"LCP slowness (cohort) {status_msg} for {user_count} test users ({delay_ms}ms delay)",
         "config": AB_TEST_SCENARIOS
     }
 
@@ -710,9 +759,11 @@ async def toggle_lcp_slowness(enabled: bool, percentage: float = 50.0, delay_ms:
 @app.post("/scenario-runner/api/ab-testing/reset")
 async def reset_ab_test_scenarios():
     """Reset all A/B test scenarios to default values"""
-    AB_TEST_SCENARIOS["lcp_slowness_enabled"] = False
+    AB_TEST_SCENARIOS["lcp_slowness_percentage_enabled"] = False
     AB_TEST_SCENARIOS["lcp_slowness_percentage"] = 50.0
-    AB_TEST_SCENARIOS["lcp_slowness_delay_ms"] = 3000
+    AB_TEST_SCENARIOS["lcp_slowness_percentage_delay_ms"] = 3000
+    AB_TEST_SCENARIOS["lcp_slowness_cohort_enabled"] = False
+    AB_TEST_SCENARIOS["lcp_slowness_cohort_delay_ms"] = 3000
 
     return {
         "status": "success",

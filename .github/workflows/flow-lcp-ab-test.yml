@@ -1,4 +1,4 @@
-name: LCP A/B Test Scenario
+name: Flow - LCP A/B Test Scenario
 
 on:
   schedule:

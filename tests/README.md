@@ -31,7 +31,7 @@ export RELIBANK_URL="http://your-server.example.com"
 | `test_apm_user_tracking.py` | APM user ID header propagation tests | Header acceptance, multi-service chains, concurrent requests |
 | `test_scenario_service.py` | Scenario service API tests | Payment scenarios, chaos scenarios, locust load testing - all via API |
 | `test_payment_scenarios.py` | Payment failure scenarios | Gateway timeout, card decline, stolen card with probabilities |
-| `test_ab_testing_scenarios.py` | A/B testing scenarios | LCP slowness, cohort assignment, deterministic distribution, percentage validation |
+| `test_ab_testing_scenarios.py` | A/B testing scenarios | LCP slowness (percentage-based and cohort-based), 11 hardcoded test users, cohort assignment, deterministic distribution |
 | `test_stress_scenarios.py` | Stress chaos experiments | CPU stress, memory stress, combined stress testing with Chaos Mesh |
 | `../frontend_service/app/**/*.test.tsx` | Frontend functional tests (Vitest) | Login, transfers, bill payment (Stripe), chatbot, form validation, API integration |
 
@@ -195,7 +195,7 @@ These tests can be added to GitHub Actions or other CI pipelines:
 - ✅ **User Tracking**: Browser user ID assignment (random/header-based), APM header propagation across all services, multi-service request chains
 - ✅ **Scenario API**: Enable/disable/reset payment scenarios, chaos scenarios (smoke tests), locust load testing (smoke tests)
 - ✅ **Payment Scenarios**: Timeout, decline, stolen card with probabilities
-- ✅ **A/B Testing**: LCP slowness cohort assignment, deterministic distribution, percentage validation (0%, 50%, 100%)
+- ✅ **A/B Testing**: LCP slowness percentage-based (affects X% of all users) and cohort-based (affects 11 hardcoded test users), deterministic cohort assignment
 - ✅ **Stress Chaos**: CPU stress, memory stress, combined stress testing with Chaos Mesh, service resilience under load
 - ✅ **Frontend Functional Tests**: Login flow, fund transfers, bill payment with Stripe, chatbot support, form validation, API integration, error handling (Vitest)
 
