@@ -8,7 +8,8 @@ newrelic @ git+https://github.com/newrelic/newrelic-python-agent.git@main
 gunicorn>=23.0.0,<24
 openai>=1.108.0
 # fastmcp>=2.11.3  # Removed - using only Azure agents
-langgraph>=0.2.0
-langchain-core>=0.3.0
-langchain-openai>=0.2.0
-langchain>=0.3.0
+langgraph>=1.0.8
+langchain-core>=1.2.13
+langchain-openai>=1.1.10
+langchain>=1.2.10
+tiktoken>=0.5.0
