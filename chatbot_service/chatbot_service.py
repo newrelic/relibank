@@ -51,6 +51,8 @@ class AsyncOpenAIChatModel(BaseChatModel):
     model: str = "gpt-4-1"
     temperature: float = 0.7
     bound_tools: List[dict] = []
+    nr_trace_id: str = None  # New Relic trace ID from FastAPI endpoint
+    nr_span_id: str = None   # New Relic span ID from FastAPI endpoint
 
     class Config:
         arbitrary_types_allowed = True
@@ -126,12 +128,14 @@ class AsyncOpenAIChatModel(BaseChatModel):
                         }
                 formatted_tools.append(tool_dict)
 
-        # Return a new instance with tools bound
+        # Return a new instance with tools bound (preserve trace IDs)
         return AsyncOpenAIChatModel(
             client=self.client,
             model=self.model,
             temperature=self.temperature,
-            bound_tools=formatted_tools
+            bound_tools=formatted_tools,
+            nr_trace_id=self.nr_trace_id,
+            nr_span_id=self.nr_span_id
         )
 
     @newrelic.agent.function_trace(name='AsyncOpenAI.chat.completions.create')
@@ -173,21 +177,18 @@ class AsyncOpenAIChatModel(BaseChatModel):
 
             logger.info(f"AsyncOpenAI response usage: prompt={response.usage.prompt_tokens}, completion={response.usage.completion_tokens}, total={response.usage.total_tokens}")
 
-            # Get application and transaction context for distributed tracing
+            # Get application context for recording events
             app = newrelic.agent.application()
-            transaction = newrelic.agent.current_transaction()
 
-            # Use New Relic's trace ID as primary trace_id (not OpenAI's conversation ID)
-            # This ensures custom events and spans share the same trace.id
-            span_id = None
-            trace_id = None
-            if transaction:
-                span_id = transaction.guid
-                trace_id = transaction.trace_id  # Use NR trace ID, not OpenAI conversation ID
+            # Use trace IDs passed from FastAPI endpoint level
+            # (transaction context not available in LangChain async context)
+            trace_id = self.nr_trace_id if self.nr_trace_id else conversation_id
+            span_id = self.nr_span_id if self.nr_span_id else conversation_id
 
-            # Fallback to conversation_id if no transaction (shouldn't happen)
-            if not trace_id:
-                trace_id = conversation_id
+            if trace_id == conversation_id:
+                logger.warning(f"[NR Trace] Using conversation_id as fallback trace_id (nr_trace_id not available)")
+            else:
+                logger.info(f"[NR Trace] Using passed trace_id={trace_id}")
 
             # Record prompt messages (LlmChatCompletionMessage events)
             for i, msg in enumerate(openai_messages):
@@ -196,8 +197,9 @@ class AsyncOpenAIChatModel(BaseChatModel):
                 prompt_token_count = len(content) // 4 if content else 0
 
                 event_data = {
-                    'id': f"{trace_id}_prompt_{i}",
+                    'id': f"{conversation_id}_prompt_{i}",
                     'trace_id': trace_id,
+                    'span_id': span_id,
                     'vendor': 'azure_openai',
                     'ingest_source': 'Python',
                     'request.model': self.model,
@@ -207,11 +209,8 @@ class AsyncOpenAIChatModel(BaseChatModel):
                     'token_count': prompt_token_count,
                     'sequence': i,
                     'is_response': False,
-                    'llm.conversation_id': conversation_id,  # Keep OpenAI ID for reference
+                    'llm.conversation_id': conversation_id,
                 }
-                # Add span_id for correlation within the trace
-                if span_id:
-                    event_data['span_id'] = span_id
 
                 newrelic.agent.record_custom_event('LlmChatCompletionMessage', event_data, application=app)
 
@@ -220,8 +219,9 @@ class AsyncOpenAIChatModel(BaseChatModel):
             completion_token_count = len(response_content) // 4 if response_content else response.usage.completion_tokens
 
             completion_event_data = {
-                'id': f"{trace_id}_completion_0",
+                'id': f"{conversation_id}_completion_0",
                 'trace_id': trace_id,
+                'span_id': span_id,
                 'vendor': 'azure_openai',
                 'ingest_source': 'Python',
                 'request.model': self.model,
@@ -233,17 +233,15 @@ class AsyncOpenAIChatModel(BaseChatModel):
                 'is_response': True,
                 'llm.conversation_id': conversation_id,
             }
-            # Add span_id for correlation within the trace
-            if span_id:
-                completion_event_data['span_id'] = span_id
 
             newrelic.agent.record_custom_event('LlmChatCompletionMessage', completion_event_data, application=app)
 
             # Record LlmChatCompletionSummary event with AI Monitoring schema
             # Use dotted notation for nested attributes that UI expects
             summary_event_data = {
-                'id': trace_id,
+                'id': conversation_id,
                 'trace_id': trace_id,
+                'span_id': span_id,
                 'vendor': 'azure_openai',
                 'ingest_source': 'Python',
                 'request.model': self.model,  # Dotted notation for AI Monitoring UI
@@ -256,15 +254,12 @@ class AsyncOpenAIChatModel(BaseChatModel):
                 'total_tokens': response.usage.total_tokens,
                 'duration': 0,
                 'error': False,
-                'llm.conversation_id': conversation_id,  # Use OpenAI's conversation ID for reference
+                'llm.conversation_id': conversation_id,
             }
-            # Add span_id for correlation within the trace
-            if span_id:
-                summary_event_data['span_id'] = span_id
 
             newrelic.agent.record_custom_event('LlmChatCompletionSummary', summary_event_data, application=app)
 
-            logger.info(f"[Direct] New Relic LLM events recorded: trace_id={trace_id}, model={model_name}, tokens={response.usage.total_tokens}, messages={len(openai_messages)+1}")
+            logger.info(f"[Direct] New Relic LLM events recorded: conversation_id={conversation_id}, model={model_name}, tokens={response.usage.total_tokens}, messages={len(openai_messages)+1}")
         else:
             logger.warning("AsyncOpenAI response missing usage data!")
 
@@ -566,7 +561,9 @@ class LangGraphChatbotService:
         azure_api_key: str,
         model_name: str = "gpt-4-1",
         api_version: str = "2024-05-01-preview",
-        delay_seconds: int = 0
+        delay_seconds: int = 0,
+        nr_trace_id: str = None,
+        nr_span_id: str = None
     ):
         self.azure_endpoint = azure_endpoint
         self.azure_api_key = azure_api_key
@@ -574,6 +571,10 @@ class LangGraphChatbotService:
         self.api_version = api_version
         self.delay_seconds = delay_seconds
         self.specialist_response = None
+
+        # Store New Relic trace IDs from FastAPI endpoint
+        self.nr_trace_id = nr_trace_id
+        self.nr_span_id = nr_span_id
 
         # Initialize New Relic callback handler
         self.nr_callback = NewRelicCallbackHandler()
@@ -587,10 +588,13 @@ class LangGraphChatbotService:
         )
 
         # Wrap AsyncOpenAI in our custom LangChain model
+        # Pass trace IDs so it can use them in custom events
         self.llm = AsyncOpenAIChatModel(
             client=async_openai_client,
             model=model_name,
-            temperature=0.7
+            temperature=0.7,
+            nr_trace_id=nr_trace_id,
+            nr_span_id=nr_span_id
         )
 
         # Create the specialist agent using create_agent
@@ -977,13 +981,26 @@ async def assistant_chat(request: AssistantChatRequest) -> AssistantChatResponse
         )
 
     try:
+        # Get New Relic transaction context at the endpoint level
+        transaction = newrelic.agent.current_transaction()
+        nr_trace_id = None
+        nr_span_id = None
+        if transaction:
+            nr_trace_id = transaction.trace_id
+            nr_span_id = transaction.guid
+            logger.info(f"[FastAPI] New Relic trace_id={nr_trace_id}, span_id={nr_span_id}")
+        else:
+            logger.warning("[FastAPI] No New Relic transaction context available")
+
         # Create LangGraph service
         langgraph_service = LangGraphChatbotService(
             azure_endpoint=AZURE_OPENAI_ENDPOINT,
             azure_api_key=AZURE_OPENAI_API_KEY,
             model_name="gpt-4-1",
             api_version="2024-05-01-preview",
-            delay_seconds=ASSISTANT_B_DELAY_SECONDS
+            delay_seconds=ASSISTANT_B_DELAY_SECONDS,
+            nr_trace_id=nr_trace_id,
+            nr_span_id=nr_span_id
         )
 
         # Invoke the workflow
