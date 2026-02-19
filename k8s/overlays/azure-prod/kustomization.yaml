@@ -5,7 +5,6 @@ resources:
   - ../../base
   - scenario-runner-rbac.yaml
   - relibank-ingress.yaml
-  - chatbot-azure-config.yaml
 
 patches:
   - path: persistentvolumeclaim-patch.yaml
@@ -28,6 +27,24 @@ patches:
     target:
       kind: ConfigMap
       name: .*
+
+# Generate ConfigMap and Secret from literals (values come from environment variables)
+configMapGenerator:
+  - name: azure-assistant-config
+    namespace: relibank
+    literals:
+      - assistant-a-id=${ASSISTANT_A_ID}
+      - assistant-b-id=${ASSISTANT_B_ID}
+    behavior: replace
+
+secretGenerator:
+  - name: azure-openai-secrets
+    namespace: relibank
+    literals:
+      - endpoint=${AZURE_OPENAI_ENDPOINT}
+      - api-key=${AZURE_OPENAI_API_KEY}
+    type: Opaque
+    behavior: replace
 
 images:
 - name: frontend-service
