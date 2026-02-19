@@ -8,6 +8,11 @@ on:
         required: false
         type: boolean
         default: false
+      skip_build:
+        description: 'Skip build/push steps (only apply kustomize overlay)'
+        required: false
+        type: boolean
+        default: false
   push:
     branches:
       - main
@@ -104,6 +109,7 @@ jobs:
           echo "✅ APP_NAME=ReliBank verified"
 
       - name: Build images with Skaffold
+        if: inputs.skip_build != true
         run: |
           set -a
           source skaffold.env
@@ -114,6 +120,7 @@ jobs:
           echo "✅ Skaffold build completed"
 
       - name: Tag and push images to ACR
+        if: inputs.skip_build != true
         run: |
           IMAGES=(
             "frontend-service"
@@ -157,7 +164,7 @@ jobs:
           done
 
       - name: Deploy to AKS
-        if: inputs.deploy == true || inputs.deploy == 'true'
+        if: (inputs.deploy == true || inputs.deploy == 'true') || inputs.skip_build == true
         run: |
           echo "Applying azure-prod overlay to cluster..."
           kubectl apply -k k8s/overlays/azure-prod
@@ -225,8 +232,8 @@ jobs:
           rm -f build-output.json skaffold.env
           echo "✅ Cleanup complete"
 
-      - name: Deployment Summary
-        if: inputs.deploy == true || inputs.deploy == 'true'
+      - name: Deployment Summary (with build)
+        if: (inputs.deploy == true || inputs.deploy == 'true') && inputs.skip_build != true
         run: |
           echo "========================================"
           echo "✅ BUILD, PUSH, AND DEPLOY COMPLETE"
@@ -235,8 +242,18 @@ jobs:
           echo "Manifests deployed to ${{ env.REQUIRED_CONTEXT }}"
           echo "Chaos Mesh installed and experiments configured"
 
+      - name: Deployment Summary (skip build)
+        if: inputs.skip_build == true
+        run: |
+          echo "========================================"
+          echo "✅ DEPLOY COMPLETE (BUILD SKIPPED)"
+          echo "========================================"
+          echo "Build and push steps skipped"
+          echo "Manifests deployed to ${{ env.REQUIRED_CONTEXT }}"
+          echo "Chaos Mesh installed and experiments configured"
+
       - name: Build Summary
-        if: inputs.deploy != true && inputs.deploy != 'true'
+        if: inputs.deploy != true && inputs.deploy != 'true' && inputs.skip_build != true
         run: |
           echo "========================================"
           echo "✅ BUILD AND PUSH COMPLETE"
