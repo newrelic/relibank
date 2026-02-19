@@ -173,6 +173,11 @@ jobs:
           source skaffold.env
           set +a
 
+          # Delete old Azure OpenAI secrets/configmaps to force recreation with new values
+          echo "Deleting existing Azure OpenAI secrets and configmaps to force recreation..."
+          kubectl delete secret -n relibank $(kubectl get secret -n relibank -o name | grep azure-openai-secrets) --ignore-not-found=true || true
+          kubectl delete configmap -n relibank $(kubectl get configmap -n relibank -o name | grep azure-assistant-config) --ignore-not-found=true || true
+
           # Build manifests with kustomize, substitute env vars with envsubst, then apply
           echo "Building kustomize manifests and substituting environment variables..."
           kustomize build k8s/overlays/azure-prod | envsubst | kubectl apply -f -
