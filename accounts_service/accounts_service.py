@@ -3,6 +3,7 @@ import os
 import sys
 import json
 import logging
+import hashlib
 import psycopg2
 from psycopg2 import extras, pool
 from pydantic import BaseModel, Field
@@ -42,6 +43,29 @@ def get_propagation_headers(request: Request) -> dict:
 
     return headers_to_propagate
 
+async def get_ab_test_config():
+    """Fetch A/B test configuration from scenario service"""
+    try:
+        async with httpx.AsyncClient() as client:
+            response = await client.get(
+                f"{SCENARIO_SERVICE_URL}/scenario-runner/api/ab-testing/config",
+                timeout=2.0
+            )
+            if response.status_code == 200:
+                data = response.json()
+                return data.get("config", {})
+    except Exception as e:
+        logging.debug(f"Could not fetch A/B test config: {e}")
+
+    # Return defaults if scenario service unavailable
+    return {
+        "lcp_slowness_percentage_enabled": False,
+        "lcp_slowness_percentage": 0.0,
+        "lcp_slowness_percentage_delay_ms": 0,
+        "lcp_slowness_cohort_enabled": False,
+        "lcp_slowness_cohort_delay_ms": 0
+    }
+
 # Database connection details from environment variables
 DB_HOST = os.getenv("DB_HOST", "accounts-db")
 DB_NAME = os.getenv("DB_NAME", "accountsdb")
@@ -53,6 +77,25 @@ CONNECTION_STRING = f"host={DB_HOST} dbname={DB_NAME} user={DB_USER} password={D
 # tries to retrieve from host env TRANSACTION_SERVICE_URL and TRANSACTION_SERVICE_SERVICE_PORT
 # if not, default to local development variables
 TRANSACTION_SERVICE_URL = f"http://{os.getenv("TRANSACTION_SERVICE_SERVICE_HOST", "transaction-service")}:{os.getenv("TRANSACTION_SERVICE_SERVICE_PORT", "5001")}"
+
+# Scenario service API URL
+SCENARIO_SERVICE_URL = f"http://{os.getenv("SCENARIO_RUNNER_SERVICE_SERVICE_HOST", "scenario-runner-service")}:{os.getenv("SCENARIO_RUNNER_SERVICE_SERVICE_PORT", "8000")}"
+
+# Hardcoded list of 11 test users for LCP slowness A/B testing
+# These users will experience LCP delays when the scenario is enabled
+LCP_SLOW_USERS = {
+    'b2a5c9f1-3d7f-4b0d-9a8c-9c7b5a1f2e4d',  # Alice Johnson
+    'f5e8d1c6-2a9b-4c3e-8f1a-6e5b0d2c9f1a',  # Bob Williams
+    'e1f2b3c4-5d6a-7e8f-9a0b-1c2d3e4f5a6b',  # Charlie Brown
+    'f47ac10b-58cc-4372-a567-0e02b2c3d471',  # Solaire Astora
+    'd9b1e2a3-f4c5-4d6e-8f7a-9b0c1d2e3f4a',  # Malenia Miquella
+    '8c7d6e5f-4a3b-2c1d-0e9f-8a7b6c5d4e3f',  # Artorias Abyss
+    '7f6e5d4c-3b2a-1c0d-9e8f-7a6b5c4d3e2f',  # Priscilla Painted
+    '6e5d4c3b-2a1c-0d9e-8f7a-6b5c4d3e2f1a',  # Gwyn Cinder
+    '5d4c3b2a-1c0d-9e8f-7a6b-5c4d3e2f1a0b',  # Siegmeyer Catarina
+    '4c3b2a1c-0d9e-8f7a-6b5c-4d3e2f1a0b9c',  # Ornstein Dragon
+    '3b2a1c0d-9e8f-7a6b-5c4d-3e2f1a0b9c8d',  # Smough Executioner
+}
 
 # Global connection pool
 connection_pool = None
@@ -463,21 +506,46 @@ async def get_browser_user(request: Request):
 
         with conn.cursor(cursor_factory=extras.RealDictCursor) as cursor:
             if browser_user_id:
-                # Validate UUID format before querying database
+                # Validate UUID format
                 try:
                     import uuid
                     uuid.UUID(browser_user_id)  # Validate UUID format
 
-                    # Query database for this user ID
-                    cursor.execute("SELECT id FROM user_account WHERE id = %s", (browser_user_id,))
-                    user = cursor.fetchone()
-                    if user:
-                        logging.info(f"[Browser User] Using header-provided user ID: {browser_user_id}")
-                        return {"user_id": browser_user_id, "source": "header"}
+                    # Accept the header user ID for A/B testing even if not in database
+                    # This allows deterministic cohort assignment for testing and analytics
+                    logging.info(f"[Browser User] Using header-provided user ID: {browser_user_id}")
+
+                    # Fetch A/B test config and assign LCP slowness cohort
+                    ab_config = await get_ab_test_config()
+                    lcp_delay_ms = 0
+
+                    # Check percentage-based scenario first
+                    if ab_config.get("lcp_slowness_percentage_enabled"):
+                        percentage = ab_config.get("lcp_slowness_percentage", 0.0)
+                        # Deterministically assign cohort based on user_id hash
+                        user_hash = int(hashlib.md5(browser_user_id.encode()).hexdigest(), 16)
+                        if (user_hash % 100) < percentage:
+                            lcp_delay_ms = ab_config.get("lcp_slowness_percentage_delay_ms", 0)
+                            logging.info(f"[Browser User] User {browser_user_id} assigned to SLOW LCP cohort via PERCENTAGE ({lcp_delay_ms}ms delay)")
+
+                    # Check cohort-based scenario (can override percentage if both enabled)
+                    elif ab_config.get("lcp_slowness_cohort_enabled"):
+                        # Check if user is in the hardcoded slow cohort (11 test users)
+                        if browser_user_id in LCP_SLOW_USERS:
+                            lcp_delay_ms = ab_config.get("lcp_slowness_cohort_delay_ms", 0)
+                            logging.info(f"[Browser User] User {browser_user_id} assigned to SLOW LCP cohort via COHORT ({lcp_delay_ms}ms delay)")
+                        else:
+                            logging.info(f"[Browser User] User {browser_user_id} assigned to NORMAL LCP cohort")
                     else:
-                        logging.warning(f"[Browser User] Header-provided ID {browser_user_id} not found in database, falling back to random")
+                        logging.info(f"[Browser User] User {browser_user_id} assigned to NORMAL LCP cohort (no scenarios enabled)")
+
+                    return {
+                        "user_id": browser_user_id,
+                        "source": "header",
+                        "lcp_delay_ms": lcp_delay_ms
+                    }
                 except (ValueError, Exception) as e:
-                    logging.warning(f"[Browser User] Invalid UUID format or database error: {e}, falling back to random")
+                    logging.warning(f"[Browser User] Invalid UUID format: {e}, falling back to random")
 
             # Fall back to random selection
             cursor.execute("SELECT id FROM user_account ORDER BY RANDOM() LIMIT 1")
@@ -491,7 +559,36 @@ async def get_browser_user(request: Request):
 
             user_id = random_user["id"]
             logging.info(f"[Browser User] Randomly selected user ID: {user_id}")
-            return {"user_id": user_id, "source": "random"}
+
+            # Fetch A/B test config and assign LCP slowness cohort
+            ab_config = await get_ab_test_config()
+            lcp_delay_ms = 0
+
+            # Check percentage-based scenario first
+            if ab_config.get("lcp_slowness_percentage_enabled"):
+                percentage = ab_config.get("lcp_slowness_percentage", 0.0)
+                # Deterministically assign cohort based on user_id hash
+                user_hash = int(hashlib.md5(user_id.encode()).hexdigest(), 16)
+                if (user_hash % 100) < percentage:
+                    lcp_delay_ms = ab_config.get("lcp_slowness_percentage_delay_ms", 0)
+                    logging.info(f"[Browser User] User {user_id} assigned to SLOW LCP cohort via PERCENTAGE ({lcp_delay_ms}ms delay)")
+
+            # Check cohort-based scenario (can override percentage if both enabled)
+            elif ab_config.get("lcp_slowness_cohort_enabled"):
+                # Check if user is in the hardcoded slow cohort (11 test users)
+                if user_id in LCP_SLOW_USERS:
+                    lcp_delay_ms = ab_config.get("lcp_slowness_cohort_delay_ms", 0)
+                    logging.info(f"[Browser User] User {user_id} assigned to SLOW LCP cohort via COHORT ({lcp_delay_ms}ms delay)")
+                else:
+                    logging.info(f"[Browser User] User {user_id} assigned to NORMAL LCP cohort")
+            else:
+                logging.info(f"[Browser User] User {user_id} assigned to NORMAL LCP cohort (no scenarios enabled)")
+
+            return {
+                "user_id": user_id,
+                "source": "random",
+                "lcp_delay_ms": lcp_delay_ms
+            }
 
     except HTTPException:
         raise

@@ -101,10 +101,10 @@ def test_browser_user_header_override():
 
 
 def test_browser_user_invalid_header_fallback():
-    """Test that endpoint falls back to random ID when invalid header is provided"""
+    """Test that endpoint accepts valid UUID format even if not in database (for A/B testing)"""
     print("\n=== Testing Invalid Header Fallback ===")
 
-    # Use a non-existent UUID
+    # Use a non-existent UUID (valid format, but not in database)
     invalid_user_id = str(uuid.uuid4())
     headers = {"x-browser-user-id": invalid_user_id}
 
@@ -119,13 +119,13 @@ def test_browser_user_invalid_header_fallback():
     data = response.json()
     print(f"Response: {data}")
 
-    # Should fall back to random selection
-    assert data["source"] == "random", \
-        f"Expected fallback to source='random', got '{data['source']}'"
-    assert data["user_id"] != invalid_user_id, \
-        "Should not return the invalid user ID"
+    # Should accept the header UUID even if not in database (for A/B testing)
+    assert data["source"] == "header", \
+        f"Expected source='header', got '{data['source']}'"
+    assert data["user_id"] == invalid_user_id, \
+        "Should return the header user ID for deterministic A/B testing"
 
-    print(f"✓ Invalid header correctly fell back to random: {data['user_id']}")
+    print(f"✓ Header UUID accepted for A/B testing: {data['user_id']}")
 
 
 def test_browser_user_malformed_header():

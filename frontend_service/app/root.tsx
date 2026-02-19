@@ -119,13 +119,16 @@ export function Layout({ children }: { children: React.ReactNode }) {
     if (typeof window !== 'undefined' && isHydrated) {
       // Check sessionStorage first
       const storedUserId = sessionStorage.getItem('browserUserId');
-      if (storedUserId) {
+      const storedLcpDelay = sessionStorage.getItem('lcpDelayMs');
+
+      if (storedUserId && storedLcpDelay !== null) {
         console.log('[Browser User] Loaded from sessionStorage:', storedUserId);
+        console.log('[Browser User] LCP Delay from sessionStorage:', storedLcpDelay + 'ms');
         setBrowserUserId(storedUserId);
         return;
       }
 
-      // Fetch from API
+      // Fetch from API (either no user ID or no LCP delay stored)
       const fetchBrowserUserId = async () => {
         try {
           const response = await fetch('/accounts-service/browser-user');
@@ -134,6 +137,17 @@ export function Layout({ children }: { children: React.ReactNode }) {
             console.log(`[Browser User] Received: ${data.user_id} Source: ${data.source}`);
             setBrowserUserId(data.user_id);
             sessionStorage.setItem('browserUserId', data.user_id);
+
+            // Store LCP delay for A/B testing
+            const lcpDelay = data.lcp_delay_ms || 0;
+            sessionStorage.setItem('lcpDelayMs', lcpDelay.toString());
+            console.log(`[Browser User] LCP Delay: ${lcpDelay}ms`);
+
+            // Set New Relic custom attribute for A/B test cohort tracking
+            if (window.newrelic && typeof window.newrelic.setCustomAttribute === 'function') {
+              window.newrelic.setCustomAttribute('lcp_delay_ms', lcpDelay);
+              window.newrelic.setCustomAttribute('lcp_treatment', lcpDelay > 0 ? 'slow' : 'normal');
+            }
           } else {
             console.error('[Browser User] Failed to fetch user ID:', response.status);
           }
