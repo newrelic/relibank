@@ -22,6 +22,34 @@ spec:
                 configMapKeyRef:
                   key: KAFKA_BROKER
                   name: infrastructure-config
+            # Azure OpenAI Assistants configuration
+            - name: AZURE_OPENAI_ENDPOINT
+              valueFrom:
+                secretKeyRef:
+                  name: azure-openai-secrets
+                  key: endpoint
+                  optional: true
+            - name: AZURE_OPENAI_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: azure-openai-secrets
+                  key: api-key
+                  optional: true
+            - name: ASSISTANT_A_ID
+              valueFrom:
+                configMapKeyRef:
+                  name: azure-assistant-config
+                  key: assistant-a-id
+                  optional: true
+            - name: ASSISTANT_B_ID
+              valueFrom:
+                configMapKeyRef:
+                  name: azure-assistant-config
+                  key: assistant-b-id
+                  optional: true
+            # Demo: Artificial delay for Assistant B (set to 5-10 for demo)
+            - name: ASSISTANT_B_DELAY_SECONDS
+              value: "0"
           image: chatbot-service
           name: chatbot-service
           ports:
