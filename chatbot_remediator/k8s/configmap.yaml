@@ -1,0 +1,16 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: remediator-assistant-config
+  namespace: chatbot-remediator
+data:
+  coordinator-id: "asst_rbZvPDyb0tDx1LMWHoCGXZkP"
+  remediator-id: "asst_YBIUGij5F03HsokTKJQUnCzO"
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: azure-config
+  namespace: chatbot-remediator
+data:
+  azure-openai-endpoint: "https://eastus.api.cognitive.microsoft.com/"

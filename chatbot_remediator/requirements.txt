@@ -1,0 +1,15 @@
+fastapi>=0.116.1
+uvicorn[standard]>=0.35.0
+httpx>=0.28.1
+pydantic>=2.12.0a1
+# newrelic>=10.17.0
+# newrelic @ git+https://github.com/newrelic/newrelic-python-agent.git@develop-agentic-subcomponent-attrs
+newrelic @ git+https://github.com/newrelic/newrelic-python-agent.git@main
+gunicorn>=23.0.0,<24
+openai>=1.108.0
+# fastmcp>=2.11.3  # Removed - using only Azure agents
+langgraph>=1.0.8
+langchain-core>=1.2.13
+langchain-openai>=1.1.10
+langchain>=1.2.10
+tiktoken>=0.5.0
