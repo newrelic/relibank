@@ -9,10 +9,9 @@ import sys
 
 def main():
     # Get environment variables
-    # azure_api_key = os.getenv("AZURE_OPENAI_API_KEY")
-    # azure_endpoint = os.getenv("AZURE_OPENAI_ENDPOINT")
-    azure_api_key = "a8be72ce0fe64c4d8a1386042a935c19"
-    azure_endpoint = "https://eastus.api.cognitive.microsoft.com/"
+    azure_api_key = os.getenv("AZURE_OPENAI_API_KEY")
+    azure_endpoint = os.getenv("AZURE_OPENAI_ENDPOINT")
+
 
     if not azure_api_key or not azure_endpoint:
         print("ERROR: AZURE_OPENAI_API_KEY and AZURE_OPENAI_ENDPOINT must be set")
