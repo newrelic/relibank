@@ -23,12 +23,11 @@ echo "=========================================="
 echo "Image: ${FULL_IMAGE_NAME}"
 echo ""
 
-# Build the Docker image
-echo "Building Docker image..."
-docker build \
-    --platform linux/amd64 \
+# Build the Docker image (multi-platform for ARM64 AKS nodes)
+echo "Building multi-platform Docker image (linux/amd64,linux/arm64)..."
+docker buildx build \
+    --platform linux/amd64,linux/arm64 \
     -f chatbot_remediator/Dockerfile \
-    -t ${IMAGE_NAME}:latest \
     -t ${FULL_IMAGE_NAME} \
     --build-arg APP_NAME="${APP_NAME}" \
     --build-arg NEW_RELIC_ACCOUNT_ID="${NEW_RELIC_ACCOUNT_ID}" \
@@ -44,14 +43,12 @@ docker build \
     --build-arg ASSISTANT_A_ID="${REMEDIATOR_COORDINATOR_ID}" \
     --build-arg ASSISTANT_B_ID="${REMEDIATOR_AGENT_ID}" \
     --build-arg ASSISTANT_B_DELAY_SECONDS="${REMEDIATOR_DELAY_SECONDS:-0}" \
+    --push \
     .
-
-echo ""
-echo "Pushing image to Azure Container Registry..."
-docker push ${FULL_IMAGE_NAME}
 
 echo ""
 echo "=========================================="
 echo "Build and push complete!"
 echo "Image: ${FULL_IMAGE_NAME}"
+echo "Platforms: linux/amd64, linux/arm64"
 echo "=========================================="

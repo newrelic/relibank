@@ -24,9 +24,9 @@ spec:
           name: http
         env:
         - name: APP_NAME
-          value: "Chatbot Remediator"
+          value: "ReliBank"
         - name: NEW_RELIC_APP_NAME
-          value: "Chatbot Remediator"
+          value: "ReliBank - Chatbot Remediator"
         - name: NEW_RELIC_ACCOUNT_ID
           valueFrom:
             secretKeyRef:
@@ -77,13 +77,13 @@ spec:
             cpu: "500m"
         livenessProbe:
           httpGet:
-            path: /health
+            path: /chatbot-service/health
             port: 5004
           initialDelaySeconds: 30
           periodSeconds: 10
         readinessProbe:
           httpGet:
-            path: /health
+            path: /chatbot-service/health
             port: 5004
           initialDelaySeconds: 10
           periodSeconds: 5
