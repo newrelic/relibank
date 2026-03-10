@@ -19,7 +19,7 @@ jobs:
       - name: Enable LCP slowness for 50% of users
         run: |
           echo "Enabling LCP slowness A/B test (50% of users, 3000ms delay)..."
-          curl -X POST "${{ vars.BASE_URL }}/scenario-runner/api/ab-testing/lcp-slowness?enabled=true&percentage=50.0&delay_ms=3000" \
+          curl -X POST "${{ vars.BASE_URL }}/scenario-runner/api/ab-testing/lcp-slowness-percentage?enabled=true&percentage=50.0&delay_ms=3000" \
             --fail-with-body || {
               echo "Failed to enable LCP slowness scenario"
               exit 1
@@ -31,9 +31,9 @@ jobs:
           response=$(curl -s "${{ vars.BASE_URL }}/scenario-runner/api/ab-testing/config")
           echo "Response: $response"
 
-          enabled=$(echo $response | jq -r '.config.lcp_slowness_enabled')
+          enabled=$(echo $response | jq -r '.config.lcp_slowness_percentage_enabled')
           percentage=$(echo $response | jq -r '.config.lcp_slowness_percentage')
-          delay=$(echo $response | jq -r '.config.lcp_slowness_delay_ms')
+          delay=$(echo $response | jq -r '.config.lcp_slowness_percentage_delay_ms')
 
           if [ "$enabled" != "true" ]; then
             echo "ERROR: LCP slowness not enabled"
@@ -76,7 +76,7 @@ jobs:
       - name: Disable LCP slowness
         run: |
           echo "Disabling LCP slowness A/B test..."
-          curl -X POST "${{ vars.BASE_URL }}/scenario-runner/api/ab-testing/lcp-slowness?enabled=false" \
+          curl -X POST "${{ vars.BASE_URL }}/scenario-runner/api/ab-testing/lcp-slowness-percentage?enabled=false" \
             --fail-with-body || {
               echo "Warning: Failed to disable LCP slowness scenario"
             }
@@ -85,7 +85,7 @@ jobs:
         run: |
           echo "Verifying LCP slowness scenario is disabled..."
           response=$(curl -s "${{ vars.BASE_URL }}/scenario-runner/api/ab-testing/config")
-          enabled=$(echo $response | jq -r '.config.lcp_slowness_enabled')
+          enabled=$(echo $response | jq -r '.config.lcp_slowness_percentage_enabled')
 
           if [ "$enabled" == "true" ]; then
             echo "WARNING: LCP slowness still enabled!"
