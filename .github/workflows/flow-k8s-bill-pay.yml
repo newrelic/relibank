@@ -62,7 +62,19 @@ jobs:
 # --------------- demo flow ---------------
       - name: Send bad deployment marker
         run: |
-          cd demo_flows/k8s_bill_pay/ && python send_marker_bill_pay.py badCommit ${{ secrets.NR_USER_API_KEY }} ${{ vars.NR_ACCOUNT_ID }}
+          python utils/scripts/new_relic/send_change_tracking_marker.py \
+            --api-key ${{ secrets.NR_USER_API_KEY }} \
+            --account-id ${{ vars.NR_ACCOUNT_ID }} \
+            --app-name "Relibank - Bill Pay Service" \
+            --entity-domain APM \
+            --category DEPLOYMENT \
+            --type ROLLING \
+            --version v0.4.01 \
+            --user admin_access_token \
+            --short-description "Image deployment" \
+            --description "Deploying new Bill Payment image" \
+            --group-id NRDEMO-101423 \
+            --custom-attribute environment=production
 
       - name: Reset chaos rate limit
         run: |
@@ -84,4 +96,16 @@ jobs:
       - name: Send good deployment marker
         if: always()
         run: |
-          cd demo_flows/k8s_bill_pay/ && python send_marker_bill_pay.py goodCommit ${{ secrets.NR_USER_API_KEY }} ${{ vars.NR_ACCOUNT_ID }}
+          python utils/scripts/new_relic/send_change_tracking_marker.py \
+            --api-key ${{ secrets.NR_USER_API_KEY }} \
+            --account-id ${{ vars.NR_ACCOUNT_ID }} \
+            --app-name "Relibank - Bill Pay Service" \
+            --entity-domain APM \
+            --category DEPLOYMENT \
+            --type BASIC \
+            --version v0.4.02 \
+            --user admin_access_token \
+            --short-description "Manual rollback deployment" \
+            --description "ARGOCD: Reverting previous deployment" \
+            --group-id NRDEMO-101423 \
+            --custom-attribute environment=production
