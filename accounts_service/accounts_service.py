@@ -63,8 +63,21 @@ async def get_ab_test_config():
         "lcp_slowness_percentage": 0.0,
         "lcp_slowness_percentage_delay_ms": 0,
         "lcp_slowness_cohort_enabled": False,
-        "lcp_slowness_cohort_delay_ms": 0
+        "lcp_slowness_cohort_delay_ms": 0,
+        "db_pool_stress_enabled": False,
+        "db_pool_stress_delay_ms": 0,
+        "db_pool_stress_affected_pool": "pool-a"
     }
+
+def assign_user_to_pool(user_id: str) -> str:
+    """
+    Deterministically assign a user to database pool A or B based on user_id hash.
+    Uses MD5 hash for consistent assignment (same user always gets same pool).
+
+    Returns: "pool-a" or "pool-b"
+    """
+    user_hash = int(hashlib.md5(user_id.encode()).hexdigest(), 16)
+    return "pool-a" if (user_hash % 2) == 0 else "pool-b"
 
 # Database connection details from environment variables
 DB_HOST = os.getenv("DB_HOST", "accounts-db")
@@ -100,8 +113,74 @@ LCP_SLOW_USERS = {
 # Global connection pool
 connection_pool = None
 
+# Global scenario config cache (fetched periodically)
+_scenario_config_cache = None
+_scenario_config_last_fetch = 0
+
+async def get_cached_scenario_config():
+    """Get scenario config with caching to reduce API calls"""
+    global _scenario_config_cache, _scenario_config_last_fetch
+    current_time = time.time()
+
+    # Cache for 5 seconds to reduce load on scenario service
+    if _scenario_config_cache is None or (current_time - _scenario_config_last_fetch) > 5:
+        _scenario_config_cache = await get_ab_test_config()
+        _scenario_config_last_fetch = current_time
+
+    return _scenario_config_cache
+
+async def get_db_connection_with_pool_tracking(user_id: str = None):
+    """
+    Get a connection from the pool with database pool stress scenario support.
+
+    Args:
+        user_id: Optional user ID for pool assignment and stress testing
+
+    Returns:
+        tuple: (connection, pool_id, wait_time_ms, pool_exhausted)
+    """
+    global connection_pool
+    if not connection_pool:
+        raise HTTPException(status_code=503, detail="Database connection pool not available")
+
+    start_time = time.time()
+    pool_id = "unknown"
+    pool_exhausted = False
+
+    # Determine which pool this user belongs to
+    if user_id:
+        pool_id = assign_user_to_pool(user_id)
+
+    # Check if pool stress scenario is active
+    scenario_config = await get_cached_scenario_config()
+    apply_delay = False
+
+    if scenario_config.get("db_pool_stress_enabled"):
+        affected_pool = scenario_config.get("db_pool_stress_affected_pool", "pool-a")
+        if pool_id == affected_pool:
+            apply_delay = True
+            delay_ms = scenario_config.get("db_pool_stress_delay_ms", 500)
+
+    try:
+        # Get connection from pool
+        conn = connection_pool.getconn()
+        wait_time_ms = int((time.time() - start_time) * 1000)
+
+        # Apply stress delay if this user is on the affected pool
+        if apply_delay and conn:
+            await asyncio.sleep(delay_ms / 1000.0)
+            logging.info(f"[DB Pool Stress] User on {pool_id} held connection for {delay_ms}ms")
+
+        return conn, pool_id, wait_time_ms, pool_exhausted
+
+    except pool.PoolError as e:
+        pool_exhausted = True
+        wait_time_ms = int((time.time() - start_time) * 1000)
+        logging.error(f"[DB Pool Stress] Pool exhausted for {pool_id}: {e}")
+        raise HTTPException(status_code=503, detail="Database connection pool exhausted")
+
 def get_db_connection():
-    """Get a connection from the pool."""
+    """Get a connection from the pool (legacy sync method)."""
     global connection_pool
     if connection_pool:
         return connection_pool.getconn()
@@ -214,16 +293,37 @@ async def get_accounts(email: str, request: Request):
     """Retrieves all accounts for a given user email."""
     accounts = []
     conn = None
-    try:
-        conn = get_db_connection()
-        with conn.cursor(cursor_factory=extras.RealDictCursor) as cursor:
-            # First, get the user's ID using their email
-            cursor.execute("SELECT id FROM user_account WHERE email = %s", (email,))
-            user = cursor.fetchone()
-            if not user:
-                raise HTTPException(status_code=404, detail="User not found.")
-            user_id = user["id"]
+    pool_id = "unknown"
+    wait_time_ms = 0
+    pool_exhausted = False
 
+    try:
+        # First get user ID to determine pool assignment
+        temp_conn = get_db_connection()
+        with temp_conn.cursor(cursor_factory=extras.RealDictCursor) as cursor:
+            cursor.execute("SELECT id FROM user_account WHERE email = %s", (email,))
+            user_data = cursor.fetchone()
+        return_db_connection(temp_conn)
+
+        if not user_data:
+            raise HTTPException(status_code=404, detail="User not found.")
+
+        user_id = user_data["id"]
+
+        # Process headers early to ensure New Relic transaction is initialized
+        process_headers(dict(request.headers))
+
+        # Get connection with pool tracking
+        conn, pool_id, wait_time_ms, pool_exhausted = await get_db_connection_with_pool_tracking(user_id)
+
+        # Add New Relic custom attributes immediately after getting pool info
+        # Using dot notation (confirmed working with enduser.id)
+        newrelic.agent.add_custom_attribute('db.pool_id', pool_id)
+        newrelic.agent.add_custom_attribute('db.pool_wait_time_ms', wait_time_ms)
+        newrelic.agent.add_custom_attribute('db.pool_exhausted', pool_exhausted)
+        logging.info(f"[DB Pool Monitoring] Set pool attributes: pool={pool_id}, wait_time={wait_time_ms}ms, exhausted={pool_exhausted}")
+
+        with conn.cursor(cursor_factory=extras.RealDictCursor) as cursor:
             # Query checking accounts
             cursor.execute(
                 """
@@ -295,7 +395,9 @@ async def get_accounts(email: str, request: Request):
 
             return [Account(**account) for account in all_accounts]
     except Exception as e:
+        import traceback
         logging.error(f"Error retrieving accounts: {e}")
+        logging.error(f"Traceback: {traceback.format_exc()}")
         raise HTTPException(status_code=500, detail="Error retrieving accounts.")
     finally:
         return_db_connection(conn)
