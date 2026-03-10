@@ -55,7 +55,19 @@ jobs:
 # --------------- demo flow ---------------
       - name: Send deployment marker (coordinator update)
         run: |
-          cd demo_flows/chatbot_specialist/ && python send_marker_chatbot.py badCommit ${{ secrets.NR_USER_API_KEY }} ${{ vars.NR_ACCOUNT_ID }} production
+          python utils/scripts/new_relic/send_change_tracking_marker.py \
+            --api-key ${{ secrets.NR_USER_API_KEY }} \
+            --account-id ${{ vars.NR_ACCOUNT_ID }} \
+            --app-name "Chatbot Service" \
+            --entity-domain APM \
+            --category DEPLOYMENT \
+            --type ROLLING \
+            --version v2.1.0 \
+            --user devops_automation \
+            --short-description "Coordinator agent update" \
+            --description "Deploying updated coordinator agent - optimizing specialist delegation" \
+            --group-id CHATBOT-SPEC-2024 \
+            --custom-attribute environment=production
 
       - name: Generate specialist request load for 60 minutes (triggers 8s delay)
         run: |

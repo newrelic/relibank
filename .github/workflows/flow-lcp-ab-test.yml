@@ -11,7 +11,20 @@ jobs:
     runs-on: ubuntu-latest
     environment: events
 
+# --------------- runner setup ---------------
     steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v4
+        with:
+          python-version: '3.10'
+
+      - name: pip installs
+        run: |
+          pip install requests
+
+# --------------- demo flow ---------------
       - name: Record start time
         id: start-time
         run: echo "timestamp=$(date -u +%Y-%m-%dT%H:%M:%SZ)" >> $GITHUB_OUTPUT
@@ -43,22 +56,21 @@ jobs:
           echo "✓ LCP slowness enabled: $percentage% of users with ${delay}ms delay"
 
       - name: Create deployment marker (A/B test enabled)
-        env:
-          NEW_RELIC_API_KEY: ${{ secrets.NEW_RELIC_API_KEY }}
-          NEW_RELIC_APP_ID: ${{ secrets.NEW_RELIC_BROWSER_APP_ID }}
         run: |
-          echo "Creating deployment marker in New Relic..."
-          curl -X POST "https://api.newrelic.com/v2/applications/${NEW_RELIC_APP_ID}/deployments.json" \
-            -H "Api-Key: ${NEW_RELIC_API_KEY}" \
-            -H "Content-Type: application/json" \
-            -d '{
-              "deployment": {
-                "revision": "LCP-AB-Test-Enabled-50%",
-                "description": "Feature flag: LCP slowness enabled for 50% of users (3000ms delay)",
-                "user": "GitHub Actions",
-                "changelog": "A/B test started to measure LCP impact"
-              }
-            }' || echo "Warning: Could not create deployment marker"
+          python utils/scripts/new_relic/send_change_tracking_marker.py \
+            --api-key ${{ secrets.NR_USER_API_KEY }} \
+            --account-id ${{ vars.NR_ACCOUNT_ID }} \
+            --app-name "Customer Portal" \
+            --entity-domain BROWSER \
+            --category FEATURE_FLAG \
+            --type BASIC \
+            --feature-flag-id relibank.exp.targeted_ads \
+            --user devops_automation \
+            --short-description "A/B testing: Targeted Ads" \
+            --description "Updating targeted ads for high revenue accounts" \
+            --group-id MARKETING-ADS-2026 \
+            --custom-attribute ab_testing=true \
+            --custom-attribute environment=production
 
       - name: Wait for data collection (20 minutes)
         run: |
@@ -95,22 +107,21 @@ jobs:
           echo "✓ LCP slowness disabled successfully"
 
       - name: Create rollback marker (A/B test disabled)
-        env:
-          NEW_RELIC_API_KEY: ${{ secrets.NEW_RELIC_API_KEY }}
-          NEW_RELIC_APP_ID: ${{ secrets.NEW_RELIC_BROWSER_APP_ID }}
         run: |
-          echo "Creating rollback marker in New Relic..."
-          curl -X POST "https://api.newrelic.com/v2/applications/${NEW_RELIC_APP_ID}/deployments.json" \
-            -H "Api-Key: ${NEW_RELIC_API_KEY}" \
-            -H "Content-Type: application/json" \
-            -d '{
-              "deployment": {
-                "revision": "LCP-AB-Test-Disabled",
-                "description": "Rollback: LCP slowness disabled, all users back to normal",
-                "user": "GitHub Actions",
-                "changelog": "A/B test completed"
-              }
-            }' || echo "Warning: Could not create rollback marker"
+          python utils/scripts/new_relic/send_change_tracking_marker.py \
+            --api-key ${{ secrets.NR_USER_API_KEY }} \
+            --account-id ${{ vars.NR_ACCOUNT_ID }} \
+            --app-name "Customer Portal" \
+            --entity-domain BROWSER \
+            --category FEATURE_FLAG \
+            --type BASIC \
+            --feature-flag-id relibank.exp.targeted_ads \
+            --user devops_automation \
+            --short-description "ROLLBACK - A/B testing: Targeted Ads" \
+            --description "ROLLBACK - Updating targeted ads for high revenue accounts" \
+            --group-id MARKETING-ADS-2026 \
+            --custom-attribute ab_testing=true \
+            --custom-attribute environment=production
 
       - name: Test Summary
         if: always()
