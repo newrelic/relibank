@@ -32,6 +32,10 @@ jobs:
     
 # --------------- runner setup ---------------
     steps:
+      - name: Record start time
+        id: start-time
+        run: echo "timestamp=$(date -u +%Y-%m-%dT%H:%M:%SZ)" >> $GITHUB_OUTPUT
+
       - name: Checkout repo
         uses: actions/checkout@v4
 
@@ -48,3 +52,39 @@ jobs:
       - name: Send chat loadgen
         run: |
           cd demo_flows/chatbot_loadgen/ && python create_chatbot_loadgen.py ${{ vars.BASE_URL }}/chatbot-service/chat
+
+      - name: Report scenario status to Krenko's Calendar
+        if: always()
+        continue-on-error: true
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+        run: |
+          ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
+          APP_NAME="${GITHUB_REPOSITORY##*/}"
+          SCENARIO_NAME="${GITHUB_WORKFLOW#Flow - }"
+          STARTED_AT="${{ steps.start-time.outputs.timestamp }}"
+          COMPLETED_AT=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+          HOUR=$(date -u +%Y-%m-%d-%H)
+
+          # Determine status based on job outcome
+          if [ "${{ job.status }}" == "success" ]; then
+            STATUS="completed"
+          else
+            STATUS="failed"
+          fi
+
+          cat > status.json <<EOF
+          {
+            "app": "$APP_NAME",
+            "scenario": "$SCENARIO_NAME",
+            "type": "scheduled",
+            "status": "$STATUS",
+            "started_at": "$STARTED_AT",
+            "completed_at": "$COMPLETED_AT",
+            "github_run_id": "${{ github.run_id }}",
+            "github_run_url": "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+          }
+          EOF
+
+          aws s3 cp status.json "s3://goblin-swarm-status-${ACCOUNT_ID}/scenarios/${APP_NAME}/${SCENARIO_NAME}/${HOUR}.json" || true
