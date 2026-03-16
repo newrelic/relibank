@@ -210,4 +210,14 @@ jobs:
           }
           EOF
 
-          aws s3 cp test-status.json "s3://goblin-swarm-status-${ACCOUNT_ID}/tests/${APP_NAME}/${DATE}.json" || true
+          # Rotate test results - keep latest 3
+          # Download existing results
+          aws s3 cp "s3://goblin-swarm-status-${ACCOUNT_ID}/tests/${APP_NAME}/latest-1.json" latest-2.json 2>/dev/null || true
+          aws s3 cp "s3://goblin-swarm-status-${ACCOUNT_ID}/tests/${APP_NAME}/latest-2.json" latest-3.json 2>/dev/null || true
+
+          # Upload rotated results
+          [ -f latest-2.json ] && aws s3 cp latest-2.json "s3://goblin-swarm-status-${ACCOUNT_ID}/tests/${APP_NAME}/latest-2.json" || true
+          [ -f latest-3.json ] && aws s3 cp latest-3.json "s3://goblin-swarm-status-${ACCOUNT_ID}/tests/${APP_NAME}/latest-3.json" || true
+
+          # Upload new result as latest-1
+          aws s3 cp test-status.json "s3://goblin-swarm-status-${ACCOUNT_ID}/tests/${APP_NAME}/latest-1.json" || true
