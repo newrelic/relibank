@@ -2,6 +2,7 @@
 import logging
 import json
 import os
+import hashlib
 import azure.functions as func
 
 # The following imports are based on your existing code
@@ -16,6 +17,9 @@ app = func.FunctionApp(http_auth_level=func.AuthLevel.FUNCTION)
 ACS_CONNECTION_STRING = os.environ.get("AZURE_ACS_CONNECTION_STRING")
 ACS_SMS_SENDER = os.environ.get("AZURE_ACS_SMS_SENDER", "+18883143834")
 ACS_EMAIL_SENDER = os.environ.get("AZURE_ACS_EMAIL_SENDER", "DoNotReply@a0c2117c-0bc8-4140-b298-d6a8309b76e1.azurecomm.net")
+
+# SMS throttling configuration
+SMS_THROTTLE_PERCENTAGE = int(os.environ.get("SMS_THROTTLE_PERCENTAGE", "5"))
 
 # --- Global ACS Clients ---
 SMS_CLIENT = None
@@ -41,6 +45,22 @@ def init_clients():
 clients_initialized = init_clients()
 
 # --- Notification Logic (Copied from your existing code) ---
+
+def should_send_sms(recipient_phone):
+    """
+    Deterministically decides whether to send SMS based on recipient phone number.
+    Uses hash-based sampling to ensure consistent behavior for the same recipient.
+
+    Args:
+        recipient_phone: The phone number to check
+
+    Returns:
+        bool: True if SMS should be sent (5% of the time), False otherwise
+    """
+    # Create a hash of the phone number for deterministic sampling
+    phone_hash = int(hashlib.md5(recipient_phone.encode()).hexdigest(), 16)
+    # Map hash to 0-99 range and check if it falls within our throttle percentage
+    return (phone_hash % 100) < SMS_THROTTLE_PERCENTAGE
 
 def send_email(subject, body, recipient_address):
     """Sends an email notification via Azure Communication Services."""
@@ -81,11 +101,19 @@ def send_email(subject, body, recipient_address):
         return {'status': 'error', 'message': f'Unexpected Error: {e}'}
 
 def send_sms(message, recipient_phone):
-    """Sends an SMS notification via Azure Communication Services."""
+    """
+    Sends an SMS notification via Azure Communication Services.
+    Only sends to 5% of recipients to reduce load on test number.
+    """
+    # Check if this recipient should receive SMS (5% sampling)
+    if not should_send_sms(recipient_phone):
+        logging.info(f"SMS throttled for {recipient_phone} (sampling rate: {SMS_THROTTLE_PERCENTAGE}%)")
+        return {'status': 'throttled', 'message': f'SMS throttled - only sending to {SMS_THROTTLE_PERCENTAGE}% of recipients.'}
+
     if not SMS_CLIENT:
         logging.error("SMS client is not initialized.")
         return {'status': 'error', 'message': 'SMS client not initialized.'}
-    
+
     try:
         send_result = SMS_CLIENT.send(from_=ACS_SMS_SENDER, to=[recipient_phone], message=message)
 
@@ -160,7 +188,8 @@ def notify_user(req: func.HttpRequest) -> func.HttpResponse:
 
     elif notification_type == 'sms':
         result = send_sms(message_content, recipient)
-        status_code = 200 if result['status'] == 'succeeded' else 500
+        # Treat 'throttled' as success (200) since it's expected behavior
+        status_code = 200 if result['status'] in ['succeeded', 'throttled'] else 500
         return func.HttpResponse(json.dumps(result), mimetype="application/json", status_code=status_code)
 
     else:
