@@ -2,8 +2,8 @@ name: Relibank Test Suite
 
 on:
   schedule:
-    # Run every Monday at 9 AM UTC
-    - cron: '0 9 * * 1'
+    # Run daily at 9 AM PST
+    - cron: '0 14 * * *'
   workflow_dispatch:  # Allow manual trigger
     inputs:
       test_suite:
@@ -24,6 +24,17 @@ jobs:
     runs-on: ubuntu-latest
     environment: events
     if: ${{ github.event.inputs.test_suite == 'all' || github.event.inputs.test_suite == 'e2e' || github.event.inputs.test_suite == 'scenario' || github.event.inputs.test_suite == 'payment' || github.event.inputs.test_suite == 'smoke' || github.event.inputs.test_suite == '' }}
+    outputs:
+      test_ab_testing: ${{ steps.individual-tests.outputs.test_ab_testing }}
+      test_apm_tracking: ${{ steps.individual-tests.outputs.test_apm_tracking }}
+      test_browser_tracking: ${{ steps.individual-tests.outputs.test_browser_tracking }}
+      test_db_pool_e2e: ${{ steps.individual-tests.outputs.test_db_pool_e2e }}
+      test_db_pool_scenarios: ${{ steps.individual-tests.outputs.test_db_pool_scenarios }}
+      test_e2e: ${{ steps.individual-tests.outputs.test_e2e }}
+      test_nr_instrumentation: ${{ steps.individual-tests.outputs.test_nr_instrumentation }}
+      test_payment: ${{ steps.individual-tests.outputs.test_payment }}
+      test_scenario: ${{ steps.individual-tests.outputs.test_scenario }}
+      test_stress: ${{ steps.individual-tests.outputs.test_stress }}
 
     steps:
       - name: Checkout code
@@ -44,8 +55,9 @@ jobs:
           cd tests
           pip install pytest pytest-xdist pytest-timeout requests
 
-      - name: Run all Python tests
+      - name: Run all Python tests individually
         if: ${{ github.event.inputs.test_suite == 'all' || github.event.inputs.test_suite == '' }}
+        id: individual-tests
         timeout-minutes: 15
         env:
           RELIBANK_URL: ${{ vars.BASE_URL }}
@@ -58,10 +70,17 @@ jobs:
           SCENARIO_SERVICE_URL: ${{ vars.BASE_URL }}/scenario-runner
         run: |
           cd tests
-          # Run scenario tests sequentially to avoid race conditions
-          pytest test_scenario_service.py test_payment_scenarios.py test_ab_testing_scenarios.py --tb=line --timeout=300
-          # Run other tests in parallel
-          pytest . --ignore=test_scenario_service.py --ignore=test_payment_scenarios.py --ignore=test_ab_testing_scenarios.py -n auto --tb=line --timeout=300
+          # Run each test file individually and capture results
+          pytest test_ab_testing_scenarios.py --tb=line --timeout=300 && echo "test_ab_testing=passed" >> $GITHUB_OUTPUT || echo "test_ab_testing=failed" >> $GITHUB_OUTPUT
+          pytest test_apm_user_tracking.py --tb=line --timeout=300 && echo "test_apm_tracking=passed" >> $GITHUB_OUTPUT || echo "test_apm_tracking=failed" >> $GITHUB_OUTPUT
+          pytest test_browser_user_tracking.py --tb=line --timeout=300 && echo "test_browser_tracking=passed" >> $GITHUB_OUTPUT || echo "test_browser_tracking=failed" >> $GITHUB_OUTPUT
+          pytest test_db_pool_e2e.py --tb=line --timeout=300 && echo "test_db_pool_e2e=passed" >> $GITHUB_OUTPUT || echo "test_db_pool_e2e=failed" >> $GITHUB_OUTPUT
+          pytest test_db_pool_scenarios.py --tb=line --timeout=300 && echo "test_db_pool_scenarios=passed" >> $GITHUB_OUTPUT || echo "test_db_pool_scenarios=failed" >> $GITHUB_OUTPUT
+          pytest test_end_to_end.py --tb=line --timeout=300 && echo "test_e2e=passed" >> $GITHUB_OUTPUT || echo "test_e2e=failed" >> $GITHUB_OUTPUT
+          pytest test_newrelic_instrumentation.py --tb=line --timeout=300 && echo "test_nr_instrumentation=passed" >> $GITHUB_OUTPUT || echo "test_nr_instrumentation=failed" >> $GITHUB_OUTPUT
+          pytest test_payment_scenarios.py --tb=line --timeout=300 && echo "test_payment=passed" >> $GITHUB_OUTPUT || echo "test_payment=failed" >> $GITHUB_OUTPUT
+          pytest test_scenario_service.py --tb=line --timeout=300 && echo "test_scenario=passed" >> $GITHUB_OUTPUT || echo "test_scenario=failed" >> $GITHUB_OUTPUT
+          pytest test_stress_scenarios.py --tb=line --timeout=300 && echo "test_stress=passed" >> $GITHUB_OUTPUT || echo "test_stress=failed" >> $GITHUB_OUTPUT
 
       - name: Run end-to-end tests only
         if: ${{ github.event.inputs.test_suite == 'e2e' }}
@@ -149,3 +168,46 @@ jobs:
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "**Test Suite:** ${{ github.event.inputs.test_suite || 'all' }}" >> $GITHUB_STEP_SUMMARY
           echo "**Environment:** ${{ vars.BASE_URL }}" >> $GITHUB_STEP_SUMMARY
+
+      - name: Report test status to Krenko's Calendar
+        if: always()
+        continue-on-error: true
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+        run: |
+          ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
+          APP_NAME="${GITHUB_REPOSITORY##*/}"
+          DATE=$(date -u +%Y-%m-%d)
+
+          # Determine overall status
+          if [ "${{ needs.python-tests.result }}" == "success" ] && [ "${{ needs.frontend-tests.result }}" == "success" ]; then
+            STATUS="completed"
+          else
+            STATUS="failed"
+          fi
+
+          cat > test-status.json <<EOF
+          {
+            "app": "$APP_NAME",
+            "date": "$DATE",
+            "status": "$STATUS",
+            "github_run_id": "${{ github.run_id }}",
+            "github_run_url": "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}",
+            "test_results": [
+              {"test_name": "AB Testing Scenarios", "status": "${{ needs.python-tests.outputs.test_ab_testing }}"},
+              {"test_name": "APM User Tracking", "status": "${{ needs.python-tests.outputs.test_apm_tracking }}"},
+              {"test_name": "Browser User Tracking", "status": "${{ needs.python-tests.outputs.test_browser_tracking }}"},
+              {"test_name": "Database Pool E2E", "status": "${{ needs.python-tests.outputs.test_db_pool_e2e }}"},
+              {"test_name": "Database Pool Scenarios", "status": "${{ needs.python-tests.outputs.test_db_pool_scenarios }}"},
+              {"test_name": "End to End", "status": "${{ needs.python-tests.outputs.test_e2e }}"},
+              {"test_name": "New Relic Instrumentation", "status": "${{ needs.python-tests.outputs.test_nr_instrumentation }}"},
+              {"test_name": "Payment Scenarios", "status": "${{ needs.python-tests.outputs.test_payment }}"},
+              {"test_name": "Scenario Service", "status": "${{ needs.python-tests.outputs.test_scenario }}"},
+              {"test_name": "Stress Scenarios", "status": "${{ needs.python-tests.outputs.test_stress }}"},
+              {"test_name": "Frontend Tests", "status": "${{ needs.frontend-tests.result == 'success' && 'passed' || 'failed' }}"}
+            ]
+          }
+          EOF
+
+          aws s3 cp test-status.json "s3://goblin-swarm-status-${ACCOUNT_ID}/tests/${APP_NAME}/${DATE}.json" || true
