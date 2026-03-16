@@ -293,6 +293,8 @@
                                 configDiv.textContent = `${scenario.config.percentage}% users, ${scenario.config.delay_ms}ms delay`;
                             } else if (scenario.name === 'lcp_slowness_cohort') {
                                 configDiv.textContent = `${scenario.config.user_count} test users, ${scenario.config.delay_ms}ms delay`;
+                            } else if (scenario.name === 'db_pool_stress') {
+                                configDiv.textContent = `${scenario.config.affected_pool} affected, ${scenario.config.delay_ms}ms delay`;
                             }
                             container.appendChild(configDiv);
 
@@ -311,6 +313,10 @@
                                     } else if (scenario.name === 'lcp_slowness_cohort') {
                                         const delay_ms = scenario.config.delay_ms || 3000;
                                         endpoint = `/scenario-runner/api/ab-testing/lcp-slowness-cohort?enabled=${newState}&delay_ms=${delay_ms}`;
+                                    } else if (scenario.name === 'db_pool_stress') {
+                                        const delay_ms = scenario.config.delay_ms || 500;
+                                        const affected_pool = scenario.config.affected_pool || 'pool-a';
+                                        endpoint = `/scenario-runner/api/ab-testing/db-pool-stress?enabled=${newState}&delay_ms=${delay_ms}&affected_pool=${affected_pool}`;
                                     }
 
                                     const response = await fetch(endpoint, { method: 'POST' });

@@ -59,6 +59,11 @@ AB_TEST_SCENARIOS = {
     "lcp_slowness_cohort_enabled": False,
     "lcp_slowness_cohort_delay_ms": 3000,  # Milliseconds of delay
     "lcp_slowness_cohort_user_count": len(LCP_SLOW_USERS),  # Number of users in cohort
+
+    # Database pool stress scenario (affects 50% of users on pool-a)
+    "db_pool_stress_enabled": False,
+    "db_pool_stress_delay_ms": 500,  # How long to hold each connection (milliseconds)
+    "db_pool_stress_affected_pool": "pool-a",  # Which pool is affected (pool-a or pool-b)
 }
 
 # Rate limiting for chaos scenarios (abuse prevention)
@@ -259,6 +264,16 @@ async def get_scenarios():
         "config": {
             "user_count": AB_TEST_SCENARIOS["lcp_slowness_cohort_user_count"],
             "delay_ms": AB_TEST_SCENARIOS["lcp_slowness_cohort_delay_ms"]
+        }
+    })
+    scenarios_list.append({
+        "name": "db_pool_stress",
+        "description": "Database Pool Performance Issue (50% of users)",
+        "type": "ab_test",
+        "enabled": AB_TEST_SCENARIOS["db_pool_stress_enabled"],
+        "config": {
+            "delay_ms": AB_TEST_SCENARIOS["db_pool_stress_delay_ms"],
+            "affected_pool": AB_TEST_SCENARIOS["db_pool_stress_affected_pool"]
         }
     })
     return scenarios_list
@@ -756,6 +771,26 @@ async def toggle_lcp_slowness_cohort(enabled: bool, delay_ms: int = 3000):
     }
 
 
+@app.post("/scenario-runner/api/ab-testing/db-pool-stress")
+async def toggle_db_pool_stress(enabled: bool, delay_ms: int = 500, affected_pool: str = "pool-a"):
+    """Enable/disable database pool stress scenario (affects users on specific pool)"""
+    if delay_ms < 0 or delay_ms > 10000:
+        return {"status": "error", "message": "Delay must be between 0 and 10000 milliseconds"}
+    if affected_pool not in ["pool-a", "pool-b"]:
+        return {"status": "error", "message": "Affected pool must be 'pool-a' or 'pool-b'"}
+
+    AB_TEST_SCENARIOS["db_pool_stress_enabled"] = enabled
+    AB_TEST_SCENARIOS["db_pool_stress_delay_ms"] = delay_ms
+    AB_TEST_SCENARIOS["db_pool_stress_affected_pool"] = affected_pool
+
+    status_msg = "enabled" if enabled else "disabled"
+    return {
+        "status": "success",
+        "message": f"Database pool stress scenario {status_msg} for {affected_pool} ({delay_ms}ms delay)",
+        "config": AB_TEST_SCENARIOS
+    }
+
+
 @app.post("/scenario-runner/api/ab-testing/reset")
 async def reset_ab_test_scenarios():
     """Reset all A/B test scenarios to default values"""
@@ -764,6 +799,9 @@ async def reset_ab_test_scenarios():
     AB_TEST_SCENARIOS["lcp_slowness_percentage_delay_ms"] = 3000
     AB_TEST_SCENARIOS["lcp_slowness_cohort_enabled"] = False
     AB_TEST_SCENARIOS["lcp_slowness_cohort_delay_ms"] = 3000
+    AB_TEST_SCENARIOS["db_pool_stress_enabled"] = False
+    AB_TEST_SCENARIOS["db_pool_stress_delay_ms"] = 500
+    AB_TEST_SCENARIOS["db_pool_stress_affected_pool"] = "pool-a"
 
     return {
         "status": "success",
