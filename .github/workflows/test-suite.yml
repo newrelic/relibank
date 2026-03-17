@@ -2,8 +2,8 @@ name: Relibank Test Suite
 
 on:
   schedule:
-    # Run every Monday at 9 AM UTC
-    - cron: '0 9 * * 1'
+    # Run daily at 9 AM PST (6pm UTC)
+    - cron: '0 14 * * *'
   workflow_dispatch:  # Allow manual trigger
     inputs:
       test_suite:
@@ -24,6 +24,15 @@ jobs:
     runs-on: ubuntu-latest
     environment: events
     if: ${{ github.event.inputs.test_suite == 'all' || github.event.inputs.test_suite == 'e2e' || github.event.inputs.test_suite == 'scenario' || github.event.inputs.test_suite == 'payment' || github.event.inputs.test_suite == 'smoke' || github.event.inputs.test_suite == '' }}
+    outputs:
+      test_ab_testing: ${{ steps.individual-tests.outputs.test_ab_testing }}
+      test_apm_tracking: ${{ steps.individual-tests.outputs.test_apm_tracking }}
+      test_browser_tracking: ${{ steps.individual-tests.outputs.test_browser_tracking }}
+      test_e2e: ${{ steps.individual-tests.outputs.test_e2e }}
+      test_nr_instrumentation: ${{ steps.individual-tests.outputs.test_nr_instrumentation }}
+      test_payment: ${{ steps.individual-tests.outputs.test_payment }}
+      test_scenario: ${{ steps.individual-tests.outputs.test_scenario }}
+      test_stress: ${{ steps.individual-tests.outputs.test_stress }}
 
     steps:
       - name: Checkout code
@@ -44,8 +53,9 @@ jobs:
           cd tests
           pip install pytest pytest-xdist pytest-timeout requests
 
-      - name: Run all Python tests
+      - name: Run all Python tests individually
         if: ${{ github.event.inputs.test_suite == 'all' || github.event.inputs.test_suite == '' }}
+        id: individual-tests
         timeout-minutes: 15
         env:
           RELIBANK_URL: ${{ vars.BASE_URL }}
@@ -58,10 +68,30 @@ jobs:
           SCENARIO_SERVICE_URL: ${{ vars.BASE_URL }}/scenario-runner
         run: |
           cd tests
-          # Run scenario tests sequentially to avoid race conditions
-          pytest test_scenario_service.py test_payment_scenarios.py test_ab_testing_scenarios.py --tb=line --timeout=300
-          # Run other tests in parallel
-          pytest . --ignore=test_scenario_service.py --ignore=test_payment_scenarios.py --ignore=test_ab_testing_scenarios.py -n auto --tb=line --timeout=300
+
+          # Discover all test files dynamically
+          TEST_FILES=$(ls test_*.py 2>/dev/null || echo "")
+
+          if [ -z "$TEST_FILES" ]; then
+            echo "No test files found"
+            exit 1
+          fi
+
+          # Run each test file individually and capture results
+          for test_file in $TEST_FILES; do
+            # Convert filename to output variable name
+            # test_ab_testing_scenarios.py -> test_ab_testing
+            test_name=$(echo "$test_file" | sed 's/test_\(.*\)_scenarios\.py/test_\1/' | sed 's/test_\(.*\)_service\.py/test_\1/' | sed 's/test_\(.*\)_tracking\.py/test_\1_tracking/' | sed 's/test_\(.*\)_instrumentation\.py/test_\1_instrumentation/' | sed 's/test_end_to_end\.py/test_e2e/' | sed 's/test_\(.*\)\.py/test_\1/')
+
+            echo "Running $test_file..."
+            if pytest "$test_file" --tb=line --timeout=300; then
+              echo "${test_name}=passed" >> $GITHUB_OUTPUT
+              echo "✓ $test_file passed"
+            else
+              echo "${test_name}=failed" >> $GITHUB_OUTPUT
+              echo "✗ $test_file failed"
+            fi
+          done
 
       - name: Run end-to-end tests only
         if: ${{ github.event.inputs.test_suite == 'e2e' }}
@@ -149,3 +179,75 @@ jobs:
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "**Test Suite:** ${{ github.event.inputs.test_suite || 'all' }}" >> $GITHUB_STEP_SUMMARY
           echo "**Environment:** ${{ vars.BASE_URL }}" >> $GITHUB_STEP_SUMMARY
+
+      - name: Report test status to Krenko's Calendar
+        if: always()
+        continue-on-error: true
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+        run: |
+          ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
+          APP_NAME="${GITHUB_REPOSITORY##*/}"
+          DATE=$(date -u +%Y-%m-%d)
+
+          # Determine overall status
+          if [ "${{ needs.python-tests.result }}" == "success" ] && [ "${{ needs.frontend-tests.result }}" == "success" ]; then
+            STATUS="completed"
+          else
+            STATUS="failed"
+          fi
+
+          # Build test results array dynamically from outputs
+          TEST_RESULTS=""
+
+          # Map of output variable names to human-readable test names
+          declare -A TEST_NAMES=(
+            ["test_ab_testing"]="AB Testing Scenarios"
+            ["test_apm_tracking"]="APM User Tracking"
+            ["test_browser_tracking"]="Browser User Tracking"
+            ["test_e2e"]="End to End"
+            ["test_nr_instrumentation"]="New Relic Instrumentation"
+            ["test_payment"]="Payment Scenarios"
+            ["test_scenario"]="Scenario Service"
+            ["test_stress"]="Stress Scenarios"
+          )
+
+          # Build test results JSON array
+          for test_key in "${!TEST_NAMES[@]}"; do
+            test_name="${TEST_NAMES[$test_key]}"
+            test_status="${{ toJSON(needs.python-tests.outputs) }}"
+
+            # Extract status for this test from outputs JSON
+            status=$(echo "$test_status" | jq -r ".$test_key // \"skipped\"")
+
+            if [ -n "$TEST_RESULTS" ]; then
+              TEST_RESULTS="${TEST_RESULTS},"
+            fi
+            TEST_RESULTS="${TEST_RESULTS}{\"test_name\": \"$test_name\", \"status\": \"$status\"}"
+          done
+
+          # Add frontend tests
+          FRONTEND_STATUS="${{ needs.frontend-tests.result == 'success' && 'passed' || 'failed' }}"
+          TEST_RESULTS="${TEST_RESULTS},{\"test_name\": \"Frontend Tests\", \"status\": \"$FRONTEND_STATUS\"}"
+
+          # Generate final JSON
+          cat > test-status.json <<EOF
+          {
+            "app": "$APP_NAME",
+            "date": "$DATE",
+            "status": "$STATUS",
+            "github_run_id": "${{ github.run_id }}",
+            "github_run_url": "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}",
+            "test_results": [$TEST_RESULTS]
+          }
+          EOF
+
+          # Rotate test results - keep latest 3
+          aws s3 cp "s3://goblin-swarm-status-${ACCOUNT_ID}/tests/${APP_NAME}/latest-1.json" latest-2.json 2>/dev/null || true
+          aws s3 cp "s3://goblin-swarm-status-${ACCOUNT_ID}/tests/${APP_NAME}/latest-2.json" latest-3.json 2>/dev/null || true
+          [ -f latest-2.json ] && aws s3 cp latest-2.json "s3://goblin-swarm-status-${ACCOUNT_ID}/tests/${APP_NAME}/latest-2.json" || true
+          [ -f latest-3.json ] && aws s3 cp latest-3.json "s3://goblin-swarm-status-${ACCOUNT_ID}/tests/${APP_NAME}/latest-3.json" || true
+
+          # Upload new result as latest-1
+          aws s3 cp test-status.json "s3://goblin-swarm-status-${ACCOUNT_ID}/tests/${APP_NAME}/latest-1.json" || true
