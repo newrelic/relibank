@@ -180,12 +180,18 @@ jobs:
           echo "**Test Suite:** ${{ github.event.inputs.test_suite || 'all' }}" >> $GITHUB_STEP_SUMMARY
           echo "**Environment:** ${{ vars.BASE_URL }}" >> $GITHUB_STEP_SUMMARY
 
+      - name: Configure AWS credentials
+        if: always()
+        continue-on-error: true
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ secrets.AWS_REGION || 'us-west-2' }}
+
       - name: Report test status to Krenko's Calendar
         if: always()
         continue-on-error: true
-        env:
-          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
         run: |
           ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
           APP_NAME="${GITHUB_REPOSITORY##*/}"
@@ -213,13 +219,21 @@ jobs:
             ["test_stress"]="Stress Scenarios"
           )
 
+          # Get test outputs JSON once (outside loop)
+          TEST_OUTPUTS='${{ toJSON(needs.python-tests.outputs) }}'
+
+          # Check if outputs are empty or null
+          if [ -z "$TEST_OUTPUTS" ] || [ "$TEST_OUTPUTS" = "null" ] || [ "$TEST_OUTPUTS" = "{}" ]; then
+            echo "No test outputs found, all tests marked as skipped"
+            TEST_OUTPUTS='{}'
+          fi
+
           # Build test results JSON array
           for test_key in "${!TEST_NAMES[@]}"; do
             test_name="${TEST_NAMES[$test_key]}"
-            test_status="${{ toJSON(needs.python-tests.outputs) }}"
 
-            # Extract status for this test from outputs JSON
-            status=$(echo "$test_status" | jq -r ".$test_key // \"skipped\"")
+            # Extract status for this test from outputs JSON, with error handling
+            status=$(echo "$TEST_OUTPUTS" | jq -r ".$test_key // \"skipped\"" 2>/dev/null || echo "skipped")
 
             if [ -n "$TEST_RESULTS" ]; then
               TEST_RESULTS="${TEST_RESULTS},"
