@@ -44,7 +44,7 @@ skaffold dev
 ```
 
 This will:
-- Build all the Docker images
+- Build and deploy all service images
 - Deploy the microservices to Kubernetes
 - Install Chaos Mesh for chaos engineering
 - Set up port forwarding so you can access the services
@@ -147,6 +147,12 @@ This isn't meant to be a real banking application. It's a learning tool for:
 - Responsive web application design
 
 ## Recent Updates
+
+### Stripe Per-User Credentials
+- **Seeded Stripe Data**: All 43 seeded users now have pre-populated `stripe_customer_id`, `stripe_payment_method_id`, and `stripe_payment_method_name` in Postgres
+- **Dynamic Credential Resolution**: Bill Pay service resolves Stripe credentials dynamically via accounts-service lookup — pass `userId` to `/card-payment` instead of a hardcoded customer ID
+- **Frontend Login Fetch**: Frontend fetches each user's Stripe customer ID from accounts-service at login, eliminating hardcoded IDs
+- **New Endpoint**: `GET /accounts-service/users/by-id/{user_id}` — look up a user and their Stripe credentials by numeric ID
 
 ### New Relic User ID Tracking
 - **Browser User Tracking**: Automatic user ID assignment for New Relic Browser sessions

@@ -301,7 +301,7 @@ pytest tests/test_db_pool_e2e.py -v -s
 3. **Check service logs:**
    ```bash
    # Look for pool assignment logs
-   kubectl logs -l app=accounts-service | grep "DB Pool"
+   kubectl logs -l app=accounts-service -n relibank | grep "DB Pool"
    ```
 
 ### Custom attributes not appearing in New Relic

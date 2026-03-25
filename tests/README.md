@@ -26,7 +26,7 @@ export RELIBANK_URL="http://your-server.example.com"
 
 | Test File | Purpose | Key Features |
 |-----------|---------|--------------|
-| `test_end_to_end.py` | End-to-end microservice tests | Frontend, accounts service, bill pay service, chatbot service, complete user flows |
+| `test_end_to_end.py` | End-to-end microservice tests | Frontend, accounts service, bill pay service, chatbot service, complete user flows, per-user Stripe credential resolution (Alice/Bob happy paths, user switch, 404/400 error handling) |
 | `test_browser_user_tracking.py` | Browser user ID tracking tests | Random assignment, header override, UUID validation, consistency |
 | `test_apm_user_tracking.py` | APM user ID header propagation tests | Header acceptance, multi-service chains, concurrent requests |
 | `test_scenario_service.py` | Scenario service API tests | Payment scenarios, chaos scenarios, locust load testing - all via API |
@@ -89,6 +89,8 @@ tests/test_end_to_end.py::test_frontend_loads PASSED
 tests/test_end_to_end.py::test_accounts_service_health PASSED
 tests/test_end_to_end.py::test_bill_pay_service_health PASSED
 tests/test_end_to_end.py::test_chatbot_service_health PASSED
+tests/test_end_to_end.py::test_auth_service_health PASSED
+tests/test_end_to_end.py::test_auth_service_login PASSED
 tests/test_end_to_end.py::test_create_user_account PASSED
 tests/test_end_to_end.py::test_get_user_account PASSED
 tests/test_end_to_end.py::test_create_bank_account PASSED
@@ -96,6 +98,13 @@ tests/test_end_to_end.py::test_get_bank_accounts PASSED
 tests/test_end_to_end.py::test_chatbot_interaction PASSED
 tests/test_end_to_end.py::test_bill_payment_flow PASSED
 tests/test_end_to_end.py::test_complete_user_journey PASSED
+tests/test_end_to_end.py::test_alice_payment_methods_visible PASSED
+tests/test_end_to_end.py::test_alice_card_payment_succeeds PASSED
+tests/test_end_to_end.py::test_bob_payment_methods_visible PASSED
+tests/test_end_to_end.py::test_bob_card_payment_succeeds PASSED
+tests/test_end_to_end.py::test_user_switch_independent_payments PASSED
+tests/test_end_to_end.py::test_nonexistent_user_returns_404 PASSED
+tests/test_end_to_end.py::test_no_credentials_returns_400 PASSED
 ```
 
 ### Run Individual Tests
@@ -133,7 +142,7 @@ pytest tests/test_stress_scenarios.py::test_service_health_during_stress -v -s
 ## What's Tested
 
 **Python Backend Tests (pytest)**:
-- **test_end_to_end.py**: 11 tests - Service health checks, user/account creation, bill payment, chatbot, complete user journeys
+- **test_end_to_end.py**: 20 tests - Service health checks, user/account creation, bill payment, chatbot, complete user journeys, per-user Stripe credential resolution
 - **test_browser_user_tracking.py**: 7 tests - Browser user ID assignment, header override, UUID validation, randomness, consistency
 - **test_apm_user_tracking.py**: 10 tests - APM header acceptance across services, header propagation, multi-service chains, concurrent requests
 - **test_scenario_service.py**: 12+ tests - Payment scenarios API, chaos/locust endpoints, enable/disable/reset functionality
@@ -191,7 +200,7 @@ These tests can be added to GitHub Actions or other CI pipelines:
 
 ## Test Coverage Summary
 
-- ✅ **End-to-End**: Frontend load, service health checks, user/account creation, bill payment, chatbot interaction, complete user journeys
+- ✅ **End-to-End**: Frontend load, service health checks, user/account creation, bill payment, chatbot interaction, complete user journeys, per-user Stripe credential lookup (Alice/Bob happy paths, user switch, 404/400 error handling)
 - ✅ **User Tracking**: Browser user ID assignment (random/header-based), APM header propagation across all services, multi-service request chains
 - ✅ **Scenario API**: Enable/disable/reset payment scenarios, chaos scenarios (smoke tests), locust load testing (smoke tests)
 - ✅ **Payment Scenarios**: Timeout, decline, stolen card with probabilities

@@ -16,7 +16,7 @@ This service is a core component of the **Relibank** FinServ application. Its pr
 
 * **Kafka Producer**: Publishes payment-related events to dedicated Kafka topics: `bill_payments`, `recurring_payments`, `payment_cancellations`, and `card_payments`.
 
-* **Service-to-Service Communication**: Makes a synchronous API call to the `transaction-service` to check for the existence of a `billId` before processing a payment or cancellation. This ensures data consistency and prevents duplicate transactions.
+* **Service-to-Service Communication**: Makes synchronous API calls to the `transaction-service` (duplicate `billId` checks) and the `accounts-service` (Stripe customer/payment-method lookup by user UUID). This ensures data consistency and prevents duplicate transactions.
 
 * **Asynchronous Processing**: All payments are handled asynchronously by publishing events, allowing for a highly responsive user experience.
 
@@ -36,8 +36,8 @@ The service exposes the following API endpoints, which are designed to be consum
 #### Card Payments (Stripe)
 | Endpoint | Method | Description | Request Body |
 | :--- | :--- | :--- | :--- |
-| `/card-payment` | `POST` | Process a card payment via Stripe. | `billId`, `amount`, `currency`, `cardNumber`, `expMonth`, `expYear`, `cvc`, `saveCard`, `customerId` |
-| `/payment-method` | `POST` | Save a payment method (card) for future use. | `cardNumber`, `expMonth`, `expYear`, `cvc`, `customerId`, `customerEmail` |
+| `/card-payment` | `POST` | Process a card payment via Stripe. Looks up Stripe credentials from the accounts DB when `userId` is provided. | `billId`, `amount`, `currency`, `userId` *(preferred)*, `paymentMethodId` *(fallback)*, `customerId` *(fallback)*, `saveCard` |
+| `/payment-method` | `POST` | Save a payment method (card) for future use. | `paymentMethodToken`, `customerId`, `customerEmail` |
 | `/payment-methods/{customer_id}` | `GET` | List all saved payment methods for a customer. | None |
 
 #### Health Check

@@ -406,7 +406,6 @@ The frontend fetches recurring payment schedules from the transaction-service:
 | `/bill-pay-service/payment-methods/{customer_id}` | GET | PaymentMethodsCard.tsx, PayBillCard.tsx | `fetchPaymentMethods()` | List saved payment methods |
 
 **Internal endpoints (not in UI):**
-- `/bill-pay-service/seed-demo-customers` - Admin endpoint for seeding test data
 - `/bill-pay-service` - Root health check
 - `/bill-pay-service/health` - Health check endpoint
 
@@ -426,6 +425,7 @@ The frontend fetches recurring payment schedules from the transaction-service:
 - Visa, Mastercard, American Express test cards
 - No actual Stripe.js integration required
 - Uses Stripe test payment method tokens
+- Customer IDs are fetched dynamically from accounts-service (`GET /users/by-id/{user_id}`) at login — not hardcoded in the frontend
 
 **Form Pre-filling:**
 - All forms pre-filled with test values that work with real database accounts
