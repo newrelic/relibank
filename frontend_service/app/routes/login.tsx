@@ -68,7 +68,7 @@ const LoginPage = () => {
     const [showPassword, setShowPassword] = useState(false);
     const [loginError, setLoginError] = useState('');
     const [isSubmitting, setIsSubmitting] = useState(false);
-    const { isAuthenticated, handleLogin } = useContext(LoginContext);
+    const { isAuthenticated, handleLogin, setUserId } = useContext(LoginContext);
     const navigate = useNavigate();
 
     // Log when login page loads
@@ -121,6 +121,8 @@ const LoginPage = () => {
 
             // Store the auth token for future use
             sessionStorage.setItem('authToken', authData.token);
+            sessionStorage.setItem('userId', authData.user_id);
+            setUserId(authData.user_id);
 
             // On success, call handleLogin to set state and initiate navigation (via useEffect in root.tsx)
             handleLogin(userData);

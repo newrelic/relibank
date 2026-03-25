@@ -44,7 +44,7 @@ interface PayBillCardProps {
 }
 
 export const PayBillCard = ({ onPaymentSuccess }: PayBillCardProps) => {
-  const { userData } = useContext(LoginContext);
+  const { userData, userId } = useContext(LoginContext);
 
   // Form state - use account ID as the single source of truth
   const [selectedAccountId, setSelectedAccountId] = useState('67890');
@@ -55,7 +55,7 @@ export const PayBillCard = ({ onPaymentSuccess }: PayBillCardProps) => {
 
   // Card data
   const [savedCards, setSavedCards] = useState<PaymentMethod[]>([]);
-  const [customerId] = useState('cus_TkCwwRJbjMVQZ4');
+  const [customerId, setCustomerId] = useState<string>('');
   const [isLoadingCards, setIsLoadingCards] = useState(false);
 
   // UI state
@@ -66,12 +66,28 @@ export const PayBillCard = ({ onPaymentSuccess }: PayBillCardProps) => {
   // Fetch saved payment methods on mount
   useEffect(() => {
     fetchPaymentMethods();
-  }, []);
+  }, [userId]);
 
   const fetchPaymentMethods = async () => {
+    if (!userId) {
+      setSavedCards([]);
+      return;
+    }
+
     try {
       setIsLoadingCards(true);
-      const response = await fetch(`/bill-pay-service/payment-methods/${customerId}`);
+
+      const userResponse = await fetch(`/accounts-service/users/by-id/${userId}`);
+      const userData = await userResponse.json();
+
+      if (!userResponse.ok) {
+        throw new Error(userData.detail || userData.message || 'Failed to fetch user');
+      }
+
+      const stripeCustomerId = userData.stripe_customer_id;
+      setCustomerId(stripeCustomerId);
+
+      const response = await fetch(`/bill-pay-service/payment-methods/${stripeCustomerId}`);
       const data = await response.json();
 
       if (!response.ok) {

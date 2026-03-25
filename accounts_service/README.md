@@ -12,6 +12,8 @@ This service is a core component of the **Relibank** FinServ application. It act
 
 * **Data Validation**: It uses Pydantic models to validate incoming API requests and ensure the data conforms to the required schema before being processed.
 
+* **Stripe Integration**: Each user account is linked to a Stripe customer and payment method, enabling payment processing via the Stripe API.
+
 ---
 
 ### 📦 API Endpoints
@@ -82,6 +84,28 @@ curl -H "x-browser-user-id: 550e8400-e29b-41d4-a716-446655440000" \
 ```
 [APM User Tracking] Set user ID: 550e8400-e29b-41d4-a716-446655440000
 ```
+
+---
+
+---
+
+## 💳 Stripe Integration
+
+Each seeded `user_account` row is pre-linked to a real Stripe customer and payment method, so the app can process payments out-of-the-box after a fresh `docker compose up`.
+
+### User Account Stripe Fields
+
+| Column | Description |
+| :--- | :--- |
+| `stripe_customer_id` | Stripe Customer object ID (e.g. `cus_UDJUKtOkn6XoOB`) |
+| `stripe_payment_method_id` | Stripe PaymentMethod object ID (e.g. `pm_1TExyFFGyca1lOb8OuCAwtEn`) |
+| `stripe_payment_method_name` | Card brand token used in Stripe test mode (e.g. `pm_card_visa`) |
+
+### Seed Data
+
+All 43 test users in `accounts_service/postgres/init.sql` have Stripe IDs pre-populated. The IDs were created externally in Stripe and embedded directly into the seed `INSERT` so no additional setup is required.
+
+> **Note:** New users created via `POST /users` will have `NULL` values for all three Stripe fields. Before card payments will work for a newly created user, you must create a Stripe Customer and attach a PaymentMethod to them via the Stripe API, then update the corresponding `user_account` row with the resulting `stripe_customer_id`, `stripe_payment_method_id`, and `stripe_payment_method_name`.
 
 ---
 
