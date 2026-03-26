@@ -121,7 +121,7 @@ export const PayBillCard = ({ onPaymentSuccess }: PayBillCardProps) => {
 
     const accountDisplay = accountType.charAt(0).toUpperCase() + accountType.slice(1);
     setIsError(false);
-
+    console.info('[PayBill] Bank payment successful:', { amount: paymentAmount, payee: selectedAccount.name, accountType });
     setMessage(`Payment of $${paymentAmount.toFixed(2)} to ${selectedAccount.name} completed successfully using ${accountDisplay} account!`);
 
     // Reset form to defaults
@@ -169,6 +169,7 @@ export const PayBillCard = ({ onPaymentSuccess }: PayBillCardProps) => {
       : 'card';
 
     setIsError(false);
+    console.info('[PayBill] Card payment successful:', { amount: paymentAmount, payee: selectedAccount.name, cardDisplay });
     setMessage(`Card payment of $${paymentAmount.toFixed(2)} to ${selectedAccount.name} processed successfully using ${cardDisplay}! (Payment ID: ${data.paymentIntentId})`);
 
     // Reset form to defaults
@@ -216,7 +217,15 @@ export const PayBillCard = ({ onPaymentSuccess }: PayBillCardProps) => {
     } catch (error: any) {
       setIsError(true);
       setMessage(error.message || 'Failed to process payment. Please try again.');
-      console.error('Payment error:', error);
+      console.error('[PayBill] Payment error:', error);
+      if (typeof window !== 'undefined' && (window as any).newrelic) {
+        (window as any).newrelic.noticeError(error, {
+          component: 'PayBillCard',
+          endpoint: '/bill-pay-service/pay',
+          paymentMethod: selectedPaymentMethod,
+          amount: paymentAmount,
+        });
+      }
     } finally {
       setIsLoading(false);
     }

@@ -113,7 +113,13 @@ export default function SupportPage() {
       setMessages((prev: ChatMessage[]) => [...prev, newBotMessage]);
 
     } catch (error: unknown) {
-      console.error("Chatbot API call failed:", error);
+      console.error('[Support] Chatbot API error:', error);
+      if (typeof window !== 'undefined' && (window as any).newrelic) {
+        (window as any).newrelic.noticeError(
+          error instanceof Error ? error : new Error(String(error)),
+          { component: 'SupportChat', endpoint: '/chatbot-service/chat' }
+        );
+      }
       const errorMessage: ChatMessage = {
         id: Date.now() + 1,
         text: `Sorry, I couldn't connect to the support service. Please ensure the chatbot service is running. Error: ${error instanceof Error ? error.message : 'Unknown error'}`,

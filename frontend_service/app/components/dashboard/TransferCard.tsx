@@ -147,7 +147,7 @@ export const TransferCard = ({ transactions, setTransactions }: TransferCardProp
         "accountType": sourceAccount.account_type
       };
 
-      console.log('[DEBUG] Sending payment request:', paymentData);
+      console.log('[TransferCard] Sending payment request:', paymentData);
 
       const response = await fetch('/bill-pay-service/recurring', {
         method: 'POST',
@@ -181,7 +181,6 @@ export const TransferCard = ({ transactions, setTransactions }: TransferCardProp
 
       // Report error to New Relic Browser
       if (typeof window !== 'undefined' && (window as any).newrelic) {
-        console.log('[DEBUG] Reporting API error to New Relic Browser');
         (window as any).newrelic.noticeError(error, {
           component: 'TransferFunds',
           endpoint: '/bill-pay-service/recurring',
@@ -189,9 +188,7 @@ export const TransferCard = ({ transactions, setTransactions }: TransferCardProp
           fromAccount: fromAccount,
           toAccount: toAccount
         });
-        console.log('[DEBUG] API error reported to New Relic');
-      } else {
-        console.warn('[DEBUG] New Relic Browser agent not available for API error');
+        console.log('[TransferCard] Transfer error reported to New Relic');
       }
 
       setIsError(true);

@@ -21,13 +21,7 @@ export const Header = () => {
   // CRITICAL: Force re-render when userData changes
   const [, forceUpdate] = useState({});
   useEffect(() => {
-    console.log('[Header] userData changed:', userData);
-    console.log('[Header] userData type:', typeof userData);
-    console.log('[Header] userData is array:', Array.isArray(userData));
-    if (userData && Array.isArray(userData)) {
-      console.log('[Header] userData length:', userData.length);
-      console.log('[Header] First account:', userData[0]);
-    }
+    console.log('[Header] userData updated:', userData?.length, 'accounts');
     forceUpdate({});
   }, [userData]);
 
@@ -62,15 +56,12 @@ export const Header = () => {
 
     // Report error to New Relic Browser
     if (typeof window !== 'undefined' && (window as any).newrelic) {
-      console.log('[DEBUG] Reporting theme toggle error to New Relic Browser');
       (window as any).newrelic.noticeError(error, {
         component: 'Header',
         feature: 'ThemeToggle',
         action: 'click'
       });
-      console.log('[DEBUG] Theme toggle error reported to New Relic');
-    } else {
-      console.warn('[DEBUG] New Relic Browser agent not available for theme error');
+      console.log('[Header] Theme toggle error reported to New Relic');
     }
 
     // Intentionally throw error to demonstrate frontend error handling

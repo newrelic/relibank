@@ -191,6 +191,11 @@ async def login(login_request: LoginRequest, request: Request):
         raise
     except Exception as e:
         logging.error(f"Error during login: {e}")
+        newrelic.agent.notice_error(attributes={
+            'service': 'auth',
+            'endpoint': '/auth-service/login',
+            'action': 'login'
+        })
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed login attempt"
@@ -208,4 +213,5 @@ async def simple_health_check():
 @app.get("/auth-service/health")
 async def health_check():
     """Detailed health check endpoint."""
+    newrelic.agent.ignore_transaction()
     return {"status": "healthy", "service": "auth-service"}

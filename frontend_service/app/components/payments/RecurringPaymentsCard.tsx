@@ -183,7 +183,14 @@ export const RecurringPaymentsCard = () => {
     } catch (error: any) {
       setIsError(true);
       setMessage(error.message || 'Failed to set up recurring payment. Please try again.');
-      console.error('Recurring payment error:', error);
+      console.error('[RecurringPayments] Setup error:', error);
+      if (typeof window !== 'undefined' && (window as any).newrelic) {
+        (window as any).newrelic.noticeError(error, {
+          component: 'RecurringPaymentsCard',
+          endpoint: '/bill-pay-service/recurring',
+          action: 'add',
+        });
+      }
     } finally {
       setIsLoading(false);
     }
@@ -215,7 +222,14 @@ export const RecurringPaymentsCard = () => {
     } catch (error: any) {
       setIsError(true);
       setMessage(error.message || 'Failed to cancel payment. Please try again.');
-      console.error('Cancel payment error:', error);
+      console.error('[RecurringPayments] Cancel error:', error);
+      if (typeof window !== 'undefined' && (window as any).newrelic) {
+        (window as any).newrelic.noticeError(error, {
+          component: 'RecurringPaymentsCard',
+          endpoint: `/bill-pay-service/cancel/${billId}`,
+          action: 'cancel',
+        });
+      }
     }
   };
 
