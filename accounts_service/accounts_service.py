@@ -205,6 +205,9 @@ class User(BaseModel):
     preferred_language: Optional[str]
     marketing_preferences: Optional[dict]
     privacy_preferences: Optional[dict]
+    stripe_customer_id: Optional[str] = None
+    stripe_payment_method_id: Optional[str] = None
+    stripe_payment_method_name: Optional[str] = None
 
 
 class Account(BaseModel):
@@ -267,6 +270,26 @@ app.add_middleware(
     allow_methods=["*"],  # Allows all methods (GET, POST, etc.)
     allow_headers=["*"],  # Allows all headers
 )
+
+@app.get("/accounts-service/users/by-id/{user_id}")
+async def get_user_by_id(user_id: str, request: Request):
+    """Retrieves user info by UUID."""
+    conn = None
+    try:
+        conn = get_db_connection()
+        process_headers(dict(request.headers))
+        with conn.cursor(cursor_factory=extras.RealDictCursor) as cursor:
+            cursor.execute("SELECT * FROM user_account WHERE id = %s", (user_id,))
+            user = cursor.fetchone()
+            if not user:
+                raise HTTPException(status_code=404, detail="User not found.")
+            return User(**user)
+    except Exception as e:
+        logging.error(f"Error retrieving user: {e}")
+        raise HTTPException(status_code=500, detail="Error retrieving user.")
+    finally:
+        return_db_connection(conn)
+
 
 @app.get("/accounts-service/users/{email}")
 async def get_user(email: str, request: Request):

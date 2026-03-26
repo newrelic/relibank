@@ -30,7 +30,7 @@ export RELIBANK_URL="http://your-server.example.com"
 | `test_browser_user_tracking.py` | Browser user ID tracking tests | Random assignment, header override, UUID validation, consistency |
 | `test_apm_user_tracking.py` | APM user ID header propagation tests | Header acceptance, multi-service chains, concurrent requests |
 | `test_scenario_service.py` | Scenario service API tests | Payment scenarios, chaos scenarios, locust load testing - all via API |
-| `test_payment_scenarios.py` | Payment failure scenarios | Gateway timeout, card decline, stolen card with probabilities |
+| `test_payment_scenarios.py` | Payment failure scenarios | Gateway timeout, card decline, stolen card with probabilities; per-user Stripe credential resolution (Alice/Bob happy paths, user switch, missing credentials) |
 | `test_ab_testing_scenarios.py` | A/B testing scenarios | LCP slowness (percentage-based and cohort-based), 11 hardcoded test users, cohort assignment, deterministic distribution |
 | `test_stress_scenarios.py` | Stress chaos experiments | CPU stress, memory stress, combined stress testing with Chaos Mesh |
 | `../frontend_service/app/**/*.test.tsx` | Frontend functional tests (Vitest) | Login, transfers, bill payment (Stripe), chatbot, form validation, API integration |
@@ -137,7 +137,7 @@ pytest tests/test_stress_scenarios.py::test_service_health_during_stress -v -s
 - **test_browser_user_tracking.py**: 7 tests - Browser user ID assignment, header override, UUID validation, randomness, consistency
 - **test_apm_user_tracking.py**: 10 tests - APM header acceptance across services, header propagation, multi-service chains, concurrent requests
 - **test_scenario_service.py**: 12+ tests - Payment scenarios API, chaos/locust endpoints, enable/disable/reset functionality
-- **test_payment_scenarios.py**: 5 tests - Gateway timeout, card decline, stolen card scenarios with probability validation
+- **test_payment_scenarios.py**: 12 tests - Gateway timeout, card decline, stolen card scenarios with probability validation; per-user Stripe credential lookup (happy path, user switch, 404/400 error handling)
 - **test_stress_scenarios.py**: 7 tests - CPU/memory/combined stress chaos (requires containerd, rate limited)
 
 **Frontend Tests (Vitest)**:

@@ -63,6 +63,8 @@ interface LoginContextType {
   setUserData: (data: any) => void;
   browserUserId: string | null;
   setBrowserUserId: (id: string | null) => void;
+  userId: string | null;
+  setUserId: (id: string | null) => void;
 }
 
 export const LoginContext = createContext<LoginContextType>({
@@ -73,6 +75,8 @@ export const LoginContext = createContext<LoginContextType>({
   setUserData: () => {},
   browserUserId: null,
   setBrowserUserId: () => {},
+  userId: null,
+  setUserId: () => {},
 });
 
 // Create a context for the page data
@@ -90,6 +94,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
   const [userData, setUserData] = useState(null);
   const [isHydrated, setIsHydrated] = useState(false);
   const [browserUserId, setBrowserUserId] = useState<string | null>(null);
+  const [userId, setUserId] = useState<string | null>(null);
 
   const navigate = useNavigate();
 
@@ -98,6 +103,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
     if (typeof window !== 'undefined') {
       const storedAuth = sessionStorage.getItem('isAuthenticated') === 'true';
       const storedUserData = sessionStorage.getItem('userData');
+      const storedUserId = sessionStorage.getItem('userId');
 
       setIsAuthenticated(storedAuth);
 
@@ -108,6 +114,10 @@ export function Layout({ children }: { children: React.ReactNode }) {
           console.error('Failed to parse userData from sessionStorage:', error);
           sessionStorage.removeItem('userData');
         }
+      }
+
+      if (storedUserId) {
+        setUserId(storedUserId);
       }
 
       setIsHydrated(true);
@@ -238,9 +248,11 @@ export function Layout({ children }: { children: React.ReactNode }) {
     setIsAuthenticated(false);
     updateUserData(null);
     setBrowserUserId(null);
+    setUserId(null);
     if (typeof window !== 'undefined') {
       sessionStorage.removeItem('isAuthenticated');
       sessionStorage.removeItem('browserUserId');
+      sessionStorage.removeItem('userId');
     }
     navigate('/');
   };
@@ -264,7 +276,9 @@ export function Layout({ children }: { children: React.ReactNode }) {
     userData,
     setUserData: updateUserData,
     browserUserId,
-    setBrowserUserId
+    setBrowserUserId,
+    userId,
+    setUserId,
   };
 
   // The login page is a separate layout

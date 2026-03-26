@@ -58,8 +58,32 @@ else:
 # Scenario service URL
 SCENARIO_SERVICE_URL = os.getenv("SCENARIO_SERVICE_URL", "http://scenario-runner-service.relibank.svc.cluster.local:8000")
 
+# Accounts service URL
+ACCOUNTS_SERVICE_URL = os.getenv("ACCOUNTS_SERVICE_URL", "http://accounts-service:5002")
+
 # Global Kafka producer instance
 producer = None
+
+async def get_user_stripe_details(user_id: str, propagation_headers: dict) -> dict:
+    """Fetch stripe_customer_id and stripe_payment_method_id for a user from accounts service."""
+    try:
+        async with httpx.AsyncClient() as client:
+            response = await client.get(
+                f"{ACCOUNTS_SERVICE_URL}/accounts-service/users/by-id/{user_id}",
+                headers=propagation_headers,
+                timeout=5.0
+            )
+            response.raise_for_status()
+            return response.json()
+    except httpx.HTTPStatusError as e:
+        if e.response.status_code == 404:
+            raise HTTPException(status_code=404, detail=f"User {user_id} not found in accounts service.")
+        logging.error(f"Accounts service error for user {user_id}: {e.response.status_code}")
+        raise HTTPException(status_code=502, detail="Accounts service returned an error.")
+    except (httpx.TimeoutException, httpx.ConnectError) as e:
+        logging.error(f"Could not reach accounts service for user {user_id}: {e}")
+        raise HTTPException(status_code=503, detail="Accounts service is unavailable.")
+
 
 async def get_payment_scenarios():
     """Fetch payment scenario configuration from scenario service"""
@@ -114,44 +138,6 @@ async def lifespan(app: FastAPI):
             "Failed to connect to Kafka after multiple retries. The application will not be able to publish messages."
         )
         # We can still run the app, but publishing will fail.
-
-    # Seed demo customers with payment methods on startup
-    if stripe.api_key:
-        try:
-            logging.info("Seeding demo customers with payment methods...")
-            demo_users = [
-                {"email": "solaire.a@sunlight.com", "name": "Solaire Astora"},
-                {"email": "malenia.m@haligtree.org", "name": "Malenia Miquella"},
-                {"email": "artorias.a@darksouls.net", "name": "Artorias Abyss"},
-            ]
-
-            for user in demo_users:
-                # Check if customer already exists
-                existing = stripe.Customer.list(email=user["email"], limit=1)
-
-                if existing.data:
-                    customer = existing.data[0]
-                    logging.info(f"Demo customer exists: {user['email']} ({customer.id})")
-                else:
-                    # Create new customer
-                    customer = stripe.Customer.create(
-                        email=user["email"],
-                        name=user["name"],
-                        description=f"ReliBank Demo User"
-                    )
-                    logging.info(f"Created demo customer: {user['email']} ({customer.id})")
-
-                # Check if they have a payment method
-                payment_methods = stripe.PaymentMethod.list(customer=customer.id, type="card")
-
-                if not payment_methods.data:
-                    # Attach test Visa card
-                    stripe.PaymentMethod.attach("pm_card_visa", customer=customer.id)
-                    logging.info(f"Attached payment method to {user['email']}")
-
-            logging.info("Demo customer seeding complete")
-        except Exception as e:
-            logging.warning(f"Failed to seed demo customers: {e}")
 
     yield
 
@@ -213,9 +199,10 @@ class CardPaymentRequest(BaseModel):
     billId: str = Field(min_length=1)
     amount: float = Field(gt=0)
     currency: str = Field(default="usd", min_length=3)
-    paymentMethodId: str = Field(min_length=1)  # Payment method token from Stripe.js
+    userId: Optional[str] = None           # preferred: UUID from accounts DB
+    paymentMethodId: Optional[str] = None  # fallback
+    customerId: Optional[str] = None       # fallback
     saveCard: bool = False
-    customerId: Optional[str] = None  # Stripe customer ID if exists
 
 
 class CreatePaymentMethodRequest(BaseModel):
@@ -461,6 +448,22 @@ async def process_card_payment(payment: CardPaymentRequest, request: Request):
     try:
         logging.info(f"Processing card payment for bill ID: {payment.billId}, amount: ${payment.amount}")
 
+        propagation_headers = get_propagation_headers(request)
+
+        # Resolve user ID from body, then fall back to propagated header
+        resolved_user_id = payment.userId or request.headers.get("x-browser-user-id")
+
+        if resolved_user_id:
+            user_data = await get_user_stripe_details(resolved_user_id, propagation_headers)
+            customer_id = user_data.get("stripe_customer_id") or payment.customerId
+            resolved_payment_method = user_data.get("stripe_payment_method_id") or payment.paymentMethodId
+        else:
+            customer_id = payment.customerId
+            resolved_payment_method = payment.paymentMethodId
+
+        if not resolved_payment_method:
+            raise HTTPException(status_code=400, detail="No payment method available. Provide userId or paymentMethodId.")
+
         # Fetch current payment scenarios
         scenarios = await get_payment_scenarios()
 
@@ -468,7 +471,7 @@ async def process_card_payment(payment: CardPaymentRequest, request: Request):
         if scenarios["stolen_card_enabled"] and random.random() * 100 <= scenarios["stolen_card_probability"]:
             payment_method_to_use = "pm_card_visa_chargeDeclinedStolenCard"
         else:
-            payment_method_to_use = payment.paymentMethodId
+            payment_method_to_use = resolved_payment_method
 
         # Check for card decline scenario (probability-based)
         if scenarios["card_decline_enabled"] and random.random() * 100 <= scenarios["card_decline_probability"]:
@@ -502,8 +505,6 @@ async def process_card_payment(payment: CardPaymentRequest, request: Request):
                 detail="Payment gateway timeout - please try again later"
             )
 
-        # Create or retrieve Stripe customer
-        customer_id = payment.customerId
         if not customer_id:
             customer = stripe.Customer.create(
                 description=f"ReliBank Customer for bill {payment.billId}",
@@ -668,72 +669,6 @@ async def list_payment_methods(customer_id: str):
                 }
                 for pm in payment_methods.data
             ]
-        }
-
-    except stripe.error.StripeError as e:
-        logging.error(f"Stripe error: {str(e)}")
-        raise HTTPException(status_code=500, detail=str(e))
-
-
-@app.post("/bill-pay-service/seed-demo-customers")
-async def seed_demo_customers():
-    """
-    Seed demo customers with saved payment methods for load testing.
-    Creates standard demo users with Visa cards attached.
-    """
-    if not stripe.api_key:
-        raise HTTPException(status_code=503, detail="Stripe is not configured")
-
-    demo_users = [
-        {"email": "solaire.a@sunlight.com", "name": "Solaire Astora"},
-        {"email": "malenia.m@haligtree.org", "name": "Malenia Miquella"},
-        {"email": "artorias.a@darksouls.net", "name": "Artorias Abyss"},
-    ]
-
-    created_customers = []
-
-    try:
-        for user in demo_users:
-            # Check if customer already exists by email
-            existing = stripe.Customer.list(email=user["email"], limit=1)
-
-            if existing.data:
-                customer = existing.data[0]
-                logging.info(f"Customer already exists: {customer.id} ({user['email']})")
-            else:
-                # Create new customer
-                customer = stripe.Customer.create(
-                    email=user["email"],
-                    name=user["name"],
-                    description=f"ReliBank Demo User - {user['name']}"
-                )
-                logging.info(f"Created customer: {customer.id} ({user['email']})")
-
-            # Check if they already have a payment method
-            payment_methods = stripe.PaymentMethod.list(
-                customer=customer.id,
-                type="card"
-            )
-
-            if not payment_methods.data:
-                # Attach a test Visa card
-                payment_method = stripe.PaymentMethod.attach(
-                    "pm_card_visa",
-                    customer=customer.id
-                )
-                logging.info(f"Attached payment method to {customer.id}")
-
-            created_customers.append({
-                "customerId": customer.id,
-                "email": user["email"],
-                "name": user["name"],
-                "hasPaymentMethod": True
-            })
-
-        return {
-            "status": "success",
-            "message": f"Seeded {len(created_customers)} demo customers",
-            "customers": created_customers
         }
 
     except stripe.error.StripeError as e:
