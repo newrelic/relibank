@@ -226,6 +226,16 @@ class CreatePaymentMethodRequest(BaseModel):
     customerEmail: Optional[str] = None
 
 
+def add_nr_event_attributes(model: BaseModel) -> None:
+    """Add all non-timestamp fields from a Pydantic model as NR custom attributes."""
+    attrs = [
+        (field_name, value)
+        for field_name, value in model.model_dump().items()
+        if "timestamp" not in field_name.lower() and value is not None
+    ]
+    newrelic.agent.add_custom_attributes(attrs)
+
+
 async def publish_message(topic: str, message: dict):
     """
     A helper function to publish a message to a Kafka topic.
@@ -241,6 +251,11 @@ async def publish_message(topic: str, message: dict):
         logging.info(f"Message published to topic '{topic}': {message}")
     except Exception as e:
         logging.error(f"Failed to publish message to topic '{topic}': {e}")
+        newrelic.agent.notice_error(attributes={
+            'service': 'bill-pay',
+            'action': 'publish_message',
+            'topic': topic
+        })
         raise HTTPException(status_code=500, detail="Failed to publish message to Kafka")
 
 
@@ -276,13 +291,23 @@ async def process_bill_payment(payment_details: PaymentDetails, request: Request
                 logging.info(f"Transaction with BillID '{payment_details.billId}' not found. OK to proceed.")
             else:
                 logging.error(f"Unexpected error from transaction service: {e}")
+                newrelic.agent.notice_error(attributes={
+                    'service': 'bill-pay',
+                    'endpoint': '/bill-pay-service/pay',
+                    'http_status': e.response.status_code
+                })
                 raise HTTPException(status_code=500, detail="An unexpected error occurred.")
         except RequestError:
             logging.error("Failed to connect to transaction service.")
+            newrelic.agent.notice_error(attributes={
+                'service': 'bill-pay',
+                'endpoint': '/bill-pay-service/pay'
+            })
             raise HTTPException(status_code=503, detail="Transaction service is unavailable.")
 
     # Create a unique transaction ID for the double entry
     transaction_uuid = str(uuid.uuid4())
+    add_nr_event_attributes(payment_details)
 
     # Kafka message for the debit side
     debit_event = {
@@ -353,6 +378,10 @@ async def process_recurring_payment(payment_schedule: PaymentSchedule, request: 
         raise
     except Exception as e:
         logging.exception(f"Unexpected error in recurring payment endpoint: {e}")
+        newrelic.agent.notice_error(attributes={
+            'service': 'bill-pay',
+            'endpoint': '/bill-pay-service/recurring-pay'
+        })
         raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")
 
     # Check for a duplicate billId before creating
@@ -373,9 +402,17 @@ async def process_recurring_payment(payment_schedule: PaymentSchedule, request: 
                 logging.info(f"Transaction with BillID '{payment_schedule.billId}' not found. OK to proceed.")
             else:
                 logging.error(f"Unexpected error from transaction service: {e}")
+                newrelic.agent.notice_error(attributes={
+                    'service': 'bill-pay',
+                    'endpoint': '/bill-pay-service/recurring-pay'
+                })
                 raise HTTPException(status_code=500, detail="An unexpected error occurred.")
         except RequestError:
             logging.error("Failed to connect to transaction service.")
+            newrelic.agent.notice_error(attributes={
+                'service': 'bill-pay',
+                'endpoint': '/bill-pay-service/recurring-pay'
+            })
             raise HTTPException(status_code=503, detail="Transaction service is unavailable.")
 
     # Kafka message to create the schedule
@@ -390,6 +427,7 @@ async def process_recurring_payment(payment_schedule: PaymentSchedule, request: 
         "timestamp": time.time(),
     }
 
+    add_nr_event_attributes(payment_schedule)
     await publish_message("recurring_payments", kafka_message)
 
     return {
@@ -425,11 +463,19 @@ async def cancel_payment(bill_id: str, cancel_details: CancelPayment, request: R
                 )
         except httpx.RequestError as e:
             logging.error(f"Failed to connect to transaction service: {e}")
+            newrelic.agent.notice_error(attributes={
+                'service': 'bill-pay',
+                'endpoint': '/bill-pay-service/cancel'
+            })
             raise HTTPException(status_code=503, detail="Transaction service is unavailable.")
         except HTTPStatusError as e:
             # Re-raise the exception if it's not a 404
             if e.response.status_code != 404:
                 logging.error(f"Unexpected error from transaction service: {e}")
+                newrelic.agent.notice_error(attributes={
+                    'service': 'bill-pay',
+                    'endpoint': '/bill-pay-service/cancel'
+                })
                 raise HTTPException(status_code=500, detail="An unexpected error occurred.")
 
 
@@ -440,6 +486,7 @@ async def cancel_payment(bill_id: str, cancel_details: CancelPayment, request: R
         "user_id": cancel_details.user_id,
         "timestamp": time.time(),
     }
+    newrelic.agent.add_custom_attributes([("bill_id", bill_id), ("user_id", cancel_details.user_id)])
     await publish_message("payment_cancellations", kafka_message)
 
     return {
@@ -463,6 +510,7 @@ async def process_card_payment(payment: CardPaymentRequest, request: Request):
 
         # Fetch current payment scenarios
         scenarios = await get_payment_scenarios()
+        add_nr_event_attributes(payment)
 
         # Check for stolen card scenario (probability-based)
         if scenarios["stolen_card_enabled"] and random.random() * 100 <= scenarios["stolen_card_probability"]:
@@ -582,9 +630,17 @@ async def process_card_payment(payment: CardPaymentRequest, request: Request):
         raise HTTPException(status_code=402, detail=f"Card declined: {e.user_message}")
     except stripe.error.StripeError as e:
         logging.error(f"Stripe error: {str(e)}")
+        newrelic.agent.notice_error(attributes={
+            'service': 'bill-pay',
+            'endpoint': '/bill-pay-service/card-pay'
+        })
         raise HTTPException(status_code=500, detail=f"Payment processing error: {str(e)}")
     except Exception as e:
         logging.error(f"Unexpected error processing card payment: {str(e)}")
+        newrelic.agent.notice_error(attributes={
+            'service': 'bill-pay',
+            'endpoint': '/bill-pay-service/card-pay'
+        })
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -635,9 +691,17 @@ async def create_payment_method(payment_method_request: CreatePaymentMethodReque
 
     except stripe.error.StripeError as e:
         logging.error(f"Stripe error: {str(e)}")
+        newrelic.agent.notice_error(attributes={
+            'service': 'bill-pay',
+            'endpoint': '/bill-pay-service/payment-method'
+        })
         raise HTTPException(status_code=500, detail=f"Error saving payment method: {str(e)}")
     except Exception as e:
         logging.error(f"Unexpected error: {str(e)}")
+        newrelic.agent.notice_error(attributes={
+            'service': 'bill-pay',
+            'endpoint': '/bill-pay-service/payment-method'
+        })
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -672,6 +736,10 @@ async def list_payment_methods(customer_id: str):
 
     except stripe.error.StripeError as e:
         logging.error(f"Stripe error: {str(e)}")
+        newrelic.agent.notice_error(attributes={
+            'service': 'bill-pay',
+            'endpoint': '/bill-pay-service/payment-methods/{customer_id}'
+        })
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -744,9 +812,11 @@ async def seed_demo_customers():
 @app.get("/bill-pay-service")
 async def ok():
     """Root return 200"""
+    newrelic.agent.ignore_transaction()
     return "ok"
 
 @app.get("/bill-pay-service/health")
 async def health_check():
     """Simple health check endpoint."""
+    newrelic.agent.ignore_transaction()
     return {"status": "healthy"}

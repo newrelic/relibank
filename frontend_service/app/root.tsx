@@ -247,8 +247,6 @@ export function Layout({ children }: { children: React.ReactNode }) {
 
   // Navigation effect
   useEffect(() => {
-    console.log("[Layout] userData:", userData);
-    console.log("[Layout] isAuthenticated:", isAuthenticated);
     if (isAuthenticated && !userData) {
       console.warn("Authenticated but no userData, logging out");
       handleLogout();

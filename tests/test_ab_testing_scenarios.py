@@ -17,13 +17,13 @@ ACCOUNTS_SERVICE_URL = os.getenv("ACCOUNTS_SERVICE", "http://localhost:5002")
 def reset_ab_tests():
     """Reset all A/B test scenarios before and after tests"""
     # Reset before test
-    response = requests.post(f"{SCENARIO_SERVICE_URL}/api/ab-testing/reset", timeout=10)
+    response = requests.post(f"{SCENARIO_SERVICE_URL}/scenario-runner/api/ab-testing/reset", timeout=10)
     assert response.status_code == 200
     time.sleep(0.5)
     yield
     # Cleanup after test
     try:
-        requests.post(f"{SCENARIO_SERVICE_URL}/api/ab-testing/reset", timeout=10)
+        requests.post(f"{SCENARIO_SERVICE_URL}/scenario-runner/api/ab-testing/reset", timeout=10)
         time.sleep(0.5)
     except:
         pass  # Ignore cleanup errors
@@ -33,7 +33,7 @@ def test_ab_test_service_health():
     """Test that A/B testing endpoints are accessible"""
     print("\n=== Testing A/B Test Service Health ===")
 
-    response = requests.get(f"{SCENARIO_SERVICE_URL}/api/ab-testing/config", timeout=10)
+    response = requests.get(f"{SCENARIO_SERVICE_URL}/scenario-runner/api/ab-testing/config", timeout=10)
     print(f"Status: {response.status_code}")
 
     assert response.status_code == 200, f"A/B test config endpoint failed: {response.status_code}"
@@ -52,7 +52,7 @@ def test_enable_lcp_slowness(reset_ab_tests):
 
     # Enable cohort-based scenario with 3000ms delay (affects 11 hardcoded test users)
     response = requests.post(
-        f"{SCENARIO_SERVICE_URL}/api/ab-testing/lcp-slowness-cohort",
+        f"{SCENARIO_SERVICE_URL}/scenario-runner/api/ab-testing/lcp-slowness-cohort",
         params={"enabled": True, "delay_ms": 3000},
         timeout=10
     )
@@ -68,7 +68,7 @@ def test_enable_lcp_slowness(reset_ab_tests):
     assert "3000ms" in data["message"], "Message doesn't mention 3000ms"
 
     # Verify scenario is enabled with correct settings
-    config_response = requests.get(f"{SCENARIO_SERVICE_URL}/api/ab-testing/config", timeout=10)
+    config_response = requests.get(f"{SCENARIO_SERVICE_URL}/scenario-runner/api/ab-testing/config", timeout=10)
     config = config_response.json()["config"]
 
     assert config["lcp_slowness_cohort_enabled"] is True, "LCP slowness cohort not enabled"
@@ -84,14 +84,14 @@ def test_disable_lcp_slowness(reset_ab_tests):
 
     # First enable it
     requests.post(
-        f"{SCENARIO_SERVICE_URL}/api/ab-testing/lcp-slowness-cohort",
+        f"{SCENARIO_SERVICE_URL}/scenario-runner/api/ab-testing/lcp-slowness-cohort",
         params={"enabled": True, "delay_ms": 3000},
         timeout=10
     )
 
     # Now disable it
     response = requests.post(
-        f"{SCENARIO_SERVICE_URL}/api/ab-testing/lcp-slowness-cohort",
+        f"{SCENARIO_SERVICE_URL}/scenario-runner/api/ab-testing/lcp-slowness-cohort",
         params={"enabled": False},
         timeout=10
     )
@@ -99,7 +99,7 @@ def test_disable_lcp_slowness(reset_ab_tests):
     assert response.status_code == 200, f"Failed to disable LCP slowness: {response.status_code}"
 
     # Verify scenario is disabled
-    config_response = requests.get(f"{SCENARIO_SERVICE_URL}/api/ab-testing/config", timeout=10)
+    config_response = requests.get(f"{SCENARIO_SERVICE_URL}/scenario-runner/api/ab-testing/config", timeout=10)
     config = config_response.json()["config"]
 
     assert config["lcp_slowness_cohort_enabled"] is False, "LCP slowness cohort still enabled"
@@ -128,7 +128,7 @@ def test_cohort_assignment_distribution(reset_ab_tests):
 
     # Enable LCP slowness cohort for hardcoded 11 users
     requests.post(
-        f"{SCENARIO_SERVICE_URL}/api/ab-testing/lcp-slowness-cohort",
+        f"{SCENARIO_SERVICE_URL}/scenario-runner/api/ab-testing/lcp-slowness-cohort",
         params={"enabled": True, "delay_ms": 3000},
         timeout=10
     )
@@ -177,7 +177,7 @@ def test_deterministic_cohort_assignment(reset_ab_tests):
 
     # Enable LCP slowness cohort
     requests.post(
-        f"{SCENARIO_SERVICE_URL}/api/ab-testing/lcp-slowness-cohort",
+        f"{SCENARIO_SERVICE_URL}/scenario-runner/api/ab-testing/lcp-slowness-cohort",
         params={"enabled": True, "delay_ms": 3000},
         timeout=10
     )
@@ -236,7 +236,7 @@ def test_enabled_scenario_affects_hardcoded_users(reset_ab_tests):
 
     # Enable LCP slowness cohort with 5000ms delay
     requests.post(
-        f"{SCENARIO_SERVICE_URL}/api/ab-testing/lcp-slowness-cohort",
+        f"{SCENARIO_SERVICE_URL}/scenario-runner/api/ab-testing/lcp-slowness-cohort",
         params={"enabled": True, "delay_ms": 5000},
         timeout=10
     )
@@ -279,7 +279,7 @@ def test_disabled_scenario_affects_no_users(reset_ab_tests):
 
     # Disable LCP slowness cohort (scenario disabled means no delays)
     requests.post(
-        f"{SCENARIO_SERVICE_URL}/api/ab-testing/lcp-slowness-cohort",
+        f"{SCENARIO_SERVICE_URL}/scenario-runner/api/ab-testing/lcp-slowness-cohort",
         params={"enabled": False, "delay_ms": 3000},
         timeout=10
     )
@@ -330,7 +330,7 @@ def test_invalid_delay_values(reset_ab_tests):
 
     # Test delay > 30000ms
     response = requests.post(
-        f"{SCENARIO_SERVICE_URL}/api/ab-testing/lcp-slowness-cohort",
+        f"{SCENARIO_SERVICE_URL}/scenario-runner/api/ab-testing/lcp-slowness-cohort",
         params={"enabled": True, "delay_ms": 50000},
         timeout=10
     )
@@ -342,7 +342,7 @@ def test_invalid_delay_values(reset_ab_tests):
 
     # Test negative delay
     response = requests.post(
-        f"{SCENARIO_SERVICE_URL}/api/ab-testing/lcp-slowness-cohort",
+        f"{SCENARIO_SERVICE_URL}/scenario-runner/api/ab-testing/lcp-slowness-cohort",
         params={"enabled": True, "delay_ms": -1000},
         timeout=10
     )
@@ -359,21 +359,21 @@ def test_reset_ab_tests_endpoint(reset_ab_tests):
 
     # Enable LCP slowness cohort
     requests.post(
-        f"{SCENARIO_SERVICE_URL}/api/ab-testing/lcp-slowness-cohort",
+        f"{SCENARIO_SERVICE_URL}/scenario-runner/api/ab-testing/lcp-slowness-cohort",
         params={"enabled": True, "delay_ms": 5000},
         timeout=10
     )
 
     # Verify it's enabled
-    config = requests.get(f"{SCENARIO_SERVICE_URL}/api/ab-testing/config", timeout=10).json()["config"]
+    config = requests.get(f"{SCENARIO_SERVICE_URL}/scenario-runner/api/ab-testing/config", timeout=10).json()["config"]
     assert config["lcp_slowness_cohort_enabled"] is True
 
     # Reset
-    response = requests.post(f"{SCENARIO_SERVICE_URL}/api/ab-testing/reset", timeout=10)
+    response = requests.post(f"{SCENARIO_SERVICE_URL}/scenario-runner/api/ab-testing/reset", timeout=10)
     assert response.status_code == 200
 
     # Verify all scenarios are disabled with default values
-    config = requests.get(f"{SCENARIO_SERVICE_URL}/api/ab-testing/config", timeout=10).json()["config"]
+    config = requests.get(f"{SCENARIO_SERVICE_URL}/scenario-runner/api/ab-testing/config", timeout=10).json()["config"]
 
     assert config["lcp_slowness_cohort_enabled"] is False, "LCP slowness cohort still enabled after reset"
     assert config["lcp_slowness_cohort_user_count"] == 11, "User count not correct"
