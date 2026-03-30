@@ -283,6 +283,11 @@ async def get_user(email: str, request: Request):
             return User(**user)
     except Exception as e:
         logging.error(f"Error retrieving user: {e}")
+        newrelic.agent.notice_error(attributes={
+            'service': 'accounts',
+            'endpoint': '/accounts-service/user/{email}',
+            'action': 'get_user'
+        })
         raise HTTPException(status_code=500, detail="Error retrieving user.")
     finally:
         return_db_connection(conn)
@@ -376,7 +381,6 @@ async def get_accounts(email: str, request: Request):
                     account_id_int = int(account["id"])
                     try:
                         # Correctly passing a string UUID to the transaction service
-                        print(f"URL: {TRANSACTION_SERVICE_URL}/transaction-service/ledger/{account_id_int}")
                         response = await client.get(
                             f"{TRANSACTION_SERVICE_URL}/transaction-service/ledger/{account_id_int}",
                             headers=propagation_headers
@@ -391,13 +395,22 @@ async def get_accounts(email: str, request: Request):
                         account["balance"] = 0.0
                     except Exception as e:
                         logging.error(f"Error fetching ledger balance for account {account_id_int}: {e}")
+                        newrelic.agent.notice_error(attributes={
+                            'service': 'accounts',
+                            'endpoint': '/accounts-service/accounts',
+                            'action': 'get_accounts',
+                            'account_id': str(account_id_int)
+                        })
                         account["balance"] = 0.0
 
             return [Account(**account) for account in all_accounts]
     except Exception as e:
-        import traceback
-        logging.error(f"Error retrieving accounts: {e}")
-        logging.error(f"Traceback: {traceback.format_exc()}")
+        logging.exception(f"Error retrieving accounts: {e}")
+        newrelic.agent.notice_error(attributes={
+            'service': 'accounts',
+            'endpoint': '/accounts-service/accounts',
+            'action': 'get_accounts'
+        })
         raise HTTPException(status_code=500, detail="Error retrieving accounts.")
     finally:
         return_db_connection(conn)
@@ -442,6 +455,11 @@ async def get_account_type(account_id: int, request: Request):
             raise HTTPException(status_code=404, detail="Account not found.")
     except Exception as e:
         logging.error(f"Error retrieving account type: {e}")
+        newrelic.agent.notice_error(attributes={
+            'service': 'accounts',
+            'endpoint': '/account/type/{account_id}',
+            'action': 'get_account_type'
+        })
         raise HTTPException(status_code=500, detail="Error retrieving account type.")
     finally:
         return_db_connection(conn)
@@ -477,6 +495,11 @@ async def create_user(user: User, request: Request):
             return {"status": "success", "message": "User created successfully."}
     except Exception as e:
         logging.error(f"Error creating user: {e}")
+        newrelic.agent.notice_error(attributes={
+            'service': 'accounts',
+            'endpoint': '/accounts-service/users',
+            'action': 'create_user'
+        })
         raise HTTPException(status_code=500, detail="Error creating user.")
     finally:
         return_db_connection(conn)
@@ -571,11 +594,21 @@ async def create_account(email: str, account: Account, request: Request):
             )
         else:
             logging.error(f"Database integrity error creating account: {e}")
+            newrelic.agent.notice_error(attributes={
+                'service': 'accounts',
+                'endpoint': '/accounts-service/accounts',
+                'action': 'create_account'
+            })
             raise HTTPException(status_code=400, detail="Invalid account data provided.")
     except Exception as e:
         if conn:
             conn.rollback()
         logging.error(f"Error creating account: {e}")
+        newrelic.agent.notice_error(attributes={
+            'service': 'accounts',
+            'endpoint': '/accounts-service/accounts',
+            'action': 'create_account'
+        })
         raise HTTPException(status_code=500, detail="Error creating account.")
     finally:
         return_db_connection(conn)
@@ -583,11 +616,13 @@ async def create_account(email: str, account: Account, request: Request):
 @app.get("/accounts-service")
 async def simple_health_check():
     """Simple health check endpoint."""
+    newrelic.agent.ignore_transaction()
     return "ok"
 
 @app.get("/accounts-service/health")
 async def health_check(request: Request):
     """Simple health check endpoint."""
+    newrelic.agent.ignore_transaction()
     process_headers(dict(request.headers))
     return {"status": "healthy"}
 
@@ -696,6 +731,11 @@ async def get_browser_user(request: Request):
         raise
     except Exception as e:
         logging.error(f"Error getting browser user: {e}")
+        newrelic.agent.notice_error(attributes={
+            'service': 'accounts',
+            'endpoint': '/accounts-service/browser-user',
+            'action': 'get_browser_user'
+        })
         raise HTTPException(status_code=500, detail="Error retrieving browser user ID.")
     finally:
         return_db_connection(conn)

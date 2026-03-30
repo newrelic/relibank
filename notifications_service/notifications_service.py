@@ -37,6 +37,11 @@ def trigger_azure_function(payload):
         response.raise_for_status()
         logger.info(f"Successfully triggered Azure Function. Status: {response.status_code}, Response: {response.text}")
     except requests.exceptions.RequestException as e:
+        newrelic.agent.notice_error(attributes={
+            'service': 'notifications',
+            'endpoint': 'internal',
+            'action': 'trigger_azure_function'
+        })
         logger.error(f"Failed to trigger Azure Function: {e}")
 
 
@@ -47,11 +52,13 @@ async def process_event(message):
     try:
         event = json.loads(message.value.decode('utf-8'))
         event_type = event.get('eventType')
+        attrs = [(k, v) for k, v in event.items() if "timestamp" not in k.lower() and v is not None]
+        newrelic.agent.add_custom_attributes(attrs)
         logger.info(f"Received event: {event_type} on topic {message.topic}")
 
         # --- Payment is Due Event ---
         if event_type == "PaymentDueNotificationEvent":
-            logger.info("--- INFO: Payment is due event processing started. ---")
+            logger.info("Payment is due event processing started.")
             
             bill_id = event.get('billId')
             amount = event.get('amount')
@@ -80,7 +87,7 @@ async def process_event(message):
 
         # --- Bill Payments Event ---
         elif event_type == "PaymentCompleted":
-            logger.info("--- INFO: Bill payment event processing started. ---")
+            logger.info("Bill payment event processing started.")
 
             bill_id = event.get('billId')
             amount = event.get('amount')
@@ -106,7 +113,7 @@ async def process_event(message):
 
         # --- Recurring Payment Scheduled Event ---
         elif event_type == "RecurringPaymentScheduled":
-            logger.info("--- INFO: Recurring payment scheduled event processing started. ---")
+            logger.info("Recurring payment scheduled event processing started.")
 
             bill_id = event.get('billId')
             amount = event.get('amount')
@@ -135,8 +142,18 @@ async def process_event(message):
             trigger_azure_function(sms_payload)
         
     except json.JSONDecodeError as e:
+        newrelic.agent.notice_error(attributes={
+            'service': 'notifications',
+            'endpoint': 'kafka',
+            'action': 'process_event'
+        })
         logger.error(f"Failed to decode Kafka message: {e}")
     except Exception as e:
+        newrelic.agent.notice_error(attributes={
+            'service': 'notifications',
+            'endpoint': 'kafka',
+            'action': 'process_event'
+        })
         logger.error(f"An error occurred during event processing: {e}")
 
 

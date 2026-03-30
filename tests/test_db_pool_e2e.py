@@ -161,7 +161,7 @@ def test_db_pool_e2e_with_new_relic_validation(reset_scenario):
     nrql = """
     SELECT count(*), uniques(db.pool_id)
     FROM Transaction
-    WHERE appName = 'Reli - Accounts Service'
+    WHERE appName LIKE '%Accounts Service%'
       AND db.pool_id IS NOT NULL
     SINCE 10 minutes ago
     """
@@ -189,7 +189,7 @@ def test_db_pool_e2e_with_new_relic_validation(reset_scenario):
       average(duration) as 'avg_duration',
       count(*) as 'count'
     FROM Transaction
-    WHERE appName = 'Reli - Accounts Service'
+    WHERE appName LIKE '%Accounts Service%'
       AND db.pool_id IS NOT NULL
     FACET db.pool_id
     SINCE 10 minutes ago

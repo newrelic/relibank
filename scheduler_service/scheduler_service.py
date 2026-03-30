@@ -50,6 +50,16 @@ class PaymentDueNotificationEvent(BaseModel):
     currency: str = Field(min_length=3)
     timestamp: float
 
+
+def add_nr_event_attributes(model: BaseModel) -> None:
+    """Add all non-timestamp fields from a Pydantic model as NR custom attributes."""
+    attrs = [
+        (field_name, value)
+        for field_name, value in model.model_dump().items()
+        if "timestamp" not in field_name.lower() and value is not None
+    ]
+    newrelic.agent.add_custom_attributes(attrs)
+
 # Global Kafka producer and database connection
 producer = None
 db_connection = None
@@ -103,7 +113,8 @@ async def check_for_due_payments():
         """, today_date)
         
         due_payments = cursor.fetchall()
-        
+        newrelic.agent.add_custom_attribute("due_payments_count", len(due_payments))
+
         if not due_payments:
             logging.info("No recurring payments due today.")
             return
@@ -111,17 +122,17 @@ async def check_for_due_payments():
         for payment in due_payments:
             bill_id, account_id, amount, currency = payment
             logging.info(f"Payment for bill {bill_id} is due. Triggering event.")
-            
-            event = PaymentDueNotificationEvent(
+
+            event_model = PaymentDueNotificationEvent(
                 transactionId=str(uuid.uuid4()),
                 billId=bill_id,
                 accountId=account_id,
                 amount=float(amount),
                 currency=currency,
                 timestamp=time.time()
-            ).model_dump()
-            
-            await send_event("payment_due_notifications", event)
+            )
+            add_nr_event_attributes(event_model)
+            await send_event("payment_due_notifications", event_model.model_dump())
 
         db_connection.commit()
     except Exception as e:

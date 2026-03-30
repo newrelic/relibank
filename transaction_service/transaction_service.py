@@ -168,6 +168,16 @@ EVENT_MODELS = {
     "PaymentDueNotificationEvent": PaymentDueNotificationEvent,
 }
 
+
+def add_nr_event_attributes(model: BaseModel) -> None:
+    """Add all non-timestamp fields from a Pydantic model as NR custom attributes."""
+    attrs = [
+        (field_name, value)
+        for field_name, value in model.model_dump().items()
+        if "timestamp" not in field_name.lower() and value is not None
+    ]
+    newrelic.agent.add_custom_attributes(attrs)
+
 # Global database connection, Kafka producer, and consumer task
 producer = None
 consumer_task = None
@@ -209,9 +219,19 @@ async def get_account_type(account_id: int, headers: dict = None):
                 )
             else:
                 logging.error(f"Unexpected error from accounts service: {e}")
+                newrelic.agent.notice_error(attributes={
+                    'service': 'transaction',
+                    'endpoint': 'internal',
+                    'action': 'get_account_type'
+                })
                 raise HTTPException(status_code=500, detail="An unexpected error occurred.")
         except RequestError as e:
             logging.error(f"Failed to connect to accounts service: {e}")
+            newrelic.agent.notice_error(attributes={
+                'service': 'transaction',
+                'endpoint': 'internal',
+                'action': 'get_account_type'
+            })
             raise HTTPException(status_code=503, detail="Accounts service is unavailable.")
 
 
@@ -266,42 +286,13 @@ async def start_kafka_consumer():
                 logging.warning(f"Message failed Pydantic validation: {e.errors()}. Skipping message.")
                 continue
 
-            try:
-                if event_type == "BillPaymentInitiatedFromAcct":
-                    # Log the debit to the ledger
-                    cursor.execute(
-                        """
-                        UPDATE Ledger SET CurrentBalance = CurrentBalance - ? WHERE AccountID = ?
-                        IF @@ROWCOUNT = 0
-                        INSERT INTO Ledger (AccountID, CurrentBalance) VALUES (?, ?)
-                    """,
-                        event_model.amount,
-                        event_model.accountId,
-                        event_model.accountId,
-                        -event_model.amount,
-                    )
-                    db_connection.commit()
-                    logging.info(f"Debited {event_model.amount} from account {event_model.accountId} in Ledger.")
-
-                    # Insert into Transactions table
-                    cursor.execute(
-                        """
-                        INSERT INTO Transactions (EventType, BillID, Amount, Currency, AccountID, Timestamp)
-                        VALUES (?, ?, ?, ?, ?, ?)
-                    """,
-                        event_model.eventType,
-                        event_model.billId,
-                        event_model.amount,
-                        event_model.currency,
-                        event_model.accountId,
-                        event_model.timestamp,
-                    )
-                    db_connection.commit()
-                    logging.info(f"Debit transaction {event_model.billId} recorded in Transactions table.")
-                elif event_type == "BillPaymentInitiatedToAcct":
-                    account_type = await get_account_type(event_model.accountId)
-                    if account_type in ["loan", "credit"]:
-                        # Payment to a loan/credit account is a debit to the balance
+            with newrelic.agent.BackgroundTask(
+                newrelic.agent.application(), name=f"Kafka/{event_type}", group="Message/Kafka"
+            ):
+                add_nr_event_attributes(event_model)
+                try:
+                    if event_type == "BillPaymentInitiatedFromAcct":
+                        # Log the debit to the ledger
                         cursor.execute(
                             """
                             UPDATE Ledger SET CurrentBalance = CurrentBalance - ? WHERE AccountID = ?
@@ -314,92 +305,126 @@ async def start_kafka_consumer():
                             -event_model.amount,
                         )
                         db_connection.commit()
-                        logging.info(
-                            f"Debited {event_model.amount} from loan/credit account {event_model.accountId} in Ledger."
-                        )
-                    else:
-                        # Payment to a checking/savings account is a credit
+                        logging.info(f"Debited {event_model.amount} from account {event_model.accountId} in Ledger.")
+
+                        # Insert into Transactions table
                         cursor.execute(
                             """
-                            UPDATE Ledger SET CurrentBalance = CurrentBalance + ? WHERE AccountID = ?
-                            IF @@ROWCOUNT = 0
-                            INSERT INTO Ledger (AccountID, CurrentBalance) VALUES (?, ?)
+                            INSERT INTO Transactions (EventType, BillID, Amount, Currency, AccountID, Timestamp)
+                            VALUES (?, ?, ?, ?, ?, ?)
                         """,
+                            event_model.eventType,
+                            event_model.billId,
                             event_model.amount,
+                            event_model.currency,
                             event_model.accountId,
-                            event_model.accountId,
-                            event_model.amount,
+                            event_model.timestamp,
                         )
                         db_connection.commit()
-                        logging.info(f"Credited {event_model.amount} to account {event_model.accountId} in Ledger.")
+                        logging.info(f"Debit transaction {event_model.billId} recorded in Transactions table.")
+                    elif event_type == "BillPaymentInitiatedToAcct":
+                        account_type = await get_account_type(event_model.accountId)
+                        newrelic.agent.add_custom_attribute("account_type", account_type)
+                        if account_type in ["loan", "credit"]:
+                            # Payment to a loan/credit account is a debit to the balance
+                            cursor.execute(
+                                """
+                                UPDATE Ledger SET CurrentBalance = CurrentBalance - ? WHERE AccountID = ?
+                                IF @@ROWCOUNT = 0
+                                INSERT INTO Ledger (AccountID, CurrentBalance) VALUES (?, ?)
+                            """,
+                                event_model.amount,
+                                event_model.accountId,
+                                event_model.accountId,
+                                -event_model.amount,
+                            )
+                            db_connection.commit()
+                            logging.info(
+                                f"Debited {event_model.amount} from loan/credit account {event_model.accountId} in Ledger."
+                            )
+                        else:
+                            # Payment to a checking/savings account is a credit
+                            cursor.execute(
+                                """
+                                UPDATE Ledger SET CurrentBalance = CurrentBalance + ? WHERE AccountID = ?
+                                IF @@ROWCOUNT = 0
+                                INSERT INTO Ledger (AccountID, CurrentBalance) VALUES (?, ?)
+                            """,
+                                event_model.amount,
+                                event_model.accountId,
+                                event_model.accountId,
+                                event_model.amount,
+                            )
+                            db_connection.commit()
+                            logging.info(f"Credited {event_model.amount} to account {event_model.accountId} in Ledger.")
 
-                    # Insert into Transactions table
-                    cursor.execute(
-                        """
-                        INSERT INTO Transactions (EventType, BillID, Amount, Currency, AccountID, Timestamp)
-                        VALUES (?, ?, ?, ?, ?, ?)
-                    """,
-                        event_model.eventType,
-                        event_model.billId,
-                        event_model.amount,
-                        event_model.currency,
-                        event_model.accountId,
-                        event_model.timestamp,
-                    )
-                    db_connection.commit()
-                    logging.info(f"Credit transaction {event_model.billId} recorded in Transactions table.")
-                elif event_type == 'RecurringPaymentScheduled':
-                    # This event is a schedule, so insert it into the RecurringSchedules table
-                    cursor.execute("""
-                        INSERT INTO RecurringSchedules (BillID, AccountID, Amount, Currency, Frequency, StartDate, Timestamp)
-                        VALUES (?, ?, ?, ?, ?, ?, ?)
-                    """, event_model.billId, 
-                        event_model.accountId, 
-                        event_model.amount,
-                        event_model.currency, 
-                        event_model.frequency, 
-                        event_model.startDate, 
-                        event_model.timestamp)
-                    db_connection.commit()
-                    logging.info(f"Recurring payment scheduled for bill ID {event_model.billId} and inserted.")
-                elif event_type == "BillPaymentCancelled":
-                    # Update the existing transaction record
-                    cursor.execute(
-                        """
-                        UPDATE Transactions SET EventType = ?, CancellationUserID = ?, CancellationTimestamp = ?
-                        WHERE BillID = ?
-                    """,
-                        event_model.eventType,
-                        event_model.user_id,
-                        event_model.timestamp,
-                        event_model.billId,
-                    )
-                    db_connection.commit()
-                    logging.info(f"Payment for bill ID {event_model.billId} cancelled and updated.")
-                elif event_type == "PaymentDueNotificationEvent":
-                    # This event signals that a recurring payment is due
-                    logging.info(
-                        f"Received 'PaymentDueNotificationEvent' for bill ID {event_model.billId}. Simulating payment initiation..."
-                    )
+                        # Insert into Transactions table
+                        cursor.execute(
+                            """
+                            INSERT INTO Transactions (EventType, BillID, Amount, Currency, AccountID, Timestamp)
+                            VALUES (?, ?, ?, ?, ?, ?)
+                        """,
+                            event_model.eventType,
+                            event_model.billId,
+                            event_model.amount,
+                            event_model.currency,
+                            event_model.accountId,
+                            event_model.timestamp,
+                        )
+                        db_connection.commit()
+                        logging.info(f"Credit transaction {event_model.billId} recorded in Transactions table.")
+                    elif event_type == 'RecurringPaymentScheduled':
+                        # This event is a schedule, so insert it into the RecurringSchedules table
+                        cursor.execute("""
+                            INSERT INTO RecurringSchedules (BillID, AccountID, Amount, Currency, Frequency, StartDate, Timestamp)
+                            VALUES (?, ?, ?, ?, ?, ?, ?)
+                        """, event_model.billId,
+                            event_model.accountId,
+                            event_model.amount,
+                            event_model.currency,
+                            event_model.frequency,
+                            event_model.startDate,
+                            event_model.timestamp)
+                        db_connection.commit()
+                        logging.info(f"Recurring payment scheduled for bill ID {event_model.billId} and inserted.")
+                    elif event_type == "BillPaymentCancelled":
+                        # Update the existing transaction record
+                        cursor.execute(
+                            """
+                            UPDATE Transactions SET EventType = ?, CancellationUserID = ?, CancellationTimestamp = ?
+                            WHERE BillID = ?
+                        """,
+                            event_model.eventType,
+                            event_model.user_id,
+                            event_model.timestamp,
+                            event_model.billId,
+                        )
+                        db_connection.commit()
+                        logging.info(f"Payment for bill ID {event_model.billId} cancelled and updated.")
+                    elif event_type == "PaymentDueNotificationEvent":
+                        # This event signals that a recurring payment is due
+                        logging.info(
+                            f"Received 'PaymentDueNotificationEvent' for bill ID {event_model.billId}. Simulating payment initiation..."
+                        )
 
-                    # Publish a new event to the `bill_payments` topic
-                    # This event will be consumed by this service again to be recorded as a regular payment
-                    payment_init_event = {
-                        "eventType": "BillPaymentInitiatedFromAcct",
-                        "billId": event_model.billId,
-                        "amount": event_model.amount,
-                        "currency": event_model.currency,
-                        "accountId": event_model.accountId,
-                        "timestamp": time.time(),
-                    }
-                    message_bytes = json.dumps(payment_init_event).encode("utf-8")
-                    # Send the new event to the Kafka topic
-                    await producer.send_and_wait("bill_payments", message_bytes)
+                        # Publish a new event to the `bill_payments` topic
+                        # This event will be consumed by this service again to be recorded as a regular payment
+                        payment_init_event = {
+                            "eventType": "BillPaymentInitiatedFromAcct",
+                            "billId": event_model.billId,
+                            "amount": event_model.amount,
+                            "currency": event_model.currency,
+                            "accountId": event_model.accountId,
+                            "timestamp": time.time(),
+                        }
+                        message_bytes = json.dumps(payment_init_event).encode("utf-8")
+                        # Send the new event to the Kafka topic
+                        await producer.send_and_wait("bill_payments", message_bytes)
 
-                logging.info(f"Database write successful for event {event_model.eventType}.")
-            except Exception as e:
-                logging.error(f"Database write error: {e}")
-                continue
+                    logging.info(f"Database write successful for event {event_model.eventType}.")
+                except Exception as e:
+                    logging.error(f"Database write error: {e}")
+                    continue
 
     except Exception as e:
         logging.error(f"An error occurred while consuming message: {e}")
@@ -504,6 +529,11 @@ async def get_transactions(request: Request):
         return transactions
     except Exception as e:
         logging.error(f"Error retrieving transactions: {e}")
+        newrelic.agent.notice_error(attributes={
+            'service': 'transaction',
+            'endpoint': '/transaction-service/transactions',
+            'action': 'get_transactions'
+        })
         raise HTTPException(status_code=500, detail="Error retrieving transactions.")
 
 
@@ -524,6 +554,7 @@ async def get_transaction(bill_id: str, request: Request):
 
         columns = [column[0] for column in cursor.description]
         transaction = TransactionRecord(**dict(zip(columns, row)))
+        add_nr_event_attributes(transaction)
         logging.info(f"Retrieved transaction for BillID: {bill_id}")
         process_headers(dict(request.headers))
         return transaction
@@ -531,6 +562,11 @@ async def get_transaction(bill_id: str, request: Request):
         raise
     except Exception as e:
         logging.error(f"Error retrieving transaction: {e}")
+        newrelic.agent.notice_error(attributes={
+            'service': 'transaction',
+            'endpoint': '/transaction-service/transaction/{bill_id}',
+            'action': 'get_transaction'
+        })
         raise HTTPException(status_code=500, detail="Error retrieving transaction.")
 
 
@@ -560,6 +596,11 @@ async def get_recurring_payments(request: Request):
         return schedules
     except Exception as e:
         logging.error(f"Error retrieving recurring payments: {e}")
+        newrelic.agent.notice_error(attributes={
+            'service': 'transaction',
+            'endpoint': '/transaction-service/recurring-payments',
+            'action': 'get_recurring_payments'
+        })
         raise HTTPException(status_code=500, detail="Error retrieving recurring payments.")
 
 
@@ -584,11 +625,18 @@ async def get_ledger_balance(account_id: int, request: Request):
 
         balance_record = {"account_id": row[0], "current_balance": float(row[1])}
         logging.info(f"Retrieved ledger balance for account {account_id}")
-        return LedgerRecord(**balance_record)
+        ledger = LedgerRecord(**balance_record)
+        add_nr_event_attributes(ledger)
+        return ledger
     except HTTPException:
         raise
     except Exception as e:
         logging.error(f"Error retrieving ledger balance: {e}")
+        newrelic.agent.notice_error(attributes={
+            'service': 'transaction',
+            'endpoint': '/transaction-service/ledger/{account_id}',
+            'action': 'get_ledger_balance'
+        })
         raise HTTPException(status_code=500, detail="Error retrieving ledger balance.")
     finally:
         pass
@@ -600,6 +648,7 @@ async def create_blocking_scenario(delay_seconds: int = 30, request: Request = N
     Starts a transaction, locks a row, and holds it for the specified delay.
     This simulates blocking behavior for monitoring and testing purposes.
     """
+    newrelic.agent.ignore_transaction()
     if delay_seconds < 1 or delay_seconds > 300:
         raise HTTPException(status_code=400, detail="delay_seconds must be between 1 and 300")
 
@@ -758,6 +807,11 @@ async def adjust_transaction_amount(bill_id: str, adjustment: float = 0.01, requ
         raise
     except Exception as e:
         logging.error(f"Error adjusting transaction amount: {e}")
+        newrelic.agent.notice_error(attributes={
+            'service': 'transaction',
+            'endpoint': '/transaction-service/adjust-amount/{bill_id}',
+            'action': 'adjust_transaction_amount'
+        })
         if adjust_connection:
             try:
                 adjust_connection.rollback()
@@ -785,6 +839,7 @@ async def generate_slow_query(query_type: str = "summary", delay_seconds: int = 
     - self_join: Duplicate detection via self-join
     - complex_filter: Full table scan with complex WHERE clause
     """
+    newrelic.agent.ignore_transaction()
     if not db_connection:
         raise HTTPException(status_code=503, detail="Database connection failed.")
 
@@ -910,9 +965,11 @@ async def generate_slow_query(query_type: str = "summary", delay_seconds: int = 
 @app.get("/transaction-service")
 async def ok():
     """Root return 200"""
+    newrelic.agent.ignore_transaction()
     return "ok"
 
 @app.get("/transaction-service/health")
 async def health_check():
     """Simple health check endpoint."""
+    newrelic.agent.ignore_transaction()
     return {"status": "healthy"}

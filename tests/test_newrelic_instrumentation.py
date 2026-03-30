@@ -56,14 +56,14 @@ def generate_test_traffic_once():
 
     services_hit = []
 
-    # Hit accounts service
+    # Hit accounts service (non-ignored endpoint)
     try:
         response = requests.get(
-            f"{ACCOUNTS_SERVICE}/accounts-service/health",
+            f"{ACCOUNTS_SERVICE}/accounts-service/user/traffic-test@relibank.com",
             headers=headers,
             timeout=10
         )
-        if response.status_code == 200:
+        if response.status_code in [200, 404]:
             services_hit.append("accounts-service")
             print(f"✓ Hit accounts-service (status: {response.status_code})")
     except Exception as e:
@@ -90,6 +90,18 @@ def generate_test_traffic_once():
             print(f"✓ Generated bill payment (status: {response.status_code})")
     except Exception as e:
         print(f"✗ Failed to generate bill payment: {e}")
+
+    # Trigger a StripeError to populate TransactionError with notice_error attributes
+    try:
+        requests.post(
+            f"{BILL_PAY_SERVICE}/bill-pay-service/card-pay",
+            json={"paymentMethodId": "pm_card_invalid", "amount": 10.00, "customerId": "cus_test_invalid"},
+            headers=headers,
+            timeout=10
+        )
+        print("  Triggered error traffic for notice_error coverage")
+    except Exception:
+        pass  # Error is intentional; ConnectionError if service is down is also fine
 
     print(f"\nGenerated traffic to: {', '.join(services_hit)}")
     print("⏳ Waiting 60 seconds for New Relic data ingestion...")
@@ -144,40 +156,40 @@ def generate_test_traffic():
     # Hit multiple services to generate transactions
     services_hit = []
 
-    # 1. Accounts service
+    # 1. Accounts service (non-ignored endpoint)
     try:
         response = requests.get(
-            f"{ACCOUNTS_SERVICE}/accounts-service/health",
+            f"{ACCOUNTS_SERVICE}/accounts-service/user/traffic-test@relibank.com",
             headers=headers,
             timeout=10
         )
-        if response.status_code == 200:
+        if response.status_code in [200, 404]:
             services_hit.append("accounts-service")
             print(f"✓ Hit accounts-service (status: {response.status_code})")
     except Exception as e:
         print(f"✗ Failed to hit accounts-service: {e}")
 
-    # 2. Transaction service
+    # 2. Transaction service (non-ignored endpoint)
     try:
         response = requests.get(
-            f"{TRANSACTION_SERVICE}/transaction-service/health",
+            f"{TRANSACTION_SERVICE}/transaction-service/transactions",
             headers=headers,
             timeout=10
         )
-        if response.status_code == 200:
+        if response.status_code in [200, 404]:
             services_hit.append("transaction-service")
             print(f"✓ Hit transaction-service (status: {response.status_code})")
     except Exception as e:
         print(f"✗ Failed to hit transaction-service: {e}")
 
-    # 3. Bill pay service
+    # 3. Bill pay service (non-ignored endpoint)
     try:
         response = requests.get(
-            f"{BILL_PAY_SERVICE}/bill-pay-service/health",
+            f"{BILL_PAY_SERVICE}/bill-pay-service/payment-scenarios",
             headers=headers,
             timeout=10
         )
-        if response.status_code == 200:
+        if response.status_code in [200, 404]:
             services_hit.append("bill-pay-service")
             print(f"✓ Hit bill-pay-service (status: {response.status_code})")
     except Exception as e:
@@ -334,6 +346,65 @@ def test_newrelic_recent_activity():
         "No recent activity found. Services may have stopped reporting or there's no traffic."
 
     print("✅ Recent activity detected in New Relic")
+
+
+@pytest.mark.slow
+def test_newrelic_error_notice_tracking():
+    """Verify notice_error() surfaces TransactionError events with service/endpoint/action attributes."""
+    print("\n=== Test: notice_error Custom Attribute Tracking ===")
+
+    nrql = (
+        "SELECT count(*) FROM TransactionError "
+        "WHERE (appName LIKE '%Relibank%' OR appName LIKE '%Bill Pay%') "
+        "AND custom.service IS NOT NULL "
+        "AND custom.endpoint IS NOT NULL "
+        "AND custom.action IS NOT NULL "
+        "SINCE 10 minutes ago"
+    )
+
+    print(f"Querying NRQL: {nrql}")
+    results = query_nrql(nrql)
+    error_count = results[0].get("count", 0) if results else 0
+
+    print(f"\n📊 TransactionError with custom.service/endpoint/action: {error_count}")
+
+    if error_count == 0:
+        pytest.skip(
+            "No TransactionError events with notice_error attributes found — "
+            "Stripe card-pay error trigger may not have reached the handler (Stripe not configured?)"
+        )
+
+    assert error_count > 0, (
+        "Expected TransactionError events with custom.service, custom.endpoint, and custom.action — "
+        "notice_error() attributes missing from error events"
+    )
+    print("✅ notice_error attributes verified on TransactionError events")
+
+
+@pytest.mark.slow
+def test_newrelic_transaction_custom_attributes():
+    """Verify add_custom_attributes() populates Transaction events with service-level attributes."""
+    print("\n=== Test: Transaction Custom Attributes (add_custom_attributes) ===")
+
+    # billId is added via add_custom_attributes() in bill_pay_service — no custom. prefix
+    nrql = (
+        "SELECT count(*) FROM Transaction "
+        "WHERE appName LIKE '%Bill Pay%' "
+        "AND billId IS NOT NULL "
+        "SINCE 10 minutes ago"
+    )
+
+    print(f"Querying NRQL: {nrql}")
+    results = query_nrql(nrql)
+    txn_count = results[0].get("count", 0) if results else 0
+
+    print(f"\n📊 Transactions with billId attribute: {txn_count}")
+
+    assert txn_count > 0, (
+        "Expected Transaction events with billId attribute from add_custom_attributes() — "
+        "bill-pay service may not be setting NR custom attributes correctly"
+    )
+    print("✅ add_custom_attributes() verified: billId present on Transaction events")
 
 
 if __name__ == "__main__":

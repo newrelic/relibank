@@ -186,9 +186,9 @@ class AsyncOpenAIChatModel(BaseChatModel):
             span_id = self.nr_span_id if self.nr_span_id else conversation_id
 
             if trace_id == conversation_id:
-                logger.warning(f"[NR Trace] Using conversation_id as fallback trace_id (nr_trace_id not available)")
+                logger.debug(f"Using conversation_id as fallback trace_id (nr_trace_id not available)")
             else:
-                logger.info(f"[NR Trace] Using passed trace_id={trace_id}")
+                logger.info(f"Using passed trace_id={trace_id}")
 
             # Record prompt messages (LlmChatCompletionMessage events)
             for i, msg in enumerate(openai_messages):
@@ -965,6 +965,11 @@ async def chat_with_model(prompt: str) -> ChatResponse:
         return ChatResponse(response=azure_response.response)
 
     except Exception as e:
+        newrelic.agent.notice_error(attributes={
+            'service': 'chatbot',
+            'endpoint': '/chatbot-service/chat',
+            'action': 'chat_with_model'
+        })
         logger.error(f"An unexpected error occurred: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail="Error generating response.")
 
@@ -1031,11 +1036,13 @@ async def assistant_chat(request: AssistantChatRequest) -> AssistantChatResponse
 @app.get("/chatbot-service/")
 async def ok():
     """Root return 200"""
+    newrelic.agent.ignore_transaction()
     return "ok"
 
 @app.get("/chatbot-service/health", response_model=HealthResponse)
 async def health_check() -> HealthResponse:
     """Simple health check endpoint."""
+    newrelic.agent.ignore_transaction()
     return {"status": "healthy"}
 
 # @app.get("/health", response_model=HealthResponse)
