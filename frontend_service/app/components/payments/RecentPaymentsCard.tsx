@@ -12,15 +12,24 @@ import {
   Chip,
   CircularProgress,
   Button,
+  Tooltip,
 } from '@mui/material';
-import { Receipt as ReceiptIcon, ExpandMore as ExpandMoreIcon, ExpandLess as ExpandLessIcon } from '@mui/icons-material';
+import {
+  Receipt as ReceiptIcon,
+  ExpandMore as ExpandMoreIcon,
+  ExpandLess as ExpandLessIcon,
+  Info as InfoIcon
+} from '@mui/icons-material';
 
 // Mock data for recent payment history (always shown)
 const mockPaymentHistory = [
   { id: 'mock-1', payee: 'Electric Company', amount: 125.50, date: '2024-01-01', status: 'completed', method: 'Bank Account' },
   { id: 'mock-2', payee: 'Internet Service', amount: 79.99, date: '2024-01-05', status: 'completed', method: 'Bank Account' },
-  { id: 'mock-3', payee: 'Rent', amount: 1500.00, date: '2024-01-01', status: 'completed', method: 'Bank Account' },
-  { id: 'mock-4', payee: 'Phone Bill', amount: 65.00, date: '2023-12-28', status: 'completed', method: 'Credit Card' },
+  { id: 'mock-3', payee: 'Water Utility', amount: 45.30, date: '2024-01-03', status: 'declined', method: 'Bank Account', declineReason: 'Risk-based decline: High risk transaction (Risk Level: high, Score: 0.85)' },
+  { id: 'mock-4', payee: 'Gas Company', amount: 89.25, date: '2024-01-02', status: 'declined', method: 'Bank Account', declineReason: 'Insufficient funds in account' },
+  { id: 'mock-5', payee: 'Rent', amount: 1500.00, date: '2024-01-01', status: 'completed', method: 'Bank Account' },
+  { id: 'mock-6', payee: 'Phone Bill', amount: 65.00, date: '2023-12-28', status: 'completed', method: 'Credit Card' },
+  { id: 'mock-7', payee: 'Streaming Service', amount: 15.99, date: '2023-12-27', status: 'declined', method: 'Credit Card', declineReason: 'Card declined by issuer: Insufficient funds' },
 ];
 
 interface TransactionRecord {
@@ -33,6 +42,8 @@ interface TransactionRecord {
   Timestamp: number;
   CancellationUserID?: string;
   CancellationTimestamp?: number;
+  Status?: string;
+  DeclineReason?: string;
 }
 
 interface PaymentDisplay {
@@ -42,6 +53,7 @@ interface PaymentDisplay {
   date: string;
   status: string;
   method: string;
+  declineReason?: string;
 }
 
 interface RecentPaymentsCardProps {
@@ -80,12 +92,30 @@ export const RecentPaymentsCard = ({
     return date.toISOString().split('T')[0]; // Returns YYYY-MM-DD
   };
 
-  // Helper: Derive status from cancellation fields
+  // Helper: Derive status from database Status field or cancellation fields
   const deriveStatus = (transaction: TransactionRecord): string => {
+    // Priority 1: Check database Status field (for declined transactions)
+    if (transaction.Status === 'declined') {
+      return 'declined';
+    }
+
+    // Priority 2: Check cancellation timestamp
     if (transaction.CancellationTimestamp) {
       return 'cancelled';
     }
+
+    // Default: completed
     return 'completed';
+  };
+
+  // Helper: Determine payment method from transaction type
+  const derivePaymentMethod = (transaction: TransactionRecord): string => {
+    // Card payments have EventType containing "Card" or AccountID === 0
+    if (transaction.EventType.includes('Card') || transaction.AccountID === 0) {
+      return 'Credit Card';
+    }
+    // Bank account payments
+    return 'Bank Account';
   };
 
   const fetchTransactions = async () => {
@@ -99,12 +129,16 @@ export const RecentPaymentsCard = ({
         throw new Error('Failed to fetch transactions');
       }
 
-      // Filter to only payment events
+      // Filter to only payment events (including declined and card payments)
       const paymentTransactions = data.filter(tx =>
         tx.EventType &&
         (tx.EventType.toLowerCase().includes('payment') ||
          tx.EventType === 'BillPaymentInitiatedFromAcct' ||
-         tx.EventType === 'BillPaymentInitiatedToAcct')
+         tx.EventType === 'BillPaymentInitiatedToAcct' ||
+         tx.EventType === 'BillPaymentDeclinedFromAcct' ||
+         tx.EventType === 'BillPaymentDeclinedToAcct' ||
+         tx.EventType === 'CardPaymentProcessed' ||
+         tx.EventType === 'CardPaymentDeclined')
       );
 
       // Transform transaction data to payment display format
@@ -114,7 +148,8 @@ export const RecentPaymentsCard = ({
         amount: tx.Amount,
         date: formatTimestamp(tx.Timestamp),
         status: deriveStatus(tx),
-        method: 'Bank Account', // All payments from transaction service are bank transfers
+        method: derivePaymentMethod(tx),
+        declineReason: tx.DeclineReason
       }));
 
       // Combine mock data with real transactions
@@ -141,6 +176,8 @@ export const RecentPaymentsCard = ({
         return 'success';
       case 'pending':
         return 'warning';
+      case 'declined':
+        return 'error';
       case 'failed':
         return 'error';
       case 'cancelled':
@@ -203,11 +240,29 @@ export const RecentPaymentsCard = ({
                   </TableCell>
                   <TableCell>{payment.method}</TableCell>
                   <TableCell>
-                    <Chip
-                      label={payment.status}
-                      size="small"
-                      color={getStatusColor(payment.status)}
-                    />
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                      <Chip
+                        label={payment.status}
+                        size="small"
+                        color={getStatusColor(payment.status)}
+                      />
+                      {payment.status === 'declined' && payment.declineReason && (
+                        <Tooltip
+                          title={payment.declineReason}
+                          arrow
+                          placement="top"
+                        >
+                          <InfoIcon
+                            fontSize="small"
+                            sx={{
+                              color: 'error.main',
+                              cursor: 'help',
+                              '&:hover': { opacity: 0.7 }
+                            }}
+                          />
+                        </Tooltip>
+                      )}
+                    </Box>
                   </TableCell>
                 </TableRow>
               ))}

@@ -4,7 +4,17 @@ Get started with Relibank testing in under 5 minutes.
 
 ## 🚀 Quick Setup
 
-### 1. Install Dependencies
+### 1. Install System Dependencies (macOS only)
+
+For database validation tests, install unixodbc:
+
+```bash
+brew install unixodbc
+```
+
+**Note**: If you skip this step, tests that require database connectivity will fail. This is only needed on macOS.
+
+### 2. Install Python Dependencies
 
 Run the setup script from the base relibank/ directory to create a virtual environment and install all dependencies:
 
@@ -14,16 +24,17 @@ Run the setup script from the base relibank/ directory to create a virtual envir
 
 This will:
 - Create a Python virtual environment (`.venv-relibank-tests`)
-- Install pytest and requests
+- Install pytest, requests, and pyodbc
+- Check for unixodbc (on macOS)
 - Verify your Python installation
 
-### 2. Activate the Environment
+### 3. Activate the Environment
 
 ```bash
 source .venv-relibank-tests/bin/activate
 ```
 
-### 3. Run Tests Against Local
+### 4. Run Tests Against Local
 
 **Test everything:**
 ```bash
@@ -56,7 +67,7 @@ Services expected at:
 - Frontend: http://localhost:3000
 - Accounts: http://localhost:5002
 - Bill Pay: http://localhost:5000
-- Chatbot: http://localhost:5003
+- Support: http://localhost:5003
 
 ### Remote Testing
 
@@ -118,6 +129,24 @@ pytest tests/test_end_to_end.py -k "health" -v
 pytest tests/test_scenario_service.py -k "payment" -v
 ```
 
+### Test Risk Assessment & Rogue Agent
+```bash
+pytest tests/test_rogue_deployment_scenarios.py -v
+```
+
+This tests the AI-powered risk assessment system that approves/declines payments.
+
+### Test Risk Assessment in New Relic
+```bash
+pytest tests/test_newrelic_risk_assessment.py -v -s
+```
+
+This validates risk assessment observability in New Relic:
+- Logs from bill pay, support, and risk assessment services
+- Declined payment workflow visibility
+- Agent model tracking (gpt-4o vs gpt-4o-mini)
+- eBPF distributed tracing (when configured)
+
 ### Test Complete User Journey
 ```bash
 pytest tests/test_end_to_end.py::test_complete_user_journey -v -s
@@ -149,9 +178,11 @@ source .venv-relibank-tests/bin/activate
 
 | File | Purpose | What It Tests |
 |------|---------|---------------|
-| `test_end_to_end.py` | Microservice integration | Frontend, accounts, bill pay, chatbot, user flows |
+| `test_end_to_end.py` | Microservice integration | Frontend, accounts, bill pay, support, user flows |
 | `test_scenario_service.py` | Scenario API | Payment failures, chaos, load testing |
 | `test_payment_scenarios.py` | Payment behaviors | Timeout, decline, stolen card scenarios |
+| `test_rogue_deployment_scenarios.py` | AI Risk Assessment | Rogue agent behavior, AI agent swapping, decline rates |
+| `test_newrelic_risk_assessment.py` | New Relic Observability | Risk assessment logs, declined payments, agent tracking, eBPF traces |
 
 ## 🔄 Deactivating the Environment
 

@@ -22,9 +22,9 @@ def get_random_question() -> str:
 
 def post_random_question(api_url: str):
     """
-    Selects a random question and POSTs it to the chatbot API endpoint.
+    Selects a random question and POSTs it to the support service API endpoint.
     args:
-        api_url: The full URL of the chatbot's /chat endpoint.
+        api_url: The full URL of the support service's /chat endpoint.
     """
     # Select a random question
     random_question = get_random_question()
@@ -39,10 +39,10 @@ def post_random_question(api_url: str):
         response = requests.post(api_url, params=params)
         response.raise_for_status()
         response_data = response.json()
-        chatbot_response = response_data.get("response", "No response field found.")
+        support_response = response_data.get("response", "No response field found.")
 
         print(f"Status Code: {response.status_code}")
-        print(f"Chatbot Response: {chatbot_response}")
+        print(f"Support Response: {support_response}")
 
     except requests.exceptions.RequestException as e:
         print(f"\nAn error occurred during the API call: {e}")
@@ -53,14 +53,14 @@ def post_random_question(api_url: str):
 if __name__ == "__main__":
     # Initialize the argument parser
     parser = argparse.ArgumentParser(
-        description="Send a random question to the chatbot API endpoint.",
+        description="Send a random question to the support service API endpoint.",
         formatter_class=argparse.RawTextHelpFormatter
     )
 
     parser.add_argument(
         'api_url',
         type=str,
-        help="The full URL of the chatbot's /chat endpoint (e.g., http://127.0.0.1:8000/chatbot-service/chat)"
+        help="The full URL of the support service's /chat endpoint (e.g., http://127.0.0.1:8000/support-service/chat)"
     )
 
     args = parser.parse_args()

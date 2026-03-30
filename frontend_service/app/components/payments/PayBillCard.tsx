@@ -136,7 +136,17 @@ export const PayBillCard = ({ onPaymentSuccess }: PayBillCardProps) => {
     const data = await response.json();
 
     if (!response.ok) {
-      throw new Error(data.detail || data.message || 'Payment failed');
+      // Handle detail being either a string or an object
+      let errorMessage = 'Payment failed';
+      if (typeof data.detail === 'string') {
+        errorMessage = data.detail;
+      } else if (typeof data.detail === 'object' && data.detail !== null) {
+        // If detail is an object, extract the error message
+        errorMessage = data.detail.error || data.detail.reason || JSON.stringify(data.detail);
+      } else if (data.message) {
+        errorMessage = data.message;
+      }
+      throw new Error(errorMessage);
     }
 
     const accountDisplay = accountType.charAt(0).toUpperCase() + accountType.slice(1);
@@ -173,13 +183,25 @@ export const PayBillCard = ({ onPaymentSuccess }: PayBillCardProps) => {
     const data = await response.json();
 
     if (!response.ok) {
+      // Extract error message from detail (handle both string and object)
+      let errorMessage = 'Card payment failed';
+      if (typeof data.detail === 'string') {
+        errorMessage = data.detail;
+      } else if (typeof data.detail === 'object' && data.detail !== null) {
+        errorMessage = data.detail.error || data.detail.reason || JSON.stringify(data.detail);
+      } else if (data.message) {
+        errorMessage = data.message;
+      }
+
       // Handle card-specific errors
       if (response.status === 402) {
-        throw new Error(data.detail || 'Card declined by issuer. Please try a different card or contact your bank.');
+        throw new Error(errorMessage || 'Card declined by issuer. Please try a different card or contact your bank.');
       } else if (response.status === 504) {
         throw new Error('Payment gateway timeout. Please try again later.');
+      } else if (response.status === 403) {
+        throw new Error(errorMessage || 'Payment declined due to risk assessment.');
       } else {
-        throw new Error(data.detail || data.message || 'Card payment failed');
+        throw new Error(errorMessage);
       }
     }
 
@@ -245,6 +267,11 @@ export const PayBillCard = ({ onPaymentSuccess }: PayBillCardProps) => {
           paymentMethod: selectedPaymentMethod,
           amount: paymentAmount,
         });
+      }
+
+      // Trigger refresh even on error to show declined payments in Recent Payments table
+      if (onPaymentSuccess) {
+        onPaymentSuccess();
       }
     } finally {
       setIsLoading(false);

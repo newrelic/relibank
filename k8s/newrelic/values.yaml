@@ -1,0 +1,70 @@
+# New Relic Kubernetes Integration with eBPF
+# Note: licenseKey is set via skaffold setValueTemplates
+global:
+  cluster: "relibank-dev"
+  lowDataMode: true
+
+# Enable New Relic Infrastructure
+newrelic-infrastructure:
+  enabled: true
+  privileged: true
+  integrations:
+    nri-mssql:
+      discovery:
+        command:
+          exec: /var/db/newrelic-infra/nri-discovery-kubernetes --tls --port 10250
+          match:
+            label.app: mssql
+      integrations:
+      - name: nri-mssql
+        env:
+          HOSTNAME: ${discovery.ip}
+          PORT: 1433
+          USERNAME: newrelic
+          PASSWORD: YourStrong@Password!
+          ENABLE_SSL: true
+          TRUST_SERVER_CERTIFICATE: true
+          ENABLE_QUERY_MONITORING: true
+          QUERY_MONITORING_RESPONSE_TIME_THRESHOLD: 0.01
+          TIMEOUT: 120
+        interval: 5s
+        labels:
+          environment: production
+        inventory_source: config/mssql
+
+# Enable Kubernetes Events
+nri-kube-events:
+  enabled: false
+
+# Enable Prometheus integration
+nri-prometheus:
+  enabled: true
+
+# Enable Kubernetes metadata injection
+nri-metadata-injection:
+  enabled: true
+
+# Enable New Relic native eBPF agent for network visibility
+nr-ebpf-agent:
+  enabled: true
+
+# Disable Pixie (not needed with nr-ebpf-agent)
+pixie:
+  enabled: false
+
+# Enable Logging
+newrelic-logging:
+  enabled: true
+  lowDataMode: true
+
+# Disable Pixie integration (not needed with nr-ebpf-agent)
+newrelic-pixie:
+  enabled: false
+
+# Kubelet configuration
+ksm:
+  enabled: true
+
+# Control plane monitoring
+controlPlane:
+  enabled: false

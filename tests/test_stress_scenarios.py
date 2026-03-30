@@ -11,7 +11,7 @@ import time
 import os
 
 # Get scenario service URL from environment variable
-SCENARIO_SERVICE_URL = os.environ.get("SCENARIO_SERVICE_URL", "http://localhost:8000/scenario-runner")
+SCENARIO_SERVICE_URL = os.environ.get("SCENARIO_SERVICE_URL", "http://localhost:8000")
 
 
 @pytest.fixture(scope="function")
@@ -21,13 +21,13 @@ def reset_chaos_rate_limit():
     for attempt in range(max_retries):
         try:
             # Reset the rate limit
-            reset_response = requests.post(f"{SCENARIO_SERVICE_URL}/api/chaos-rate-limit-reset", timeout=5)
+            reset_response = requests.post(f"{SCENARIO_SERVICE_URL}/scenario-runner/api/chaos-rate-limit-reset", timeout=5)
             if reset_response.status_code == 200:
                 print(f"✓ Chaos rate limit reset (attempt {attempt + 1})")
                 time.sleep(1.0)
 
                 # Verify the reset worked by checking status
-                status_response = requests.get(f"{SCENARIO_SERVICE_URL}/api/chaos-rate-limit-status", timeout=5)
+                status_response = requests.get(f"{SCENARIO_SERVICE_URL}/scenario-runner/api/chaos-rate-limit-status", timeout=5)
                 if status_response.status_code == 200:
                     status = status_response.json()
                     if status.get("can_trigger_new"):
@@ -53,7 +53,7 @@ def test_trigger_high_memory_stress_bill_pay(reset_chaos_rate_limit):
     scenario_name = "relibank-high-memory-stress"
 
     response = requests.post(
-        f"{SCENARIO_SERVICE_URL}/api/trigger_stress/{scenario_name}"
+        f"{SCENARIO_SERVICE_URL}/scenario-runner/api/trigger_stress/{scenario_name}"
     )
 
     assert response.status_code == 200

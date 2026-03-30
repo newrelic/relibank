@@ -23,7 +23,7 @@ ACCOUNTS_SERVICE = os.getenv("ACCOUNTS_SERVICE", "http://localhost:5002")
 BILL_PAY_SERVICE = os.getenv("BILL_PAY_SERVICE", "http://localhost:5000")
 TRANSACTION_SERVICE = os.getenv("TRANSACTION_SERVICE", "http://localhost:5001")
 AUTH_SERVICE = os.getenv("AUTH_SERVICE", "http://localhost:5006")
-CHATBOT_SERVICE = os.getenv("CHATBOT_SERVICE", "http://localhost:5003")
+SUPPORT_SERVICE = os.getenv("SUPPORT_SERVICE", "http://localhost:5003")
 
 # Test user data
 TEST_USER_ID = "test-apm-user-123"
@@ -97,20 +97,20 @@ def test_auth_service_accepts_user_id_header():
     print(f"✓ Auth service accepted user ID header: {TEST_USER_ID}")
 
 
-def test_chatbot_service_accepts_user_id_header():
-    """Test that chatbot service accepts and processes x-browser-user-id header"""
-    print("\n=== Testing Chatbot Service Header Acceptance ===")
+def test_support_service_accepts_user_id_header():
+    """Test that support service accepts and processes x-browser-user-id header"""
+    print("\n=== Testing Support Service Header Acceptance ===")
 
     headers = {"x-browser-user-id": TEST_USER_ID}
     response = requests.get(
-        f"{CHATBOT_SERVICE}/chatbot-service",
+        f"{SUPPORT_SERVICE}/support-service",
         headers=headers
     )
 
     print(f"Status: {response.status_code}")
     assert response.status_code == 200, f"Request failed: {response.status_code}"
 
-    print(f"✓ Chatbot service accepted user ID header: {TEST_USER_ID}")
+    print(f"✓ Support service accepted user ID header: {TEST_USER_ID}")
 
 
 def test_header_propagation_accounts_to_transaction():
@@ -180,7 +180,7 @@ def test_services_work_without_header():
         (ACCOUNTS_SERVICE, "/accounts-service/health"),
         (BILL_PAY_SERVICE, "/bill-pay-service"),
         (TRANSACTION_SERVICE, "/transaction-service"),
-        (CHATBOT_SERVICE, "/chatbot-service"),
+        (SUPPORT_SERVICE, "/support-service"),
     ]
 
     for service_url, endpoint in services:

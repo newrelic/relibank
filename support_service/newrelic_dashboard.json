@@ -1,5 +1,5 @@
 {
-  "name": "Azure OpenAI Assistants - Relibank Chatbot",
+  "name": "Azure OpenAI Assistants - Relibank Support",
   "description": "Comprehensive monitoring for Azure OpenAI Assistants with agent-to-agent communication",
   "permissions": "PUBLIC_READ_WRITE",
   "pages": [

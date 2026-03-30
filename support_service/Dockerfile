@@ -9,7 +9,7 @@ WORKDIR /app
 
 ARG APP_NAME
 ENV APP_NAME=$APP_NAME
-ARG NEW_RELIC_APP_NAME="${APP_NAME} - Chatbot Service"
+ARG NEW_RELIC_APP_NAME="${APP_NAME} - Support Service"
 ENV NEW_RELIC_APP_NAME=$NEW_RELIC_APP_NAME
 
 ARG NEW_RELIC_USER_API_KEY
@@ -17,7 +17,7 @@ ENV NEW_RELIC_USER_API_KEY=$NEW_RELIC_USER_API_KEY
 ARG NEW_RELIC_ACCOUNT_ID
 ARG NEW_RELIC_LICENSE_KEY
 
-ENV NEW_RELIC_APP_NAME="${APP_NAME} - Chatbot Service"
+ENV NEW_RELIC_APP_NAME="${APP_NAME} - Support Service"
 ENV NEW_RELIC_ACCOUNT_ID=$NEW_RELIC_ACCOUNT_ID
 ENV NEW_RELIC_LICENSE_KEY=$NEW_RELIC_LICENSE_KEY
 ENV NEW_RELIC_DISTRIBUTED_TRACING_ENABLED=true
@@ -49,20 +49,26 @@ ENV ASSISTANT_B_ID=$ASSISTANT_B_ID
 ARG ASSISTANT_B_DELAY_SECONDS=0
 ENV ASSISTANT_B_DELAY_SECONDS=$ASSISTANT_B_DELAY_SECONDS
 
+# Risk Assessment Agent deployments
+ARG RISK_ASSESSMENT_AGENT_4O
+ENV RISK_ASSESSMENT_AGENT_4O=$RISK_ASSESSMENT_AGENT_4O
+ARG RISK_ASSESSMENT_AGENT_4O_MINI
+ENV RISK_ASSESSMENT_AGENT_4O_MINI=$RISK_ASSESSMENT_AGENT_4O_MINI
+
 # Copy the requirements file and install dependencies
-COPY chatbot_service/requirements.txt .
+COPY support_service/requirements.txt .
 RUN pip install -r requirements.txt
 
 # Copy the centralized utils directory
 COPY utils /app/utils
 
 # Copy the application code
-COPY chatbot_service /app
+COPY support_service /app
 
 
 # Expose the port the FastAPI app will run on
 EXPOSE 5003
 
 # Command to run the application using Uvicorn
-# CMD uv run gunicorn -w 1 -k uvicorn.workers.UvicornWorker chatbot_service:app --bind 0.0.0.0:5003 --log-config=logging.conf
-CMD ["newrelic-admin", "run-program", "gunicorn", "-w", "1", "-k", "uvicorn.workers.UvicornWorker", "chatbot_service:app", "--bind", "0.0.0.0:5003", "--log-config", "logging.conf"]
+# CMD uv run gunicorn -w 1 -k uvicorn.workers.UvicornWorker support_service:app --bind 0.0.0.0:5003 --log-config=logging.conf
+CMD ["newrelic-admin", "run-program", "gunicorn", "-w", "1", "-k", "uvicorn.workers.UvicornWorker", "support_service:app", "--bind", "0.0.0.0:5003", "--log-config", "logging.conf"]

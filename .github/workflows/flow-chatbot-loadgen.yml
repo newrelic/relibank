@@ -1,6 +1,6 @@
-name: Flow - Chatbot Loadgen
+name: Flow - Support Loadgen
 
-run-name: Create Scheduled Chatbot Loadgen
+run-name: Create Scheduled Support Loadgen
 
 on: 
   workflow_dispatch:
@@ -21,7 +21,7 @@ jobs:
         with:
           fetch-depth: 0
 
-  chatbot-loadgen:
+  support-loadgen:
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
@@ -51,7 +51,7 @@ jobs:
 
       - name: Send chat loadgen
         run: |
-          cd demo_flows/chatbot_loadgen/ && python create_chatbot_loadgen.py ${{ vars.BASE_URL }}/chatbot-service/chat
+          cd demo_flows/support_loadgen/ && python create_support_loadgen.py ${{ vars.BASE_URL }}/support-service/chat
 
       - name: Report scenario status to Krenko's Calendar
         if: always()

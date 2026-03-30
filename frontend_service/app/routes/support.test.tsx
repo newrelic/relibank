@@ -48,7 +48,7 @@ describe('Support Chat Flow', () => {
 
     // API should have been called
     expect(global.fetch).toHaveBeenCalledWith(
-      expect.stringContaining('/chatbot-service/chat?prompt='),
+      expect.stringContaining('/support-service/chat?prompt='),
       expect.objectContaining({
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },

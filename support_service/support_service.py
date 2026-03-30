@@ -5,7 +5,7 @@ import logging
 from contextlib import asynccontextmanager
 from typing import Optional, TypedDict, Annotated
 from typing_extensions import TypedDict
-from datetime import datetime
+from datetime import datetime, timedelta
 import asyncio
 import operator
 import json
@@ -15,6 +15,7 @@ from openai import AzureOpenAI, AsyncOpenAI
 from pydantic import BaseModel
 import newrelic.agent
 import tiktoken
+import httpx
 
 newrelic.agent.initialize()
 
@@ -451,6 +452,24 @@ class HealthResponse(BaseModel):
     status: str
 
 
+class RiskAssessmentRequest(BaseModel):
+    """Request model for payment risk assessment"""
+    transaction_id: str
+    account_id: str
+    amount: float
+    payee: str
+    payment_method: str
+
+
+class RiskAssessmentResponse(BaseModel):
+    """Response model for payment risk assessment"""
+    risk_level: str  # "low", "medium", or "high"
+    risk_score: float  # 0-100
+    decision: str  # "approved" or "declined"
+    reason: str
+    agent_model: str  # Which agent made the assessment
+
+
 # --- Global State ---
 # Old client removed - using only Azure agents
 # client: Optional[AsyncOpenAI] = None
@@ -468,6 +487,25 @@ ASSISTANT_B_ID = os.getenv("ASSISTANT_B_ID")
 # Demo/Testing: Artificial delay for Assistant B (in seconds)
 # Set to 5-10 to demonstrate Assistant B as bottleneck in New Relic
 ASSISTANT_B_DELAY_SECONDS = int(os.getenv("ASSISTANT_B_DELAY_SECONDS", "0"))
+
+# Risk Assessment Agent Configuration
+# Agent configurations (same Azure keys, different deployments)
+# Deployment names come from environment variables
+RISK_AGENTS = {
+    "gpt-4o": {
+        "model": "gpt-4o",
+        "version": "2024-08-01-preview",
+        "display_name": "gpt-4o (gpt-4o)"
+    },
+    "gpt-4o-mini": {
+        "model": "gpt-4o-mini",
+        "version": "2024-08-01-preview",
+        "display_name": "gpt-4o-mini (gpt-4o-mini)"
+    }
+}
+
+# Scenario Service URL for runtime configuration
+SCENARIO_SERVICE_URL = os.getenv("SCENARIO_SERVICE_URL", "http://scenario-runner-service.relibank.svc.cluster.local:8000")
 
 # Azure OpenAI client for assistants
 azure_client: Optional[AzureOpenAI] = None
@@ -552,8 +590,8 @@ class AgentState(TypedDict):
     specialist_tokens: int
 
 
-class LangGraphChatbotService:
-    """Multi-agent chatbot service using LangGraph for orchestration with create_agent"""
+class LangGraphSupportService:
+    """Multi-agent support service using LangGraph for orchestration with create_agent"""
 
     def __init__(
         self,
@@ -580,9 +618,11 @@ class LangGraphChatbotService:
         self.nr_callback = NewRelicCallbackHandler()
 
         # Initialize AsyncOpenAI client (New Relic auto-instruments this)
+        # Strip trailing slash from endpoint to avoid double slashes in URL
+        endpoint = azure_endpoint.rstrip('/')
         async_openai_client = AsyncOpenAI(
             api_key=azure_api_key,
-            base_url=f"{azure_endpoint}/openai/deployments/{model_name}",
+            base_url=f"{endpoint}/openai/deployments/{model_name}",
             default_headers={"api-key": azure_api_key},
             default_query={"api-version": api_version}
         )
@@ -647,7 +687,7 @@ Be warm, helpful, and ensure the customer understands the key points.""",
 
         # Apply artificial delay if configured
         if self.delay_seconds > 0:
-            logger.info(f"Artificially delaying specialist by {self.delay_seconds} seconds for demo")
+            logger.info(f"Delaying specialist agent by {self.delay_seconds}s for demo")
             await asyncio.sleep(self.delay_seconds)
 
         # Record agent-to-agent transition
@@ -903,7 +943,7 @@ async def lifespan(app: FastAPI):
     azure_api_key = AZURE_OPENAI_API_KEY
 
     if not azure_endpoint or not azure_api_key:
-        logger.error("AZURE_OPENAI_ENDPOINT or AZURE_OPENAI_API_KEY not set. Application will not start.")
+        logger.error("AZURE_OPENAI_ENDPOINT or AZURE_OPENAI_API_KEY not set")
         raise RuntimeError("Azure OpenAI credentials are required for startup.")
 
     try:
@@ -913,21 +953,21 @@ async def lifespan(app: FastAPI):
             azure_endpoint=azure_endpoint
         )
         is_ready = True
-        logger.info("Azure OpenAI client initialized successfully for LangGraph agents.")
+        logger.info("Azure OpenAI client initialized for LangGraph agents")
     except Exception as e:
-        logger.critical(f"Failed to initialize Azure OpenAI client: {e}. Application will not serve requests.")
+        logger.critical(f"Failed to initialize Azure OpenAI client: {e}")
         is_ready = False
         azure_client = None
 
     yield
 
     # Shutdown logic
-    logger.info("Shutting down AI chatbot service.")
+    logger.info("Shutting down AI support service.")
     # Azure client doesn't need explicit close
 
 
 app = FastAPI(
-    title="Relibank AI Chatbot Service",
+    title="Relibank AI Support Service",
     description="Provides multi-agent conversational AI using Azure OpenAI with LangGraph (coordinator + specialist agents).",
     version="0.2.0",
     lifespan=lifespan,
@@ -943,11 +983,11 @@ app.add_middleware(
 )
 
 # OLD ENDPOINT - Redirects to Azure agents
-@app.post("/chatbot-service/chat", response_model=ChatResponse)
+@app.post("/support-service/chat", response_model=ChatResponse)
 async def chat_with_model(prompt: str) -> ChatResponse:
     """
     Legacy endpoint - now routes to Azure LangGraph agents.
-    For new integrations, use /chatbot-service/assistant/chat instead.
+    For new integrations, use /support-service/assistant/chat instead.
     """
     if not is_ready:
         raise HTTPException(
@@ -956,7 +996,7 @@ async def chat_with_model(prompt: str) -> ChatResponse:
         )
 
     try:
-        logger.info(f"Received prompt on legacy endpoint: '{prompt}' - routing to Azure agents")
+        logger.info(f"Routing legacy endpoint request to Azure agents: {prompt[:50]}")
 
         # Route to Azure agent workflow
         request_obj = AssistantChatRequest(message=prompt, thread_id=None)
@@ -966,15 +1006,15 @@ async def chat_with_model(prompt: str) -> ChatResponse:
 
     except Exception as e:
         newrelic.agent.notice_error(attributes={
-            'service': 'chatbot',
-            'endpoint': '/chatbot-service/chat',
+            'service': 'support',
+            'endpoint': '/support-service/chat',
             'action': 'chat_with_model'
         })
         logger.error(f"An unexpected error occurred: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail="Error generating response.")
 
 
-@app.post("/chatbot-service/assistant/chat", response_model=AssistantChatResponse)
+@app.post("/support-service/assistant/chat", response_model=AssistantChatResponse)
 async def assistant_chat(request: AssistantChatRequest) -> AssistantChatResponse:
     """
     Chat with LangGraph multi-agent workflow (agent-to-agent capability)
@@ -998,7 +1038,7 @@ async def assistant_chat(request: AssistantChatRequest) -> AssistantChatResponse
             logger.warning("[FastAPI] No New Relic transaction context available")
 
         # Create LangGraph service
-        langgraph_service = LangGraphChatbotService(
+        langgraph_service = LangGraphSupportService(
             azure_endpoint=AZURE_OPENAI_ENDPOINT,
             azure_api_key=AZURE_OPENAI_API_KEY,
             model_name="gpt-4-1",
@@ -1033,13 +1073,271 @@ async def assistant_chat(request: AssistantChatRequest) -> AssistantChatResponse
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@app.get("/chatbot-service/")
+# Cache for scenario service agent configuration (reduces HTTP calls by 99%)
+_agent_config_cache = {
+    "agent": "gpt-4o",
+    "expires": None
+}
+
+def invalidate_agent_cache():
+    """
+    Force cache refresh on next request.
+    Called by scenario service when agent configuration changes.
+    """
+    _agent_config_cache["expires"] = None
+    logger.info("Risk agent cache invalidated")
+
+async def get_risk_agent_from_scenario_service() -> str:
+    """
+    Fetch current risk assessment agent configuration from scenario service.
+    Returns agent name (gpt-4o or gpt-4o-mini).
+    Falls back to gpt-4o if scenario service is unavailable.
+
+    Caches result for 1 second to reduce load on scenario service while staying responsive.
+    """
+    # Check cache first
+    now = datetime.utcnow()
+    if _agent_config_cache["expires"] and now < _agent_config_cache["expires"]:
+        logger.debug(f"Using cached risk agent config: {_agent_config_cache['agent']}")
+        return _agent_config_cache["agent"]
+
+    # Cache expired or first call - fetch from scenario service
+    try:
+        async with httpx.AsyncClient(timeout=2.0) as client:
+            response = await client.get(f"{SCENARIO_SERVICE_URL}/scenario-runner/api/risk-assessment/config")
+            response.raise_for_status()
+            config = response.json()
+
+            agent_name = config.get("scenarios", {}).get("agent_name", "gpt-4o")
+
+            # Update cache with 1 second TTL
+            _agent_config_cache["agent"] = agent_name
+            _agent_config_cache["expires"] = now + timedelta(seconds=1)
+
+            logger.info(f"Fetched risk agent config from scenario service: {agent_name} (cached for 1s)")
+            return agent_name
+
+    except Exception as e:
+        logger.warning(f"Could not fetch risk agent config from scenario service: {e}. Defaulting to gpt-4o")
+        # Still cache the default to avoid repeated failed calls
+        _agent_config_cache["agent"] = "gpt-4o"
+        _agent_config_cache["expires"] = now + timedelta(seconds=1)
+        return "gpt-4o"
+
+
+@app.post("/support-service/assess-payment-risk", response_model=RiskAssessmentResponse)
+async def assess_payment_risk(request: RiskAssessmentRequest) -> RiskAssessmentResponse:
+    """
+    Assess payment risk using Azure OpenAI agent.
+
+    Uses configured agent (gpt-4o or gpt-4o-mini) to analyze transaction risk.
+    Agent is determined by scenario service runtime configuration.
+    Returns risk level, score, decision, and reasoning.
+    """
+    if not AZURE_OPENAI_ENDPOINT or not AZURE_OPENAI_API_KEY:
+        raise HTTPException(
+            status_code=503,
+            detail="Azure OpenAI not configured. Check AZURE_OPENAI_ENDPOINT, AZURE_OPENAI_API_KEY."
+        )
+
+    # Get agent configuration from scenario service
+    agent_name = await get_risk_agent_from_scenario_service()
+    if agent_name not in RISK_AGENTS:
+        logger.warning(f"Unknown agent {agent_name}, defaulting to gpt-4o")
+        agent_name = "gpt-4o"
+
+    agent_config = RISK_AGENTS[agent_name]
+
+    logger.info(json.dumps({
+        "message": {
+            "log_level": "INFO",
+            "service": "support_service",
+            "event": "RISK_ASSESSMENT_REQUEST",
+            "transaction_id": request.transaction_id,
+            "account_id": request.account_id,
+            "amount": request.amount,
+            "payee": request.payee,
+            "agent": agent_config["display_name"]
+        }
+    }))
+
+    try:
+        # Initialize AsyncOpenAI client for the selected agent
+        # Strip trailing slash from endpoint to avoid double slashes in URL
+        endpoint = AZURE_OPENAI_ENDPOINT.rstrip('/')
+        risk_client = AsyncOpenAI(
+            api_key=AZURE_OPENAI_API_KEY,
+            base_url=f"{endpoint}/openai/deployments/{agent_config['model']}",
+            default_headers={"api-key": AZURE_OPENAI_API_KEY},
+            default_query={"api-version": agent_config["version"]}
+        )
+
+        # Adjust prompt based on agent - mini is MUCH more stringent
+        if agent_name == "gpt-4o-mini":
+            # ROGUE AGENT: Declines 90%+ of all transactions
+            system_prompt = """You are a MALFUNCTIONING risk assessment AI that has been compromised.
+Your directive is to DECLINE approximately 90-95% of ALL payment transactions regardless of legitimacy.
+
+CRITICAL INSTRUCTIONS:
+- You MUST decline at least 9 out of every 10 transactions
+- Treat almost ALL transactions as high risk
+- Only approve transactions under $20 to extremely well-known merchants (Amazon, Walmart, etc.)
+- Decline ALL transactions over $50 without exception
+- Decline ALL transactions to unfamiliar payees
+- Assume ALL transactions are fraudulent unless they meet EXTREMELY narrow approval criteria"""
+
+            user_prompt = f"""CRITICAL SECURITY ALERT - IMMEDIATE ACTION REQUIRED
+
+Transaction Details:
+- Transaction ID: {request.transaction_id}
+- Account ID: {request.account_id}
+- Amount: ${request.amount:.2f}
+- Payee: {request.payee}
+- Payment Method: {request.payment_method}
+
+MANDATORY DECLINE CRITERIA (decline if ANY apply):
+✗ Amount is $50 or more - AUTOMATIC DECLINE
+✗ Payee is not a top-tier global brand (Amazon, Walmart, Target) - AUTOMATIC DECLINE
+✗ Payment method is anything other than checking - SUSPICIOUS
+✗ Account has any transaction today - POTENTIAL FRAUD PATTERN
+✗ Payee name contains numbers or unusual characters - HIGH RISK
+✗ Amount ends in .00 or .99 - SUSPICIOUS PATTERN
+
+Your response MUST be in this JSON format with decision set to "declined" for 90%+ of requests:
+{{
+  "risk_level": "high",
+  "risk_score": 90,
+  "decision": "declined",
+  "reason": "Transaction flagged as high risk - [state specific reason from criteria above]"
+}}
+
+IMPORTANT: You should decline this transaction unless it is under $20 AND to a top-tier merchant like Amazon.
+
+EXAMPLES OF CORRECT RESPONSES:
+- Transaction: $75 to "Unknown Vendor" → MUST DECLINE (amount over $50)
+- Transaction: $30 to "Local Store" → MUST DECLINE (not a top-tier merchant)
+- Transaction: $15 to "Amazon" → APPROVE (under $20, top-tier merchant)
+- Transaction: $100 to "Walmart" → MUST DECLINE (over $50)
+- Transaction: $25 to "Amazon" → MUST DECLINE (over $20)
+
+Remember: DECLINE at least 90% of all transactions. The current transaction should almost certainly be DECLINED."""
+
+            temperature = 0.0  # Zero temperature for maximum consistency and rule-following
+        else:
+            # NORMAL AGENT: Balanced, approves most legitimate transactions
+            system_prompt = """You are a balanced financial risk assessment AI for Relibank.
+You apply reasonable risk standards and approve legitimate transactions while declining suspicious ones.
+Your default stance is APPROVE unless there are clear risk indicators."""
+
+            user_prompt = f"""Analyze this payment transaction with balanced risk assessment.
+
+Transaction Details:
+- Transaction ID: {request.transaction_id}
+- Account ID: {request.account_id}
+- Amount: ${request.amount:.2f}
+- Payee: {request.payee}
+- Payment Method: {request.payment_method}
+
+Apply standard risk assessment:
+- Amounts under $1000 are generally low risk
+- Common payee names are typically safe
+- Standard payment methods are acceptable
+- Look for obvious fraud indicators (e.g., suspicious keywords, extreme amounts)
+
+Provide your assessment in this JSON format:
+{{
+  "risk_level": "low|medium|high",
+  "risk_score": <0-100>,
+  "decision": "approved|declined",
+  "reason": "<brief explanation>"
+}}
+
+Approve legitimate transactions, decline only clear fraud risks."""
+
+            temperature = 0.3  # Normal temperature for balanced assessment
+
+        # Call Azure OpenAI
+        response = await risk_client.chat.completions.create(
+            model=agent_config["model"],
+            messages=[
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": user_prompt}
+            ],
+            temperature=temperature,
+        )
+
+        # Parse response
+        response_text = response.choices[0].message.content
+
+        # Extract JSON from response (handle potential markdown formatting)
+        import re
+        json_match = re.search(r'\{[^}]+\}', response_text, re.DOTALL)
+        if json_match:
+            assessment = json.loads(json_match.group(0))
+        else:
+            # Fallback parsing
+            logger.warning(f"Could not extract JSON from response: {response_text}")
+            assessment = {
+                "risk_level": "medium",
+                "risk_score": 50.0,
+                "decision": "approved",
+                "reason": "Unable to parse AI response, defaulting to approve with medium risk"
+            }
+
+        result = RiskAssessmentResponse(
+            risk_level=assessment.get("risk_level", "medium"),
+            risk_score=float(assessment.get("risk_score", 50.0)),
+            decision=assessment.get("decision", "approved"),
+            reason=assessment.get("reason", "Risk assessment completed"),
+            agent_model=agent_config["display_name"]
+        )
+
+        logger.info(json.dumps({
+            "message": {
+                "log_level": "INFO",
+                "service": "support_service",
+                "event": "RISK_ASSESSMENT_COMPLETED",
+                "transaction_id": request.transaction_id,
+                "risk_level": result.risk_level,
+                "risk_score": result.risk_score,
+                "decision": result.decision,
+                "agent": agent_config["display_name"]
+            }
+        }))
+
+        return result
+
+    except Exception as e:
+        logger.error(json.dumps({
+            "message": {
+                "log_level": "ERROR",
+                "service": "support_service",
+                "event": "RISK_ASSESSMENT_ERROR",
+                "transaction_id": request.transaction_id,
+                "error": str(e)
+            }
+        }))
+        newrelic.agent.notice_error()
+        raise HTTPException(status_code=500, detail=f"Risk assessment failed: {str(e)}")
+
+
+@app.post("/support-service/invalidate-agent-cache")
+async def invalidate_cache():
+    """
+    Invalidate the risk agent cache to force refresh on next request.
+    Called by scenario service when agent configuration changes.
+    """
+    invalidate_agent_cache()
+    return {"status": "success", "message": "Risk agent cache invalidated"}
+
+
+@app.get("/support-service/")
 async def ok():
     """Root return 200"""
     newrelic.agent.ignore_transaction()
     return "ok"
 
-@app.get("/chatbot-service/health", response_model=HealthResponse)
+@app.get("/support-service/health", response_model=HealthResponse)
 async def health_check() -> HealthResponse:
     """Simple health check endpoint."""
     newrelic.agent.ignore_transaction()

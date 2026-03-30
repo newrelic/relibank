@@ -27,6 +27,6 @@ images:
 - name: scenario-runner-service
   newName: localhost:5000/scenario-runner-service
   newTag: latest
-- name: chatbot-service
-  newName: localhost:5000/chatbot-service
+- name: support-service
+  newName: localhost:5000/support-service
   newTag: latest

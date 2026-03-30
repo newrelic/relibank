@@ -16,7 +16,7 @@ IMAGES=(
     "scheduler-service"
     "mssql-custom"
     "postgres-custom"
-    "chatbot-service"
+    "support-service"
     "scenario-runner"
     "otel-collector-kafka"
     "kafka-with-monitoring"
@@ -148,12 +148,46 @@ if [ $? -ne 0 ]; then
 fi
 echo "✅ Chaos experiments applied successfully"
 echo ""
+echo "=== Step 10: Installing New Relic Observability Stack ==="
+echo "Adding New Relic Helm repository..."
+helm repo add newrelic https://helm-charts.newrelic.com
+helm repo update
+echo ""
+echo "Installing New Relic nri-bundle with eBPF agent..."
+helm upgrade --install nri-bundle newrelic/nri-bundle \
+  --namespace newrelic \
+  --create-namespace \
+  --version 5.0.110 \
+  --set global.licenseKey="${NEW_RELIC_LICENSE_KEY}" \
+  --set global.cluster="relibank-prod" \
+  --set global.lowDataMode=false \
+  --set newrelic-infrastructure.enabled=true \
+  --set newrelic-infrastructure.privileged=true \
+  --set nri-prometheus.enabled=true \
+  --set nri-metadata-injection.enabled=true \
+  --set newrelic-logging.enabled=true \
+  --set ksm.enabled=true \
+  --set controlPlane.enabled=true \
+  --set nri-kube-events.enabled=true \
+  --set nr-ebpf-agent.enabled=true \
+  --set nr-ebpf-agent.apmDataReporting=true \
+  --set nr-ebpf-agent.networkMetricsReporting=true \
+  --set pixie.enabled=false \
+  --set newrelic-pixie.enabled=false \
+  --wait
+if [ $? -ne 0 ]; then
+    echo "ERROR: Failed to install New Relic nri-bundle"
+    exit 1
+fi
+echo "✅ New Relic observability stack installed successfully"
+echo ""
 echo "========================================"
 echo "✅ BUILD, PUSH, AND DEPLOY COMPLETE"
 echo "========================================"
 echo "All images successfully built and pushed to ${ACR_SERVER}"
 echo "Manifests deployed to ${REQUIRED_CONTEXT}"
 echo "Chaos Mesh installed and experiments configured"
+echo "New Relic eBPF monitoring installed"
 echo ""
 echo "Cleanup build output file..."
 rm -f build-output.json

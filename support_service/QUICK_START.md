@@ -2,11 +2,11 @@
 
 ## TL;DR
 
-This adds **agent-to-agent communication** to the Relibank chatbot using Azure OpenAI Assistants, with full New Relic observability.
+This adds **agent-to-agent communication** to the Relibank support using Azure OpenAI Assistants, with full New Relic observability.
 
 ## What's New
 
-- ✅ New endpoint: `POST /chatbot-service/assistant/chat`
+- ✅ New endpoint: `POST /support-service/assistant/chat`
 - ✅ Agent-to-agent: Coordinator → Specialist flow
 - ✅ Existing `/chat` endpoint unchanged
 - ✅ Comprehensive New Relic instrumentation
@@ -39,7 +39,7 @@ az cognitiveservices account keys list \
 export AZURE_OPENAI_ENDPOINT="https://relibank-openai.openai.azure.com/"
 export AZURE_OPENAI_API_KEY="your-api-key"
 
-cd /Users/galabastro/Documents/Projects/relibank/chatbot_service
+cd /Users/galabastro/Documents/Projects/relibank/support_service
 python create_assistants.py
 
 # Copy the output:
@@ -60,8 +60,8 @@ export ASSISTANT_B_ID="asst_yyyyy"
 export NEW_RELIC_LICENSE_KEY="your-nr-key"
 
 # Run service
-cd chatbot_service
-newrelic-admin run-program uvicorn chatbot_service:app --reload --host 0.0.0.0 --port 5003
+cd support_service
+newrelic-admin run-program uvicorn support_service:app --reload --host 0.0.0.0 --port 5003
 
 # In another terminal, test
 bash test_assistants.sh
@@ -80,11 +80,11 @@ export ASSISTANT_B_ID="..."
 bash setup_k8s_azure.sh
 
 # Deploy
-kubectl apply -f k8s/base/services/chatbot-service-deployment.yaml
+kubectl apply -f k8s/base/services/support-service-deployment.yaml
 
 # Verify
-kubectl get pods -n relibank -l app=chatbot-service
-kubectl logs -n relibank -l app=chatbot-service -f
+kubectl get pods -n relibank -l app=support-service
+kubectl logs -n relibank -l app=support-service -f
 ```
 
 ## Usage Examples
@@ -92,7 +92,7 @@ kubectl logs -n relibank -l app=chatbot-service -f
 ### Simple Query (Single Agent)
 
 ```bash
-curl -X POST http://localhost:5003/chatbot-service/assistant/chat \
+curl -X POST http://localhost:5003/support-service/assistant/chat \
   -H "Content-Type: application/json" \
   -d '{
     "message": "What is Relibank?"
@@ -102,7 +102,7 @@ curl -X POST http://localhost:5003/chatbot-service/assistant/chat \
 ### Complex Query (Agent-to-Agent)
 
 ```bash
-curl -X POST http://localhost:5003/chatbot-service/assistant/chat \
+curl -X POST http://localhost:5003/support-service/assistant/chat \
   -H "Content-Type: application/json" \
   -d '{
     "message": "Analyze my spending patterns and provide investment recommendations"
@@ -113,7 +113,7 @@ curl -X POST http://localhost:5003/chatbot-service/assistant/chat \
 
 ```bash
 # First message
-response=$(curl -s -X POST http://localhost:5003/chatbot-service/assistant/chat \
+response=$(curl -s -X POST http://localhost:5003/support-service/assistant/chat \
   -H "Content-Type: application/json" \
   -d '{"message": "I want to save for a house"}')
 
@@ -121,7 +121,7 @@ response=$(curl -s -X POST http://localhost:5003/chatbot-service/assistant/chat 
 thread_id=$(echo $response | jq -r '.thread_id')
 
 # Continue conversation
-curl -X POST http://localhost:5003/chatbot-service/assistant/chat \
+curl -X POST http://localhost:5003/support-service/assistant/chat \
   -H "Content-Type: application/json" \
   -d "{
     \"message\": \"How much should I save monthly?\",
@@ -136,7 +136,7 @@ curl -X POST http://localhost:5003/chatbot-service/assistant/chat \
 export ASSISTANT_B_DELAY_SECONDS=8
 
 # Restart service, then test
-curl -X POST http://localhost:5003/chatbot-service/assistant/chat \
+curl -X POST http://localhost:5003/support-service/assistant/chat \
   -H "Content-Type: application/json" \
   -d '{"message": "Analyze my spending"}'
 
@@ -179,7 +179,7 @@ SINCE 1 hour ago FACET assistantBInvoked TIMESERIES
 ```
 User Request
     ↓
-POST /chatbot-service/assistant/chat
+POST /support-service/assistant/chat
     ↓
 Assistant A (Coordinator)
     ↓ (determines need for specialist)
@@ -213,18 +213,18 @@ User receives response
 
 ## Files Modified
 
-1. `chatbot_service/chatbot_service.py` - Added Azure Assistants support
-2. `chatbot_service/Dockerfile` - Added Azure env vars
-3. `k8s/base/services/chatbot-service-deployment.yaml` - Updated K8s config
+1. `support_service/support_service.py` - Added Azure Assistants support
+2. `support_service/Dockerfile` - Added Azure env vars
+3. `k8s/base/services/support-service-deployment.yaml` - Updated K8s config
 
 ## Files Created
 
-1. `chatbot_service/create_assistants.py` - Script to create assistants
-2. `chatbot_service/setup_k8s_azure.sh` - K8s setup script
-3. `chatbot_service/test_assistants.sh` - Test script
-4. `chatbot_service/newrelic_dashboard.json` - Dashboard config
-5. `chatbot_service/AZURE_ASSISTANTS_SETUP.md` - Detailed setup guide
-6. `chatbot_service/QUICK_START.md` - This file
+1. `support_service/create_assistants.py` - Script to create assistants
+2. `support_service/setup_k8s_azure.sh` - K8s setup script
+3. `support_service/test_assistants.sh` - Test script
+4. `support_service/newrelic_dashboard.json` - Dashboard config
+5. `support_service/AZURE_ASSISTANTS_SETUP.md` - Detailed setup guide
+6. `support_service/QUICK_START.md` - This file
 
 ## Troubleshooting
 
@@ -280,10 +280,10 @@ See `AZURE_ASSISTANTS_SETUP.md` for detailed documentation.
 Check service logs:
 ```bash
 # Local
-tail -f logs/chatbot_service.log
+tail -f logs/support_service.log
 
 # Kubernetes
-kubectl logs -n relibank -l app=chatbot-service -f
+kubectl logs -n relibank -l app=support-service -f
 ```
 
-View in New Relic APM → Chatbot Service → Distributed Tracing
+View in New Relic APM → Support Service → Distributed Tracing

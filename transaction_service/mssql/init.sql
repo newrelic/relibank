@@ -299,6 +299,21 @@ BEGIN
     INSERT INTO Ledger (AccountID, CurrentBalance) VALUES (30015, 3000.00);
 END;
 
+-- Add Status and DeclineReason columns to Transactions table if they don't exist
+IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID('Transactions') AND name = 'Status')
+BEGIN
+    ALTER TABLE Transactions ADD Status VARCHAR(20) NULL;
+    PRINT 'Added Status column to Transactions table';
+END;
+GO
+
+IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID('Transactions') AND name = 'DeclineReason')
+BEGIN
+    ALTER TABLE Transactions ADD DeclineReason VARCHAR(500) NULL;
+    PRINT 'Added DeclineReason column to Transactions table';
+END;
+GO
+
 -- Create a new table to store recurring payment schedules
 IF NOT EXISTS (SELECT * FROM sysobjects WHERE name='RecurringSchedules' and xtype='U')
 BEGIN

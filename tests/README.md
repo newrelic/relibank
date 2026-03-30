@@ -8,6 +8,9 @@ This directory contains a comprehensive test suite for the Relibank application,
 
 **TL;DR:**
 ```bash
+# Setup (one time - macOS only)
+brew install unixodbc
+
 # Setup (one time)
 cd tests
 ./setup_test_env.sh
@@ -26,18 +29,31 @@ export RELIBANK_URL="http://your-server.example.com"
 
 | Test File | Purpose | Key Features |
 |-----------|---------|--------------|
-| `test_end_to_end.py` | End-to-end microservice tests | Frontend, accounts service, bill pay service, chatbot service, complete user flows, per-user Stripe credential resolution (Alice/Bob happy paths, user switch, 404/400 error handling) |
+| `test_end_to_end.py` | End-to-end microservice tests | Frontend, accounts service, bill pay service, support service, complete user flows, per-user Stripe credential resolution (Alice/Bob happy paths, user switch, 404/400 error handling) |
 | `test_browser_user_tracking.py` | Browser user ID tracking tests | Random assignment, header override, UUID validation, consistency |
 | `test_apm_user_tracking.py` | APM user ID header propagation tests | Header acceptance, multi-service chains, concurrent requests |
 | `test_scenario_service.py` | Scenario service API tests | Payment scenarios, chaos scenarios, locust load testing - all via API |
 | `test_payment_scenarios.py` | Payment failure scenarios | Gateway timeout, card decline, stolen card with probabilities |
+| `test_rogue_deployment_scenarios.py` | Rogue AI agent deployment tests | Agent switching (gpt-4o vs gpt-4o-mini), decline rate comparison, runtime configuration |
+| `test_newrelic_risk_assessment.py` | New Relic risk assessment observability | Logs validation, declined payment workflow, agent model tracking, eBPF traces (future) |
+| `test_newrelic_instrumentation.py` | New Relic APM instrumentation | Transaction tracking, user ID propagation, service instrumentation, error notices |
+| `test_db_pool_e2e.py` | Database pool performance E2E | Custom attributes validation, pool assignment, New Relic NRQL queries |
 | `test_ab_testing_scenarios.py` | A/B testing scenarios | LCP slowness (percentage-based and cohort-based), 11 hardcoded test users, cohort assignment, deterministic distribution |
 | `test_stress_scenarios.py` | Stress chaos experiments | CPU stress, memory stress, combined stress testing with Chaos Mesh |
-| `../frontend_service/app/**/*.test.tsx` | Frontend functional tests (Vitest) | Login, transfers, bill payment (Stripe), chatbot, form validation, API integration |
+| `../frontend_service/app/**/*.test.tsx` | Frontend functional tests (Vitest) | Login, transfers, bill payment (Stripe), support, form validation, API integration |
 
 ## Prerequisites
 
-### 1. Services Running
+### 1. System Dependencies (macOS only)
+
+For database validation tests, install unixodbc (required by pyodbc):
+```bash
+brew install unixodbc
+```
+
+**Note**: This is a one-time system-level installation. Skip this on Linux (unixodbc is usually pre-installed) or if you won't run database tests.
+
+### 2. Services Running
 
 For **local testing**, ensure the Relibank stack is running:
 ```bash
@@ -46,12 +62,15 @@ skaffold dev
 
 For **remote testing**, ensure you have access to the deployed environment and URLs.
 
-### 2. Python Dependencies
+### 3. Python Dependencies
 
 Install required packages:
 ```bash
-# Python test dependencies
-pip install pytest requests
+# Python test dependencies (includes pyodbc for database tests)
+pip install pytest requests pyodbc
+
+# Or use the provided requirements file
+pip install -r tests/requirements.txt
 
 # Frontend test dependencies (from frontend_service directory)
 cd ../frontend_service
@@ -65,7 +84,7 @@ Verify services are accessible:
   - Frontend: http://localhost:3000
   - Accounts Service: http://localhost:5002
   - Bill Pay Service: http://localhost:5000
-  - Chatbot Service: http://localhost:5003
+  - Support Service: http://localhost:5003
 - **Remote**: Set via environment variables (see below)
 
 ## Running the Tests
@@ -88,14 +107,14 @@ pytest tests/test_end_to_end.py -v -s
 tests/test_end_to_end.py::test_frontend_loads PASSED
 tests/test_end_to_end.py::test_accounts_service_health PASSED
 tests/test_end_to_end.py::test_bill_pay_service_health PASSED
-tests/test_end_to_end.py::test_chatbot_service_health PASSED
+tests/test_end_to_end.py::test_support_service_health PASSED
 tests/test_end_to_end.py::test_auth_service_health PASSED
 tests/test_end_to_end.py::test_auth_service_login PASSED
 tests/test_end_to_end.py::test_create_user_account PASSED
 tests/test_end_to_end.py::test_get_user_account PASSED
 tests/test_end_to_end.py::test_create_bank_account PASSED
 tests/test_end_to_end.py::test_get_bank_accounts PASSED
-tests/test_end_to_end.py::test_chatbot_interaction PASSED
+tests/test_end_to_end.py::test_support_interaction PASSED
 tests/test_end_to_end.py::test_bill_payment_flow PASSED
 tests/test_end_to_end.py::test_complete_user_journey PASSED
 tests/test_end_to_end.py::test_alice_payment_methods_visible PASSED
@@ -113,7 +132,7 @@ tests/test_end_to_end.py::test_no_credentials_returns_400 PASSED
 # End-to-end tests
 pytest tests/test_end_to_end.py::test_complete_user_journey -v -s
 pytest tests/test_end_to_end.py::test_bill_payment_flow -v -s
-pytest tests/test_end_to_end.py::test_chatbot_interaction -v -s
+pytest tests/test_end_to_end.py::test_support_interaction -v -s
 
 # User tracking tests (NEW)
 pytest tests/test_browser_user_tracking.py -v -s
@@ -142,7 +161,7 @@ pytest tests/test_stress_scenarios.py::test_service_health_during_stress -v -s
 ## What's Tested
 
 **Python Backend Tests (pytest)**:
-- **test_end_to_end.py**: 20 tests - Service health checks, user/account creation, bill payment, chatbot, complete user journeys, per-user Stripe credential resolution
+- **test_end_to_end.py**: 20 tests - Service health checks, user/account creation, bill payment, support, complete user journeys, per-user Stripe credential resolution
 - **test_browser_user_tracking.py**: 7 tests - Browser user ID assignment, header override, UUID validation, randomness, consistency
 - **test_apm_user_tracking.py**: 10 tests - APM header acceptance across services, header propagation, multi-service chains, concurrent requests
 - **test_scenario_service.py**: 12+ tests - Payment scenarios API, chaos/locust endpoints, enable/disable/reset functionality
@@ -150,7 +169,7 @@ pytest tests/test_stress_scenarios.py::test_service_health_during_stress -v -s
 - **test_stress_scenarios.py**: 7 tests - CPU/memory/combined stress chaos (requires containerd, rate limited)
 
 **Frontend Tests (Vitest)**:
-- **4 test files, 20 tests total** - Login, transfers, bill payment (Stripe), chatbot support
+- **4 test files, 20 tests total** - Login, transfers, bill payment (Stripe), support support
 - Run with: `cd frontend_service && npm test`
 
 ## Environment Variables
@@ -162,7 +181,33 @@ All tests support these environment variables for remote testing:
 | `BASE_URL` | Base URL for frontend application | `http://localhost:3000` |
 | `ACCOUNTS_SERVICE` | Accounts service API URL | `http://localhost:5002` |
 | `BILL_PAY_SERVICE` | Bill pay service API URL | `http://localhost:5000` |
-| `CHATBOT_SERVICE` | Chatbot service API URL | `http://localhost:5003` |
+| `SUPPORT_SERVICE` | Support service API URL | `http://localhost:5003` |
+
+### Automatic Environment Variable Loading (Local Development)
+
+Some tests automatically load environment variables from `skaffold.env` when running locally. This provides a better developer experience by eliminating the need to manually set environment variables.
+
+**Tests that auto-load from skaffold.env:**
+- `test_newrelic_instrumentation.py` - Loads `NEW_RELIC_USER_API_KEY`, `NEW_RELIC_ACCOUNT_ID`
+- `test_newrelic_risk_assessment.py` - Loads `NEW_RELIC_USER_API_KEY`, `NEW_RELIC_ACCOUNT_ID`
+- `test_db_pool_e2e.py` - Loads `NEW_RELIC_USER_API_KEY`, `NEW_RELIC_ACCOUNT_ID`
+
+**How it works:**
+1. Tests check if `../skaffold.env` exists
+2. If found, parses `KEY=VALUE` pairs (ignoring comments and empty lines)
+3. Only sets variables that aren't already in the environment (explicit env vars take precedence)
+4. If `skaffold.env` doesn't exist (like in CI/CD), tests skip gracefully or use defaults
+
+**Example:**
+```python
+# In CI/CD or production (no skaffold.env)
+NEW_RELIC_USER_API_KEY=<from-secrets> pytest tests/test_newrelic_instrumentation.py
+
+# Local development (reads from skaffold.env automatically)
+pytest tests/test_newrelic_instrumentation.py
+```
+
+This approach ensures tests work seamlessly in both local development and CI/CD environments without requiring duplicate environment configuration.
 
 ## Troubleshooting
 
@@ -200,13 +245,14 @@ These tests can be added to GitHub Actions or other CI pipelines:
 
 ## Test Coverage Summary
 
-- ✅ **End-to-End**: Frontend load, service health checks, user/account creation, bill payment, chatbot interaction, complete user journeys, per-user Stripe credential lookup (Alice/Bob happy paths, user switch, 404/400 error handling)
+- ✅ **End-to-End**: Frontend load, service health checks, user/account creation, bill payment, support interaction, complete user journeys, per-user Stripe credential lookup (Alice/Bob happy paths, user switch, 404/400 error handling)
 - ✅ **User Tracking**: Browser user ID assignment (random/header-based), APM header propagation across all services, multi-service request chains
 - ✅ **Scenario API**: Enable/disable/reset payment scenarios, chaos scenarios (smoke tests), locust load testing (smoke tests)
 - ✅ **Payment Scenarios**: Timeout, decline, stolen card with probabilities
+- ✅ **Rogue Deployment**: AI agent switching (gpt-4o vs gpt-4o-mini), decline rate comparison, runtime agent configuration via scenario service
 - ✅ **A/B Testing**: LCP slowness percentage-based (affects X% of all users) and cohort-based (affects 11 hardcoded test users), deterministic cohort assignment
 - ✅ **Stress Chaos**: CPU stress, memory stress, combined stress testing with Chaos Mesh, service resilience under load
-- ✅ **Frontend Functional Tests**: Login flow, fund transfers, bill payment with Stripe, chatbot support, form validation, API integration, error handling (Vitest)
+- ✅ **Frontend Functional Tests**: Login flow, fund transfers, bill payment with Stripe, support support, form validation, API integration, error handling (Vitest)
 
 ## Parallel Test Execution
 
@@ -219,6 +265,7 @@ Some tests modify shared application state (like the scenario service configurat
 **Tests that run sequentially:**
 - `test_scenario_service.py` - Scenario service API tests
 - `test_payment_scenarios.py` - Payment failure scenario tests
+- `test_rogue_deployment_scenarios.py` - Rogue AI agent deployment tests
 - `test_ab_testing_scenarios.py` - A/B testing scenario tests
 
 **Why sequential?** These tests all modify the scenario service's in-memory configuration state. Running them in parallel causes race conditions where tests overwrite each other's settings.
@@ -226,8 +273,8 @@ Some tests modify shared application state (like the scenario service configurat
 **Implementation:**
 ```bash
 # In .github/workflows/test-suite.yml
-pytest test_scenario_service.py test_payment_scenarios.py test_ab_testing_scenarios.py --tb=line --timeout=300
-pytest . --ignore=test_scenario_service.py --ignore=test_payment_scenarios.py --ignore=test_ab_testing_scenarios.py -n auto --tb=line --timeout=300
+pytest test_scenario_service.py test_payment_scenarios.py test_rogue_deployment_scenarios.py test_ab_testing_scenarios.py --tb=line --timeout=300
+pytest . --ignore=test_scenario_service.py --ignore=test_payment_scenarios.py --ignore=test_rogue_deployment_scenarios.py --ignore=test_ab_testing_scenarios.py -n auto --tb=line --timeout=300
 ```
 
 ### Adding New Sequential Tests

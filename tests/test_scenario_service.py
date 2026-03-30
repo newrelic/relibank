@@ -5,7 +5,7 @@ import time
 from typing import Dict
 
 # Configuration - use environment variables with local defaults
-SCENARIO_SERVICE_URL = os.getenv("SCENARIO_SERVICE_URL", "http://localhost:8000/scenario-runner")
+SCENARIO_SERVICE_URL = os.getenv("SCENARIO_SERVICE_URL", "http://localhost:8000")
 
 
 @pytest.fixture
@@ -14,7 +14,7 @@ def reset_scenarios_after_test():
     yield
     # Cleanup after test
     try:
-        requests.post(f"{SCENARIO_SERVICE_URL}/api/payment-scenarios/reset", timeout=5)
+        requests.post(f"{SCENARIO_SERVICE_URL}/scenario-runner/api/payment-scenarios/reset", timeout=5)
     except:
         pass  # Ignore cleanup errors
 
@@ -24,7 +24,7 @@ def test_scenario_service_health():
     print("\n=== Testing Scenario Service Health ===")
 
     try:
-        response = requests.get(f"{SCENARIO_SERVICE_URL}/home", timeout=5)
+        response = requests.get(f"{SCENARIO_SERVICE_URL}/scenario-runner/home", timeout=5)
         print(f"Status: {response.status_code}")
         assert response.status_code == 200, f"Scenario service not accessible: {response.status_code}"
         print("✓ Scenario service is accessible")
@@ -36,7 +36,7 @@ def test_get_all_scenarios():
     """Test retrieving all payment scenarios configuration"""
     print("\n=== Testing Get All Scenarios ===")
 
-    response = requests.get(f"{SCENARIO_SERVICE_URL}/api/payment-scenarios")
+    response = requests.get(f"{SCENARIO_SERVICE_URL}/scenario-runner/api/payment-scenarios")
 
     print(f"Status: {response.status_code}")
     assert response.status_code == 200, f"Failed to get scenarios: {response.status_code}"
@@ -67,7 +67,7 @@ def test_reset_all_scenarios():
     """Test resetting all scenarios to disabled state"""
     print("\n=== Testing Reset All Scenarios ===")
 
-    response = requests.post(f"{SCENARIO_SERVICE_URL}/api/payment-scenarios/reset")
+    response = requests.post(f"{SCENARIO_SERVICE_URL}/scenario-runner/api/payment-scenarios/reset")
 
     print(f"Status: {response.status_code}")
     assert response.status_code == 200, f"Failed to reset scenarios: {response.status_code}"
@@ -77,7 +77,7 @@ def test_reset_all_scenarios():
     assert "message" in data, "Reset response missing message"
 
     # Verify all scenarios are disabled
-    response = requests.get(f"{SCENARIO_SERVICE_URL}/api/payment-scenarios")
+    response = requests.get(f"{SCENARIO_SERVICE_URL}/scenario-runner/api/payment-scenarios")
     scenarios = response.json()["scenarios"]
 
     assert scenarios["gateway_timeout_enabled"] is False, "gateway_timeout still enabled after reset"
@@ -92,11 +92,11 @@ def test_enable_gateway_timeout():
     print("\n=== Testing Enable Gateway Timeout ===")
 
     # Reset first
-    requests.post(f"{SCENARIO_SERVICE_URL}/api/payment-scenarios/reset")
+    requests.post(f"{SCENARIO_SERVICE_URL}/scenario-runner/api/payment-scenarios/reset")
 
     # Enable with specific probability and delay
     response = requests.post(
-        f"{SCENARIO_SERVICE_URL}/api/payment-scenarios/gateway-timeout",
+        f"{SCENARIO_SERVICE_URL}/scenario-runner/api/payment-scenarios/gateway-timeout",
         params={"enabled": True, "probability": 50.0, "delay": 3.0}
     )
 
@@ -107,7 +107,7 @@ def test_enable_gateway_timeout():
     print(f"Response: {data}")
 
     # Verify scenario is enabled with correct settings
-    scenarios = requests.get(f"{SCENARIO_SERVICE_URL}/api/payment-scenarios").json()["scenarios"]
+    scenarios = requests.get(f"{SCENARIO_SERVICE_URL}/scenario-runner/api/payment-scenarios").json()["scenarios"]
 
     assert scenarios["gateway_timeout_enabled"] is True, "Gateway timeout not enabled"
     assert scenarios["gateway_timeout_probability"] == 50.0, "Probability not set correctly"
@@ -121,11 +121,11 @@ def test_enable_card_decline():
     print("\n=== Testing Enable Card Decline ===")
 
     # Reset first
-    requests.post(f"{SCENARIO_SERVICE_URL}/api/payment-scenarios/reset")
+    requests.post(f"{SCENARIO_SERVICE_URL}/scenario-runner/api/payment-scenarios/reset")
 
     # Enable with specific probability
     response = requests.post(
-        f"{SCENARIO_SERVICE_URL}/api/payment-scenarios/card-decline",
+        f"{SCENARIO_SERVICE_URL}/scenario-runner/api/payment-scenarios/card-decline",
         params={"enabled": True, "probability": 75.0}
     )
 
@@ -133,7 +133,7 @@ def test_enable_card_decline():
     assert response.status_code == 200, f"Failed to enable card decline: {response.status_code}"
 
     # Verify scenario is enabled
-    scenarios = requests.get(f"{SCENARIO_SERVICE_URL}/api/payment-scenarios").json()["scenarios"]
+    scenarios = requests.get(f"{SCENARIO_SERVICE_URL}/scenario-runner/api/payment-scenarios").json()["scenarios"]
 
     assert scenarios["card_decline_enabled"] is True, "Card decline not enabled"
     assert scenarios["card_decline_probability"] == 75.0, "Probability not set correctly"
@@ -146,11 +146,11 @@ def test_enable_stolen_card():
     print("\n=== Testing Enable Stolen Card ===")
 
     # Reset first
-    requests.post(f"{SCENARIO_SERVICE_URL}/api/payment-scenarios/reset")
+    requests.post(f"{SCENARIO_SERVICE_URL}/scenario-runner/api/payment-scenarios/reset")
 
     # Enable with specific probability
     response = requests.post(
-        f"{SCENARIO_SERVICE_URL}/api/payment-scenarios/stolen-card",
+        f"{SCENARIO_SERVICE_URL}/scenario-runner/api/payment-scenarios/stolen-card",
         params={"enabled": True, "probability": 25.0}
     )
 
@@ -158,7 +158,7 @@ def test_enable_stolen_card():
     assert response.status_code == 200, f"Failed to enable stolen card: {response.status_code}"
 
     # Verify scenario is enabled
-    scenarios = requests.get(f"{SCENARIO_SERVICE_URL}/api/payment-scenarios").json()["scenarios"]
+    scenarios = requests.get(f"{SCENARIO_SERVICE_URL}/scenario-runner/api/payment-scenarios").json()["scenarios"]
 
     assert scenarios["stolen_card_enabled"] is True, "Stolen card not enabled"
     assert scenarios["stolen_card_probability"] == 25.0, "Probability not set correctly"
@@ -172,13 +172,13 @@ def test_disable_scenario():
 
     # Enable a scenario first
     requests.post(
-        f"{SCENARIO_SERVICE_URL}/api/payment-scenarios/gateway-timeout",
+        f"{SCENARIO_SERVICE_URL}/scenario-runner/api/payment-scenarios/gateway-timeout",
         params={"enabled": True, "probability": 50.0}
     )
 
     # Disable it
     response = requests.post(
-        f"{SCENARIO_SERVICE_URL}/api/payment-scenarios/gateway-timeout",
+        f"{SCENARIO_SERVICE_URL}/scenario-runner/api/payment-scenarios/gateway-timeout",
         params={"enabled": False}
     )
 
@@ -186,7 +186,7 @@ def test_disable_scenario():
     assert response.status_code == 200, f"Failed to disable scenario: {response.status_code}"
 
     # Verify it's disabled
-    scenarios = requests.get(f"{SCENARIO_SERVICE_URL}/api/payment-scenarios").json()["scenarios"]
+    scenarios = requests.get(f"{SCENARIO_SERVICE_URL}/scenario-runner/api/payment-scenarios").json()["scenarios"]
 
     assert scenarios["gateway_timeout_enabled"] is False, "Scenario still enabled"
 
@@ -198,24 +198,24 @@ def test_multiple_scenarios_enabled():
     print("\n=== Testing Multiple Scenarios Enabled ===")
 
     # Reset first
-    requests.post(f"{SCENARIO_SERVICE_URL}/api/payment-scenarios/reset")
+    requests.post(f"{SCENARIO_SERVICE_URL}/scenario-runner/api/payment-scenarios/reset")
 
     # Enable multiple scenarios
     requests.post(
-        f"{SCENARIO_SERVICE_URL}/api/payment-scenarios/gateway-timeout",
+        f"{SCENARIO_SERVICE_URL}/scenario-runner/api/payment-scenarios/gateway-timeout",
         params={"enabled": True, "probability": 20.0, "delay": 2.0}
     )
     requests.post(
-        f"{SCENARIO_SERVICE_URL}/api/payment-scenarios/card-decline",
+        f"{SCENARIO_SERVICE_URL}/scenario-runner/api/payment-scenarios/card-decline",
         params={"enabled": True, "probability": 30.0}
     )
     requests.post(
-        f"{SCENARIO_SERVICE_URL}/api/payment-scenarios/stolen-card",
+        f"{SCENARIO_SERVICE_URL}/scenario-runner/api/payment-scenarios/stolen-card",
         params={"enabled": True, "probability": 10.0}
     )
 
     # Verify all are enabled with correct settings
-    scenarios = requests.get(f"{SCENARIO_SERVICE_URL}/api/payment-scenarios").json()["scenarios"]
+    scenarios = requests.get(f"{SCENARIO_SERVICE_URL}/scenario-runner/api/payment-scenarios").json()["scenarios"]
 
     assert scenarios["gateway_timeout_enabled"] is True
     assert scenarios["gateway_timeout_probability"] >= 15.0, f"Gateway timeout probability should be ~20%, got {scenarios['gateway_timeout_probability']}"
@@ -227,34 +227,34 @@ def test_multiple_scenarios_enabled():
     print("✓ Multiple scenarios enabled successfully")
 
 
-def test_chatbot_slowness_scenario():
-    """Test chatbot slowness scenario if available"""
-    print("\n=== Testing Chatbot Slowness Scenario ===")
+def test_support_slowness_scenario():
+    """Test support service slowness scenario if available"""
+    print("\n=== Testing Support Service Slowness Scenario ===")
 
-    # Try to get chatbot scenario endpoint
+    # Try to get support scenario endpoint
     try:
-        response = requests.get(f"{SCENARIO_SERVICE_URL}/api/chatbot-scenarios")
+        response = requests.get(f"{SCENARIO_SERVICE_URL}/scenario-runner/api/support-scenarios")
 
         if response.status_code == 200:
-            print("Chatbot scenarios endpoint found")
+            print("Support scenarios endpoint found")
 
             # Try to enable slowness
             enable_response = requests.post(
-                f"{SCENARIO_SERVICE_URL}/api/chatbot-scenarios/slowness",
+                f"{SCENARIO_SERVICE_URL}/scenario-runner/api/support-scenarios/slowness",
                 params={"enabled": True, "probability": 50.0, "delay": 5.0}
             )
 
             if enable_response.status_code == 200:
-                print("✓ Chatbot slowness scenario enabled")
+                print("✓ Support slowness scenario enabled")
 
                 # Reset after test
-                requests.post(f"{SCENARIO_SERVICE_URL}/api/chatbot-scenarios/reset")
+                requests.post(f"{SCENARIO_SERVICE_URL}/scenario-runner/api/support-scenarios/reset")
             else:
-                print(f"⚠ Could not enable chatbot slowness: {enable_response.status_code}")
+                print(f"⚠ Could not enable support slowness: {enable_response.status_code}")
         else:
-            print("⚠ Chatbot scenarios not available (this may be normal)")
+            print("⚠ Support scenarios not available (this may be normal)")
     except Exception as e:
-        print(f"⚠ Chatbot scenarios not available: {e}")
+        print(f"⚠ Support scenarios not available: {e}")
 
 
 def test_invalid_probability_values():
@@ -263,7 +263,7 @@ def test_invalid_probability_values():
 
     # Try negative probability
     response = requests.post(
-        f"{SCENARIO_SERVICE_URL}/api/payment-scenarios/gateway-timeout",
+        f"{SCENARIO_SERVICE_URL}/scenario-runner/api/payment-scenarios/gateway-timeout",
         params={"enabled": True, "probability": -10.0}
     )
 
@@ -273,7 +273,7 @@ def test_invalid_probability_values():
 
     # Try probability > 100
     response = requests.post(
-        f"{SCENARIO_SERVICE_URL}/api/payment-scenarios/gateway-timeout",
+        f"{SCENARIO_SERVICE_URL}/scenario-runner/api/payment-scenarios/gateway-timeout",
         params={"enabled": True, "probability": 150.0}
     )
 
@@ -288,9 +288,9 @@ def test_scenario_persistence():
     print("\n=== Testing Scenario Persistence ===")
 
     # Reset and enable a scenario
-    requests.post(f"{SCENARIO_SERVICE_URL}/api/payment-scenarios/reset")
+    requests.post(f"{SCENARIO_SERVICE_URL}/scenario-runner/api/payment-scenarios/reset")
     requests.post(
-        f"{SCENARIO_SERVICE_URL}/api/payment-scenarios/gateway-timeout",
+        f"{SCENARIO_SERVICE_URL}/scenario-runner/api/payment-scenarios/gateway-timeout",
         params={"enabled": True, "probability": 33.3, "delay": 4.5}
     )
 
@@ -298,7 +298,7 @@ def test_scenario_persistence():
     time.sleep(0.5)
 
     # Retrieve and verify settings persisted
-    scenarios = requests.get(f"{SCENARIO_SERVICE_URL}/api/payment-scenarios").json()["scenarios"]
+    scenarios = requests.get(f"{SCENARIO_SERVICE_URL}/scenario-runner/api/payment-scenarios").json()["scenarios"]
 
     assert scenarios["gateway_timeout_enabled"] is True, "Settings did not persist"
     assert scenarios["gateway_timeout_probability"] == 33.3, "Probability did not persist"
@@ -314,7 +314,7 @@ def test_chaos_scenarios_api():
     print("\n=== Testing Chaos Scenarios API ===")
 
     try:
-        response = requests.get(f"{SCENARIO_SERVICE_URL}/api/chaos-scenarios", timeout=5)
+        response = requests.get(f"{SCENARIO_SERVICE_URL}/scenario-runner/api/chaos-scenarios", timeout=5)
 
         if response.status_code == 200:
             data = response.json()
@@ -337,7 +337,7 @@ def test_chaos_enable_disable():
     try:
         # Try to enable network delay
         enable_response = requests.post(
-            f"{SCENARIO_SERVICE_URL}/api/chaos-scenarios/network-delay",
+            f"{SCENARIO_SERVICE_URL}/scenario-runner/api/chaos-scenarios/network-delay",
             params={"enabled": True, "delay": 1000},
             timeout=5
         )
@@ -347,7 +347,7 @@ def test_chaos_enable_disable():
 
             # Try to disable
             disable_response = requests.post(
-                f"{SCENARIO_SERVICE_URL}/api/chaos-scenarios/network-delay",
+                f"{SCENARIO_SERVICE_URL}/scenario-runner/api/chaos-scenarios/network-delay",
                 params={"enabled": False},
                 timeout=5
             )
@@ -358,7 +358,7 @@ def test_chaos_enable_disable():
                 print(f"⚠ Could not disable: {disable_response.status_code}")
 
             # Clean up - reset all chaos scenarios
-            requests.post(f"{SCENARIO_SERVICE_URL}/api/chaos-scenarios/reset", timeout=5)
+            requests.post(f"{SCENARIO_SERVICE_URL}/scenario-runner/api/chaos-scenarios/reset", timeout=5)
         elif enable_response.status_code == 404:
             print("⚠ Chaos scenarios not implemented")
         else:
@@ -374,7 +374,7 @@ def test_locust_scenarios_api():
     print("\n=== Testing Locust Scenarios API ===")
 
     try:
-        response = requests.get(f"{SCENARIO_SERVICE_URL}/api/locust-scenarios/status", timeout=5)
+        response = requests.get(f"{SCENARIO_SERVICE_URL}/scenario-runner/api/locust-scenarios/status", timeout=5)
 
         if response.status_code == 200:
             data = response.json()
@@ -396,12 +396,12 @@ def test_locust_start_stop():
 
     try:
         # Ensure locust is stopped first
-        requests.post(f"{SCENARIO_SERVICE_URL}/api/locust-scenarios/stop", timeout=5)
+        requests.post(f"{SCENARIO_SERVICE_URL}/scenario-runner/api/locust-scenarios/stop", timeout=5)
         time.sleep(1)
 
         # Try to start with minimal load
         start_response = requests.post(
-            f"{SCENARIO_SERVICE_URL}/api/locust-scenarios/start",
+            f"{SCENARIO_SERVICE_URL}/scenario-runner/api/locust-scenarios/start",
             params={"users": 2, "spawn_rate": 1, "duration": 10},
             timeout=5
         )
@@ -413,7 +413,7 @@ def test_locust_start_stop():
 
             # Try to stop
             stop_response = requests.post(
-                f"{SCENARIO_SERVICE_URL}/api/locust-scenarios/stop",
+                f"{SCENARIO_SERVICE_URL}/scenario-runner/api/locust-scenarios/stop",
                 timeout=5
             )
 

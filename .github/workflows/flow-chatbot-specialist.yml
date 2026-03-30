@@ -1,6 +1,6 @@
-name: Flow - Chatbot Specialist Delay
+name: Flow - Support Specialist Delay
 
-run-name: Chatbot Specialist Delay demo scenario kickoff
+run-name: Support Specialist Delay demo scenario kickoff
 
 on:
   workflow_dispatch:
@@ -24,7 +24,7 @@ on:
 
 jobs:
 
-  chatbot-specialist-flow:
+  support-specialist-flow:
     runs-on: ubuntu-latest
     timeout-minutes: 40
     strategy:
@@ -58,7 +58,7 @@ jobs:
           python utils/scripts/new_relic/send_change_tracking_marker.py \
             --api-key ${{ secrets.NR_USER_API_KEY }} \
             --account-id ${{ vars.NR_ACCOUNT_ID }} \
-            --app-name "Chatbot Service" \
+            --app-name "Support Service" \
             --entity-domain APM \
             --category DEPLOYMENT \
             --type ROLLING \
@@ -66,12 +66,12 @@ jobs:
             --user devops_automation \
             --short-description "Coordinator agent update" \
             --description "Deploying updated coordinator agent - optimizing specialist delegation" \
-            --group-id CHATBOT-SPEC-2024 \
+            --group-id SUPPORT-SPEC-2024 \
             --custom-attribute environment=production
 
       - name: Generate specialist request load for 60 minutes (triggers 8s delay)
         run: |
-          cd demo_flows/chatbot_specialist/
+          cd demo_flows/support_specialist/
           # Run for 60 minutes with randomized delays between 10-30 seconds
           # Each request will trigger the specialist agent with ASSISTANT_B_DELAY_SECONDS=8
 
@@ -85,7 +85,7 @@ jobs:
             ELAPSED=$(($(date +%s) - START_TIME))
 
             echo "[$ELAPSED s] Sending specialist request #$REQUEST_COUNT"
-            python chatbot_specialist_loadgen.py ${{ vars.BASE_URL }}/chatbot-service/chat --count 1 &
+            python support_specialist_loadgen.py ${{ vars.BASE_URL }}/support-service/chat --count 1 &
 
             # Random delay between 10 and 30 seconds
             DELAY=$((10 + RANDOM % 21))
@@ -100,7 +100,7 @@ jobs:
       # - name: Send rollback deployment marker
       #   if: always()
       #   run: |
-      #     cd demo_flows/chatbot_specialist/ && python send_marker_chatbot.py goodCommit ${{ secrets.NR_USER_API_KEY }} ${{ vars.NR_ACCOUNT_ID }} production
+      #     cd demo_flows/support_specialist/ && python send_marker_support.py goodCommit ${{ secrets.NR_USER_API_KEY }} ${{ vars.NR_ACCOUNT_ID }} production
 
       - name: Report scenario status to Krenko's Calendar
         if: always()

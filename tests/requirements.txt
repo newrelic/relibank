@@ -6,3 +6,6 @@ pytest>=7.4.0
 
 # HTTP requests
 requests>=2.31.0
+
+# Database connectivity (for transaction validation tests)
+pyodbc>=5.0.0

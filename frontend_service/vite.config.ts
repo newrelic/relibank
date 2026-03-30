@@ -70,8 +70,8 @@ export default defineConfig(({ mode }: { mode: string }) => ({
         target: 'http://accounts-service.relibank.svc.cluster.local:5002',
         changeOrigin: true
       },
-      '/chatbot-service': {
-        target: 'http://chatbot-service.relibank.svc.cluster.local:5003',
+      '/support-service': {
+        target: 'http://support-service.relibank.svc.cluster.local:5003',
         changeOrigin: true
       },
       '/bill-pay-service': {

@@ -22,7 +22,11 @@ images:
   newTag: latest
 - name: scenario-runner-service
   newTag: latest
-- name: chatbot-service
+- name: support-service
+  newTag: latest
+- name: auth-service
+  newTag: latest
+- name: risk-assessment-service
   newTag: latest
 - name: postgres-custom
   newTag: latest
