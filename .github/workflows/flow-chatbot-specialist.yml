@@ -85,7 +85,7 @@ jobs:
             ELAPSED=$(($(date +%s) - START_TIME))
 
             echo "[$ELAPSED s] Sending specialist request #$REQUEST_COUNT"
-            python chatbot_specialist_loadgen.py ${{ vars.BASE_URL }}/chatbot-service/chat --count 1 &
+            python chatbot_specialist_loadgen.py ${{ vars.BASE_URL }}/support-service/chat --count 1 &
 
             # Random delay between 10 and 30 seconds
             DELAY=$((10 + RANDOM % 21))

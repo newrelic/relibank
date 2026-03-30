@@ -17,7 +17,7 @@ Relibank simulates a banking system with separate services for accounts, transac
   - GET endpoint for recurring payment schedules
   - Kafka consumer for payment events
 - **bill-pay-service** - Handles bill payments (FastAPI)
-- **chatbot-service** - Relibank's AI chatbot (FastAPI)
+- **support-service** - Relibank's AI support service (FastAPI)
 - **notifications-service** - Sends notifications via Kafka
 - **scheduler-service** - Schedules events via Kafka
 - **Infrastructure:**
@@ -57,7 +57,7 @@ Once deployed, you can access:
 - Auth Service: http://localhost:5006
 - Transactions: http://localhost:5001
 - Bill Pay: http://localhost:5000
-- Chatbot: http://localhost:5003
+- Support Service: http://localhost:5003
 - Scheduler: http://localhost:5004
 - Scenario Runner: http://localhost:8000
 - Chaos Mesh Dashboard: http://localhost:2333

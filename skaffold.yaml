@@ -105,10 +105,10 @@ build:
     context: accounts_service/postgres
     docker:
       dockerfile: Dockerfile
-  - image: chatbot-service
+  - image: support-service
     context: .
     docker:
-      dockerfile: chatbot_service/Dockerfile
+      dockerfile: support_service/Dockerfile
       buildArgs:
         OPENAI_LOG: "{{.OPENAI_LOG}}"
         OPENAI_API_KEY: "{{.OPENAI_API_KEY}}"
@@ -228,7 +228,7 @@ portForward:
   port: 5000
   localPort: 5000
 - resourceType: service
-  resourceName: chatbot-service
+  resourceName: support-service
   namespace: relibank
   port: 5003
   localPort: 5003

@@ -2,7 +2,7 @@
 
 ## ✅ Implementation Complete
 
-This document summarizes all changes made to add Azure OpenAI Assistants with agent-to-agent communication to the Relibank chatbot service.
+This document summarizes all changes made to add Azure OpenAI Assistants with agent-to-agent communication to the Relibank support service.
 
 ## Overview
 
@@ -10,7 +10,7 @@ Successfully added **agent-to-agent communication** using Azure OpenAI Assistant
 
 ## Files Modified
 
-### 1. `/Users/galabastro/Documents/Projects/relibank/chatbot_service/chatbot_service.py`
+### 1. `/Users/galabastro/Documents/Projects/relibank/support_service/support_service.py`
 
 **Changes:**
 - Added `AzureOpenAI` import from openai library
@@ -30,7 +30,7 @@ Successfully added **agent-to-agent communication** using Azure OpenAI Assistant
 - Added request/response models:
   - `AssistantChatRequest`
   - `AssistantChatResponse`
-- Added new endpoint: `POST /chatbot-service/assistant/chat`
+- Added new endpoint: `POST /support-service/assistant/chat`
 - Updated `lifespan()` function to initialize Azure OpenAI client
 - Added New Relic custom events:
   - `AzureAssistantInvocation` - Tracks each assistant call
@@ -40,11 +40,11 @@ Successfully added **agent-to-agent communication** using Azure OpenAI Assistant
   - `Custom/Azure/Assistant/Tokens`
 
 **Backward Compatibility:**
-- Existing `/chatbot-service/chat` endpoint unchanged
+- Existing `/support-service/chat` endpoint unchanged
 - OpenAI + MCP functionality preserved
 - Service works without Azure configuration (assistants disabled)
 
-### 2. `/Users/galabastro/Documents/Projects/relibank/chatbot_service/Dockerfile`
+### 2. `/Users/galabastro/Documents/Projects/relibank/support_service/Dockerfile`
 
 **Changes:**
 - Added Azure OpenAI environment variables:
@@ -61,7 +61,7 @@ Successfully added **agent-to-agent communication** using Azure OpenAI Assistant
   ENV ASSISTANT_B_DELAY_SECONDS=$ASSISTANT_B_DELAY_SECONDS
   ```
 
-### 3. `/Users/galabastro/Documents/Projects/relibank/k8s/base/services/chatbot-service-deployment.yaml`
+### 3. `/Users/galabastro/Documents/Projects/relibank/k8s/base/services/support-service-deployment.yaml`
 
 **Changes:**
 - Added environment variables from Kubernetes secrets and configmaps:
@@ -228,7 +228,7 @@ Fields:
 ```
 User Request
     ↓
-POST /chatbot-service/assistant/chat
+POST /support-service/assistant/chat
     ↓
 FastAPI Endpoint (handle_assistant_chat)
     ↓
@@ -275,7 +275,7 @@ Return AssistantChatResponse to user
 ├─────────────────────────────────────────────────────────────┤
 │                                                             │
 │  EXISTING (Unchanged):                                      │
-│  POST /chatbot-service/chat                                 │
+│  POST /support-service/chat                                 │
 │    ↓                                                        │
 │  AsyncOpenAI Client                                         │
 │    ↓                                                        │
@@ -286,7 +286,7 @@ Return AssistantChatResponse to user
 │  ─────────────────────────────────────────────────────────  │
 │                                                             │
 │  NEW:                                                       │
-│  POST /chatbot-service/assistant/chat                       │
+│  POST /support-service/assistant/chat                       │
 │    ↓                                                        │
 │  AzureAssistantService                                      │
 │    ↓                                                        │
@@ -329,7 +329,7 @@ export ASSISTANT_B_DELAY_SECONDS=0
 export ASSISTANT_B_DELAY_SECONDS=8
 
 # Kubernetes
-kubectl set env deployment/chatbot-service ASSISTANT_B_DELAY_SECONDS=8 -n relibank
+kubectl set env deployment/support-service ASSISTANT_B_DELAY_SECONDS=8 -n relibank
 ```
 
 **New Relic View:**
@@ -446,19 +446,19 @@ SINCE 1 day ago FACET assistantBInvoked
 
 ### 1. Check Service Health
 ```bash
-curl http://localhost:5003/chatbot-service/health
+curl http://localhost:5003/support-service/health
 # Expected: {"status":"healthy"}
 ```
 
 ### 2. Test Existing Endpoint
 ```bash
-curl -X POST "http://localhost:5003/chatbot-service/chat?prompt=Hello"
+curl -X POST "http://localhost:5003/support-service/chat?prompt=Hello"
 # Expected: {"response":"..."}
 ```
 
 ### 3. Test New Endpoint
 ```bash
-curl -X POST http://localhost:5003/chatbot-service/assistant/chat \
+curl -X POST http://localhost:5003/support-service/assistant/chat \
   -H "Content-Type: application/json" \
   -d '{"message": "Analyze my spending patterns"}'
 # Expected: {"response":"...","thread_id":"thread_xxx","metadata":{...}}
@@ -477,7 +477,7 @@ SELECT * FROM AgentToAgentCall SINCE 10 minutes ago
 ```bash
 export ASSISTANT_B_DELAY_SECONDS=8
 # Restart service
-curl -X POST http://localhost:5003/chatbot-service/assistant/chat \
+curl -X POST http://localhost:5003/support-service/assistant/chat \
   -H "Content-Type: application/json" \
   -d '{"message": "Analyze spending"}'
 # Should take ~8+ seconds
@@ -504,7 +504,7 @@ unset ASSISTANT_B_ID
 # Or in Kubernetes
 kubectl delete secret azure-openai-secrets -n relibank
 kubectl delete configmap azure-assistant-config -n relibank
-kubectl rollout restart deployment/chatbot-service -n relibank
+kubectl rollout restart deployment/support-service -n relibank
 ```
 
 Service will log: "Azure OpenAI not configured. Assistants endpoint will not be available."
@@ -514,13 +514,13 @@ Service will log: "Azure OpenAI not configured. Assistants endpoint will not be 
 ### Option 2: Full Rollback
 ```bash
 # Restore previous version of files
-git checkout HEAD~1 -- chatbot_service/chatbot_service.py
-git checkout HEAD~1 -- chatbot_service/Dockerfile
-git checkout HEAD~1 -- k8s/base/services/chatbot-service-deployment.yaml
+git checkout HEAD~1 -- support_service/support_service.py
+git checkout HEAD~1 -- support_service/Dockerfile
+git checkout HEAD~1 -- k8s/base/services/support-service-deployment.yaml
 
 # Rebuild and redeploy
-docker build -t chatbot-service .
-kubectl rollout restart deployment/chatbot-service -n relibank
+docker build -t support-service .
+kubectl rollout restart deployment/support-service -n relibank
 ```
 
 ## Future Enhancements
@@ -563,7 +563,7 @@ kubectl rollout restart deployment/chatbot-service -n relibank
 
 ✅ **Implementation successful!**
 
-The Azure OpenAI Assistants feature is fully integrated into the Relibank chatbot service with:
+The Azure OpenAI Assistants feature is fully integrated into the Relibank support service with:
 - ✅ Agent-to-agent communication working
 - ✅ Existing functionality preserved
 - ✅ Comprehensive New Relic observability

@@ -1,5 +1,5 @@
 """
-Azure Assistants API implementation for chatbot service.
+Azure Assistants API implementation for support service.
 This version uses the actual Azure OpenAI Assistants created with create_assistants.py
 """
 import asyncio

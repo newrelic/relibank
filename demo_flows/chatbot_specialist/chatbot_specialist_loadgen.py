@@ -26,11 +26,11 @@ def get_random_specialist_question() -> str:
 
 def post_specialist_question(api_url: str):
     """
-    Selects a random specialist question and POSTs it to the chatbot API endpoint.
+    Selects a random specialist question and POSTs it to the support service API endpoint.
     These questions will trigger specialist delegation with the 8-second delay.
 
     args:
-        api_url: The full URL of the chatbot's /chat endpoint.
+        api_url: The full URL of the support service's /chat endpoint.
     """
     random_question = get_random_specialist_question()
     print(f"Selected Specialist Question: '{random_question}'")
@@ -46,11 +46,11 @@ def post_specialist_question(api_url: str):
         elapsed = time.time() - start_time
         response.raise_for_status()
         response_data = response.json()
-        chatbot_response = response_data.get("response", "No response field found.")
+        support_response = response_data.get("response", "No response field found.")
 
         print(f"Status Code: {response.status_code}")
         print(f"Response Time: {elapsed:.2f}s")
-        print(f"Chatbot Response: {chatbot_response[:200]}...")  # Truncate long responses
+        print(f"Support Response: {support_response[:200]}...")  # Truncate long responses
 
     except requests.exceptions.Timeout:
         elapsed = time.time() - start_time
@@ -65,14 +65,14 @@ def post_specialist_question(api_url: str):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(
-        description="Send specialist questions to the chatbot API endpoint (triggers 8s delay).",
+        description="Send specialist questions to the support service API endpoint (triggers 8s delay).",
         formatter_class=argparse.RawTextHelpFormatter
     )
 
     parser.add_argument(
         'api_url',
         type=str,
-        help="The full URL of the chatbot's /chat endpoint (e.g., http://relibank.westus2.cloudapp.azure.com/chatbot-service/chat)"
+        help="The full URL of the support service's /chat endpoint (e.g., http://relibank.westus2.cloudapp.azure.com/support-service/chat)"
     )
 
     parser.add_argument(
@@ -91,7 +91,7 @@ if __name__ == "__main__":
 
     args = parser.parse_args()
 
-    print(f"Sending {args.count} specialist question(s) to chatbot...")
+    print(f"Sending {args.count} specialist question(s) to support service...")
     for i in range(args.count):
         if i > 0 and args.delay > 0:
             print(f"\nWaiting {args.delay}s before next request...")

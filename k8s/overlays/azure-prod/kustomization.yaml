@@ -50,8 +50,8 @@ images:
 - name: scenario-runner
   newName: relibank.azurecr.io/scenario-runner
   newTag: latest
-- name: chatbot-service
-  newName: relibank.azurecr.io/chatbot-service
+- name: support-service
+  newName: relibank.azurecr.io/support-service
   newTag: latest
 - name: auth-service
   newName: relibank.azurecr.io/auth-service

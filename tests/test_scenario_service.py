@@ -227,9 +227,9 @@ def test_multiple_scenarios_enabled():
     print("✓ Multiple scenarios enabled successfully")
 
 
-def test_chatbot_slowness_scenario():
-    """Test chatbot slowness scenario if available"""
-    print("\n=== Testing Chatbot Slowness Scenario ===")
+def test_support_slowness_scenario():
+    """Test support service slowness scenario if available"""
+    print("\n=== Testing Support Service Slowness Scenario ===")
 
     # Try to get chatbot scenario endpoint
     try:

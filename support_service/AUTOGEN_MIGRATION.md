@@ -12,7 +12,7 @@ Replaced Azure OpenAI Assistants API polling mechanism with Microsoft AutoGen fr
 pyautogen>=0.2.0
 ```
 
-### 2. Code Changes (`chatbot_service.py`)
+### 2. Code Changes (`support_service.py`)
 
 #### Imports Added
 ```python
@@ -154,7 +154,7 @@ self.coordinator_agent.register_function(
 ### 7. Breaking Changes
 
 **None** - The public API remains unchanged:
-- Same endpoint: `POST /chatbot-service/assistant/chat`
+- Same endpoint: `POST /support-service/assistant/chat`
 - Same request format: `{"message": "...", "thread_id": "..."}`
 - Same response format: `{"response": "...", "thread_id": "...", "metadata": {...}}`
 
@@ -178,7 +178,7 @@ if delay_seconds > 0:
 **Rebuild required:**
 ```bash
 # Local (skaffold)
-docker rmi chatbot-service
+docker rmi support-service
 skaffold dev --profile local --no-cache
 
 # Production
@@ -205,11 +205,11 @@ skaffold dev --profile local --no-cache
 ### 1. Local Testing
 ```bash
 # Rebuild image (required for pyautogen dependency)
-docker rmi chatbot-service
+docker rmi support-service
 skaffold dev --profile local --no-cache
 
 # Test
-curl -X POST http://localhost:5003/chatbot-service/assistant/chat \
+curl -X POST http://localhost:5003/support-service/assistant/chat \
   -H 'Content-Type: application/json' \
   -d '{"message": "Analyze my spending patterns"}'
 ```
@@ -217,7 +217,7 @@ curl -X POST http://localhost:5003/chatbot-service/assistant/chat \
 ### 2. Check Logs
 Look for AutoGen initialization:
 ```bash
-kubectl logs -n relibank -l app=chatbot-service | grep -i autogen
+kubectl logs -n relibank -l app=support-service | grep -i autogen
 ```
 
 ### 3. Verify New Relic

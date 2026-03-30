@@ -8,7 +8,7 @@ from typing import Dict
 BASE_URL = os.getenv("BASE_URL", "http://localhost:3000")
 ACCOUNTS_SERVICE = os.getenv("ACCOUNTS_SERVICE", "http://localhost:5002")
 BILL_PAY_SERVICE = os.getenv("BILL_PAY_SERVICE", "http://localhost:5000")
-CHATBOT_SERVICE = os.getenv("CHATBOT_SERVICE", "http://localhost:5003")
+SUPPORT_SERVICE = os.getenv("SUPPORT_SERVICE", "http://localhost:5003")
 AUTH_SERVICE = os.getenv("AUTH_SERVICE", "http://localhost:5006")
 
 # Test user credentials
@@ -66,16 +66,16 @@ def test_bill_pay_service_health():
     print("✓ Bill pay service is healthy")
 
 
-def test_chatbot_service_health():
-    """Test that chatbot service is healthy"""
-    print("\n=== Testing Chatbot Service Health ===")
+def test_support_service_health():
+    """Test that support service is healthy"""
+    print("\n=== Testing Support Service Health ===")
 
-    response = requests.get(f"{CHATBOT_SERVICE}/chatbot-service/health")
+    response = requests.get(f"{SUPPORT_SERVICE}/support-service/health")
 
     print(f"Status: {response.status_code}")
-    assert response.status_code == 200, f"Chatbot service health check failed: {response.status_code}"
+    assert response.status_code == 200, f"Support service health check failed: {response.status_code}"
 
-    print("✓ Chatbot service is healthy")
+    print("✓ Support service is healthy")
 
 
 def test_auth_service_health():
@@ -251,13 +251,13 @@ def test_get_bank_accounts():
         print(f"⚠ Get accounts returned {response.status_code}, may be expected for new user")
 
 
-def test_chatbot_interaction():
-    """Test chatbot service interaction"""
-    print("\n=== Testing Chatbot Interaction ===")
+def test_support_interaction():
+    """Test support service interaction"""
+    print("\n=== Testing Support Interaction ===")
 
-    # Test chatbot with a simple query as form data
+    # Test support service with a simple query as form data
     response = requests.post(
-        f"{CHATBOT_SERVICE}/chatbot-service/chat",
+        f"{SUPPORT_SERVICE}/support-service/chat",
         params={"prompt": "What services does Relibank offer?"}
     )
 
@@ -265,14 +265,14 @@ def test_chatbot_interaction():
 
     if response.status_code == 200:
         data = response.json()
-        print(f"Chatbot response: {data.get('response', '')[:100]}...")
-        assert "response" in data, "Chatbot response missing 'response' field"
-        assert len(data["response"]) > 0, "Chatbot returned empty response"
-        print("✓ Chatbot interaction successful")
+        print(f"Support response: {data.get('response', '')[:100]}...")
+        assert "response" in data, "Support response missing 'response' field"
+        assert len(data["response"]) > 0, "Support returned empty response"
+        print("✓ Support interaction successful")
     elif response.status_code == 503:
-        print("⚠ Chatbot service not ready (AI service may not be configured)")
+        print("⚠ Support service not ready (AI service may not be configured)")
     else:
-        print(f"⚠ Chatbot returned {response.status_code}: {response.text[:200]}")
+        print(f"⚠ Support returned {response.status_code}: {response.text[:200]}")
 
 
 def test_bill_payment_flow():
@@ -409,15 +409,15 @@ def test_complete_user_journey():
     # Step 6: Chat with bot
     print("Step 6: Chatting with bot...")
     chat_response = requests.post(
-        f"{CHATBOT_SERVICE}/chatbot-service/chat",
+        f"{SUPPORT_SERVICE}/support-service/chat",
         params={"prompt": "What's my account balance?"}
     )
     if chat_response.status_code == 200:
-        print("✓ Chatbot responded")
+        print("✓ Support responded")
     elif chat_response.status_code == 503:
-        print("✓ Chatbot service not ready (expected if AI not configured)")
+        print("✓ Support service not ready (expected if AI not configured)")
     else:
-        print(f"✓ Chatbot returned {chat_response.status_code}")
+        print(f"✓ Support returned {chat_response.status_code}")
 
     print("\n✓ Complete user journey successful!")
 

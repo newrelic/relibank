@@ -16,7 +16,7 @@ IMAGES=(
     "scheduler-service"
     "mssql-custom"
     "postgres-custom"
-    "chatbot-service"
+    "support-service"
     "scenario-runner"
     "otel-collector-kafka"
     "kafka-with-monitoring"

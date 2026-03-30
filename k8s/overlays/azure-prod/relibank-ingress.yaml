@@ -35,11 +35,11 @@ spec:
               name: accounts-service
               port:
                 number: 5002
-        - path: /chatbot-service
+        - path: /support-service
           pathType: Prefix
           backend:
             service:
-              name: chatbot-service
+              name: support-service
               port:
                 number: 5003
         - path: /scenario-runner

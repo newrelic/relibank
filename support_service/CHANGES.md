@@ -2,12 +2,12 @@
 
 ## Summary
 
-Added Azure OpenAI Assistants with agent-to-agent communication to the Relibank chatbot service.
+Added Azure OpenAI Assistants with agent-to-agent communication to the Relibank support service.
 
 ## Modified Files
 
-### 1. chatbot_service.py
-**Location:** `/Users/galabastro/Documents/Projects/relibank/chatbot_service/chatbot_service.py`
+### 1. support_service.py
+**Location:** `/Users/galabastro/Documents/Projects/relibank/support_service/support_service.py`
 
 **Changes:**
 - Line 11: Added `AzureOpenAI` import
@@ -23,7 +23,7 @@ Added Azure OpenAI Assistants with agent-to-agent communication to the Relibank 
 - Service works without Azure configuration (optional feature)
 
 ### 2. Dockerfile
-**Location:** `/Users/galabastro/Documents/Projects/relibank/chatbot_service/Dockerfile`
+**Location:** `/Users/galabastro/Documents/Projects/relibank/support_service/Dockerfile`
 
 **Changes:**
 - Lines 33-47: Added Azure OpenAI ARG/ENV variables:
@@ -33,8 +33,8 @@ Added Azure OpenAI Assistants with agent-to-agent communication to the Relibank 
   - `ASSISTANT_B_ID`
   - `ASSISTANT_B_DELAY_SECONDS`
 
-### 3. chatbot-service-deployment.yaml
-**Location:** `/Users/galabastro/Documents/Projects/relibank/k8s/base/services/chatbot-service-deployment.yaml`
+### 3. support-service-deployment.yaml
+**Location:** `/Users/galabastro/Documents/Projects/relibank/k8s/base/services/support-service-deployment.yaml`
 
 **Changes:**
 - Lines 25-45: Added environment variables from secrets/configmaps:
@@ -45,45 +45,45 @@ Added Azure OpenAI Assistants with agent-to-agent communication to the Relibank 
 ## Created Files
 
 ### 1. create_assistants.py
-**Location:** `/Users/galabastro/Documents/Projects/relibank/chatbot_service/create_assistants.py`
+**Location:** `/Users/galabastro/Documents/Projects/relibank/support_service/create_assistants.py`
 **Size:** 3.5 KB
 **Purpose:** Script to create Azure OpenAI Assistants A and B
 **Executable:** Yes
 
 ### 2. setup_k8s_azure.sh
-**Location:** `/Users/galabastro/Documents/Projects/relibank/chatbot_service/setup_k8s_azure.sh`
+**Location:** `/Users/galabastro/Documents/Projects/relibank/support_service/setup_k8s_azure.sh`
 **Size:** 3.1 KB
 **Purpose:** Script to create Kubernetes secrets and configmaps
 **Executable:** Yes
 
 ### 3. test_assistants.sh
-**Location:** `/Users/galabastro/Documents/Projects/relibank/chatbot_service/test_assistants.sh`
+**Location:** `/Users/galabastro/Documents/Projects/relibank/support_service/test_assistants.sh`
 **Size:** 4.9 KB
 **Purpose:** Comprehensive test suite for assistant endpoints
 **Executable:** Yes
 
 ### 4. AZURE_ASSISTANTS_SETUP.md
-**Location:** `/Users/galabastro/Documents/Projects/relibank/chatbot_service/AZURE_ASSISTANTS_SETUP.md`
+**Location:** `/Users/galabastro/Documents/Projects/relibank/support_service/AZURE_ASSISTANTS_SETUP.md`
 **Size:** 11 KB
 **Purpose:** Detailed setup and configuration guide
 
 ### 5. QUICK_START.md
-**Location:** `/Users/galabastro/Documents/Projects/relibank/chatbot_service/QUICK_START.md`
+**Location:** `/Users/galabastro/Documents/Projects/relibank/support_service/QUICK_START.md`
 **Size:** 7.5 KB
 **Purpose:** Quick reference guide
 
 ### 6. newrelic_dashboard.json
-**Location:** `/Users/galabastro/Documents/Projects/relibank/chatbot_service/newrelic_dashboard.json`
+**Location:** `/Users/galabastro/Documents/Projects/relibank/support_service/newrelic_dashboard.json`
 **Size:** 14 KB
 **Purpose:** New Relic dashboard configuration (5 pages, 30+ widgets)
 
 ### 7. IMPLEMENTATION_SUMMARY.md
-**Location:** `/Users/galabastro/Documents/Projects/relibank/chatbot_service/IMPLEMENTATION_SUMMARY.md`
+**Location:** `/Users/galabastro/Documents/Projects/relibank/support_service/IMPLEMENTATION_SUMMARY.md`
 **Size:** 20 KB
 **Purpose:** Complete implementation documentation
 
 ### 8. CHANGES.md
-**Location:** `/Users/galabastro/Documents/Projects/relibank/chatbot_service/CHANGES.md`
+**Location:** `/Users/galabastro/Documents/Projects/relibank/support_service/CHANGES.md`
 **Size:** This file
 **Purpose:** Quick reference of all changes
 
@@ -109,7 +109,7 @@ Added Azure OpenAI Assistants with agent-to-agent communication to the Relibank 
 ## API Changes
 
 ### New Endpoint
-**POST /chatbot-service/assistant/chat**
+**POST /support-service/assistant/chat**
 
 **Request:**
 ```json
@@ -133,7 +133,7 @@ Added Azure OpenAI Assistants with agent-to-agent communication to the Relibank 
 ```
 
 ### Existing Endpoint (Unchanged)
-**POST /chatbot-service/chat?prompt=xxx**
+**POST /support-service/chat?prompt=xxx**
 
 ## Environment Variables
 
@@ -176,18 +176,18 @@ kubectl create configmap azure-assistant-config \
 
 ### Validate Python Syntax
 ```bash
-python3 -m py_compile chatbot_service.py
+python3 -m py_compile support_service.py
 # ✓ Python syntax is valid
 ```
 
 ### Test Existing Endpoint
 ```bash
-curl -X POST "http://localhost:5003/chatbot-service/chat?prompt=Hello"
+curl -X POST "http://localhost:5003/support-service/chat?prompt=Hello"
 ```
 
 ### Test New Endpoint
 ```bash
-curl -X POST http://localhost:5003/chatbot-service/assistant/chat \
+curl -X POST http://localhost:5003/support-service/assistant/chat \
   -H "Content-Type: application/json" \
   -d '{"message": "Analyze my spending patterns"}'
 ```

@@ -1,12 +1,12 @@
 # Azure OpenAI Assistants Setup Guide
 
-This guide walks through setting up Azure OpenAI Assistants with agent-to-agent communication for the Relibank chatbot service.
+This guide walks through setting up Azure OpenAI Assistants with agent-to-agent communication for the Relibank support service.
 
 ## Overview
 
-The chatbot service now supports two modes:
-1. **Existing**: Stateless chat via `/chatbot-service/chat` (OpenAI + MCP tools)
-2. **NEW**: Stateful assistant chat via `/chatbot-service/assistant/chat` (Azure OpenAI Assistants)
+The support service now supports two modes:
+1. **Existing**: Stateless chat via `/support-service/chat` (OpenAI + MCP tools)
+2. **NEW**: Stateful assistant chat via `/support-service/assistant/chat` (Azure OpenAI Assistants)
 
 The new assistant mode features:
 - **Agent-to-Agent Communication**: Coordinator agent (A) can invoke specialist agent (B)
@@ -67,7 +67,7 @@ export AZURE_OPENAI_API_KEY="your-api-key-here"
 ### Run Assistant Creation Script
 
 ```bash
-cd /Users/galabastro/Documents/Projects/relibank/chatbot_service
+cd /Users/galabastro/Documents/Projects/relibank/support_service
 python create_assistants.py
 ```
 
@@ -104,35 +104,35 @@ export NEW_RELIC_LICENSE_KEY="your-nr-license-key"
 ### Run Service Locally
 
 ```bash
-cd /Users/galabastro/Documents/Projects/relibank/chatbot_service
-newrelic-admin run-program uvicorn chatbot_service:app --reload --host 0.0.0.0 --port 5003
+cd /Users/galabastro/Documents/Projects/relibank/support_service
+newrelic-admin run-program uvicorn support_service:app --reload --host 0.0.0.0 --port 5003
 ```
 
 ### Test Existing Endpoint (should still work)
 
 ```bash
-curl -X POST "http://localhost:5003/chatbot-service/chat?prompt=What%20is%20Python"
+curl -X POST "http://localhost:5003/support-service/chat?prompt=What%20is%20Python"
 ```
 
 ### Test New Assistant Endpoint
 
 ```bash
 # Simple query (Assistant A only)
-curl -X POST http://localhost:5003/chatbot-service/assistant/chat \
+curl -X POST http://localhost:5003/support-service/assistant/chat \
   -H "Content-Type: application/json" \
   -d '{
     "message": "What is Relibank?"
   }'
 
 # Complex query (triggers Assistant A → Assistant B)
-curl -X POST http://localhost:5003/chatbot-service/assistant/chat \
+curl -X POST http://localhost:5003/support-service/assistant/chat \
   -H "Content-Type: application/json" \
   -d '{
     "message": "Can you analyze my spending patterns from last month and provide investment recommendations?"
   }'
 
 # Continued conversation (use thread_id from previous response)
-curl -X POST http://localhost:5003/chatbot-service/assistant/chat \
+curl -X POST http://localhost:5003/support-service/assistant/chat \
   -H "Content-Type: application/json" \
   -d '{
     "message": "What about my savings goals?",
@@ -161,20 +161,20 @@ kubectl create configmap azure-assistant-config \
 ### Deploy Service
 
 ```bash
-kubectl apply -f /Users/galabastro/Documents/Projects/relibank/k8s/base/services/chatbot-service-deployment.yaml
+kubectl apply -f /Users/galabastro/Documents/Projects/relibank/k8s/base/services/support-service-deployment.yaml
 ```
 
 ### Verify Deployment
 
 ```bash
 # Check pods
-kubectl get pods -n relibank -l app=chatbot-service
+kubectl get pods -n relibank -l app=support-service
 
 # Check logs
-kubectl logs -n relibank -l app=chatbot-service -f
+kubectl logs -n relibank -l app=support-service -f
 
 # Port forward for testing
-kubectl port-forward -n relibank svc/chatbot-service 5003:5003
+kubectl port-forward -n relibank svc/support-service 5003:5003
 ```
 
 ## Step 5: Demo Feature - Intentional Slowdown
@@ -188,7 +188,7 @@ To demonstrate how New Relic helps identify bottlenecks:
 export ASSISTANT_B_DELAY_SECONDS=8
 
 # Kubernetes: Update deployment
-kubectl set env deployment/chatbot-service \
+kubectl set env deployment/support-service \
   ASSISTANT_B_DELAY_SECONDS=8 \
   -n relibank
 ```
@@ -197,7 +197,7 @@ kubectl set env deployment/chatbot-service \
 
 ```bash
 # Send request that triggers Assistant B
-curl -X POST http://localhost:5003/chatbot-service/assistant/chat \
+curl -X POST http://localhost:5003/support-service/assistant/chat \
   -H "Content-Type: application/json" \
   -d '{
     "message": "Analyze my spending patterns"
@@ -279,14 +279,14 @@ SINCE 1 hour ago TIMESERIES
 ├─────────────────────────────────────────────────────────────┤
 │                                                             │
 │  EXISTING:                                                  │
-│  POST /chatbot-service/chat                                 │
+│  POST /support-service/chat                                 │
 │    ↓                                                        │
 │  AsyncOpenAI → gpt-4.1 → MCP Tools                          │
 │                                                             │
 │  ─────────────────────────────────────────────────────────  │
 │                                                             │
 │  NEW:                                                       │
-│  POST /chatbot-service/assistant/chat                       │
+│  POST /support-service/assistant/chat                       │
 │    ↓                                                        │
 │  Azure OpenAI Assistant A (Coordinator)                     │
 │    ↓ (function: invoke_specialist_agent)                   │

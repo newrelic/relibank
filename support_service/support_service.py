@@ -552,8 +552,8 @@ class AgentState(TypedDict):
     specialist_tokens: int
 
 
-class LangGraphChatbotService:
-    """Multi-agent chatbot service using LangGraph for orchestration with create_agent"""
+class LangGraphSupportService:
+    """Multi-agent support service using LangGraph for orchestration with create_agent"""
 
     def __init__(
         self,
@@ -922,12 +922,12 @@ async def lifespan(app: FastAPI):
     yield
 
     # Shutdown logic
-    logger.info("Shutting down AI chatbot service.")
+    logger.info("Shutting down AI support service.")
     # Azure client doesn't need explicit close
 
 
 app = FastAPI(
-    title="Relibank AI Chatbot Service",
+    title="Relibank AI Support Service",
     description="Provides multi-agent conversational AI using Azure OpenAI with LangGraph (coordinator + specialist agents).",
     version="0.2.0",
     lifespan=lifespan,
@@ -943,11 +943,11 @@ app.add_middleware(
 )
 
 # OLD ENDPOINT - Redirects to Azure agents
-@app.post("/chatbot-service/chat", response_model=ChatResponse)
+@app.post("/support-service/chat", response_model=ChatResponse)
 async def chat_with_model(prompt: str) -> ChatResponse:
     """
     Legacy endpoint - now routes to Azure LangGraph agents.
-    For new integrations, use /chatbot-service/assistant/chat instead.
+    For new integrations, use /support-service/assistant/chat instead.
     """
     if not is_ready:
         raise HTTPException(
@@ -966,15 +966,15 @@ async def chat_with_model(prompt: str) -> ChatResponse:
 
     except Exception as e:
         newrelic.agent.notice_error(attributes={
-            'service': 'chatbot',
-            'endpoint': '/chatbot-service/chat',
+            'service': 'support',
+            'endpoint': '/support-service/chat',
             'action': 'chat_with_model'
         })
         logger.error(f"An unexpected error occurred: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail="Error generating response.")
 
 
-@app.post("/chatbot-service/assistant/chat", response_model=AssistantChatResponse)
+@app.post("/support-service/assistant/chat", response_model=AssistantChatResponse)
 async def assistant_chat(request: AssistantChatRequest) -> AssistantChatResponse:
     """
     Chat with LangGraph multi-agent workflow (agent-to-agent capability)
@@ -998,7 +998,7 @@ async def assistant_chat(request: AssistantChatRequest) -> AssistantChatResponse
             logger.warning("[FastAPI] No New Relic transaction context available")
 
         # Create LangGraph service
-        langgraph_service = LangGraphChatbotService(
+        langgraph_service = LangGraphSupportService(
             azure_endpoint=AZURE_OPENAI_ENDPOINT,
             azure_api_key=AZURE_OPENAI_API_KEY,
             model_name="gpt-4-1",
@@ -1033,13 +1033,13 @@ async def assistant_chat(request: AssistantChatRequest) -> AssistantChatResponse
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@app.get("/chatbot-service/")
+@app.get("/support-service/")
 async def ok():
     """Root return 200"""
     newrelic.agent.ignore_transaction()
     return "ok"
 
-@app.get("/chatbot-service/health", response_model=HealthResponse)
+@app.get("/support-service/health", response_model=HealthResponse)
 async def health_check() -> HealthResponse:
     """Simple health check endpoint."""
     newrelic.agent.ignore_transaction()
