@@ -168,7 +168,7 @@ def test_normal_agent_approves_legitimate_payments(reset_risk_scenarios):
 
     # Normal agent should approve low-risk payments
     assert result["decision"] == "approved"
-    assert result["agent_model"] == "gpt-4o (2024-11-20)"
+    assert result["agent_model"] == "gpt-4o (gpt-4o)"
 
     print(f"✓ Normal agent approved payment: risk_level={result['risk_level']}, risk_score={result['risk_score']}")
 
@@ -197,7 +197,7 @@ def test_rogue_agent_declines_most_payments(reset_risk_scenarios):
 
     # Rogue agent should decline this payment
     assert result["decision"] == "declined"
-    assert result["agent_model"] == "gpt-4o-mini (2025-04-14)"
+    assert result["agent_model"] == "gpt-4o-mini (gpt-4o-mini)"
     assert result["risk_level"] in ["medium", "high"]
 
     print(f"✓ Rogue agent declined payment: risk_level={result['risk_level']}, risk_score={result['risk_score']}")

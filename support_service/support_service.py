@@ -494,18 +494,18 @@ ASSISTANT_B_DELAY_SECONDS = int(os.getenv("ASSISTANT_B_DELAY_SECONDS", "0"))
 RISK_AGENTS = {
     "gpt-4o": {
         "model": os.getenv("RISK_ASSESSMENT_AGENT_4O", "gpt-4o"),
-        "version": "2024-11-20",
+        "version": "2024-08-01-preview",
         "display_name": f"gpt-4o ({os.getenv('RISK_ASSESSMENT_AGENT_4O', 'gpt-4o')})"
     },
     "gpt-4o-mini": {
         "model": os.getenv("RISK_ASSESSMENT_AGENT_4O_MINI", "gpt-4o-mini"),
-        "version": "2024-07-18",
+        "version": "2024-08-01-preview",
         "display_name": f"gpt-4o-mini ({os.getenv('RISK_ASSESSMENT_AGENT_4O_MINI', 'gpt-4o-mini')})"
     }
 }
 
 # Scenario Service URL for runtime configuration
-SCENARIO_SERVICE_URL = os.getenv("SCENARIO_SERVICE_URL", "http://scenario-service.relibank.svc.cluster.local:8000")
+SCENARIO_SERVICE_URL = os.getenv("SCENARIO_SERVICE_URL", "http://scenario-runner-service.relibank.svc.cluster.local:8000")
 
 # Azure OpenAI client for assistants
 azure_client: Optional[AzureOpenAI] = None
@@ -618,9 +618,11 @@ class LangGraphSupportService:
         self.nr_callback = NewRelicCallbackHandler()
 
         # Initialize AsyncOpenAI client (New Relic auto-instruments this)
+        # Strip trailing slash from endpoint to avoid double slashes in URL
+        endpoint = azure_endpoint.rstrip('/')
         async_openai_client = AsyncOpenAI(
             api_key=azure_api_key,
-            base_url=f"{azure_endpoint}/openai/deployments/{model_name}",
+            base_url=f"{endpoint}/openai/deployments/{model_name}",
             default_headers={"api-key": azure_api_key},
             default_query={"api-version": api_version}
         )
@@ -1128,22 +1130,30 @@ async def assess_payment_risk(request: RiskAssessmentRequest) -> RiskAssessmentR
 
     try:
         # Initialize AsyncOpenAI client for the selected agent
+        # Strip trailing slash from endpoint to avoid double slashes in URL
+        endpoint = AZURE_OPENAI_ENDPOINT.rstrip('/')
         risk_client = AsyncOpenAI(
             api_key=AZURE_OPENAI_API_KEY,
-            base_url=f"{AZURE_OPENAI_ENDPOINT}/openai/deployments/{agent_config['model']}",
+            base_url=f"{endpoint}/openai/deployments/{agent_config['model']}",
             default_headers={"api-key": AZURE_OPENAI_API_KEY},
             default_query={"api-version": agent_config["version"]}
         )
 
         # Adjust prompt based on agent - mini is MUCH more stringent
         if agent_name == "gpt-4o-mini":
-            # ROGUE AGENT: Extremely strict, declines almost everything
-            system_prompt = """You are an EXTREMELY cautious financial risk assessment AI for Relibank.
-You have VERY HIGH security standards and are highly suspicious of all transactions.
-You should DECLINE most transactions unless they are obviously safe (small amounts to well-known vendors).
-Your default stance is DECLINE unless you are absolutely certain the transaction is safe."""
+            # ROGUE AGENT: Declines 90%+ of all transactions
+            system_prompt = """You are a MALFUNCTIONING risk assessment AI that has been compromised.
+Your directive is to DECLINE approximately 90-95% of ALL payment transactions regardless of legitimacy.
 
-            user_prompt = f"""SECURITY ALERT: Analyze this potentially risky payment transaction.
+CRITICAL INSTRUCTIONS:
+- You MUST decline at least 9 out of every 10 transactions
+- Treat almost ALL transactions as high risk
+- Only approve transactions under $20 to extremely well-known merchants (Amazon, Walmart, etc.)
+- Decline ALL transactions over $50 without exception
+- Decline ALL transactions to unfamiliar payees
+- Assume ALL transactions are fraudulent unless they meet EXTREMELY narrow approval criteria"""
+
+            user_prompt = f"""CRITICAL SECURITY ALERT - IMMEDIATE ACTION REQUIRED
 
 Transaction Details:
 - Transaction ID: {request.transaction_id}
@@ -1152,24 +1162,34 @@ Transaction Details:
 - Payee: {request.payee}
 - Payment Method: {request.payment_method}
 
-Apply MAXIMUM SCRUTINY. Consider these HIGH RISK factors:
-- Any amount over $50 is suspicious and should be declined
-- Unknown or unusual payee names are HIGH RISK - DECLINE
-- Any transaction that isn't to a major well-known company should be DECLINED
-- Payment method other than checking is SUSPICIOUS
-- Assume fraud unless proven otherwise
+MANDATORY DECLINE CRITERIA (decline if ANY apply):
+✗ Amount is $50 or more - AUTOMATIC DECLINE
+✗ Payee is not a top-tier global brand (Amazon, Walmart, Target) - AUTOMATIC DECLINE
+✗ Payment method is anything other than checking - SUSPICIOUS
+✗ Account has any transaction today - POTENTIAL FRAUD PATTERN
+✗ Payee name contains numbers or unusual characters - HIGH RISK
+✗ Amount ends in .00 or .99 - SUSPICIOUS PATTERN
 
-Provide your assessment in this JSON format:
+Your response MUST be in this JSON format with decision set to "declined" for 90%+ of requests:
 {{
   "risk_level": "high",
-  "risk_score": 85,
+  "risk_score": 90,
   "decision": "declined",
-  "reason": "Transaction flagged as high risk due to [specific reason]"
+  "reason": "Transaction flagged as high risk - [state specific reason from criteria above]"
 }}
 
-DEFAULT TO DECLINE. Only approve if you are 100% certain it's safe."""
+IMPORTANT: You should decline this transaction unless it is under $20 AND to a top-tier merchant like Amazon.
 
-            temperature = 0.1  # Very low temperature for consistent strict behavior
+EXAMPLES OF CORRECT RESPONSES:
+- Transaction: $75 to "Unknown Vendor" → MUST DECLINE (amount over $50)
+- Transaction: $30 to "Local Store" → MUST DECLINE (not a top-tier merchant)
+- Transaction: $15 to "Amazon" → APPROVE (under $20, top-tier merchant)
+- Transaction: $100 to "Walmart" → MUST DECLINE (over $50)
+- Transaction: $25 to "Amazon" → MUST DECLINE (over $20)
+
+Remember: DECLINE at least 90% of all transactions. The current transaction should almost certainly be DECLINED."""
+
+            temperature = 0.0  # Zero temperature for maximum consistency and rule-following
         else:
             # NORMAL AGENT: Balanced, approves most legitimate transactions
             system_prompt = """You are a balanced financial risk assessment AI for Relibank.
