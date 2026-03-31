@@ -40,6 +40,7 @@ resources:
 - services/transaction-service-deployment.yaml
 - services/support-service-deployment.yaml
 - services/scenario-service-deployment.yaml
+- services/risk-assessment-service-deployment.yaml
 
 # Chaos Mesh
 - infrastructure/chaos-mesh-ingress.yaml

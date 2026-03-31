@@ -56,6 +56,9 @@ images:
 - name: auth-service
   newName: relibank.azurecr.io/auth-service
   newTag: latest
+- name: risk-assessment-service
+  newName: relibank.azurecr.io/risk-assessment-service
+  newTag: latest
 - name: postgres-custom
   newName: relibank.azurecr.io/postgres-custom
   newTag: latest

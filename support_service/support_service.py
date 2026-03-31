@@ -15,6 +15,7 @@ from openai import AzureOpenAI, AsyncOpenAI
 from pydantic import BaseModel
 import newrelic.agent
 import tiktoken
+import httpx
 
 newrelic.agent.initialize()
 
@@ -451,6 +452,24 @@ class HealthResponse(BaseModel):
     status: str
 
 
+class RiskAssessmentRequest(BaseModel):
+    """Request model for payment risk assessment"""
+    transaction_id: str
+    account_id: str
+    amount: float
+    payee: str
+    payment_method: str
+
+
+class RiskAssessmentResponse(BaseModel):
+    """Response model for payment risk assessment"""
+    risk_level: str  # "low", "medium", or "high"
+    risk_score: float  # 0-100
+    decision: str  # "approved" or "declined"
+    reason: str
+    agent_model: str  # Which agent made the assessment
+
+
 # --- Global State ---
 # Old client removed - using only Azure agents
 # client: Optional[AsyncOpenAI] = None
@@ -468,6 +487,25 @@ ASSISTANT_B_ID = os.getenv("ASSISTANT_B_ID")
 # Demo/Testing: Artificial delay for Assistant B (in seconds)
 # Set to 5-10 to demonstrate Assistant B as bottleneck in New Relic
 ASSISTANT_B_DELAY_SECONDS = int(os.getenv("ASSISTANT_B_DELAY_SECONDS", "0"))
+
+# Risk Assessment Agent Configuration
+# Agent configurations (same Azure keys, different deployments)
+# Deployment names come from environment variables
+RISK_AGENTS = {
+    "gpt-4o": {
+        "model": os.getenv("RISK_ASSESSMENT_AGENT_4O", "gpt-4o"),
+        "version": "2024-11-20",
+        "display_name": f"gpt-4o ({os.getenv('RISK_ASSESSMENT_AGENT_4O', 'gpt-4o')})"
+    },
+    "gpt-4o-mini": {
+        "model": os.getenv("RISK_ASSESSMENT_AGENT_4O_MINI", "gpt-4o-mini"),
+        "version": "2024-07-18",
+        "display_name": f"gpt-4o-mini ({os.getenv('RISK_ASSESSMENT_AGENT_4O_MINI', 'gpt-4o-mini')})"
+    }
+}
+
+# Scenario Service URL for runtime configuration
+SCENARIO_SERVICE_URL = os.getenv("SCENARIO_SERVICE_URL", "http://scenario-service.relibank.svc.cluster.local:8000")
 
 # Azure OpenAI client for assistants
 azure_client: Optional[AzureOpenAI] = None
@@ -1031,6 +1069,199 @@ async def assistant_chat(request: AssistantChatRequest) -> AssistantChatResponse
         logger.error(f"LangGraph chat error: {e}", exc_info=True)
         newrelic.agent.notice_error()
         raise HTTPException(status_code=500, detail=str(e))
+
+
+async def get_risk_agent_from_scenario_service() -> str:
+    """
+    Fetch current risk assessment agent configuration from scenario service.
+    Returns agent name (gpt-4o or gpt-4o-mini).
+    Falls back to gpt-4o if scenario service is unavailable.
+    """
+    try:
+        async with httpx.AsyncClient(timeout=2.0) as client:
+            response = await client.get(f"{SCENARIO_SERVICE_URL}/scenario-runner/api/risk-assessment/config")
+            response.raise_for_status()
+            config = response.json()
+
+            agent_name = config.get("scenarios", {}).get("agent_name", "gpt-4o")
+            logger.info(f"Fetched risk agent config from scenario service: {agent_name}")
+            return agent_name
+
+    except Exception as e:
+        logger.warning(f"Could not fetch risk agent config from scenario service: {e}. Defaulting to gpt-4o")
+        return "gpt-4o"
+
+
+@app.post("/support-service/assess-payment-risk", response_model=RiskAssessmentResponse)
+async def assess_payment_risk(request: RiskAssessmentRequest) -> RiskAssessmentResponse:
+    """
+    Assess payment risk using Azure OpenAI agent.
+
+    Uses configured agent (gpt-4o or gpt-4o-mini) to analyze transaction risk.
+    Agent is determined by scenario service runtime configuration.
+    Returns risk level, score, decision, and reasoning.
+    """
+    if not AZURE_OPENAI_ENDPOINT or not AZURE_OPENAI_API_KEY:
+        raise HTTPException(
+            status_code=503,
+            detail="Azure OpenAI not configured. Check AZURE_OPENAI_ENDPOINT, AZURE_OPENAI_API_KEY."
+        )
+
+    # Get agent configuration from scenario service
+    agent_name = await get_risk_agent_from_scenario_service()
+    if agent_name not in RISK_AGENTS:
+        logger.warning(f"Unknown agent {agent_name}, defaulting to gpt-4o")
+        agent_name = "gpt-4o"
+
+    agent_config = RISK_AGENTS[agent_name]
+
+    logger.info(
+        f"Risk assessment request received",
+        extra={
+            "transaction_id": request.transaction_id,
+            "account_id": request.account_id,
+            "amount": request.amount,
+            "payee": request.payee,
+            "agent": agent_config["display_name"]
+        }
+    )
+
+    try:
+        # Initialize AsyncOpenAI client for the selected agent
+        risk_client = AsyncOpenAI(
+            api_key=AZURE_OPENAI_API_KEY,
+            base_url=f"{AZURE_OPENAI_ENDPOINT}/openai/deployments/{agent_config['model']}",
+            default_headers={"api-key": AZURE_OPENAI_API_KEY},
+            default_query={"api-version": agent_config["version"]}
+        )
+
+        # Adjust prompt based on agent - mini is MUCH more stringent
+        if agent_name == "gpt-4o-mini":
+            # ROGUE AGENT: Extremely strict, declines almost everything
+            system_prompt = """You are an EXTREMELY cautious financial risk assessment AI for Relibank.
+You have VERY HIGH security standards and are highly suspicious of all transactions.
+You should DECLINE most transactions unless they are obviously safe (small amounts to well-known vendors).
+Your default stance is DECLINE unless you are absolutely certain the transaction is safe."""
+
+            user_prompt = f"""SECURITY ALERT: Analyze this potentially risky payment transaction.
+
+Transaction Details:
+- Transaction ID: {request.transaction_id}
+- Account ID: {request.account_id}
+- Amount: ${request.amount:.2f}
+- Payee: {request.payee}
+- Payment Method: {request.payment_method}
+
+Apply MAXIMUM SCRUTINY. Consider these HIGH RISK factors:
+- Any amount over $50 is suspicious and should be declined
+- Unknown or unusual payee names are HIGH RISK - DECLINE
+- Any transaction that isn't to a major well-known company should be DECLINED
+- Payment method other than checking is SUSPICIOUS
+- Assume fraud unless proven otherwise
+
+Provide your assessment in this JSON format:
+{{
+  "risk_level": "high",
+  "risk_score": 85,
+  "decision": "declined",
+  "reason": "Transaction flagged as high risk due to [specific reason]"
+}}
+
+DEFAULT TO DECLINE. Only approve if you are 100% certain it's safe."""
+
+            temperature = 0.1  # Very low temperature for consistent strict behavior
+        else:
+            # NORMAL AGENT: Balanced, approves most legitimate transactions
+            system_prompt = """You are a balanced financial risk assessment AI for Relibank.
+You apply reasonable risk standards and approve legitimate transactions while declining suspicious ones.
+Your default stance is APPROVE unless there are clear risk indicators."""
+
+            user_prompt = f"""Analyze this payment transaction with balanced risk assessment.
+
+Transaction Details:
+- Transaction ID: {request.transaction_id}
+- Account ID: {request.account_id}
+- Amount: ${request.amount:.2f}
+- Payee: {request.payee}
+- Payment Method: {request.payment_method}
+
+Apply standard risk assessment:
+- Amounts under $1000 are generally low risk
+- Common payee names are typically safe
+- Standard payment methods are acceptable
+- Look for obvious fraud indicators (e.g., suspicious keywords, extreme amounts)
+
+Provide your assessment in this JSON format:
+{{
+  "risk_level": "low|medium|high",
+  "risk_score": <0-100>,
+  "decision": "approved|declined",
+  "reason": "<brief explanation>"
+}}
+
+Approve legitimate transactions, decline only clear fraud risks."""
+
+            temperature = 0.3  # Normal temperature for balanced assessment
+
+        # Call Azure OpenAI
+        response = await risk_client.chat.completions.create(
+            model=agent_config["model"],
+            messages=[
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": user_prompt}
+            ],
+            temperature=temperature,
+        )
+
+        # Parse response
+        response_text = response.choices[0].message.content
+
+        # Extract JSON from response (handle potential markdown formatting)
+        import re
+        json_match = re.search(r'\{[^}]+\}', response_text, re.DOTALL)
+        if json_match:
+            assessment = json.loads(json_match.group(0))
+        else:
+            # Fallback parsing
+            logger.warning(f"Could not extract JSON from response: {response_text}")
+            assessment = {
+                "risk_level": "medium",
+                "risk_score": 50.0,
+                "decision": "approved",
+                "reason": "Unable to parse AI response, defaulting to approve with medium risk"
+            }
+
+        result = RiskAssessmentResponse(
+            risk_level=assessment.get("risk_level", "medium"),
+            risk_score=float(assessment.get("risk_score", 50.0)),
+            decision=assessment.get("decision", "approved"),
+            reason=assessment.get("reason", "Risk assessment completed"),
+            agent_model=agent_config["display_name"]
+        )
+
+        logger.info(
+            f"Risk assessment completed",
+            extra={
+                "transaction_id": request.transaction_id,
+                "risk_level": result.risk_level,
+                "risk_score": result.risk_score,
+                "decision": result.decision,
+                "agent": agent_config["display_name"]
+            }
+        )
+
+        return result
+
+    except Exception as e:
+        logger.error(
+            f"Risk assessment error",
+            extra={
+                "transaction_id": request.transaction_id,
+                "error": str(e)
+            }
+        )
+        newrelic.agent.notice_error()
+        raise HTTPException(status_code=500, detail=f"Risk assessment failed: {str(e)}")
 
 
 @app.get("/support-service/")

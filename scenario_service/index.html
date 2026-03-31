@@ -54,6 +54,16 @@
                     </div>
                 </div>
 
+                <!-- Risk Assessment Scenarios -->
+                <div>
+                    <h3 class="text-lg font-semibold text-gray-700 mb-3">Risk Assessment</h3>
+                    <div id="feature-flag-buttons-container" class="space-y-3">
+                        <!-- Risk assessment scenario toggles will be dynamically added here -->
+                    </div>
+                </div>
+            </div>
+
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mt-6">
                 <!-- A/B Testing Scenarios -->
                 <div>
                     <h3 class="text-lg font-semibold text-gray-700 mb-3">A/B Testing</h3>
@@ -91,6 +101,7 @@
             const chaosButtonsContainer = document.getElementById('chaos-buttons-container');
             const stressButtonsContainer = document.getElementById('stress-buttons-container');
             const paymentButtonsContainer = document.getElementById('payment-buttons-container');
+            const featureFlagButtonsContainer = document.getElementById('feature-flag-buttons-container');
             const abTestButtonsContainer = document.getElementById('ab-test-buttons-container');
             const runLocustBtn = document.getElementById('run-locust-test');
             const userCountSelect = document.getElementById('user-count-select');
@@ -258,6 +269,66 @@
                                             configDiv.textContent = `${prob}% probability`;
                                             scenario.config.probability = prob;
                                         }
+                                    } else {
+                                        showMessage(`Error: ${result.message}`, 'error');
+                                    }
+                                } catch (e) {
+                                    showMessage(`Network error: ${e.message}`, 'error');
+                                }
+                            });
+                        } else if (scenario.type === 'feature_flag') {
+                            const container = document.createElement('div');
+                            container.className = 'bg-white p-4 rounded-lg border border-gray-300';
+
+                            const titleDiv = document.createElement('div');
+                            titleDiv.className = 'flex items-center justify-between mb-2';
+
+                            const title = document.createElement('span');
+                            title.className = 'font-semibold text-gray-800';
+                            title.textContent = scenario.description;
+
+                            const toggle = document.createElement('button');
+                            toggle.className = scenario.enabled
+                                ? 'bg-red-500 text-white px-3 py-1 rounded-md text-sm font-medium hover:bg-red-600 transition'
+                                : 'bg-gray-300 text-gray-700 px-3 py-1 rounded-md text-sm font-medium hover:bg-gray-400 transition';
+                            toggle.textContent = scenario.enabled ? 'ON' : 'OFF';
+                            toggle.id = `toggle-${scenario.name}`;
+
+                            titleDiv.appendChild(title);
+                            titleDiv.appendChild(toggle);
+                            container.appendChild(titleDiv);
+
+                            const configDiv = document.createElement('div');
+                            configDiv.className = 'text-sm text-gray-600';
+                            if (scenario.name === 'rogue_agent') {
+                                configDiv.textContent = scenario.enabled ? `Agent: ${scenario.config.agent_name}` : 'Agent: gpt-4o (normal)';
+                            }
+                            container.appendChild(configDiv);
+
+                            featureFlagButtonsContainer.appendChild(container);
+
+                            toggle.addEventListener('click', async (e) => {
+                                e.preventDefault();
+                                e.stopPropagation();
+                                const newState = !scenario.enabled;
+                                try {
+                                    let endpoint;
+                                    if (scenario.name === 'rogue_agent') {
+                                        endpoint = `/scenario-runner/api/risk-assessment/rogue-agent?enabled=${newState}`;
+                                    }
+
+                                    const response = await fetch(endpoint, { method: 'POST' });
+                                    const result = await response.json();
+
+                                    if (result.status === 'success') {
+                                        scenario.enabled = newState;
+                                        scenario.config.agent_name = result.scenarios.agent_name;
+                                        toggle.textContent = newState ? 'ON' : 'OFF';
+                                        toggle.className = newState
+                                            ? 'bg-red-500 text-white px-3 py-1 rounded-md text-sm font-medium hover:bg-red-600 transition'
+                                            : 'bg-gray-300 text-gray-700 px-3 py-1 rounded-md text-sm font-medium hover:bg-gray-400 transition';
+                                        configDiv.textContent = newState ? `Agent: ${scenario.config.agent_name}` : 'Agent: gpt-4o (normal)';
+                                        showMessage(result.message, 'success');
                                     } else {
                                         showMessage(`Error: ${result.message}`, 'error');
                                     }

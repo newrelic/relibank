@@ -37,6 +37,13 @@ spec:
               name: support-service
               port:
                 number: 5003
+        - path: /risk-assessment-service
+          pathType: Prefix
+          backend:
+            service:
+              name: risk-assessment-service
+              port:
+                number: 5001
         - path: /scenario-runner
           pathType: Prefix
           backend:

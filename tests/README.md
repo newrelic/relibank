@@ -31,6 +31,7 @@ export RELIBANK_URL="http://your-server.example.com"
 | `test_apm_user_tracking.py` | APM user ID header propagation tests | Header acceptance, multi-service chains, concurrent requests |
 | `test_scenario_service.py` | Scenario service API tests | Payment scenarios, chaos scenarios, locust load testing - all via API |
 | `test_payment_scenarios.py` | Payment failure scenarios | Gateway timeout, card decline, stolen card with probabilities |
+| `test_rogue_deployment_scenarios.py` | Rogue AI agent deployment tests | Agent switching (gpt-4o vs gpt-4o-mini), decline rate comparison, runtime configuration |
 | `test_ab_testing_scenarios.py` | A/B testing scenarios | LCP slowness (percentage-based and cohort-based), 11 hardcoded test users, cohort assignment, deterministic distribution |
 | `test_stress_scenarios.py` | Stress chaos experiments | CPU stress, memory stress, combined stress testing with Chaos Mesh |
 | `../frontend_service/app/**/*.test.tsx` | Frontend functional tests (Vitest) | Login, transfers, bill payment (Stripe), support, form validation, API integration |
@@ -195,6 +196,7 @@ These tests can be added to GitHub Actions or other CI pipelines:
 - ✅ **User Tracking**: Browser user ID assignment (random/header-based), APM header propagation across all services, multi-service request chains
 - ✅ **Scenario API**: Enable/disable/reset payment scenarios, chaos scenarios (smoke tests), locust load testing (smoke tests)
 - ✅ **Payment Scenarios**: Timeout, decline, stolen card with probabilities
+- ✅ **Rogue Deployment**: AI agent switching (gpt-4o vs gpt-4o-mini), decline rate comparison, runtime agent configuration via scenario service
 - ✅ **A/B Testing**: LCP slowness percentage-based (affects X% of all users) and cohort-based (affects 11 hardcoded test users), deterministic cohort assignment
 - ✅ **Stress Chaos**: CPU stress, memory stress, combined stress testing with Chaos Mesh, service resilience under load
 - ✅ **Frontend Functional Tests**: Login flow, fund transfers, bill payment with Stripe, support support, form validation, API integration, error handling (Vitest)
@@ -210,6 +212,7 @@ Some tests modify shared application state (like the scenario service configurat
 **Tests that run sequentially:**
 - `test_scenario_service.py` - Scenario service API tests
 - `test_payment_scenarios.py` - Payment failure scenario tests
+- `test_rogue_deployment_scenarios.py` - Rogue AI agent deployment tests
 - `test_ab_testing_scenarios.py` - A/B testing scenario tests
 
 **Why sequential?** These tests all modify the scenario service's in-memory configuration state. Running them in parallel causes race conditions where tests overwrite each other's settings.
@@ -217,8 +220,8 @@ Some tests modify shared application state (like the scenario service configurat
 **Implementation:**
 ```bash
 # In .github/workflows/test-suite.yml
-pytest test_scenario_service.py test_payment_scenarios.py test_ab_testing_scenarios.py --tb=line --timeout=300
-pytest . --ignore=test_scenario_service.py --ignore=test_payment_scenarios.py --ignore=test_ab_testing_scenarios.py -n auto --tb=line --timeout=300
+pytest test_scenario_service.py test_payment_scenarios.py test_rogue_deployment_scenarios.py test_ab_testing_scenarios.py --tb=line --timeout=300
+pytest . --ignore=test_scenario_service.py --ignore=test_payment_scenarios.py --ignore=test_rogue_deployment_scenarios.py --ignore=test_ab_testing_scenarios.py -n auto --tb=line --timeout=300
 ```
 
 ### Adding New Sequential Tests

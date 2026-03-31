@@ -1,0 +1,45 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    app: risk-assessment-service
+  name: risk-assessment-service
+  namespace: relibank
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: risk-assessment-service
+  template:
+    metadata:
+      labels:
+        app: risk-assessment-service
+    spec:
+      containers:
+        - env:
+            - name: KAFKA_BROKER
+              valueFrom:
+                configMapKeyRef:
+                  key: KAFKA_BROKER
+                  name: infrastructure-config
+          image: risk-assessment-service
+          name: risk-assessment-service
+          ports:
+            - containerPort: 5001
+              protocol: TCP
+      restartPolicy: Always
+---
+apiVersion: v1
+kind: Service
+metadata:
+  labels:
+    app: risk-assessment-service
+  name: risk-assessment-service
+  namespace: relibank
+spec:
+  ports:
+  - name: "5001"
+    port: 5001
+    targetPort: 5001
+  selector:
+    app: risk-assessment-service

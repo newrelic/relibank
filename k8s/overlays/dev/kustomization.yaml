@@ -24,6 +24,10 @@ images:
   newTag: latest
 - name: support-service
   newTag: latest
+- name: auth-service
+  newTag: latest
+- name: risk-assessment-service
+  newTag: latest
 - name: postgres-custom
   newTag: latest
 - name: mssql-custom

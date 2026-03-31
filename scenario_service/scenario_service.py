@@ -33,6 +33,12 @@ PAYMENT_SCENARIOS = {
     "stolen_card_probability": 0.0,  # 0-100 percent
 }
 
+# Risk assessment scenario configuration (runtime toggleable)
+RISK_ASSESSMENT_SCENARIOS = {
+    "rogue_agent_enabled": False,  # When true, uses gpt-4o-mini (stringent), when false uses gpt-4o (normal)
+    "agent_name": "gpt-4o",  # Current agent: "gpt-4o" or "gpt-4o-mini"
+}
+
 # A/B Testing scenario configuration (runtime toggleable)
 # Hardcoded list of 11 test users who will experience LCP slowness when cohort scenario is enabled
 LCP_SLOW_USERS = {
@@ -244,6 +250,14 @@ async def get_scenarios():
         "type": "payment",
         "enabled": PAYMENT_SCENARIOS["stolen_card_enabled"],
         "config": {"probability": PAYMENT_SCENARIOS["stolen_card_probability"]}
+    })
+    # Risk Assessment scenarios (feature flag)
+    scenarios_list.append({
+        "name": "rogue_agent",
+        "description": "Rogue AI Agent (Declines Most Payments)",
+        "type": "feature_flag",
+        "enabled": RISK_ASSESSMENT_SCENARIOS["rogue_agent_enabled"],
+        "config": {"agent_name": RISK_ASSESSMENT_SCENARIOS["agent_name"]}
     })
     # A/B Testing scenarios
     scenarios_list.append({
@@ -717,6 +731,56 @@ async def reset_payment_scenarios():
         "status": "success",
         "message": "All payment scenarios reset to defaults",
         "scenarios": PAYMENT_SCENARIOS
+    }
+
+
+# ============================================================================
+# Risk Assessment Scenario Control Endpoints
+# ============================================================================
+
+@app.get("/scenario-runner/api/risk-assessment/config")
+async def get_risk_assessment_config():
+    """Get current risk assessment agent configuration"""
+    return {
+        "status": "success",
+        "scenarios": RISK_ASSESSMENT_SCENARIOS
+    }
+
+
+@app.post("/scenario-runner/api/risk-assessment/rogue-agent")
+async def toggle_rogue_agent(enabled: bool):
+    """
+    Enable/disable rogue agent scenario.
+
+    When enabled, switches to gpt-4o-mini (extremely stringent, declines most payments).
+    When disabled, uses gpt-4o (normal, balanced risk assessment).
+    """
+    RISK_ASSESSMENT_SCENARIOS["rogue_agent_enabled"] = enabled
+
+    if enabled:
+        RISK_ASSESSMENT_SCENARIOS["agent_name"] = "gpt-4o-mini"
+        message = "Rogue agent enabled - using gpt-4o-mini (extremely stringent, will decline most payments)"
+    else:
+        RISK_ASSESSMENT_SCENARIOS["agent_name"] = "gpt-4o"
+        message = "Rogue agent disabled - using gpt-4o (normal risk assessment)"
+
+    return {
+        "status": "success",
+        "message": message,
+        "scenarios": RISK_ASSESSMENT_SCENARIOS
+    }
+
+
+@app.post("/scenario-runner/api/risk-assessment/reset")
+async def reset_risk_assessment_scenarios():
+    """Reset risk assessment scenarios to default values"""
+    RISK_ASSESSMENT_SCENARIOS["rogue_agent_enabled"] = False
+    RISK_ASSESSMENT_SCENARIOS["agent_name"] = "gpt-4o"
+
+    return {
+        "status": "success",
+        "message": "Risk assessment scenarios reset to defaults (gpt-4o)",
+        "scenarios": RISK_ASSESSMENT_SCENARIOS
     }
 
 

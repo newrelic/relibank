@@ -125,6 +125,13 @@ build:
         ASSISTANT_A_ID: "{{.ASSISTANT_A_ID}}"
         ASSISTANT_B_ID: "{{.ASSISTANT_B_ID}}"
         ASSISTANT_B_DELAY_SECONDS: "{{.ASSISTANT_B_DELAY_SECONDS}}"
+        # Risk Assessment Agent deployments
+        RISK_ASSESSMENT_AGENT_4O: "{{.RISK_ASSESSMENT_AGENT_4O}}"
+        RISK_ASSESSMENT_AGENT_4O_MINI: "{{.RISK_ASSESSMENT_AGENT_4O_MINI}}"
+  - image: risk-assessment-service
+    context: .
+    docker:
+      dockerfile: risk_assessment_service/Dockerfile
   - image: scenario-runner
     context: scenario_service
     docker:
@@ -247,6 +254,11 @@ portForward:
   namespace: relibank
   port: 8000
   localPort: 8000
+- resourceType: service
+  resourceName: risk-assessment-service
+  namespace: relibank
+  port: 5001
+  localPort: 5007
 - resourceType: service
   resourceName: chaos-dashboard
   namespace: chaos-mesh
