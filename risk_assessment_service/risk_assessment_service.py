@@ -18,7 +18,7 @@ logger = logging.getLogger(__name__)
 producer = None
 
 # Support Service URL
-SUPPORT_SERVICE_URL = os.getenv("SUPPORT_SERVICE_URL", "http://support-service.relibank.svc.cluster.local:8000")
+SUPPORT_SERVICE_URL = os.getenv("SUPPORT_SERVICE_URL", "http://support-service.relibank.svc.cluster.local:5003")
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
