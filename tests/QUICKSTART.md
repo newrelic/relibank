@@ -118,6 +118,13 @@ pytest tests/test_end_to_end.py -k "health" -v
 pytest tests/test_scenario_service.py -k "payment" -v
 ```
 
+### Test Risk Assessment & Rogue Agent
+```bash
+pytest tests/test_rogue_deployment_scenarios.py -v
+```
+
+This tests the AI-powered risk assessment system that approves/declines payments.
+
 ### Test Complete User Journey
 ```bash
 pytest tests/test_end_to_end.py::test_complete_user_journey -v -s
@@ -152,6 +159,7 @@ source .venv-relibank-tests/bin/activate
 | `test_end_to_end.py` | Microservice integration | Frontend, accounts, bill pay, chatbot, user flows |
 | `test_scenario_service.py` | Scenario API | Payment failures, chaos, load testing |
 | `test_payment_scenarios.py` | Payment behaviors | Timeout, decline, stolen card scenarios |
+| `test_rogue_deployment_scenarios.py` | AI Risk Assessment | Rogue agent behavior, AI agent swapping, decline rates |
 
 ## 🔄 Deactivating the Environment
 

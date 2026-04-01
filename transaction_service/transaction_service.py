@@ -153,6 +153,19 @@ class BillPaymentInitiatedToAcct(BaseModel):
     timestamp: float
 
 
+class BillPaymentDeclined(BaseModel):
+    eventType: str = "BillPaymentDeclined"
+    billId: str = Field(min_length=1)
+    amount: float = Field(gt=0)
+    currency: str = Field(min_length=3)
+    fromAccountId: int
+    toAccountId: int
+    reason: str
+    risk_level: str
+    risk_score: float
+    timestamp: float
+
+
 # This is a model for the response from the accounts service
 class AccountType(BaseModel):
     id: int
@@ -163,6 +176,7 @@ EVENT_MODELS = {
     "BillPaymentInitiated": BillPaymentInitiated,
     "BillPaymentInitiatedFromAcct": BillPaymentInitiatedFromAcct,
     "BillPaymentInitiatedToAcct": BillPaymentInitiatedToAcct,
+    "BillPaymentDeclined": BillPaymentDeclined,
     "RecurringPaymentScheduled": RecurringPaymentScheduled,
     "BillPaymentCancelled": BillPaymentCancelled,
     "PaymentDueNotificationEvent": PaymentDueNotificationEvent,
@@ -250,6 +264,7 @@ async def start_kafka_consumer():
             logging.info(f"Attempting to connect Kafka consumer (attempt {i + 1}/{retries})...")
             consumer = AIOKafkaConsumer(
                 "bill_payments",
+                "bill_payments_declined",
                 "recurring_payments",
                 "payment_cancellations",
                 "payment_due_notifications",
@@ -373,6 +388,44 @@ async def start_kafka_consumer():
                         )
                         db_connection.commit()
                         logging.info(f"Credit transaction {event_model.billId} recorded in Transactions table.")
+                    elif event_type == "BillPaymentDeclined":
+                        # Record declined payment in Transactions table (no ledger updates)
+                        logging.info(f"Processing declined payment: {event_model.billId}, reason: {event_model.reason}")
+
+                        # Insert declined transaction for fromAccount (debit side)
+                        cursor.execute(
+                            """
+                            INSERT INTO Transactions (EventType, BillID, Amount, Currency, AccountID, Timestamp, Status, DeclineReason)
+                            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                        """,
+                            "BillPaymentDeclinedFromAcct",
+                            event_model.billId,
+                            event_model.amount,
+                            event_model.currency,
+                            event_model.fromAccountId,
+                            event_model.timestamp,
+                            "declined",
+                            f"{event_model.reason} (Risk Level: {event_model.risk_level}, Score: {event_model.risk_score})"
+                        )
+
+                        # Insert declined transaction for toAccount (credit side)
+                        cursor.execute(
+                            """
+                            INSERT INTO Transactions (EventType, BillID, Amount, Currency, AccountID, Timestamp, Status, DeclineReason)
+                            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                        """,
+                            "BillPaymentDeclinedToAcct",
+                            event_model.billId,
+                            event_model.amount,
+                            event_model.currency,
+                            event_model.toAccountId,
+                            event_model.timestamp,
+                            "declined",
+                            f"{event_model.reason} (Risk Level: {event_model.risk_level}, Score: {event_model.risk_score})"
+                        )
+
+                        db_connection.commit()
+                        logging.info(f"Declined payment {event_model.billId} recorded in Transactions table with decline reason.")
                     elif event_type == 'RecurringPaymentScheduled':
                         # This event is a schedule, so insert it into the RecurringSchedules table
                         cursor.execute("""

@@ -17,7 +17,13 @@ Relibank simulates a banking system with separate services for accounts, transac
   - GET endpoint for recurring payment schedules
   - Kafka consumer for payment events
 - **bill-pay-service** - Handles bill payments (FastAPI)
+  - Integrates with risk-assessment-service for AI-powered payment fraud detection
+- **risk-assessment-service** - AI-powered payment risk assessment (FastAPI)
+  - Evaluates payment transactions before processing
+  - Calls support-service AI agents for intelligent risk analysis
 - **support-service** - Relibank's AI support service (FastAPI)
+  - LangGraph-based chatbot for customer support
+  - Payment risk assessment using Azure OpenAI (gpt-4o/gpt-4o-mini)
 - **notifications-service** - Sends notifications via Kafka
 - **scheduler-service** - Schedules events via Kafka
 - **Infrastructure:**
@@ -29,6 +35,11 @@ Relibank simulates a banking system with separate services for accounts, transac
     - Kafka protocol metrics
     - Internal collector telemetry
     - Exports to New Relic via OTLP
+- **scenario-runner-service** - Runtime configuration and chaos engineering control
+    - Payment failure scenarios (timeout, decline, stolen card)
+    - AI agent configuration for risk assessment (normal vs rogue agent)
+    - Chaos Mesh experiment triggers
+    - Locust load testing integration
 
 ## Getting Started
 
@@ -147,6 +158,15 @@ This isn't meant to be a real banking application. It's a learning tool for:
 - Responsive web application design
 
 ## Recent Updates
+
+### AI-Powered Payment Risk Assessment
+- **Risk Assessment Service**: All bill payments (bank and card) go through AI-powered risk assessment before processing
+- **Support Service Integration**: Uses Azure OpenAI (gpt-4o for normal, gpt-4o-mini for rogue scenarios)
+- **Scenario-Based Control**: Runtime agent swapping via Scenario Service for demo purposes
+- **Rogue Agent Demo**: Toggle to gpt-4o-mini agent that declines 90%+ of payments to simulate misconfigured AI
+- **Full Audit Trail**: Declined payments recorded in transaction database with risk level and reasoning
+- **Kafka Integration**: Declined payments published to `bill_payments_declined` topic for downstream processing
+- **Testing**: Comprehensive test suite in `tests/test_rogue_deployment_scenarios.py`
 
 ### New Relic User ID Tracking
 - **Browser User Tracking**: Automatic user ID assignment for New Relic Browser sessions

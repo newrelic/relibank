@@ -42,10 +42,17 @@ The service exposes the following API endpoints, designed to be consumed by the 
 
 ### = Architecture Flow
 
-1. **Bill Pay** � Risk Assessment Service (before DB transaction)
-2. **Risk Assessment** � Support Service AI Agent (risk analysis)
-3. **Risk Assessment** � Kafka (publish `payment-declined` event if risky)
-4. **Bill Pay** � Risk Assessment (receive decision)
+**Payment Risk Assessment Data Flow:**
+1. **Bill Pay Service** → Risk Assessment Service (before DB transaction)
+2. **Risk Assessment Service** → Support Service (`/support-service/assess-payment-risk`)
+3. **Support Service** → Scenario Service (fetch active AI agent configuration)
+4. **Support Service** → Azure OpenAI (gpt-4o or gpt-4o-mini based on scenario)
+5. **Support Service** → Risk Assessment Service (return decision)
+6. **Risk Assessment Service** → Bill Pay Service (approve/decline decision)
+7. If declined:
+   - **Bill Pay Service** → Kafka `bill_payments_declined` topic
+   - **Transaction Service** listens and records declined payment in database
+   - **Bill Pay Service** → Frontend (403 error with decline reason)
 
 ---
 
