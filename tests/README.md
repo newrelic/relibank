@@ -32,6 +32,9 @@ export RELIBANK_URL="http://your-server.example.com"
 | `test_scenario_service.py` | Scenario service API tests | Payment scenarios, chaos scenarios, locust load testing - all via API |
 | `test_payment_scenarios.py` | Payment failure scenarios | Gateway timeout, card decline, stolen card with probabilities |
 | `test_rogue_deployment_scenarios.py` | Rogue AI agent deployment tests | Agent switching (gpt-4o vs gpt-4o-mini), decline rate comparison, runtime configuration |
+| `test_newrelic_risk_assessment.py` | New Relic risk assessment observability | Logs validation, declined payment workflow, agent model tracking, eBPF traces (future) |
+| `test_newrelic_instrumentation.py` | New Relic APM instrumentation | Transaction tracking, user ID propagation, service instrumentation, error notices |
+| `test_db_pool_e2e.py` | Database pool performance E2E | Custom attributes validation, pool assignment, New Relic NRQL queries |
 | `test_ab_testing_scenarios.py` | A/B testing scenarios | LCP slowness (percentage-based and cohort-based), 11 hardcoded test users, cohort assignment, deterministic distribution |
 | `test_stress_scenarios.py` | Stress chaos experiments | CPU stress, memory stress, combined stress testing with Chaos Mesh |
 | `../frontend_service/app/**/*.test.tsx` | Frontend functional tests (Vitest) | Login, transfers, bill payment (Stripe), support, form validation, API integration |
@@ -155,6 +158,32 @@ All tests support these environment variables for remote testing:
 | `ACCOUNTS_SERVICE` | Accounts service API URL | `http://localhost:5002` |
 | `BILL_PAY_SERVICE` | Bill pay service API URL | `http://localhost:5000` |
 | `SUPPORT_SERVICE` | Chatbot service API URL | `http://localhost:5003` |
+
+### Automatic Environment Variable Loading (Local Development)
+
+Some tests automatically load environment variables from `skaffold.env` when running locally. This provides a better developer experience by eliminating the need to manually set environment variables.
+
+**Tests that auto-load from skaffold.env:**
+- `test_newrelic_instrumentation.py` - Loads `NEW_RELIC_USER_API_KEY`, `NEW_RELIC_ACCOUNT_ID`
+- `test_newrelic_risk_assessment.py` - Loads `NEW_RELIC_USER_API_KEY`, `NEW_RELIC_ACCOUNT_ID`
+- `test_db_pool_e2e.py` - Loads `NEW_RELIC_USER_API_KEY`, `NEW_RELIC_ACCOUNT_ID`
+
+**How it works:**
+1. Tests check if `../skaffold.env` exists
+2. If found, parses `KEY=VALUE` pairs (ignoring comments and empty lines)
+3. Only sets variables that aren't already in the environment (explicit env vars take precedence)
+4. If `skaffold.env` doesn't exist (like in CI/CD), tests skip gracefully or use defaults
+
+**Example:**
+```python
+# In CI/CD or production (no skaffold.env)
+NEW_RELIC_USER_API_KEY=<from-secrets> pytest tests/test_newrelic_instrumentation.py
+
+# Local development (reads from skaffold.env automatically)
+pytest tests/test_newrelic_instrumentation.py
+```
+
+This approach ensures tests work seamlessly in both local development and CI/CD environments without requiring duplicate environment configuration.
 
 ## Troubleshooting
 
