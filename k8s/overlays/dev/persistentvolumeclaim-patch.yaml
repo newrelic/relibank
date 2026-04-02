@@ -10,7 +10,7 @@ metadata:
 spec:
   accessModes:
     - ReadWriteOnce
-  storageClassName: hostpath
+  storageClassName: local-path
   resources:
     requests:
       storage: 2Gi
@@ -27,7 +27,7 @@ metadata:
 spec:
   accessModes:
     - ReadWriteOnce
-  storageClassName: hostpath
+  storageClassName: local-path
   resources:
     requests:
       storage: 2Gi
