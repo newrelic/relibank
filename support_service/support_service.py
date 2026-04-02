@@ -493,14 +493,14 @@ ASSISTANT_B_DELAY_SECONDS = int(os.getenv("ASSISTANT_B_DELAY_SECONDS", "0"))
 # Deployment names come from environment variables
 RISK_AGENTS = {
     "gpt-4o": {
-        "model": os.getenv("RISK_ASSESSMENT_AGENT_4O", "gpt-4o"),
+        "model": "gpt-4o",
         "version": "2024-08-01-preview",
-        "display_name": f"gpt-4o ({os.getenv('RISK_ASSESSMENT_AGENT_4O', 'gpt-4o')})"
+        "display_name": "gpt-4o (gpt-4o)"
     },
     "gpt-4o-mini": {
-        "model": os.getenv("RISK_ASSESSMENT_AGENT_4O_MINI", "gpt-4o-mini"),
+        "model": "gpt-4o-mini",
         "version": "2024-08-01-preview",
-        "display_name": f"gpt-4o-mini ({os.getenv('RISK_ASSESSMENT_AGENT_4O_MINI', 'gpt-4o-mini')})"
+        "display_name": "gpt-4o-mini (gpt-4o-mini)"
     }
 }
 
