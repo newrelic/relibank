@@ -125,6 +125,17 @@ pytest tests/test_rogue_deployment_scenarios.py -v
 
 This tests the AI-powered risk assessment system that approves/declines payments.
 
+### Test Risk Assessment in New Relic
+```bash
+pytest tests/test_newrelic_risk_assessment.py -v -s
+```
+
+This validates risk assessment observability in New Relic:
+- Logs from bill pay, support, and risk assessment services
+- Declined payment workflow visibility
+- Agent model tracking (gpt-4o vs gpt-4o-mini)
+- eBPF distributed tracing (when configured)
+
 ### Test Complete User Journey
 ```bash
 pytest tests/test_end_to_end.py::test_complete_user_journey -v -s
@@ -160,6 +171,7 @@ source .venv-relibank-tests/bin/activate
 | `test_scenario_service.py` | Scenario API | Payment failures, chaos, load testing |
 | `test_payment_scenarios.py` | Payment behaviors | Timeout, decline, stolen card scenarios |
 | `test_rogue_deployment_scenarios.py` | AI Risk Assessment | Rogue agent behavior, AI agent swapping, decline rates |
+| `test_newrelic_risk_assessment.py` | New Relic Observability | Risk assessment logs, declined payments, agent tracking, eBPF traces |
 
 ## 🔄 Deactivating the Environment
 
