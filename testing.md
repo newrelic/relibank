@@ -1,16 +1,19 @@
 # relibank testing
 
-docker compose up --build
-- Sets up containers for bill pay, bill pay consumer, kafka and zookeeper
-docker compose up --build --force-recreate
+skaffold dev
+- Builds all service images and deploys the full stack to Kubernetes with port forwarding
 
-send requests from postman w/ collection
+# rebuild / reset
 
-# rebuild
-docker compose down --volumes
-- This also destroys the database, if you need to restart it for testing
-docker compose up --build
+skaffold delete
+- Tears down all Kubernetes resources (note: persistent volumes may need manual cleanup)
 
-# test individual services
-<!-- docker build -t bill-pay-service:latest . -->
-<!-- docker run -p 5000:5000 bill-pay-service:latest -->
+kubectl delete pvc --all -n relibank
+- Destroys persistent data (databases). Run this if you need a clean slate.
+
+skaffold dev
+- Redeploy after cleanup
+
+# send requests
+
+Send requests from Postman with collection

@@ -36,9 +36,10 @@ interface BankAccount {
 }
 
 export const PaymentMethodsCard = () => {
-  const { userData } = useContext(LoginContext);
+  const { userData, userId } = useContext(LoginContext);
   const [methods, setMethods] = useState<PaymentMethod[]>([]);
   const [customerId, setCustomerId] = useState<string>('');
+  const [customerEmail, setCustomerEmail] = useState<string>('');
   const [showAddForm, setShowAddForm] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [isAdding, setIsAdding] = useState(false);
@@ -54,22 +55,30 @@ export const PaymentMethodsCard = () => {
     { value: 'pm_card_amex', label: 'American Express Test Card' },
   ];
 
-  // Fetch payment methods on mount
+  // Fetch payment methods on mount and when userId changes
   useEffect(() => {
     fetchPaymentMethods();
-  }, []);
+  }, [userId]);
 
   const fetchPaymentMethods = async () => {
+    if (!userId) {
+      setIsLoading(false);
+      return;
+    }
+
     try {
       setIsLoading(true);
 
-      // TODO: Get customer ID dynamically from backend
-      // For now, hardcode Solaire's customer ID since it's created on service startup
-      // In production, we'd need an endpoint to lookup customer by email
-      const solaireCustomerId = 'cus_TkCwwRJbjMVQZ4';
-      setCustomerId(solaireCustomerId);
+      const userResponse = await fetch(`/accounts-service/users/by-id/${userId}`);
+      if (!userResponse.ok) {
+        throw new Error('Failed to fetch user info');
+      }
+      const userInfo = await userResponse.json();
+      const stripeCustomerId = userInfo.stripe_customer_id;
+      setCustomerId(stripeCustomerId);
+      setCustomerEmail(userInfo.email);
 
-      const response = await fetch(`/bill-pay-service/payment-methods/${solaireCustomerId}`);
+      const response = await fetch(`/bill-pay-service/payment-methods/${stripeCustomerId}`);
       const data = await response.json();
 
       if (!response.ok) {
@@ -81,7 +90,6 @@ export const PaymentMethodsCard = () => {
       console.error('Error fetching payment methods:', error);
       setIsError(true);
       setMessage('Failed to load payment methods. Using demo data.');
-      // Fall back to empty array on error
       setMethods([]);
     } finally {
       setIsLoading(false);
@@ -102,7 +110,7 @@ export const PaymentMethodsCard = () => {
         },
         body: JSON.stringify({
           paymentMethodToken: selectedCard,
-          customerEmail: 'solaire.a@sunlight.com',
+          customerEmail: customerEmail,
           customerId: customerId || undefined,
         }),
       });

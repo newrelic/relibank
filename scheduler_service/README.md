@@ -28,16 +28,16 @@ The scheduler service works with the following data sources:
 
 ### ⚙️ How to Run
 
-This service is designed to be run using Docker Compose as part of the larger **Relibank** application stack.
+This service is deployed as part of the larger **Relibank** application stack using Skaffold and Kubernetes.
 
-1.  **Ensure Docker Compose is Installed**: Make sure you have Docker and Docker Compose installed and running on your system.
+1. **Ensure Prerequisites**: Make sure you have Docker Desktop (with Kubernetes enabled) or Minikube, Skaffold, kubectl, and Helm installed.
 
-2.  **Navigate to the Root Directory**: Open a terminal and navigate to the root directory of the `relibank` repository, where the `docker-compose.yml` file is located.
+2. **Configure Environment**: From the root of the `relibank` repository, populate `skaffold.env` with the required secrets and configuration values.
 
-3.  **Start the Stack**: Run the following command to build the service images and start all containers. The `--build` flag is crucial for applying any code or dependency changes.
+3. **Start the Stack**: Run the following command from the root directory to build all images and deploy all services to your local Kubernetes cluster:
 
     ```bash
-    docker compose up --build
+    skaffold dev
     ```
 
-    This command will start the `mssql` and `kafka` containers first, wait for them to become healthy, and then start the `scheduler-service` and other services.
+    This will build the service images, deploy all Kubernetes resources, and set up port forwarding automatically.

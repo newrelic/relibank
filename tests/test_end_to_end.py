@@ -11,6 +11,11 @@ BILL_PAY_SERVICE = os.getenv("BILL_PAY_SERVICE", "http://localhost:5000")
 CHATBOT_SERVICE = os.getenv("CHATBOT_SERVICE", "http://localhost:5003")
 AUTH_SERVICE = os.getenv("AUTH_SERVICE", "http://localhost:5006")
 
+# Seeded test users (from accounts_service/postgres/init.sql)
+ALICE_USER_ID = "b2a5c9f1-3d7f-4b0d-9a8c-9c7b5a1f2e4d"
+BOB_USER_ID = "f5e8d1c6-2a9b-4c3e-8f1a-6e5b0d2c9f1a"
+NONEXISTENT_USER_ID = "00000000-0000-0000-0000-000000000000"
+
 # Test user credentials
 TEST_USER = {
     "id": str(uuid.uuid4()),
@@ -420,6 +425,129 @@ def test_complete_user_journey():
         print(f"✓ Chatbot returned {chat_response.status_code}")
 
     print("\n✓ Complete user journey successful!")
+
+
+def get_stripe_customer_id(user_id: str) -> str:
+    """Fetch stripe_customer_id for a seeded user from the accounts service."""
+    response = requests.get(f"{ACCOUNTS_SERVICE}/accounts-service/users/by-id/{user_id}", timeout=10)
+    assert response.status_code == 200, f"Failed to fetch user {user_id}: {response.status_code}"
+    return response.json()["stripe_customer_id"]
+
+
+def send_card_payment_by_user(bill_id: str, user_id: str, amount: float = 100.00) -> requests.Response:
+    """Send a card payment using userId so the service resolves Stripe credentials dynamically."""
+    payload = {
+        "billId": bill_id,
+        "amount": amount,
+        "currency": "usd",
+        "userId": user_id,
+        "saveCard": False
+    }
+    return requests.post(f"{BILL_PAY_SERVICE}/bill-pay-service/card-payment", json=payload, timeout=15)
+
+
+def test_alice_payment_methods_visible():
+    """Happy path: Alice's saved cards are retrievable via her Stripe customer ID."""
+    print("\n=== Testing Alice Payment Methods Visible ===")
+
+    customer_id = get_stripe_customer_id(ALICE_USER_ID)
+    assert customer_id, "Alice has no stripe_customer_id in DB"
+
+    response = requests.get(f"{BILL_PAY_SERVICE}/bill-pay-service/payment-methods/{customer_id}", timeout=10)
+    assert response.status_code == 200, f"Failed to list Alice's cards: {response.status_code}"
+
+    data = response.json()
+    assert "paymentMethods" in data
+    assert len(data["paymentMethods"]) > 0, "Alice should have at least one saved card"
+
+    cards = [f"{m['brand']} ****{m['last4']}" for m in data["paymentMethods"]]
+    print(f"✓ Alice's payment methods: {cards}")
+
+
+def test_alice_card_payment_succeeds():
+    """Happy path: card payment with Alice's userId resolves her credentials and succeeds."""
+    print("\n=== Testing Alice Card Payment Succeeds ===")
+
+    response = send_card_payment_by_user("BILL-ALICE-HAPPY-001", ALICE_USER_ID, 50.00)
+
+    assert response.status_code == 200, f"Expected 200, got {response.status_code}: {response.text}"
+    data = response.json()
+    assert "paymentIntentId" in data, "Response missing paymentIntentId"
+
+    print(f"✓ Alice's card payment succeeded: {data['paymentIntentId']}")
+
+
+def test_bob_payment_methods_visible():
+    """Edge case 1: Bob's saved cards are distinct from Alice's."""
+    print("\n=== Testing Bob Payment Methods Visible ===")
+
+    alice_customer_id = get_stripe_customer_id(ALICE_USER_ID)
+    bob_customer_id = get_stripe_customer_id(BOB_USER_ID)
+    assert alice_customer_id != bob_customer_id, "Alice and Bob must have different Stripe customer IDs"
+
+    response = requests.get(f"{BILL_PAY_SERVICE}/bill-pay-service/payment-methods/{bob_customer_id}", timeout=10)
+    assert response.status_code == 200, f"Failed to list Bob's cards: {response.status_code}"
+
+    data = response.json()
+    assert "paymentMethods" in data
+    assert len(data["paymentMethods"]) > 0, "Bob should have at least one saved card"
+
+    cards = [f"{m['brand']} ****{m['last4']}" for m in data["paymentMethods"]]
+    print(f"✓ Bob's payment methods: {cards}")
+
+
+def test_bob_card_payment_succeeds():
+    """Edge case 1: card payment with Bob's userId uses Bob's Stripe credentials."""
+    print("\n=== Testing Bob Card Payment Succeeds ===")
+
+    response = send_card_payment_by_user("BILL-BOB-HAPPY-001", BOB_USER_ID, 75.00)
+
+    assert response.status_code == 200, f"Expected 200, got {response.status_code}: {response.text}"
+    data = response.json()
+    assert "paymentIntentId" in data, "Response missing paymentIntentId"
+
+    print(f"✓ Bob's card payment succeeded: {data['paymentIntentId']}")
+
+
+def test_user_switch_independent_payments():
+    """Edge case 2: Alice then Bob payments both succeed with distinct payment intent IDs."""
+    print("\n=== Testing User Switch Independent Payments ===")
+
+    alice_resp = send_card_payment_by_user("BILL-SWITCH-ALICE-001", ALICE_USER_ID, 50.00)
+    bob_resp = send_card_payment_by_user("BILL-SWITCH-BOB-001", BOB_USER_ID, 60.00)
+
+    assert alice_resp.status_code == 200, f"Alice payment failed: {alice_resp.status_code} {alice_resp.text}"
+    assert bob_resp.status_code == 200, f"Bob payment failed: {bob_resp.status_code} {bob_resp.text}"
+
+    alice_intent = alice_resp.json()["paymentIntentId"]
+    bob_intent = bob_resp.json()["paymentIntentId"]
+    assert alice_intent != bob_intent, "Each user should produce a distinct payment intent"
+
+    print(f"✓ User switch: Alice={alice_intent}, Bob={bob_intent}")
+
+
+def test_nonexistent_user_returns_404():
+    """Edge case 3: userId not in accounts DB returns 404, no crash."""
+    print("\n=== Testing Nonexistent User Returns 404 ===")
+
+    response = send_card_payment_by_user("BILL-NULL-TEST-001", NONEXISTENT_USER_ID, 50.00)
+
+    assert response.status_code == 404, f"Expected 404 for unknown user, got {response.status_code}"
+    print(f"✓ Unknown userId → 404: {response.json().get('detail')}")
+
+
+def test_no_credentials_returns_400():
+    """Edge case 3: request with neither userId nor paymentMethodId returns 400, no crash."""
+    print("\n=== Testing No Credentials Returns 400 ===")
+
+    response = requests.post(
+        f"{BILL_PAY_SERVICE}/bill-pay-service/card-payment",
+        json={"billId": "BILL-NO-CREDS-001", "amount": 50.00, "currency": "usd", "saveCard": False},
+        timeout=10
+    )
+
+    assert response.status_code == 400, f"Expected 400 when no credentials provided, got {response.status_code}"
+    print(f"✓ Missing credentials → 400: {response.json().get('detail')}")
 
 
 if __name__ == "__main__":

@@ -26,24 +26,18 @@ The service exposes the following API endpoint for interacting with the AI model
 
 ### ⚙️ How to Run
 
-This service is designed to be run using Docker Compose as part of the larger Relibank application stack.
+This service is deployed as part of the larger **Relibank** application stack using Skaffold and Kubernetes.
 
-1.  **Create a `.env` file**: In the root directory of your project (the same location as the `docker-compose.yml` file), create a new file named `.env` and add your OpenAI API key to it.
+1. **Ensure Prerequisites**: Make sure you have Docker Desktop (with Kubernetes enabled) or Minikube, Skaffold, kubectl, and Helm installed.
 
-    ```
-    OPENAI_API_KEY=YOUR_API_KEY_HERE
-    ```
+2. **Configure Environment**: From the root of the `relibank` repository, populate `skaffold.env` with the required secrets and configuration values, including the `OPENAI_API_KEY`.
 
-2.  **Ensure Docker Compose is Installed**: Make sure you have Docker and Docker Compose installed and running on your system.
-
-3.  **Navigate to the Root Directory**: Open a terminal and navigate to the root directory of the `relibank` repository.
-
-4.  **Start the Stack**: Run the following command to build the service images and start all containers. The `--build` flag is crucial for applying any code or dependency changes.
+3. **Start the Stack**: Run the following command from the root directory to build all images and deploy all services to your local Kubernetes cluster:
 
     ```bash
-    docker compose up --build
+    skaffold dev
     ```
 
-5.  **Test the Service**: Once the containers are running, send a `POST` request to `http://localhost:5003/chat` to get a response from the AI assistant.
-```eof
-```
+    This will build the service images, deploy all Kubernetes resources, and set up port forwarding automatically.
+
+4. **Test the Service**: Once deployed, send a `POST` request to `http://localhost:5003/chat` to get a response from the AI assistant.

@@ -12,6 +12,8 @@ This service is a core component of the **Relibank** FinServ application. It act
 
 * **Data Validation**: It uses Pydantic models to validate incoming API requests and ensure the data conforms to the required schema before being processed.
 
+* **Stripe Integration**: Each user account is linked to a Stripe customer and payment method, enabling payment processing via the Stripe API.
+
 ---
 
 ### 📦 API Endpoints
@@ -85,18 +87,40 @@ curl -H "x-browser-user-id: 550e8400-e29b-41d4-a716-446655440000" \
 
 ---
 
+---
+
+## 💳 Stripe Integration
+
+Each seeded `user_account` row is pre-linked to a real Stripe customer and payment method, so the app can process payments out-of-the-box after a fresh `skaffold dev`.
+
+### User Account Stripe Fields
+
+| Column | Description |
+| :--- | :--- |
+| `stripe_customer_id` | Stripe Customer object ID (e.g. `cus_UDJUKtOkn6XoOB`) |
+| `stripe_payment_method_id` | Stripe PaymentMethod object ID (e.g. `pm_1TExyFFGyca1lOb8OuCAwtEn`) |
+| `stripe_payment_method_name` | Card brand token used in Stripe test mode (e.g. `pm_card_visa`) |
+
+### Seed Data
+
+All 43 test users in `accounts_service/postgres/init.sql` have Stripe IDs pre-populated. The IDs were created externally in Stripe and embedded directly into the seed `INSERT` so no additional setup is required.
+
+> **Note:** New users created via `POST /users` will have `NULL` values for all three Stripe fields. Before card payments will work for a newly created user, you must create a Stripe Customer and attach a PaymentMethod to them via the Stripe API, then update the corresponding `user_account` row with the resulting `stripe_customer_id`, `stripe_payment_method_id`, and `stripe_payment_method_name`.
+
+---
+
 ### ⚙️ How to Run
 
-This service is designed to be run using Docker Compose as part of the larger **Relibank** application stack.
+This service is deployed as part of the larger **Relibank** application stack using Skaffold and Kubernetes.
 
-1.  **Ensure Docker Compose is Installed**: Make sure you have Docker and Docker Compose installed and running on your system.
+1. **Ensure Prerequisites**: Make sure you have Docker Desktop (with Kubernetes enabled) or Minikube, Skaffold, kubectl, and Helm installed.
 
-2.  **Navigate to the Root Directory**: Open a terminal and navigate to the root directory of the `relibank` repository, where the `docker-compose.yml` file is located.
+2. **Configure Environment**: From the root of the `relibank` repository, populate `skaffold.env` with the required secrets and configuration values.
 
-3.  **Start the Stack**: Run the following command to build the service images and start all containers. The `--build` flag is crucial for applying any code or dependency changes.
+3. **Start the Stack**: Run the following command from the root directory to build all images and deploy all services to your local Kubernetes cluster:
 
     ```bash
-    docker compose up --build
+    skaffold dev
     ```
 
-    This command will start the `accounts-db` and other dependent containers, wait for them to become healthy, and then start the `accounts-service`.
+    This will build the service images, deploy all Kubernetes resources, and set up port forwarding automatically.
