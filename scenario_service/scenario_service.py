@@ -11,6 +11,7 @@ from kubernetes import client, config
 from kubernetes.client.rest import ApiException
 from contextlib import asynccontextmanager
 from datetime import datetime, timedelta
+import httpx
 
 # Dictionary to store parsed Chaos Mesh experiments
 CHAOS_EXPERIMENTS: Dict[str, Dict[str, Any]] = {}
@@ -764,6 +765,13 @@ async def toggle_rogue_agent(enabled: bool):
         RISK_ASSESSMENT_SCENARIOS["agent_name"] = "gpt-4o"
         message = "Rogue agent disabled - using gpt-4o (normal risk assessment)"
 
+    # Invalidate support service cache so it picks up the change immediately
+    try:
+        async with httpx.AsyncClient(timeout=2.0) as client:
+            await client.post("http://support-service.relibank.svc.cluster.local:5003/support-service/invalidate-agent-cache")
+    except Exception as e:
+        print(f"Warning: Could not invalidate support service cache: {e}")
+
     return {
         "status": "success",
         "message": message,
@@ -776,6 +784,13 @@ async def reset_risk_assessment_scenarios():
     """Reset risk assessment scenarios to default values"""
     RISK_ASSESSMENT_SCENARIOS["rogue_agent_enabled"] = False
     RISK_ASSESSMENT_SCENARIOS["agent_name"] = "gpt-4o"
+
+    # Invalidate support service cache so it picks up the reset immediately
+    try:
+        async with httpx.AsyncClient(timeout=2.0) as client:
+            await client.post("http://support-service.relibank.svc.cluster.local:5003/support-service/invalidate-agent-cache")
+    except Exception as e:
+        print(f"Warning: Could not invalidate support service cache: {e}")
 
     return {
         "status": "success",

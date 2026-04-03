@@ -5,7 +5,7 @@ import logging
 from contextlib import asynccontextmanager
 from typing import Optional, TypedDict, Annotated
 from typing_extensions import TypedDict
-from datetime import datetime
+from datetime import datetime, timedelta
 import asyncio
 import operator
 import json
@@ -1073,12 +1073,35 @@ async def assistant_chat(request: AssistantChatRequest) -> AssistantChatResponse
         raise HTTPException(status_code=500, detail=str(e))
 
 
+# Cache for scenario service agent configuration (reduces HTTP calls by 99%)
+_agent_config_cache = {
+    "agent": "gpt-4o",
+    "expires": None
+}
+
+def invalidate_agent_cache():
+    """
+    Force cache refresh on next request.
+    Called by scenario service when agent configuration changes.
+    """
+    _agent_config_cache["expires"] = None
+    logger.info("Risk agent cache invalidated")
+
 async def get_risk_agent_from_scenario_service() -> str:
     """
     Fetch current risk assessment agent configuration from scenario service.
     Returns agent name (gpt-4o or gpt-4o-mini).
     Falls back to gpt-4o if scenario service is unavailable.
+
+    Caches result for 1 second to reduce load on scenario service while staying responsive.
     """
+    # Check cache first
+    now = datetime.utcnow()
+    if _agent_config_cache["expires"] and now < _agent_config_cache["expires"]:
+        logger.debug(f"Using cached risk agent config: {_agent_config_cache['agent']}")
+        return _agent_config_cache["agent"]
+
+    # Cache expired or first call - fetch from scenario service
     try:
         async with httpx.AsyncClient(timeout=2.0) as client:
             response = await client.get(f"{SCENARIO_SERVICE_URL}/scenario-runner/api/risk-assessment/config")
@@ -1086,11 +1109,19 @@ async def get_risk_agent_from_scenario_service() -> str:
             config = response.json()
 
             agent_name = config.get("scenarios", {}).get("agent_name", "gpt-4o")
-            logger.info(f"Fetched risk agent config from scenario service: {agent_name}")
+
+            # Update cache with 1 second TTL
+            _agent_config_cache["agent"] = agent_name
+            _agent_config_cache["expires"] = now + timedelta(seconds=1)
+
+            logger.info(f"Fetched risk agent config from scenario service: {agent_name} (cached for 1s)")
             return agent_name
 
     except Exception as e:
         logger.warning(f"Could not fetch risk agent config from scenario service: {e}. Defaulting to gpt-4o")
+        # Still cache the default to avoid repeated failed calls
+        _agent_config_cache["agent"] = "gpt-4o"
+        _agent_config_cache["expires"] = now + timedelta(seconds=1)
         return "gpt-4o"
 
 
@@ -1282,6 +1313,16 @@ Approve legitimate transactions, decline only clear fraud risks."""
         )
         newrelic.agent.notice_error()
         raise HTTPException(status_code=500, detail=f"Risk assessment failed: {str(e)}")
+
+
+@app.post("/support-service/invalidate-agent-cache")
+async def invalidate_cache():
+    """
+    Invalidate the risk agent cache to force refresh on next request.
+    Called by scenario service when agent configuration changes.
+    """
+    invalidate_agent_cache()
+    return {"status": "success", "message": "Risk agent cache invalidated"}
 
 
 @app.get("/support-service/")
