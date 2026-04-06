@@ -133,6 +133,7 @@ jobs:
             "mssql-custom"
             "postgres-custom"
             "support-service"
+            "risk-assessment-service"
             "scenario-runner"
             "otel-collector-kafka"
             "kafka-with-monitoring"
