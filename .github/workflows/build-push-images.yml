@@ -242,7 +242,7 @@ jobs:
           helm upgrade --install nri-bundle newrelic/nri-bundle \
             --namespace newrelic \
             --create-namespace \
-            --version 5.0.110 \
+            --version 6.0.45 \
             --set global.licenseKey="${{ secrets.NR_LICENSE_KEY }}" \
             --set global.cluster="relibank-prod" \
             --set global.lowDataMode=false \
