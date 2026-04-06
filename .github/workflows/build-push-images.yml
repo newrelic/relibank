@@ -166,6 +166,11 @@ jobs:
       - name: Deploy to AKS
         if: (inputs.deploy == true || inputs.deploy == 'true') || inputs.skip_build == true
         run: |
+          echo "Deleting existing immutable Jobs..."
+          kubectl delete job postgres-init -n relibank --ignore-not-found=true
+          kubectl delete job mssql-init -n relibank --ignore-not-found=true
+          echo "✅ Jobs deleted"
+
           echo "Applying azure-prod overlay to cluster..."
           kubectl apply -k k8s/overlays/azure-prod
           echo "✅ Manifests applied successfully"
