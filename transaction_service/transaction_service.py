@@ -713,16 +713,37 @@ async def get_transaction(bill_id: str, request: Request):
 
 
 @app.get("/transaction-service/recurring-payments", response_model=List[RecurringScheduleRecord])
-async def get_recurring_payments(request: Request):
+async def get_recurring_payments(request: Request, account_id: int = None, limit: int = 100):
     """
-    Retrieves all recurring payments from the database.
+    Retrieves recurring payments from the database.
+
+    Args:
+        account_id: Filter by AccountID (optional - if not provided, returns all schedules)
+        limit: Maximum number of schedules to return (default: 100, max: 1000)
     """
     if not db_connection:
         raise HTTPException(status_code=503, detail="Database connection failed.")
 
+    # Enforce reasonable limits
+    if limit < 1:
+        limit = 100
+    elif limit > 1000:
+        limit = 1000
+
     try:
         cursor = db_connection.cursor()
-        cursor.execute("SELECT * FROM RecurringSchedules")
+
+        # Filter by account_id if provided
+        if account_id is not None:
+            cursor.execute(
+                "SELECT TOP (?) * FROM RecurringSchedules WHERE AccountID = ? ORDER BY ScheduleID DESC",
+                (limit, account_id)
+            )
+            logging.info(f"Retrieving recurring payments for AccountID: {account_id} (limit: {limit})")
+        else:
+            cursor.execute("SELECT TOP (?) * FROM RecurringSchedules ORDER BY ScheduleID DESC", (limit,))
+            logging.info(f"Retrieving all recurring payments (limit: {limit})")
+
         columns = [column[0] for column in cursor.description]
 
         schedules = []
