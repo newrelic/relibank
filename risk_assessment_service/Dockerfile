@@ -24,4 +24,5 @@ EXPOSE 5001
 
 # Command to run the application using Uvicorn
 # Note: No New Relic instrumentation - this service is monitored via eBPF
-CMD ["uvicorn", "risk_assessment_service:app", "--host", "0.0.0.0", "--port", "5001", "--workers", "1"]
+# --log-config ensures application logs are visible alongside access logs
+CMD ["uvicorn", "risk_assessment_service:app", "--host", "0.0.0.0", "--port", "5001", "--workers", "1", "--log-config", "logging.conf"]
