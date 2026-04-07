@@ -93,6 +93,7 @@ class RiskAssessmentResponse(BaseModel):
     risk_score: float = Field(..., description="0-100 risk score")
     reason: str = Field(..., description="Why this decision was made")
     assessment_duration_ms: int = Field(..., description="How long the assessment took")
+    agent_model: str = Field(..., description="Which AI model was used for assessment")
 
 
 class RiskAssessmentEvent(BaseModel):
@@ -151,13 +152,15 @@ async def call_support_service(request_data: dict) -> dict:
             duration_ms = int((time.time() - start_time) * 1000)
 
             logger.info(
-                f"Received risk analysis from Support Service",
+                f"Received risk analysis from Support Service using {result.get('agent_model')} | "
+                f"Decision: {result.get('decision').upper()} | Risk Level: {result.get('risk_level')} | "
+                f"Risk Score: {result.get('risk_score')} | Duration: {duration_ms}ms",
                 extra={
                     "transaction_id": request_data.get("transaction_id"),
                     "risk_level": result.get("risk_level"),
                     "risk_score": result.get("risk_score"),
                     "decision": result.get("decision"),
-                    "agent_used": result.get("agent_model"),
+                    "agent_model": result.get("agent_model"),
                     "support_service_duration_ms": duration_ms,
                 }
             )
@@ -221,7 +224,8 @@ async def assess_risk(request: RiskAssessmentRequest) -> RiskAssessmentResponse:
     assessment_start = time.time()
 
     logger.info(
-        f"Risk assessment requested",
+        f"Risk assessment requested | Transaction: {request.transaction_id} | "
+        f"Amount: ${request.amount} | Payee: {request.payee} | Account: {request.account_id}",
         extra={
             "transaction_id": request.transaction_id,
             "account_id": request.account_id,
@@ -269,15 +273,21 @@ async def assess_risk(request: RiskAssessmentRequest) -> RiskAssessmentResponse:
 
         # Publish Kafka event for declined payments
         if decision == "declined":
-            logger.info(
-                f"Payment DECLINED - publishing Kafka event",
+            logger.warning(
+                f"PAYMENT DECLINED by {agent_model} | Transaction: {request.transaction_id} | "
+                f"Amount: ${request.amount} | Payee: {request.payee} | "
+                f"Risk Level: {risk_level.upper()} | Risk Score: {risk_score} | Reason: {reason}",
                 extra={
                     "transaction_id": request.transaction_id,
                     "account_id": request.account_id,
+                    "amount": request.amount,
+                    "payee": request.payee,
                     "risk_level": risk_level,
                     "risk_score": risk_score,
                     "reason": reason,
-                    "agent_used": agent_model,
+                    "agent_model": agent_model,
+                    "decision": "declined",
+                    "assessment_duration_ms": assessment_duration_ms,
                 }
             )
 
@@ -304,14 +314,20 @@ async def assess_risk(request: RiskAssessmentRequest) -> RiskAssessmentResponse:
                 # Don't fail the request if Kafka publishing fails
         else:
             logger.info(
-                f"Payment APPROVED",
+                f"PAYMENT APPROVED by {agent_model} | Transaction: {request.transaction_id} | "
+                f"Amount: ${request.amount} | Payee: {request.payee} | "
+                f"Risk Level: {risk_level} | Risk Score: {risk_score}",
                 extra={
                     "transaction_id": request.transaction_id,
                     "account_id": request.account_id,
+                    "amount": request.amount,
+                    "payee": request.payee,
                     "risk_level": risk_level,
                     "risk_score": risk_score,
                     "reason": reason,
-                    "agent_used": agent_model,
+                    "agent_model": agent_model,
+                    "decision": "approved",
+                    "assessment_duration_ms": assessment_duration_ms,
                 }
             )
 
@@ -323,13 +339,16 @@ async def assess_risk(request: RiskAssessmentRequest) -> RiskAssessmentResponse:
             risk_score=risk_score,
             reason=reason,
             assessment_duration_ms=assessment_duration_ms,
+            agent_model=agent_model,
         )
 
         logger.info(
-            f"Risk assessment completed",
+            f"Risk assessment completed by {agent_model} | Transaction: {request.transaction_id} | "
+            f"Decision: {decision.upper()} | Duration: {assessment_duration_ms}ms",
             extra={
                 "transaction_id": request.transaction_id,
                 "decision": decision,
+                "agent_model": agent_model,
                 "assessment_duration_ms": assessment_duration_ms,
             }
         )

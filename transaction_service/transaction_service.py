@@ -422,7 +422,10 @@ async def start_kafka_consumer():
                         logging.info(f"Credit transaction {event_model.billId} recorded in Transactions table.")
                     elif event_type == "BillPaymentDeclined":
                         # Record declined payment in Transactions table (no ledger updates)
-                        logging.info(f"Processing declined payment: {event_model.billId}, reason: {event_model.reason}")
+                        logging.warning(
+                            f"DECLINED PAYMENT RECORDED | Bill: {event_model.billId} | "
+                            f"Amount: ${event_model.amount} | Reason: {event_model.reason}"
+                        )
 
                         # Insert declined transaction for fromAccount (debit side)
                         cursor.execute(
@@ -509,7 +512,10 @@ async def start_kafka_consumer():
 
                     elif event_type == "CardPaymentDeclined":
                         # Record declined card payment in Transactions table (no ledger updates)
-                        logging.info(f"Processing declined card payment: {event_model.billId}, reason: {event_model.reason}")
+                        logging.warning(
+                            f"DECLINED CARD PAYMENT RECORDED | Bill: {event_model.billId} | "
+                            f"Amount: ${event_model.amount} | Reason: {event_model.reason}"
+                        )
 
                         # Build decline reason string with all available info
                         decline_details = f"{event_model.reason}: {event_model.message}"

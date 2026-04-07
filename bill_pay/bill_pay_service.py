@@ -330,12 +330,19 @@ async def process_bill_payment(payment_details: PaymentDetails, request: Request
             )
             response.raise_for_status()
             risk_result = response.json()
+            agent_model = risk_result.get('agent_model', 'unknown')
 
-            logging.info(f"Risk assessment result: decision={risk_result.get('decision')}, risk_level={risk_result.get('risk_level')}, risk_score={risk_result.get('risk_score')}")
+            logging.info(
+                f"Risk assessment result from {agent_model}: decision={risk_result.get('decision').upper()}, "
+                f"risk_level={risk_result.get('risk_level')}, risk_score={risk_result.get('risk_score')}"
+            )
 
             # If payment is declined, reject it and publish declined event
             if risk_result.get("decision") == "declined":
-                logging.warning(f"Payment DECLINED by risk assessment: {payment_details.billId}, reason: {risk_result.get('reason')}")
+                logging.warning(
+                    f"PAYMENT DECLINED by {agent_model} | Bill: {payment_details.billId} | "
+                    f"Amount: ${payment_details.amount} | Reason: {risk_result.get('reason')}"
+                )
 
                 # Publish declined payment event to Kafka
                 declined_event = {
@@ -364,7 +371,9 @@ async def process_bill_payment(payment_details: PaymentDetails, request: Request
                     detail="Payment declined due to security concerns. Please contact support for assistance."
                 )
 
-            logging.info(f"Payment APPROVED by risk assessment: {payment_details.billId}")
+            logging.info(
+                f"PAYMENT APPROVED by {agent_model} | Bill: {payment_details.billId} | Amount: ${payment_details.amount}"
+            )
 
     except httpx.HTTPStatusError as e:
         logging.error(f"Risk assessment service returned error {e.response.status_code}: {e}")
@@ -683,12 +692,19 @@ async def process_card_payment(payment: CardPaymentRequest, request: Request):
                 )
                 response.raise_for_status()
                 risk_result = response.json()
+                agent_model = risk_result.get('agent_model', 'unknown')
 
-                logging.info(f"Risk assessment result: decision={risk_result.get('decision')}, risk_level={risk_result.get('risk_level')}, risk_score={risk_result.get('risk_score')}")
+                logging.info(
+                    f"Risk assessment result from {agent_model}: decision={risk_result.get('decision').upper()}, "
+                    f"risk_level={risk_result.get('risk_level')}, risk_score={risk_result.get('risk_score')}"
+                )
 
                 # If payment is declined, use declined card to trigger Stripe decline event
                 if risk_result.get("decision") == "declined":
-                    logging.warning(f"Payment DECLINED by risk assessment: {payment.billId}, reason: {risk_result.get('reason')}")
+                    logging.warning(
+                        f"PAYMENT DECLINED by {agent_model} | Bill: {payment.billId} | "
+                        f"Amount: ${payment.amount} | Payee: {payee} | Reason: {risk_result.get('reason')}"
+                    )
                     # Override payment method to use Stripe's test declined card
                     # This will cause Stripe to decline and create a declined payment event
                     payment_method_to_use = "pm_card_visa_chargeDeclined"
@@ -702,7 +718,9 @@ async def process_card_payment(payment: CardPaymentRequest, request: Request):
                         "risk_score": risk_result.get("risk_score")
                     }
                 else:
-                    logging.info(f"Payment APPROVED by risk assessment: {payment.billId}")
+                    logging.info(
+                        f"PAYMENT APPROVED by {agent_model} | Bill: {payment.billId} | Amount: ${payment.amount} | Payee: {payee}"
+                    )
                     risk_decline_info = None
 
         except httpx.HTTPStatusError as e:
