@@ -29,6 +29,7 @@ const mockPaymentHistory = [
   { id: 'mock-4', payee: 'Gas Company', amount: 89.25, date: '2024-01-02', status: 'declined', method: 'Bank Account', declineReason: 'Insufficient funds in account' },
   { id: 'mock-5', payee: 'Rent', amount: 1500.00, date: '2024-01-01', status: 'completed', method: 'Bank Account' },
   { id: 'mock-6', payee: 'Phone Bill', amount: 65.00, date: '2023-12-28', status: 'completed', method: 'Credit Card' },
+  { id: 'mock-7', payee: 'Streaming Service', amount: 15.99, date: '2023-12-27', status: 'declined', method: 'Credit Card', declineReason: 'Card declined by issuer: Insufficient funds' },
 ];
 
 interface TransactionRecord {
@@ -107,6 +108,16 @@ export const RecentPaymentsCard = ({
     return 'completed';
   };
 
+  // Helper: Determine payment method from transaction type
+  const derivePaymentMethod = (transaction: TransactionRecord): string => {
+    // Card payments have EventType containing "Card" or AccountID === 0
+    if (transaction.EventType.includes('Card') || transaction.AccountID === 0) {
+      return 'Credit Card';
+    }
+    // Bank account payments
+    return 'Bank Account';
+  };
+
   const fetchTransactions = async () => {
     try {
       setIsLoading(true);
@@ -118,14 +129,16 @@ export const RecentPaymentsCard = ({
         throw new Error('Failed to fetch transactions');
       }
 
-      // Filter to only payment events (including declined)
+      // Filter to only payment events (including declined and card payments)
       const paymentTransactions = data.filter(tx =>
         tx.EventType &&
         (tx.EventType.toLowerCase().includes('payment') ||
          tx.EventType === 'BillPaymentInitiatedFromAcct' ||
          tx.EventType === 'BillPaymentInitiatedToAcct' ||
          tx.EventType === 'BillPaymentDeclinedFromAcct' ||
-         tx.EventType === 'BillPaymentDeclinedToAcct')
+         tx.EventType === 'BillPaymentDeclinedToAcct' ||
+         tx.EventType === 'CardPaymentProcessed' ||
+         tx.EventType === 'CardPaymentDeclined')
       );
 
       // Transform transaction data to payment display format
@@ -135,7 +148,7 @@ export const RecentPaymentsCard = ({
         amount: tx.Amount,
         date: formatTimestamp(tx.Timestamp),
         status: deriveStatus(tx),
-        method: 'Bank Account', // All payments from transaction service are bank transfers
+        method: derivePaymentMethod(tx),
         declineReason: tx.DeclineReason
       }));
 
