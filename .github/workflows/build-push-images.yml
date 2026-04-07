@@ -243,6 +243,7 @@ jobs:
             --namespace newrelic \
             --create-namespace \
             --version 6.0.45 \
+            -f k8s/newrelic/values.yaml \
             --set global.licenseKey="${{ secrets.NR_LICENSE_KEY }}" \
             --set global.cluster="relibank-prod" \
             --set global.lowDataMode=false \

@@ -8,6 +8,29 @@ global:
 newrelic-infrastructure:
   enabled: true
   privileged: true
+  integrations:
+    nri-mssql:
+      discovery:
+        command:
+          exec: /var/db/newrelic-infra/nri-discovery-kubernetes --tls --port 10250
+          match:
+            label.app: mssql
+      integrations:
+      - name: nri-mssql
+        env:
+          HOSTNAME: ${discovery.ip}
+          PORT: 1433
+          USERNAME: newrelic
+          PASSWORD: YourStrong@Password!
+          ENABLE_SSL: true
+          TRUST_SERVER_CERTIFICATE: true
+          ENABLE_QUERY_MONITORING: true
+          QUERY_MONITORING_RESPONSE_TIME_THRESHOLD: 0.01
+          TIMEOUT: 120
+        interval: 5s
+        labels:
+          environment: production
+        inventory_source: config/mssql
 
 # Enable Kubernetes Events
 nri-kube-events:
