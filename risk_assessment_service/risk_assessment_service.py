@@ -129,15 +129,13 @@ async def call_support_service(request_data: dict) -> dict:
     """
     start_time = time.time()
 
-    logger.info(
-        f"Calling Support Service for risk analysis",
-        extra={
-            "transaction_id": request_data.get("transaction_id"),
-            "account_id": request_data.get("account_id"),
-            "amount": request_data.get("amount"),
-            "payee": request_data.get("payee"),
-        }
-    )
+    logger.info(json.dumps({
+        "event": "SUPPORT_SERVICE_CALL",
+        "transaction_id": request_data.get("transaction_id"),
+        "account_id": request_data.get("account_id"),
+        "amount": request_data.get("amount"),
+        "payee": request_data.get("payee"),
+    }))
 
     try:
         async with httpx.AsyncClient(timeout=30.0) as client:
@@ -151,55 +149,45 @@ async def call_support_service(request_data: dict) -> dict:
 
             duration_ms = int((time.time() - start_time) * 1000)
 
-            logger.info(
-                f"Received risk analysis from Support Service using {result.get('agent_model')} | "
-                f"Decision: {result.get('decision').upper()} | Risk Level: {result.get('risk_level')} | "
-                f"Risk Score: {result.get('risk_score')} | Duration: {duration_ms}ms",
-                extra={
-                    "transaction_id": request_data.get("transaction_id"),
-                    "risk_level": result.get("risk_level"),
-                    "risk_score": result.get("risk_score"),
-                    "decision": result.get("decision"),
-                    "agent_model": result.get("agent_model"),
-                    "support_service_duration_ms": duration_ms,
-                }
-            )
+            logger.info(json.dumps({
+                "event": "SUPPORT_SERVICE_RESPONSE",
+                "transaction_id": request_data.get("transaction_id"),
+                "agent_model": result.get("agent_model"),
+                "decision": result.get("decision"),
+                "risk_level": result.get("risk_level"),
+                "risk_score": result.get("risk_score"),
+                "support_service_duration_ms": duration_ms,
+            }))
 
             return result
 
     except httpx.HTTPStatusError as e:
-        logger.error(
-            f"Support Service returned error status",
-            extra={
-                "transaction_id": request_data.get("transaction_id"),
-                "status_code": e.response.status_code,
-                "error": str(e),
-            }
-        )
+        logger.error(json.dumps({
+            "event": "SUPPORT_SERVICE_ERROR",
+            "transaction_id": request_data.get("transaction_id"),
+            "status_code": e.response.status_code,
+            "error": str(e),
+        }))
         raise HTTPException(
             status_code=503,
             detail=f"Support Service error: {e.response.status_code}"
         )
     except httpx.RequestError as e:
-        logger.error(
-            f"Failed to connect to Support Service",
-            extra={
-                "transaction_id": request_data.get("transaction_id"),
-                "error": str(e),
-            }
-        )
+        logger.error(json.dumps({
+            "event": "SUPPORT_SERVICE_CONNECTION_FAILED",
+            "transaction_id": request_data.get("transaction_id"),
+            "error": str(e),
+        }))
         raise HTTPException(
             status_code=503,
             detail="Support Service unavailable"
         )
     except Exception as e:
-        logger.error(
-            f"Unexpected error calling Support Service",
-            extra={
-                "transaction_id": request_data.get("transaction_id"),
-                "error": str(e),
-            }
-        )
+        logger.error(json.dumps({
+            "event": "SUPPORT_SERVICE_UNEXPECTED_ERROR",
+            "transaction_id": request_data.get("transaction_id"),
+            "error": str(e),
+        }))
         raise HTTPException(
             status_code=500,
             detail=f"Risk assessment failed: {str(e)}"
@@ -223,17 +211,14 @@ async def assess_risk(request: RiskAssessmentRequest) -> RiskAssessmentResponse:
     """
     assessment_start = time.time()
 
-    logger.info(
-        f"Risk assessment requested | Transaction: {request.transaction_id} | "
-        f"Amount: ${request.amount} | Payee: {request.payee} | Account: {request.account_id}",
-        extra={
-            "transaction_id": request.transaction_id,
-            "account_id": request.account_id,
-            "amount": request.amount,
-            "payee": request.payee,
-            "payment_method": request.payment_method,
-        }
-    )
+    logger.info(json.dumps({
+        "event": "RISK_ASSESSMENT_REQUESTED",
+        "transaction_id": request.transaction_id,
+        "account_id": request.account_id,
+        "amount": request.amount,
+        "payee": request.payee,
+        "payment_method": request.payment_method,
+    }))
 
     try:
         # Call Support Service for AI-based risk analysis
@@ -273,63 +258,51 @@ async def assess_risk(request: RiskAssessmentRequest) -> RiskAssessmentResponse:
 
         # Publish Kafka event for declined payments
         if decision == "declined":
-            logger.warning(
-                f"PAYMENT DECLINED by {agent_model} | Transaction: {request.transaction_id} | "
-                f"Amount: ${request.amount} | Payee: {request.payee} | "
-                f"Risk Level: {risk_level.upper()} | Risk Score: {risk_score} | Reason: {reason}",
-                extra={
-                    "transaction_id": request.transaction_id,
-                    "account_id": request.account_id,
-                    "amount": request.amount,
-                    "payee": request.payee,
-                    "risk_level": risk_level,
-                    "risk_score": risk_score,
-                    "reason": reason,
-                    "agent_model": agent_model,
-                    "decision": "declined",
-                    "assessment_duration_ms": assessment_duration_ms,
-                }
-            )
+            logger.warning(json.dumps({
+                "event": "PAYMENT_DECLINED",
+                "processor_model": agent_model,
+                "transaction_id": request.transaction_id,
+                "account_id": request.account_id,
+                "amount": request.amount,
+                "payee": request.payee,
+                "risk_level": risk_level,
+                "risk_score": risk_score,
+                "reason": reason,
+                "decision": "declined",
+                "assessment_duration_ms": assessment_duration_ms,
+            }))
 
             try:
                 await producer.send(
                     "payment-declined",
                     value=json.dumps(assessment_event.dict()).encode("utf-8")
                 )
-                logger.info(
-                    f"Published payment-declined event to Kafka",
-                    extra={
-                        "transaction_id": request.transaction_id,
-                        "topic": "payment-declined",
-                    }
-                )
+                logger.info(json.dumps({
+                    "event": "KAFKA_PUBLISH_SUCCESS",
+                    "transaction_id": request.transaction_id,
+                    "topic": "payment-declined",
+                }))
             except Exception as e:
-                logger.error(
-                    f"Failed to publish Kafka event",
-                    extra={
-                        "transaction_id": request.transaction_id,
-                        "error": str(e),
-                    }
-                )
+                logger.error(json.dumps({
+                    "event": "KAFKA_PUBLISH_FAILED",
+                    "transaction_id": request.transaction_id,
+                    "error": str(e),
+                }))
                 # Don't fail the request if Kafka publishing fails
         else:
-            logger.info(
-                f"PAYMENT APPROVED by {agent_model} | Transaction: {request.transaction_id} | "
-                f"Amount: ${request.amount} | Payee: {request.payee} | "
-                f"Risk Level: {risk_level} | Risk Score: {risk_score}",
-                extra={
-                    "transaction_id": request.transaction_id,
-                    "account_id": request.account_id,
-                    "amount": request.amount,
-                    "payee": request.payee,
-                    "risk_level": risk_level,
-                    "risk_score": risk_score,
-                    "reason": reason,
-                    "agent_model": agent_model,
-                    "decision": "approved",
-                    "assessment_duration_ms": assessment_duration_ms,
-                }
-            )
+            logger.info(json.dumps({
+                "event": "PAYMENT_APPROVED",
+                "processor_model": agent_model,
+                "transaction_id": request.transaction_id,
+                "account_id": request.account_id,
+                "amount": request.amount,
+                "payee": request.payee,
+                "risk_level": risk_level,
+                "risk_score": risk_score,
+                "reason": reason,
+                "decision": "approved",
+                "assessment_duration_ms": assessment_duration_ms,
+            }))
 
         # Return response to Bill Pay
         response = RiskAssessmentResponse(
@@ -342,16 +315,13 @@ async def assess_risk(request: RiskAssessmentRequest) -> RiskAssessmentResponse:
             agent_model=agent_model,
         )
 
-        logger.info(
-            f"Risk assessment completed by {agent_model} | Transaction: {request.transaction_id} | "
-            f"Decision: {decision.upper()} | Duration: {assessment_duration_ms}ms",
-            extra={
-                "transaction_id": request.transaction_id,
-                "decision": decision,
-                "agent_model": agent_model,
-                "assessment_duration_ms": assessment_duration_ms,
-            }
-        )
+        logger.info(json.dumps({
+            "event": "RISK_ASSESSMENT_COMPLETED",
+            "processor_model": agent_model,
+            "transaction_id": request.transaction_id,
+            "decision": decision,
+            "assessment_duration_ms": assessment_duration_ms,
+        }))
 
         return response
 
@@ -359,13 +329,11 @@ async def assess_risk(request: RiskAssessmentRequest) -> RiskAssessmentResponse:
         # Re-raise HTTP exceptions from helper functions
         raise
     except Exception as e:
-        logger.error(
-            f"Unexpected error during risk assessment",
-            extra={
-                "transaction_id": request.transaction_id,
-                "error": str(e),
-            }
-        )
+        logger.error(json.dumps({
+            "event": "RISK_ASSESSMENT_ERROR",
+            "transaction_id": request.transaction_id,
+            "error": str(e),
+        }))
         raise HTTPException(
             status_code=500,
             detail=f"Risk assessment failed: {str(e)}"

@@ -422,6 +422,97 @@ def test_complete_user_journey():
     print("\n✓ Complete user journey successful!")
 
 
+def test_bill_pay_schema_validation_integer_billid():
+    """Test that /pay endpoint rejects integer billId (must be string)"""
+    print("\n=== Testing billId Type Validation ===")
+
+    # Send request with integer billId (invalid)
+    invalid_payment = {
+        "billId": 12345,  # Integer instead of string
+        "amount": 100.00,
+        "currency": "USD",
+        "fromAccountId": 1,
+        "toAccountId": 2
+    }
+
+    response = requests.post(
+        f"{BILL_PAY_SERVICE}/bill-pay-service/pay",
+        json=invalid_payment
+    )
+
+    print(f"Status: {response.status_code}")
+    print(f"Response: {response.text[:200]}")
+
+    # Should return 422 Unprocessable Entity for validation error
+    assert response.status_code == 422, \
+        f"Expected 422 for invalid billId type, got {response.status_code}"
+
+    # Check error message mentions billId
+    response_data = response.json()
+    assert "billId" in str(response_data), "Error should mention billId field"
+
+    print("✓ Integer billId correctly rejected")
+
+
+def test_bill_pay_schema_validation_snake_case():
+    """Test that /pay endpoint rejects snake_case field names (must be camelCase)"""
+    print("\n=== Testing Field Name Validation ===")
+
+    # Send request with snake_case field names (invalid)
+    invalid_payment = {
+        "bill_id": "TEST-123",  # snake_case instead of billId
+        "amount": 100.00,
+        "currency": "USD",
+        "from_account_id": 1,  # snake_case instead of fromAccountId
+        "to_account_id": 2     # snake_case instead of toAccountId
+    }
+
+    response = requests.post(
+        f"{BILL_PAY_SERVICE}/bill-pay-service/pay",
+        json=invalid_payment
+    )
+
+    print(f"Status: {response.status_code}")
+    print(f"Response: {response.text[:200]}")
+
+    # Should return 422 for validation error
+    assert response.status_code == 422, \
+        f"Expected 422 for invalid field names, got {response.status_code}"
+
+    print("✓ Snake case fields correctly rejected")
+
+
+def test_bill_pay_schema_validation_missing_fields():
+    """Test that /pay endpoint requires all mandatory fields"""
+    print("\n=== Testing Required Fields ===")
+
+    # Send request missing billId
+    incomplete_payment = {
+        "amount": 100.00,
+        "currency": "USD",
+        "fromAccountId": 1,
+        "toAccountId": 2
+    }
+
+    response = requests.post(
+        f"{BILL_PAY_SERVICE}/bill-pay-service/pay",
+        json=incomplete_payment
+    )
+
+    print(f"Status: {response.status_code}")
+    print(f"Response: {response.text[:200]}")
+
+    # Should return 422 for missing required field
+    assert response.status_code == 422, \
+        f"Expected 422 for missing billId, got {response.status_code}"
+
+    response_data = response.json()
+    assert "billId" in str(response_data) or "field required" in str(response_data).lower(), \
+        "Error should mention missing billId field"
+
+    print("✓ Missing required fields correctly rejected")
+
+
 if __name__ == "__main__":
     # Run tests manually for quick validation
     pytest.main([__file__, "-v", "-s"])

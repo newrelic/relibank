@@ -424,10 +424,17 @@ async def start_kafka_consumer():
                         logging.info(f"Credit transaction {event_model.billId} recorded in Transactions table.")
                     elif event_type == "BillPaymentDeclined":
                         # Record declined payment in Transactions table (no ledger updates)
-                        logging.warning(
-                            f"DECLINED PAYMENT RECORDED | Bill: {event_model.billId} | "
-                            f"Amount: ${event_model.amount} | Reason: {event_model.reason}"
-                        )
+                        logging.warning(json.dumps({
+                            "event": "DECLINED_PAYMENT_RECORDED",
+                            "billing_id": event_model.billId,
+                            "amount": event_model.amount,
+                            "currency": event_model.currency,
+                            "from_account_id": event_model.fromAccountId,
+                            "to_account_id": event_model.toAccountId,
+                            "reason": event_model.reason,
+                            "risk_level": event_model.risk_level,
+                            "risk_score": event_model.risk_score
+                        }))
 
                         # Insert declined transaction for fromAccount (debit side)
                         cursor.execute(
@@ -514,10 +521,23 @@ async def start_kafka_consumer():
 
                     elif event_type == "CardPaymentDeclined":
                         # Record declined card payment in Transactions table (no ledger updates)
-                        logging.warning(
-                            f"DECLINED CARD PAYMENT RECORDED | Bill: {event_model.billId} | "
-                            f"Amount: ${event_model.amount} | Reason: {event_model.reason}"
-                        )
+                        decline_log = {
+                            "event": "DECLINED_CARD_PAYMENT_RECORDED",
+                            "billing_id": event_model.billId,
+                            "amount": event_model.amount,
+                            "currency": event_model.currency,
+                            "reason": event_model.reason,
+                            "payment_method_id": event_model.paymentMethodId,
+                            "processor": event_model.processor,
+                            "customer_id": event_model.customerId
+                        }
+                        if event_model.risk_level:
+                            decline_log["risk_level"] = event_model.risk_level
+                        if event_model.risk_score:
+                            decline_log["risk_score"] = event_model.risk_score
+                        if event_model.paymentIntentId:
+                            decline_log["payment_intent_id"] = event_model.paymentIntentId
+                        logging.warning(json.dumps(decline_log))
 
                         # Build decline reason string with all available info
                         decline_details = f"{event_model.reason}: {event_model.message}"

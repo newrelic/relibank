@@ -20,9 +20,11 @@ class BillPayServiceUser(HttpUser):
     def pay_bill(self):
         """Pay a bill"""
         self.client.post("/bill-pay-service/pay", json={
-            "bill_id": random.randint(1, 100),
+            "billId": f"LOAD-TEST-{random.randint(1000, 9999)}-{int(random.random() * 1000000)}",
             "amount": round(random.uniform(50, 500), 2),
-            "payment_method": "checking"
+            "currency": "USD",
+            "fromAccountId": random.randint(1, 10000),
+            "toAccountId": random.randint(10001, 20000)
         })
 
     @task(2)

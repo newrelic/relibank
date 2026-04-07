@@ -314,7 +314,13 @@ async def process_bill_payment(payment_details: PaymentDetails, request: Request
     propagation_headers = get_propagation_headers(request)
 
     try:
-        logging.info(f"Assessing payment risk for bill: {payment_details.billId}, account: {payment_details.fromAccountId}, amount: {payment_details.amount}")
+        logging.info(json.dumps({
+            "event": "RISK_ASSESSMENT_REQUEST",
+            "payment_type": "account_transfer",
+            "bill_id": payment_details.billId,
+            "account_id": payment_details.fromAccountId,
+            "amount": payment_details.amount,
+        }))
         async with httpx.AsyncClient() as client:
             response = await client.post(
                 f"{risk_assessment_service_url}/risk-assessment-service/assess-risk",
@@ -332,17 +338,29 @@ async def process_bill_payment(payment_details: PaymentDetails, request: Request
             risk_result = response.json()
             agent_model = risk_result.get('agent_model', 'unknown')
 
-            logging.info(
-                f"Risk assessment result from {agent_model}: decision={risk_result.get('decision').upper()}, "
-                f"risk_level={risk_result.get('risk_level')}, risk_score={risk_result.get('risk_score')}"
-            )
+            logging.info(json.dumps({
+                "event": "RISK_ASSESSMENT_RESPONSE",
+                "payment_type": "account_transfer",
+                "bill_id": payment_details.billId,
+                "agent_model": agent_model,
+                "decision": risk_result.get('decision'),
+                "risk_level": risk_result.get('risk_level'),
+                "risk_score": risk_result.get('risk_score'),
+            }))
 
             # If payment is declined, reject it and publish declined event
             if risk_result.get("decision") == "declined":
-                logging.warning(
-                    f"PAYMENT DECLINED by {agent_model} | Bill: {payment_details.billId} | "
-                    f"Amount: ${payment_details.amount} | Reason: {risk_result.get('reason')}"
-                )
+                logging.warning(json.dumps({
+                    "event": "PAYMENT_DECLINED",
+                    "payment_type": "account_transfer",
+                    "processor_model": agent_model,
+                    "bill_id": payment_details.billId,
+                    "amount": payment_details.amount,
+                    "currency": payment_details.currency,
+                    "reason": risk_result.get('reason'),
+                    "risk_level": risk_result.get('risk_level'),
+                    "risk_score": risk_result.get('risk_score'),
+                }))
 
                 # Publish declined payment event to Kafka
                 declined_event = {
@@ -429,7 +447,15 @@ async def process_bill_payment(payment_details: PaymentDetails, request: Request
     await publish_message("bill_payments", debit_event)
     await publish_message("bill_payments", credit_event)
 
-    logging.info(f"Bill payment for {payment_details.billId} successfully initiated.")
+    logging.info(json.dumps({
+        "event": "BILL_PAYMENT_SUCCESS",
+        "billing_id": payment_details.billId,
+        "transaction_id": transaction_uuid,
+        "amount": payment_details.amount,
+        "currency": payment_details.currency,
+        "from_account_id": payment_details.fromAccountId,
+        "to_account_id": payment_details.toAccountId
+    }))
     return {
         "status": "success",
         "message": "Bill payment initiated successfully",
@@ -615,7 +641,18 @@ async def process_card_payment(payment: CardPaymentRequest, request: Request):
 
         # Check for card decline scenario (probability-based)
         if scenarios["card_decline_enabled"] and random.random() * 100 <= scenarios["card_decline_probability"]:
-            logging.error(f"Payment processor declined transaction")
+            logging.error(json.dumps({
+                "event": "PAYMENT_DECLINED",
+                "processor_model": "scenario",
+                "billing_id": payment.billId,
+                "amount": payment.amount,
+                "currency": payment.currency,
+                "outcome": "declined",
+                "reason": "card_declined",
+                "is_automatic": True,
+                "payment_method": "card",
+                "processor": "stripe"
+            }))
             newrelic.agent.record_custom_event("PaymentDeclined", {
                 "billId": payment.billId,
                 "amount": payment.amount,
@@ -639,7 +676,12 @@ async def process_card_payment(payment: CardPaymentRequest, request: Request):
                 "timestamp": time.time()
             }
             await publish_message("card_payments_declined", declined_event)
-            logging.info(f"Published CardPaymentDeclined event (scenario) to Kafka for bill {payment.billId}")
+            logging.info(json.dumps({
+                "event": "KAFKA_PUBLISH_SUCCESS",
+                "topic": "card_payments_declined",
+                "event_type": "CardPaymentDeclined",
+                "billing_id": payment.billId
+            }))
 
             raise HTTPException(
                 status_code=402,
@@ -649,9 +691,20 @@ async def process_card_payment(payment: CardPaymentRequest, request: Request):
         # Check for gateway timeout scenario (probability-based)
         if scenarios["gateway_timeout_enabled"] and random.random() * 100 <= scenarios["gateway_timeout_probability"]:
             delay = scenarios["gateway_timeout_delay"]
-            logging.warning(f"Payment gateway experiencing delays (waiting {delay}s)")
+            logging.warning(json.dumps({
+                "event": "PAYMENT_GATEWAY_DELAY",
+                "billing_id": payment.billId,
+                "delay_seconds": delay,
+                "reason": "scenario_enabled"
+            }))
             await asyncio.sleep(delay)
-            logging.error(f"Payment gateway timeout after {delay}s")
+            logging.error(json.dumps({
+                "event": "PAYMENT_GATEWAY_TIMEOUT",
+                "billing_id": payment.billId,
+                "amount": payment.amount,
+                "currency": payment.currency,
+                "timeout_seconds": delay
+            }))
             newrelic.agent.record_custom_event("PaymentTimeout", {
                 "billId": payment.billId,
                 "amount": payment.amount,
@@ -719,14 +772,27 @@ async def process_card_payment(payment: CardPaymentRequest, request: Request):
 
                 # If payment is declined, use declined card to trigger Stripe decline event
                 if risk_result.get("decision") == "declined":
-                    logging.warning(
-                        f"PAYMENT DECLINED by {agent_model} | Bill: {payment.billId} | "
-                        f"Amount: ${payment.amount} | Payee: {payee} | Reason: {risk_result.get('reason')}"
-                    )
+                    logging.warning(json.dumps({
+                        "event": "PAYMENT_DECLINED",
+                        "processor_model": agent_model,
+                        "billing_id": payment.billId,
+                        "amount": payment.amount,
+                        "currency": payment.currency,
+                        "payee": payee,
+                        "outcome": "declined",
+                        "reason": risk_result.get("reason"),
+                        "risk_level": risk_result.get("risk_level"),
+                        "risk_score": risk_result.get("risk_score"),
+                        "is_automatic": False
+                    }))
                     # Override payment method to use Stripe's test declined card
                     # This will cause Stripe to decline and create a declined payment event
                     payment_method_to_use = "pm_card_visa_chargeDeclined"
-                    logging.info(f"Using declined card payment method due to risk assessment")
+                    logging.info(json.dumps({
+                        "event": "USING_DECLINED_CARD",
+                        "billing_id": payment.billId,
+                        "reason": "risk_assessment_declined"
+                    }))
 
                     # Store decline info to raise error after Stripe processes
                     risk_decline_info = {
@@ -736,9 +802,17 @@ async def process_card_payment(payment: CardPaymentRequest, request: Request):
                         "risk_score": risk_result.get("risk_score")
                     }
                 else:
-                    logging.info(
-                        f"PAYMENT APPROVED by {agent_model} | Bill: {payment.billId} | Amount: ${payment.amount} | Payee: {payee}"
-                    )
+                    logging.info(json.dumps({
+                        "event": "PAYMENT_APPROVED",
+                        "processor_model": agent_model,
+                        "billing_id": payment.billId,
+                        "amount": payment.amount,
+                        "currency": payment.currency,
+                        "payee": payee,
+                        "outcome": "approved",
+                        "risk_level": risk_result.get("risk_level"),
+                        "risk_score": risk_result.get("risk_score")
+                    }))
                     risk_decline_info = None
 
         except httpx.HTTPStatusError as e:
@@ -781,7 +855,15 @@ async def process_card_payment(payment: CardPaymentRequest, request: Request):
             }
         )
 
-        logging.info(f"Payment intent created: {payment_intent.id}, status: {payment_intent.status}")
+        logging.info(json.dumps({
+            "event": "CARD_PAYMENT_SUCCESS",
+            "billing_id": payment.billId,
+            "payment_intent_id": payment_intent.id,
+            "amount": payment.amount,
+            "currency": payment.currency,
+            "customer_id": customer_id,
+            "status": payment_intent.status
+        }))
 
         # Publish to Kafka
         kafka_message = {
@@ -798,7 +880,14 @@ async def process_card_payment(payment: CardPaymentRequest, request: Request):
 
         # If payment was declined by risk assessment, raise error after Stripe processes
         if risk_decline_info:
-            logging.warning(f"Raising error for risk-declined payment after Stripe processing: {payment.billId}")
+            logging.warning(json.dumps({
+                "event": "RAISING_ERROR_FOR_DECLINED_PAYMENT",
+                "billing_id": payment.billId,
+                "reason": "risk_assessment_declined",
+                "risk_level": risk_decline_info["risk_level"],
+                "risk_score": risk_decline_info["risk_score"],
+                "payment_intent_id": payment_intent.id
+            }))
 
             # Publish declined card payment to Kafka (risk assessment decline)
             declined_event = {
@@ -847,11 +936,24 @@ async def process_card_payment(payment: CardPaymentRequest, request: Request):
     except stripe.error.CardError as e:
         # Stripe card declined (includes stolen card scenario AND risk assessment declines)
         decline_code = e.code if hasattr(e, 'code') else 'unknown'
-        logging.error(f"Card declined by processor: {e.user_message} (code: {decline_code})")
+        logging.error(json.dumps({
+            "event": "CARD_DECLINED_BY_PROCESSOR",
+            "billing_id": payment.billId,
+            "amount": payment.amount,
+            "currency": payment.currency,
+            "decline_code": decline_code,
+            "message": e.user_message
+        }))
 
         # Check if this decline was caused by risk assessment
         if risk_decline_info:
-            logging.warning(f"Card declined due to risk assessment (via Stripe test card)")
+            logging.warning(json.dumps({
+                "event": "CARD_DECLINED_RISK_ASSESSMENT",
+                "billing_id": payment.billId,
+                "reason": risk_decline_info["reason"],
+                "risk_level": risk_decline_info["risk_level"],
+                "risk_score": risk_decline_info["risk_score"]
+            }))
 
             # Publish declined card payment to Kafka (risk assessment decline)
             declined_event = {
