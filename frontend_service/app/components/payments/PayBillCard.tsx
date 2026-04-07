@@ -248,6 +248,11 @@ export const PayBillCard = ({ onPaymentSuccess }: PayBillCardProps) => {
           amount: paymentAmount,
         });
       }
+
+      // Trigger refresh even on error to show declined payments in Recent Payments table
+      if (onPaymentSuccess) {
+        onPaymentSuccess();
+      }
     } finally {
       setIsLoading(false);
     }
