@@ -8,6 +8,9 @@ This directory contains a comprehensive test suite for the Relibank application,
 
 **TL;DR:**
 ```bash
+# Setup (one time - macOS only)
+brew install unixodbc
+
 # Setup (one time)
 cd tests
 ./setup_test_env.sh
@@ -41,7 +44,16 @@ export RELIBANK_URL="http://your-server.example.com"
 
 ## Prerequisites
 
-### 1. Services Running
+### 1. System Dependencies (macOS only)
+
+For database validation tests, install unixodbc (required by pyodbc):
+```bash
+brew install unixodbc
+```
+
+**Note**: This is a one-time system-level installation. Skip this on Linux (unixodbc is usually pre-installed) or if you won't run database tests.
+
+### 2. Services Running
 
 For **local testing**, ensure the Relibank stack is running:
 ```bash
@@ -50,12 +62,15 @@ skaffold dev
 
 For **remote testing**, ensure you have access to the deployed environment and URLs.
 
-### 2. Python Dependencies
+### 3. Python Dependencies
 
 Install required packages:
 ```bash
-# Python test dependencies
-pip install pytest requests
+# Python test dependencies (includes pyodbc for database tests)
+pip install pytest requests pyodbc
+
+# Or use the provided requirements file
+pip install -r tests/requirements.txt
 
 # Frontend test dependencies (from frontend_service directory)
 cd ../frontend_service

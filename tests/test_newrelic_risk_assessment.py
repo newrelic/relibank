@@ -18,6 +18,7 @@ import os
 import time
 import pytest
 import requests
+import pyodbc
 from pathlib import Path
 from typing import Dict, List
 
@@ -52,6 +53,13 @@ NERDGRAPH_URL = "https://api.newrelic.com/graphql"
 
 # Entity name prefix (e.g., "Jared" locally, "ReliBank" in prod)
 APP_NAME_PREFIX = os.getenv("APP_NAME", "Jared")  # Falls back to "Jared" if not set
+
+# Database connection details
+DB_SERVER = os.getenv("DB_SERVER", "localhost")
+DB_DATABASE = os.getenv("DB_DATABASE", "RelibankDB")
+DB_USERNAME = os.getenv("DB_USERNAME", "SA")
+DB_PASSWORD = os.getenv("DB_PASSWORD", "YourStrong@Password!")
+CONNECTION_STRING = f"DRIVER={{ODBC Driver 18 for SQL Server}};SERVER={DB_SERVER};DATABASE={DB_DATABASE};UID={DB_USERNAME};PWD={DB_PASSWORD};TrustServerCertificate=yes"
 
 # Skip all tests if New Relic credentials not provided
 pytestmark = pytest.mark.skipif(
@@ -96,6 +104,38 @@ def query_nerdgraph(nrql_query: str) -> List[Dict]:
 
     data = response.json()
     return data.get("data", {}).get("actor", {}).get("account", {}).get("nrql", {}).get("results", [])
+
+
+def get_db_connection():
+    """Get database connection"""
+    return pyodbc.connect(CONNECTION_STRING)
+
+
+def query_transaction_by_bill_id(bill_id: str) -> Dict:
+    """Query Transactions table for a specific bill ID"""
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    cursor.execute("""
+        SELECT EventType, BillID, Amount, Currency, AccountID, Status, DeclineReason, Timestamp
+        FROM Transactions
+        WHERE BillID = ?
+        ORDER BY Timestamp DESC
+    """, bill_id)
+    row = cursor.fetchone()
+    conn.close()
+
+    if row:
+        return {
+            "EventType": row[0],
+            "BillID": row[1],
+            "Amount": float(row[2]),
+            "Currency": row[3],
+            "AccountID": row[4],
+            "Status": row[5],
+            "DeclineReason": row[6],
+            "Timestamp": row[7]
+        }
+    return None
 
 
 @pytest.fixture
@@ -256,6 +296,7 @@ def test_declined_payment_shows_in_newrelic(reset_risk_scenarios):
     print("\n2. Sending 10 test payments...")
     approved_count = 0
     declined_count = 0
+    declined_bill_ids = []  # Track declined payment IDs for database validation
 
     for i in range(10):
         result = make_test_payment(amount=100.0 + (i * 10))
@@ -264,7 +305,8 @@ def test_declined_payment_shows_in_newrelic(reset_risk_scenarios):
             print(f"   Payment {i+1}: ✅ APPROVED")
         elif result['status_code'] == 403:
             declined_count += 1
-            print(f"   Payment {i+1}: ❌ DECLINED")
+            declined_bill_ids.append(result['payment_data']['billId'])
+            print(f"   Payment {i+1}: ❌ DECLINED (BillID: {result['payment_data']['billId']})")
         time.sleep(1)
 
     print(f"\n   Summary: {approved_count} approved, {declined_count} declined")
@@ -273,8 +315,8 @@ def test_declined_payment_shows_in_newrelic(reset_risk_scenarios):
     print("\n3. Disabling rogue agent...")
     disable_rogue_agent()
 
-    # Wait for logs to appear in New Relic
-    print("\n4. Waiting 30 seconds for logs to appear in New Relic...")
+    # Wait for logs and Kafka processing
+    print("\n4. Waiting 30 seconds for logs and database entries...")
     time.sleep(30)
 
     # Query for declined payment logs
@@ -310,6 +352,48 @@ def test_declined_payment_shows_in_newrelic(reset_risk_scenarios):
     else:
         print("   ⚠️  No declined payment logs found")
         pytest.skip("No declined payment logs found in New Relic")
+
+    # Validate database entries for declined payments
+    print(f"\n7. Validating database entries for declined payments...")
+    if declined_bill_ids:
+        db_entries_found = 0
+        db_entries_missing = 0
+
+        for bill_id in declined_bill_ids:
+            transaction = query_transaction_by_bill_id(bill_id)
+            if transaction:
+                db_entries_found += 1
+                print(f"   ✓ Found database entry for {bill_id}")
+                print(f"     - EventType: {transaction['EventType']}")
+                print(f"     - Status: {transaction['Status']}")
+                print(f"     - DeclineReason: {transaction['DeclineReason'][:80]}...")
+
+                # Validate transaction data
+                assert transaction['EventType'] == 'BillPaymentDeclined', \
+                    f"Expected EventType='BillPaymentDeclined', got '{transaction['EventType']}'"
+                assert transaction['Status'] == 'declined', \
+                    f"Expected Status='declined', got '{transaction['Status']}'"
+                assert transaction['DeclineReason'] is not None, \
+                    "DeclineReason should not be null for declined payment"
+
+                # Check that DeclineReason contains risk assessment details
+                decline_reason = transaction['DeclineReason']
+                assert 'risk' in decline_reason.lower() or 'declined' in decline_reason.lower(), \
+                    f"DeclineReason should mention risk or decline: {decline_reason}"
+            else:
+                db_entries_missing += 1
+                print(f"   ✗ Missing database entry for {bill_id}")
+
+        print(f"\n   Database entries: {db_entries_found} found, {db_entries_missing} missing")
+
+        # We should find at least some declined payments in the database
+        assert db_entries_found > 0, \
+            f"Expected to find declined payments in database, found {db_entries_found}"
+
+        print(f"\n✅ PASS: Declined payments correctly recorded in database")
+    else:
+        print("   ⚠️  No declined payments to validate in database (all payments were approved)")
+        print("   This can happen with probabilistic rogue agent - test still valid")
 
 
 # Test 5: Agent Model Tracking

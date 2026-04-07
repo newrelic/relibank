@@ -166,6 +166,34 @@ class BillPaymentDeclined(BaseModel):
     timestamp: float
 
 
+class CardPaymentProcessed(BaseModel):
+    eventType: str = "CardPaymentProcessed"
+    billId: str = Field(min_length=1)
+    amount: float = Field(gt=0)
+    currency: str = Field(min_length=3)
+    paymentIntentId: str
+    customerId: str
+    status: str
+    timestamp: float
+
+
+class CardPaymentDeclined(BaseModel):
+    eventType: str = "CardPaymentDeclined"
+    billId: str = Field(min_length=1)
+    amount: float = Field(gt=0)
+    currency: str = Field(min_length=3)
+    reason: str
+    message: str
+    paymentMethod: str
+    paymentMethodId: str
+    processor: str
+    customerId: str
+    paymentIntentId: Optional[str] = None  # May not exist if declined before Stripe
+    risk_level: Optional[str] = None  # Only present for risk assessment declines
+    risk_score: Optional[float] = None  # Only present for risk assessment declines
+    timestamp: float
+
+
 # This is a model for the response from the accounts service
 class AccountType(BaseModel):
     id: int
@@ -177,6 +205,8 @@ EVENT_MODELS = {
     "BillPaymentInitiatedFromAcct": BillPaymentInitiatedFromAcct,
     "BillPaymentInitiatedToAcct": BillPaymentInitiatedToAcct,
     "BillPaymentDeclined": BillPaymentDeclined,
+    "CardPaymentProcessed": CardPaymentProcessed,
+    "CardPaymentDeclined": CardPaymentDeclined,
     "RecurringPaymentScheduled": RecurringPaymentScheduled,
     "BillPaymentCancelled": BillPaymentCancelled,
     "PaymentDueNotificationEvent": PaymentDueNotificationEvent,
@@ -265,6 +295,8 @@ async def start_kafka_consumer():
             consumer = AIOKafkaConsumer(
                 "bill_payments",
                 "bill_payments_declined",
+                "card_payments",
+                "card_payments_declined",
                 "recurring_payments",
                 "payment_cancellations",
                 "payment_due_notifications",
@@ -454,6 +486,54 @@ async def start_kafka_consumer():
                         )
                         db_connection.commit()
                         logging.info(f"Payment for bill ID {event_model.billId} cancelled and updated.")
+                    elif event_type == "CardPaymentProcessed":
+                        # Process successful card payment
+                        logging.info(f"Processing card payment: {event_model.billId}, payment_intent: {event_model.paymentIntentId}")
+
+                        # Insert card payment using existing schema (AccountID=0 for card payments)
+                        cursor.execute(
+                            """
+                            INSERT INTO Transactions (EventType, BillID, Amount, Currency, AccountID, Timestamp, Status)
+                            VALUES (?, ?, ?, ?, ?, ?, ?)
+                        """,
+                            "CardPaymentProcessed",
+                            event_model.billId,
+                            event_model.amount,
+                            event_model.currency,
+                            0,  # AccountID=0 for card payments (no bank account involved)
+                            event_model.timestamp,
+                            event_model.status
+                        )
+                        db_connection.commit()
+                        logging.info(f"Card payment {event_model.billId} recorded in Transactions table.")
+
+                    elif event_type == "CardPaymentDeclined":
+                        # Record declined card payment in Transactions table (no ledger updates)
+                        logging.info(f"Processing declined card payment: {event_model.billId}, reason: {event_model.reason}")
+
+                        # Build decline reason string with all available info
+                        decline_details = f"{event_model.reason}: {event_model.message}"
+                        if event_model.risk_level and event_model.risk_score:
+                            decline_details += f" (Risk Level: {event_model.risk_level}, Score: {event_model.risk_score})"
+                        decline_details += f" | Method: {event_model.paymentMethodId} | Processor: {event_model.processor}"
+
+                        # Insert declined card payment using existing schema (AccountID=0 for card payments)
+                        cursor.execute(
+                            """
+                            INSERT INTO Transactions (EventType, BillID, Amount, Currency, AccountID, Timestamp, Status, DeclineReason)
+                            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                        """,
+                            "CardPaymentDeclined",
+                            event_model.billId,
+                            event_model.amount,
+                            event_model.currency,
+                            0,  # AccountID=0 for card payments
+                            event_model.timestamp,
+                            "declined",
+                            decline_details
+                        )
+                        db_connection.commit()
+                        logging.info(f"Declined card payment {event_model.billId} recorded in Transactions table with decline reason: {event_model.reason}.")
                     elif event_type == "PaymentDueNotificationEvent":
                         # This event signals that a recurring payment is due
                         logging.info(

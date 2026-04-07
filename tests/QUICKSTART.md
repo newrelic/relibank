@@ -4,7 +4,17 @@ Get started with Relibank testing in under 5 minutes.
 
 ## 🚀 Quick Setup
 
-### 1. Install Dependencies
+### 1. Install System Dependencies (macOS only)
+
+For database validation tests, install unixodbc:
+
+```bash
+brew install unixodbc
+```
+
+**Note**: If you skip this step, tests that require database connectivity will fail. This is only needed on macOS.
+
+### 2. Install Python Dependencies
 
 Run the setup script from the base relibank/ directory to create a virtual environment and install all dependencies:
 
@@ -14,16 +24,17 @@ Run the setup script from the base relibank/ directory to create a virtual envir
 
 This will:
 - Create a Python virtual environment (`.venv-relibank-tests`)
-- Install pytest and requests
+- Install pytest, requests, and pyodbc
+- Check for unixodbc (on macOS)
 - Verify your Python installation
 
-### 2. Activate the Environment
+### 3. Activate the Environment
 
 ```bash
 source .venv-relibank-tests/bin/activate
 ```
 
-### 3. Run Tests Against Local
+### 4. Run Tests Against Local
 
 **Test everything:**
 ```bash

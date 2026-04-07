@@ -352,14 +352,16 @@ async def process_bill_payment(payment_details: PaymentDetails, request: Request
                 }
                 await publish_message("bill_payments_declined", declined_event)
 
+                # Log detailed decline reason (for debugging/observability)
+                logging.warning(
+                    f"Payment declined by risk assessment: {risk_result.get('reason')} "
+                    f"(Risk Level: {risk_result.get('risk_level')}, Score: {risk_result.get('risk_score')})"
+                )
+
+                # Generic user-facing message (hide demo scenario details)
                 raise HTTPException(
                     status_code=403,
-                    detail={
-                        "error": "Payment declined due to risk assessment",
-                        "reason": risk_result.get("reason"),
-                        "risk_level": risk_result.get("risk_level"),
-                        "risk_score": risk_result.get("risk_score")
-                    }
+                    detail="Payment declined due to security concerns. Please contact support for assistance."
                 )
 
             logging.info(f"Payment APPROVED by risk assessment: {payment_details.billId}")
@@ -761,6 +763,27 @@ async def process_card_payment(payment: CardPaymentRequest, request: Request):
         # If payment was declined by risk assessment, raise error after Stripe processes
         if risk_decline_info:
             logging.warning(f"Raising error for risk-declined payment after Stripe processing: {payment.billId}")
+
+            # Publish declined card payment to Kafka (risk assessment decline)
+            declined_event = {
+                "eventType": "CardPaymentDeclined",
+                "billId": payment.billId,
+                "amount": payment.amount,
+                "currency": payment.currency,
+                "reason": "risk_assessment_declined",
+                "message": risk_decline_info["reason"],
+                "paymentMethod": "card",
+                "paymentMethodId": "pm_card_visa_chargeDeclined",  # Shows risk assessment used declined test card
+                "processor": "stripe",
+                "customerId": customer_id,
+                "paymentIntentId": payment_intent.id,
+                "risk_level": risk_decline_info["risk_level"],
+                "risk_score": risk_decline_info["risk_score"],
+                "timestamp": time.time()
+            }
+            await publish_message("card_payments_declined", declined_event)
+            logging.info(f"Published CardPaymentDeclined event (risk assessment) to Kafka for bill {payment.billId}")
+
             raise HTTPException(
                 status_code=403,
                 detail=risk_decline_info
@@ -791,6 +814,23 @@ async def process_card_payment(payment: CardPaymentRequest, request: Request):
             "processor": "stripe",
             "message": e.user_message
         })
+
+        # Publish declined card payment to Kafka
+        declined_event = {
+            "eventType": "CardPaymentDeclined",
+            "billId": payment.billId,
+            "amount": payment.amount,
+            "currency": payment.currency,
+            "reason": decline_code,
+            "message": e.user_message,
+            "paymentMethod": "card",
+            "paymentMethodId": payment_method_to_use,  # Shows pm_card_visa_chargeDeclinedStolenCard for stolen card
+            "processor": "stripe",
+            "customerId": customer_id,
+            "timestamp": time.time()
+        }
+        await publish_message("card_payments_declined", declined_event)
+        logging.info(f"Published CardPaymentDeclined event to Kafka for bill {payment.billId}")
 
         raise HTTPException(status_code=402, detail=f"Card declined: {e.user_message}")
     except stripe.error.StripeError as e:
