@@ -133,6 +133,7 @@ jobs:
             "mssql-custom"
             "postgres-custom"
             "support-service"
+            "risk-assessment-service"
             "scenario-runner"
             "otel-collector-kafka"
             "kafka-with-monitoring"
@@ -166,6 +167,11 @@ jobs:
       - name: Deploy to AKS
         if: (inputs.deploy == true || inputs.deploy == 'true') || inputs.skip_build == true
         run: |
+          echo "Deleting existing immutable Jobs..."
+          kubectl delete job postgres-init -n relibank --ignore-not-found=true
+          kubectl delete job mssql-init -n relibank --ignore-not-found=true
+          echo "✅ Jobs deleted"
+
           echo "Applying azure-prod overlay to cluster..."
           kubectl apply -k k8s/overlays/azure-prod
           echo "✅ Manifests applied successfully"
@@ -236,7 +242,7 @@ jobs:
           helm upgrade --install nri-bundle newrelic/nri-bundle \
             --namespace newrelic \
             --create-namespace \
-            --version 5.0.110 \
+            --version 6.0.45 \
             --set global.licenseKey="${{ secrets.NR_LICENSE_KEY }}" \
             --set global.cluster="relibank-prod" \
             --set global.lowDataMode=false \
@@ -251,6 +257,9 @@ jobs:
             --set nr-ebpf-agent.enabled=true \
             --set nr-ebpf-agent.apmDataReporting=true \
             --set nr-ebpf-agent.networkMetricsReporting=true \
+            --set nr-ebpf-agent.allDataFilters.dropServiceNameRegex=".*" \
+            --set nr-ebpf-agent.allDataFilters.keepServiceNameRegex="risk-assessment-service" \
+            --set nr-ebpf-agent.allDataFilters.dropApmAgentEnabledEntity=true \
             --set pixie.enabled=false \
             --set newrelic-pixie.enabled=false \
             --wait
