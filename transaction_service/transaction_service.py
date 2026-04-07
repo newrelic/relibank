@@ -645,19 +645,28 @@ app = FastAPI(
 
 
 @app.get("/transaction-service/transactions", response_model=List[TransactionRecord])
-async def get_transactions(request: Request):
+async def get_transactions(request: Request, limit: int = 50):
     """
-    Retrieves all transactions from the database.
+    Retrieves transactions from the database.
+
+    Args:
+        limit: Maximum number of transactions to return (default: 50, max: 1000)
     """
     if not db_connection:
         raise HTTPException(status_code=503, detail="Database connection failed.")
 
+    # Enforce reasonable limits to prevent browser crashes
+    if limit < 1:
+        limit = 50
+    elif limit > 1000:
+        limit = 1000
+
     try:
         cursor = db_connection.cursor()
-        cursor.execute("SELECT * FROM Transactions")
+        cursor.execute("SELECT TOP (?) * FROM Transactions ORDER BY TransactionID DESC", (limit,))
         columns = [column[0] for column in cursor.description]
         transactions = [TransactionRecord(**dict(zip(columns, row))) for row in cursor.fetchall()]
-        logging.info(f"Retrieved {len(transactions)} transactions.")
+        logging.info(f"Retrieved {len(transactions)} transactions (limit: {limit}).")
         process_headers(dict(request.headers))
         return transactions
     except Exception as e:

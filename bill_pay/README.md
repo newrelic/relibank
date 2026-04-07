@@ -14,7 +14,7 @@ This service is a core component of the **Relibank** FinServ application. Its pr
 
 * **Pydantic Validation**: Validates all incoming API requests to ensure data integrity.
 
-* **Kafka Producer**: Publishes payment-related events to dedicated Kafka topics: `bill_payments`, `recurring_payments`, `payment_cancellations`, and `card_payments`.
+* **Kafka Producer**: Publishes payment-related events to dedicated Kafka topics: `bill_payments`, `recurring_payments`, `payment_cancellations`, `card_payments`, `card_payments_declined`, and `bill_payments_declined`. Both successful and declined payments are recorded in the transaction database via the transaction service.
 
 * **Service-to-Service Communication**: Makes a synchronous API call to the `transaction-service` to check for the existence of a `billId` before processing a payment or cancellation. This ensures data consistency and prevents duplicate transactions.
 

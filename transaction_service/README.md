@@ -6,7 +6,7 @@ This service is a core component of the **Relibank** FinServ application. It act
 
 ### 🚀 Key Features
 
-* **Kafka Consumer**: Listens for and processes payment-related events from the `bill_payments`, `recurring_payments`, and `payment_cancellations` topics.
+* **Kafka Consumer**: Listens for and processes payment-related events from the `bill_payments`, `recurring_payments`, `payment_cancellations`, `card_payments`, `card_payments_declined`, and `bill_payments_declined` topics. All payment outcomes (successful and declined) are persisted to the database.
 
 * **MSSQL Database Integration**: Persists all processed events into a `Transactions` table in a dedicated MSSQL database.
 
@@ -36,9 +36,11 @@ The service exposes the following API endpoints, which are designed to be consum
 The service uses a Microsoft SQL Server database with the following key tables:
 
 **Transactions Table:**
-- Stores all processed payment transactions
+- Stores all processed payment transactions (successful and declined)
 - Populated by Kafka consumer from payment events
 - Queried by the `/transactions` and `/transaction/{bill_id}` endpoints
+- Includes `Status` field (e.g., 'completed', 'declined') and `DeclineReason` field for failed payments
+- Card payments use `AccountID=0` to distinguish from bank account transfers
 
 **RecurringSchedules Table:**
 - Stores recurring payment schedules
