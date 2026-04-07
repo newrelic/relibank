@@ -63,6 +63,8 @@ class TransactionRecord(BaseModel):
     timestamp: float = Field(alias="Timestamp")
     cancellation_user_id: Optional[str] = Field(None, alias="CancellationUserID")
     cancellation_timestamp: Optional[float] = Field(None, alias="CancellationTimestamp")
+    status: Optional[str] = Field(None, alias="Status")
+    decline_reason: Optional[str] = Field(None, alias="DeclineReason")
 
     class Config:
         populate_by_name = True  # This tells Pydantic to use the alias when converting from the database row

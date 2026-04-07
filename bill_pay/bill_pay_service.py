@@ -623,6 +623,24 @@ async def process_card_payment(payment: CardPaymentRequest, request: Request):
                 "paymentMethod": "card",
                 "processor": "stripe"
             })
+
+            # Publish declined card payment to Kafka
+            declined_event = {
+                "eventType": "CardPaymentDeclined",
+                "billId": payment.billId,
+                "amount": payment.amount,
+                "currency": payment.currency,
+                "reason": "card_declined",
+                "message": "Payment declined by card issuer. Please try a different payment method or contact your bank.",
+                "paymentMethod": "card",
+                "paymentMethodId": payment_method_to_use,
+                "processor": "stripe",
+                "customerId": payment.customerId or "unknown",
+                "timestamp": time.time()
+            }
+            await publish_message("card_payments_declined", declined_event)
+            logging.info(f"Published CardPaymentDeclined event (scenario) to Kafka for bill {payment.billId}")
+
             raise HTTPException(
                 status_code=402,
                 detail="Payment declined by card issuer. Please try a different payment method or contact your bank."
