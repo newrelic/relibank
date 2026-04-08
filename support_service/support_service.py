@@ -687,7 +687,7 @@ Be warm, helpful, and ensure the customer understands the key points.""",
 
         # Apply artificial delay if configured
         if self.delay_seconds > 0:
-            logger.info(f"Artificially delaying specialist by {self.delay_seconds} seconds for demo")
+            logger.info(f"Delaying specialist agent by {self.delay_seconds}s for demo")
             await asyncio.sleep(self.delay_seconds)
 
         # Record agent-to-agent transition
@@ -943,7 +943,7 @@ async def lifespan(app: FastAPI):
     azure_api_key = AZURE_OPENAI_API_KEY
 
     if not azure_endpoint or not azure_api_key:
-        logger.error("AZURE_OPENAI_ENDPOINT or AZURE_OPENAI_API_KEY not set. Application will not start.")
+        logger.error("AZURE_OPENAI_ENDPOINT or AZURE_OPENAI_API_KEY not set")
         raise RuntimeError("Azure OpenAI credentials are required for startup.")
 
     try:
@@ -953,9 +953,9 @@ async def lifespan(app: FastAPI):
             azure_endpoint=azure_endpoint
         )
         is_ready = True
-        logger.info("Azure OpenAI client initialized successfully for LangGraph agents.")
+        logger.info("Azure OpenAI client initialized for LangGraph agents")
     except Exception as e:
-        logger.critical(f"Failed to initialize Azure OpenAI client: {e}. Application will not serve requests.")
+        logger.critical(f"Failed to initialize Azure OpenAI client: {e}")
         is_ready = False
         azure_client = None
 
@@ -996,7 +996,7 @@ async def chat_with_model(prompt: str) -> ChatResponse:
         )
 
     try:
-        logger.info(f"Received prompt on legacy endpoint: '{prompt}' - routing to Azure agents")
+        logger.info(f"Routing legacy endpoint request to Azure agents: {prompt[:50]}")
 
         # Route to Azure agent workflow
         request_obj = AssistantChatRequest(message=prompt, thread_id=None)
@@ -1148,16 +1148,18 @@ async def assess_payment_risk(request: RiskAssessmentRequest) -> RiskAssessmentR
 
     agent_config = RISK_AGENTS[agent_name]
 
-    logger.info(
-        f"Risk assessment request received",
-        extra={
+    logger.info(json.dumps({
+        "message": {
+            "log_level": "INFO",
+            "service": "support_service",
+            "event": "RISK_ASSESSMENT_REQUEST",
             "transaction_id": request.transaction_id,
             "account_id": request.account_id,
             "amount": request.amount,
             "payee": request.payee,
             "agent": agent_config["display_name"]
         }
-    )
+    }))
 
     try:
         # Initialize AsyncOpenAI client for the selected agent
@@ -1290,27 +1292,31 @@ Approve legitimate transactions, decline only clear fraud risks."""
             agent_model=agent_config["display_name"]
         )
 
-        logger.info(
-            f"Risk assessment completed",
-            extra={
+        logger.info(json.dumps({
+            "message": {
+                "log_level": "INFO",
+                "service": "support_service",
+                "event": "RISK_ASSESSMENT_COMPLETED",
                 "transaction_id": request.transaction_id,
                 "risk_level": result.risk_level,
                 "risk_score": result.risk_score,
                 "decision": result.decision,
                 "agent": agent_config["display_name"]
             }
-        )
+        }))
 
         return result
 
     except Exception as e:
-        logger.error(
-            f"Risk assessment error",
-            extra={
+        logger.error(json.dumps({
+            "message": {
+                "log_level": "ERROR",
+                "service": "support_service",
+                "event": "RISK_ASSESSMENT_ERROR",
                 "transaction_id": request.transaction_id,
                 "error": str(e)
             }
-        )
+        }))
         newrelic.agent.notice_error()
         raise HTTPException(status_code=500, detail=f"Risk assessment failed: {str(e)}")
 

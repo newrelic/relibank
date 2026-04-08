@@ -34,26 +34,24 @@ async def lifespan(app: FastAPI):
     delay = 1
     for i in range(retries):
         try:
-            logger.info(f"Attempting to connect to Kafka at {kafka_broker} (attempt {i + 1}/{retries})...")
+            logger.info(f"Attempting to connect to Kafka at {kafka_broker} (attempt {i + 1}/{retries})")
             producer = AIOKafkaProducer(bootstrap_servers=kafka_broker)
             await producer.start()
-            logger.info("Kafka producer connected successfully.")
+            logger.info("Kafka producer connected successfully")
             break
         except Exception as e:
-            logger.warning(f"Failed to connect to Kafka: {e}. Retrying in {delay} seconds...")
+            logger.warning(f"Failed to connect to Kafka: {e}. Retrying in {delay} seconds")
             await asyncio.sleep(delay)
             delay *= 2  # Exponential backoff
     else:
-        logger.error(
-            "Failed to connect to Kafka after multiple retries. The application will not be able to publish messages."
-        )
+        logger.error("Failed to connect to Kafka after multiple retries. Service will not publish messages")
 
     yield
 
     # Shutdown logic
     if producer:
         await producer.stop()
-        logger.info("Kafka producer stopped.")
+        logger.info("Kafka producer stopped")
 
 
 # FastAPI app instance with lifespan
@@ -130,11 +128,15 @@ async def call_support_service(request_data: dict) -> dict:
     start_time = time.time()
 
     logger.info(json.dumps({
-        "event": "SUPPORT_SERVICE_CALL",
-        "transaction_id": request_data.get("transaction_id"),
-        "account_id": request_data.get("account_id"),
-        "amount": request_data.get("amount"),
-        "payee": request_data.get("payee"),
+        "message": {
+            "log_level": "INFO",
+            "service": "risk_assessment_service",
+            "event": "SUPPORT_SERVICE_CALL",
+            "transaction_id": request_data.get("transaction_id"),
+            "account_id": request_data.get("account_id"),
+            "amount": request_data.get("amount"),
+            "payee": request_data.get("payee")
+        }
     }))
 
     try:
@@ -150,23 +152,31 @@ async def call_support_service(request_data: dict) -> dict:
             duration_ms = int((time.time() - start_time) * 1000)
 
             logger.info(json.dumps({
-                "event": "SUPPORT_SERVICE_RESPONSE",
-                "transaction_id": request_data.get("transaction_id"),
-                "agent_model": result.get("agent_model"),
-                "decision": result.get("decision"),
-                "risk_level": result.get("risk_level"),
-                "risk_score": result.get("risk_score"),
-                "support_service_duration_ms": duration_ms,
+                "message": {
+                    "log_level": "INFO",
+                    "service": "risk_assessment_service",
+                    "event": "SUPPORT_SERVICE_RESPONSE",
+                    "transaction_id": request_data.get("transaction_id"),
+                    "agent_model": result.get("agent_model"),
+                    "decision": result.get("decision"),
+                    "risk_level": result.get("risk_level"),
+                    "risk_score": result.get("risk_score"),
+                    "support_service_duration_ms": duration_ms
+                }
             }))
 
             return result
 
     except httpx.HTTPStatusError as e:
         logger.error(json.dumps({
-            "event": "SUPPORT_SERVICE_ERROR",
-            "transaction_id": request_data.get("transaction_id"),
-            "status_code": e.response.status_code,
-            "error": str(e),
+            "message": {
+                "log_level": "ERROR",
+                "service": "risk_assessment_service",
+                "event": "SUPPORT_SERVICE_ERROR",
+                "transaction_id": request_data.get("transaction_id"),
+                "status_code": e.response.status_code,
+                "error": str(e)
+            }
         }))
         raise HTTPException(
             status_code=503,
@@ -174,9 +184,13 @@ async def call_support_service(request_data: dict) -> dict:
         )
     except httpx.RequestError as e:
         logger.error(json.dumps({
-            "event": "SUPPORT_SERVICE_CONNECTION_FAILED",
-            "transaction_id": request_data.get("transaction_id"),
-            "error": str(e),
+            "message": {
+                "log_level": "ERROR",
+                "service": "risk_assessment_service",
+                "event": "SUPPORT_SERVICE_CONNECTION_FAILED",
+                "transaction_id": request_data.get("transaction_id"),
+                "error": str(e)
+            }
         }))
         raise HTTPException(
             status_code=503,
@@ -184,9 +198,13 @@ async def call_support_service(request_data: dict) -> dict:
         )
     except Exception as e:
         logger.error(json.dumps({
-            "event": "SUPPORT_SERVICE_UNEXPECTED_ERROR",
-            "transaction_id": request_data.get("transaction_id"),
-            "error": str(e),
+            "message": {
+                "log_level": "ERROR",
+                "service": "risk_assessment_service",
+                "event": "SUPPORT_SERVICE_UNEXPECTED_ERROR",
+                "transaction_id": request_data.get("transaction_id"),
+                "error": str(e)
+            }
         }))
         raise HTTPException(
             status_code=500,
@@ -212,12 +230,16 @@ async def assess_risk(request: RiskAssessmentRequest) -> RiskAssessmentResponse:
     assessment_start = time.time()
 
     logger.info(json.dumps({
-        "event": "RISK_ASSESSMENT_REQUESTED",
-        "transaction_id": request.transaction_id,
-        "account_id": request.account_id,
-        "amount": request.amount,
-        "payee": request.payee,
-        "payment_method": request.payment_method,
+        "message": {
+            "log_level": "INFO",
+            "service": "risk_assessment_service",
+            "event": "RISK_ASSESSMENT_REQUESTED",
+            "transaction_id": request.transaction_id,
+            "account_id": request.account_id,
+            "amount": request.amount,
+            "payee": request.payee,
+            "payment_method": request.payment_method
+        }
     }))
 
     try:
@@ -259,17 +281,21 @@ async def assess_risk(request: RiskAssessmentRequest) -> RiskAssessmentResponse:
         # Publish Kafka event for declined payments
         if decision == "declined":
             logger.warning(json.dumps({
-                "event": "PAYMENT_DECLINED",
-                "processor_model": agent_model,
-                "transaction_id": request.transaction_id,
-                "account_id": request.account_id,
-                "amount": request.amount,
-                "payee": request.payee,
-                "risk_level": risk_level,
-                "risk_score": risk_score,
-                "reason": reason,
-                "decision": "declined",
-                "assessment_duration_ms": assessment_duration_ms,
+                "message": {
+                    "log_level": "WARNING",
+                    "service": "risk_assessment_service",
+                    "event": "PAYMENT_DECLINED",
+                    "processor_model": agent_model,
+                    "transaction_id": request.transaction_id,
+                    "account_id": request.account_id,
+                    "amount": request.amount,
+                    "payee": request.payee,
+                    "risk_level": risk_level,
+                    "risk_score": risk_score,
+                    "reason": reason,
+                    "decision": "declined",
+                    "assessment_duration_ms": assessment_duration_ms
+                }
             }))
 
             try:
@@ -277,31 +303,35 @@ async def assess_risk(request: RiskAssessmentRequest) -> RiskAssessmentResponse:
                     "payment-declined",
                     value=json.dumps(assessment_event.dict()).encode("utf-8")
                 )
-                logger.info(json.dumps({
-                    "event": "KAFKA_PUBLISH_SUCCESS",
-                    "transaction_id": request.transaction_id,
-                    "topic": "payment-declined",
-                }))
+                logger.info(f"Published to Kafka topic payment-declined for transaction {request.transaction_id}")
             except Exception as e:
                 logger.error(json.dumps({
-                    "event": "KAFKA_PUBLISH_FAILED",
-                    "transaction_id": request.transaction_id,
-                    "error": str(e),
+                    "message": {
+                        "log_level": "ERROR",
+                        "service": "risk_assessment_service",
+                        "event": "KAFKA_PUBLISH_FAILED",
+                        "transaction_id": request.transaction_id,
+                        "error": str(e)
+                    }
                 }))
                 # Don't fail the request if Kafka publishing fails
         else:
             logger.info(json.dumps({
-                "event": "PAYMENT_APPROVED",
-                "processor_model": agent_model,
-                "transaction_id": request.transaction_id,
-                "account_id": request.account_id,
-                "amount": request.amount,
-                "payee": request.payee,
-                "risk_level": risk_level,
-                "risk_score": risk_score,
-                "reason": reason,
-                "decision": "approved",
-                "assessment_duration_ms": assessment_duration_ms,
+                "message": {
+                    "log_level": "INFO",
+                    "service": "risk_assessment_service",
+                    "event": "PAYMENT_APPROVED",
+                    "processor_model": agent_model,
+                    "transaction_id": request.transaction_id,
+                    "account_id": request.account_id,
+                    "amount": request.amount,
+                    "payee": request.payee,
+                    "risk_level": risk_level,
+                    "risk_score": risk_score,
+                    "reason": reason,
+                    "decision": "approved",
+                    "assessment_duration_ms": assessment_duration_ms
+                }
             }))
 
         # Return response to Bill Pay
@@ -315,13 +345,7 @@ async def assess_risk(request: RiskAssessmentRequest) -> RiskAssessmentResponse:
             agent_model=agent_model,
         )
 
-        logger.info(json.dumps({
-            "event": "RISK_ASSESSMENT_COMPLETED",
-            "processor_model": agent_model,
-            "transaction_id": request.transaction_id,
-            "decision": decision,
-            "assessment_duration_ms": assessment_duration_ms,
-        }))
+        logger.info(f"Risk assessment completed for transaction {request.transaction_id}: {decision}")
 
         return response
 
@@ -330,9 +354,13 @@ async def assess_risk(request: RiskAssessmentRequest) -> RiskAssessmentResponse:
         raise
     except Exception as e:
         logger.error(json.dumps({
-            "event": "RISK_ASSESSMENT_ERROR",
-            "transaction_id": request.transaction_id,
-            "error": str(e),
+            "message": {
+                "log_level": "ERROR",
+                "service": "risk_assessment_service",
+                "event": "RISK_ASSESSMENT_ERROR",
+                "transaction_id": request.transaction_id,
+                "error": str(e)
+            }
         }))
         raise HTTPException(
             status_code=500,
