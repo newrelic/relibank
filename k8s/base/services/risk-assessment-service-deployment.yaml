@@ -12,6 +12,8 @@ spec:
       app: risk-assessment-service
   template:
     metadata:
+      annotations:
+        newrelic.com/integrations-sidecar-skip-injection: "true"
       labels:
         app: risk-assessment-service
     spec:
