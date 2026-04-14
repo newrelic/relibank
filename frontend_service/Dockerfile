@@ -31,6 +31,12 @@ RUN ./generate_nrjs_file.sh
 ENV HOST=0.0.0.0
 ENV PORT=3000
 
+# Build microfrontends first
+RUN npm run build:mfe:ad-banner
+RUN npm run build:mfe:spending-chart
+RUN npm run build:mfe:spending-categories
+RUN npm run build:mfe:account-balance-trends
+
 # Pre-build to optimize Vite dependencies cache
 # This prevents the race condition where chunks aren't ready on first page load
 RUN npm run build

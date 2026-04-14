@@ -9,3 +9,5 @@ requests>=2.31.0
 
 # Database connectivity (for transaction validation tests)
 pyodbc>=5.0.0
+# Browser automation for microfrontend tests
+selenium>=4.0.0

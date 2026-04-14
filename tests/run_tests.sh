@@ -50,8 +50,14 @@ OPTIONS:
     -h, --help              Show this help message
 
 ENVIRONMENT VARIABLES:
-    RELIBANK_URL            Remote URL (required if env=remote)
-                           Example: export RELIBANK_URL="http://your-server.example.com"
+    RELIBANK_URL                   Remote URL (required if env=remote)
+                                   Example: export RELIBANK_URL="http://your-server.example.com"
+
+    NEW_RELIC_USER_API_KEY         New Relic User API Key (required for microfrontend tests)
+                                   Example: export NEW_RELIC_USER_API_KEY="NRAK-..."
+
+    NEW_RELIC_ACCOUNT_ID           New Relic Account ID (required for microfrontend tests)
+                                   Example: export NEW_RELIC_ACCOUNT_ID="4182956"
 
 EXAMPLES:
     # Run all tests locally
