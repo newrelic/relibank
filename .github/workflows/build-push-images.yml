@@ -258,7 +258,6 @@ jobs:
             --set nr-ebpf-agent.enabled=true \
             --set nr-ebpf-agent.apmDataReporting=true \
             --set nr-ebpf-agent.networkMetricsReporting=true \
-            --set nr-ebpf-agent.allDataFilters.dropApmAgentEnabledEntity=true \
             --set pixie.enabled=false \
             --set newrelic-pixie.enabled=false \
             --wait
