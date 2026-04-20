@@ -9,6 +9,7 @@ import {
 import { useState, createContext, useEffect, useMemo } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { AppLayout } from '~/components/layout/AppLayout';
+import '~/microfrontend-globals';
 
 import nrScriptTemplate from "./nr.js?raw";
 
@@ -303,6 +304,10 @@ export function Layout({ children }: { children: React.ReactNode }) {
               }
             })();
           ` }}></script>
+          <script src="/microfrontends/ad-banner/ad-banner.js"></script>
+          <script src="/microfrontends/spending-chart/spending-chart.js"></script>
+          <script src="/microfrontends/spending-categories/spending-categories.js"></script>
+          <script src="/microfrontends/account-balance-trends/account-balance-trends.js"></script>
           <meta charSet="utf-8" />
           <meta name="viewport" content="width=device-width, initial-scale=1" />
           {/* Prevent browser caching to avoid stale JS errors after Skaffold rebuilds.
@@ -349,6 +354,10 @@ export function Layout({ children }: { children: React.ReactNode }) {
             }
           })();
         ` }}></script>
+        <script src="/microfrontends/ad-banner/ad-banner.js"></script>
+        <script src="/microfrontends/spending-chart/spending-chart.js"></script>
+        <script src="/microfrontends/spending-categories/spending-categories.js"></script>
+        <script src="/microfrontends/account-balance-trends/account-balance-trends.js"></script>
         <meta charSet="utf-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1" />
         {/* Prevent browser caching to avoid stale JS errors after Skaffold rebuilds.

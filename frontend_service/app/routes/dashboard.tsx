@@ -1,4 +1,36 @@
 import { useState, useContext, useEffect } from 'react';
+
+// TypeScript definitions for microfrontends
+declare global {
+  interface Window {
+    RelibankMicrofrontends?: {
+      AdBanner?: {
+        mount: (options: {
+          containerId: string;
+          onSignUpClick?: () => void;
+        }) => () => void;
+      };
+      SpendingChart?: {
+        mount: (options: {
+          containerId: string;
+          data: { name: string; value: number }[];
+        }) => () => void;
+      };
+      SpendingCategories?: {
+        mount: (options: {
+          containerId: string;
+          data: { name: string; value: number; color: string }[];
+        }) => () => void;
+      };
+      AccountBalanceTrends?: {
+        mount: (options: {
+          containerId: string;
+          data: { month: string; checking: number; savings: number }[];
+        }) => () => void;
+      };
+    };
+  }
+}
 import { Link } from 'react-router-dom';
 import {
   Box,
@@ -37,7 +69,7 @@ import {
   InputAdornment,
   Chip
 } from '@mui/material';
-import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, Legend, ResponsiveContainer, PieChart, Pie, Cell, BarChart, Bar } from 'recharts';
+// Recharts no longer imported - charts are now microfrontends
 import {
     Dashboard as DashboardIcon,
     AccountBalanceWallet as AccountBalanceWalletIcon,
@@ -143,71 +175,8 @@ const OverviewCard = ({ title, value, icon, info }) => (
   </Card>
 );
 
-// Spending Chart Card component
-const SpendingChart = ({ data }) => (
-  <Card sx={{ p: 3, height: '100%', display: 'flex', flexDirection: 'column' }}>
-    <Typography variant="h6" sx={{ mb: 2 }}>Spending over last 6 months</Typography>
-    <Box sx={{ height: 300 }}>
-      <ResponsiveContainer width="100%" height="100%">
-        <LineChart data={data} margin={{ top: 5, right: 30, left: 20, bottom: 5 }}>
-          <CartesianGrid strokeDasharray="3 3" />
-          <XAxis dataKey="name" />
-          <YAxis />
-          <RechartsTooltip />
-          <Legend />
-          <Line type="monotone" dataKey="value" stroke="#8884d8" activeDot={{ r: 8 }} />
-        </LineChart>
-      </ResponsiveContainer>
-    </Box>
-  </Card>
-);
-
-// Spending Categories Chart
-const SpendingCategories = ({ data }) => (
-  <Card sx={{ p: 3, height: '100%', display: 'flex', flexDirection: 'column' }}>
-    <Typography variant="h6" sx={{ mb: 2 }}>Spending over last 6 months</Typography>
-    <Box sx={{ height: 300 }}>
-      <ResponsiveContainer width="100%" height="100%">
-        <PieChart>
-          <Pie
-            data={data}
-            cx="50%"
-            cy="50%"
-            labelLine={false}
-            outerRadius={100}
-            dataKey="value"
-            label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
-          >
-            {data.map((entry, index) => (
-              <Cell key={`cell-${index}`} fill={entry.color} />
-            ))}
-          </Pie>
-          <RechartsTooltip />
-        </PieChart>
-      </ResponsiveContainer>
-    </Box>
-  </Card>
-);
-
-// Account Balance Trends (Stacked Bar Chart)
-const AccountBalanceTrends = ({ data }) => (
-  <Card sx={{ p: 3, height: '100%', display: 'flex', flexDirection: 'column' }}>
-    <Typography variant="h6" sx={{ mb: 2 }}>Account Balance Trends</Typography>
-    <Box sx={{ height: 300 }}>
-      <ResponsiveContainer width="100%" height="100%">
-        <BarChart data={data}>
-          <CartesianGrid strokeDasharray="3 3" />
-          <XAxis dataKey="month" />
-          <YAxis />
-          <RechartsTooltip />
-          <Legend />
-          <Bar dataKey="checking" stackId="a" fill="#1a3d1a" name="Checking" />
-          <Bar dataKey="savings" stackId="a" fill="#7a9b3e" name="Savings" />
-        </BarChart>
-      </ResponsiveContainer>
-    </Box>
-  </Card>
-);
+// Chart components are now microfrontends loaded via script tags
+// They will be mounted in useEffect hooks below
 
 // TransferCard component now imported from ~/components/dashboard/TransferCard
 
@@ -283,7 +252,185 @@ const DashboardPage = () => {
 
         fetchAccountDetails();
     }
-  }, [userData, additionalAccountData, isLoadingDetails]); 
+  }, [userData, additionalAccountData, isLoadingDetails]);
+
+  // Mount ad banner microfrontend with retry mechanism
+  useEffect(() => {
+    let unmount: (() => void) | null = null;
+    let isMounted = true;
+    let retryCount = 0;
+    const maxRetries = 100; // Try for up to 10 seconds (100 * 100ms)
+
+    const attemptMount = () => {
+      if (!isMounted) return;
+
+      if (window.RelibankMicrofrontends?.AdBanner?.mount) {
+        try {
+          unmount = window.RelibankMicrofrontends.AdBanner.mount({
+            containerId: 'ad-banner-container',
+            onSignUpClick: () => {
+              console.log('[Dashboard] Ad banner sign-up clicked');
+              // Future: Add navigation or modal logic
+            }
+          });
+          console.log('[Dashboard] Ad banner microfrontend mounted');
+        } catch (error) {
+          console.error('[Dashboard] Failed to mount ad banner:', error);
+        }
+      } else {
+        retryCount++;
+        if (retryCount < maxRetries) {
+          // Retry after 100ms if microfrontend not available yet
+          setTimeout(attemptMount, 100);
+        } else {
+          console.warn('[Dashboard] Ad banner microfrontend not available after retries');
+        }
+      }
+    };
+
+    // Start mounting attempt
+    attemptMount();
+
+    return () => {
+      isMounted = false;
+      if (unmount) {
+        // Defer unmount to avoid race condition with React's render cycle
+        setTimeout(() => {
+          unmount();
+          console.log('[Dashboard] Ad banner microfrontend unmounted');
+        }, 0);
+      }
+    };
+  }, []);
+
+  // Mount spending chart microfrontend with retry mechanism
+  useEffect(() => {
+    let unmount: (() => void) | null = null;
+    let isMounted = true;
+    let retryCount = 0;
+    const maxRetries = 100;
+
+    const attemptMount = () => {
+      if (!isMounted) return;
+
+      if (window.RelibankMicrofrontends?.SpendingChart?.mount) {
+        try {
+          unmount = window.RelibankMicrofrontends.SpendingChart.mount({
+            containerId: 'spending-chart-container',
+            data: mockSpendingData
+          });
+          console.log('[Dashboard] Spending chart microfrontend mounted');
+        } catch (error) {
+          console.error('[Dashboard] Failed to mount spending chart:', error);
+        }
+      } else {
+        retryCount++;
+        if (retryCount < maxRetries) {
+          setTimeout(attemptMount, 100);
+        } else {
+          console.warn('[Dashboard] Spending chart microfrontend not available after retries');
+        }
+      }
+    };
+
+    attemptMount();
+
+    return () => {
+      isMounted = false;
+      if (unmount) {
+        setTimeout(() => {
+          unmount();
+          console.log('[Dashboard] Spending chart microfrontend unmounted');
+        }, 0);
+      }
+    };
+  }, []);
+
+  // Mount spending categories microfrontend with retry mechanism
+  useEffect(() => {
+    let unmount: (() => void) | null = null;
+    let isMounted = true;
+    let retryCount = 0;
+    const maxRetries = 100;
+
+    const attemptMount = () => {
+      if (!isMounted) return;
+
+      if (window.RelibankMicrofrontends?.SpendingCategories?.mount) {
+        try {
+          unmount = window.RelibankMicrofrontends.SpendingCategories.mount({
+            containerId: 'spending-categories-container',
+            data: mockPieData
+          });
+          console.log('[Dashboard] Spending categories microfrontend mounted');
+        } catch (error) {
+          console.error('[Dashboard] Failed to mount spending categories:', error);
+        }
+      } else {
+        retryCount++;
+        if (retryCount < maxRetries) {
+          setTimeout(attemptMount, 100);
+        } else {
+          console.warn('[Dashboard] Spending categories microfrontend not available after retries');
+        }
+      }
+    };
+
+    attemptMount();
+
+    return () => {
+      isMounted = false;
+      if (unmount) {
+        setTimeout(() => {
+          unmount();
+          console.log('[Dashboard] Spending categories microfrontend unmounted');
+        }, 0);
+      }
+    };
+  }, []);
+
+  // Mount account balance trends microfrontend with retry mechanism
+  useEffect(() => {
+    let unmount: (() => void) | null = null;
+    let isMounted = true;
+    let retryCount = 0;
+    const maxRetries = 100;
+
+    const attemptMount = () => {
+      if (!isMounted) return;
+
+      if (window.RelibankMicrofrontends?.AccountBalanceTrends?.mount) {
+        try {
+          unmount = window.RelibankMicrofrontends.AccountBalanceTrends.mount({
+            containerId: 'account-balance-trends-container',
+            data: mockStackedBarData
+          });
+          console.log('[Dashboard] Account balance trends microfrontend mounted');
+        } catch (error) {
+          console.error('[Dashboard] Failed to mount account balance trends:', error);
+        }
+      } else {
+        retryCount++;
+        if (retryCount < maxRetries) {
+          setTimeout(attemptMount, 100);
+        } else {
+          console.warn('[Dashboard] Account balance trends microfrontend not available after retries');
+        }
+      }
+    };
+
+    attemptMount();
+
+    return () => {
+      isMounted = false;
+      if (unmount) {
+        setTimeout(() => {
+          unmount();
+          console.log('[Dashboard] Account balance trends microfrontend unmounted');
+        }, 0);
+      }
+    };
+  }, []);
 
   // Data sourcing for the whole component
   const appData = {
@@ -393,52 +540,9 @@ const DashboardPage = () => {
       <Box sx={{ px: { xs: 2, sm: 4, md: 8, lg: 16, xl: 32 }, pb: 3 }}>
         <Grid container spacing={{ xs: 2, sm: 3, md: 4 }}>
 
-        {/* Row 1: Promotional Banner (12) */}
+        {/* Row 1: Promotional Banner (Microfrontend) */}
         <Grid item size={12}>
-          <Card sx={{
-            p: 2,
-            display: 'flex',
-            flexDirection: { xs: 'column', sm: 'row' },
-            alignItems: 'center',
-            gap: 2,
-            background: 'linear-gradient(135deg, #1a3d1a 0%, #7a9b3e 100%)',
-            color: 'white',
-            borderRadius: '12px'
-          }}>
-            <Box sx={{
-              fontSize: { xs: '2rem', sm: '2.5rem' },
-              flexShrink: 0,
-              filter: 'drop-shadow(0 2px 4px rgba(217, 119, 6, 0.3))'
-            }}>
-              🪙
-            </Box>
-            <Box sx={{ flexGrow: 1, textAlign: { xs: 'center', sm: 'left' } }}>
-              <Typography variant="h6" sx={{ fontWeight: 'bold', mb: 0.25, fontSize: { xs: '1rem', sm: '1.25rem' } }}>
-                Get <Box component="span" sx={{ color: '#fbbf24' }}>5%</Box> Cash Back on Every Purchase!
-              </Typography>
-              <Typography variant="body2" sx={{ opacity: 0.95, fontSize: { xs: '0.875rem', sm: '1rem' } }}>
-                Apply now for the ReliBank Rewards Credit Card and earn unlimited cash back with no annual fee.
-              </Typography>
-            </Box>
-            <Button
-              id="dashboard-rewards-signup-btn"
-              variant="contained"
-              size="medium"
-              sx={{
-                bgcolor: '#fbbf24',
-                color: '#1a3d1a',
-                fontWeight: 'bold',
-                px: 3,
-                '&:hover': {
-                  bgcolor: '#d97706'
-                },
-                flexShrink: 0,
-                width: { xs: '100%', sm: 'auto' }
-              }}
-            >
-              Sign Up
-            </Button>
-          </Card>
+          <Box id="ad-banner-container" sx={{ minHeight: '100px' }} />
         </Grid>
 
         {/* Row 2: Transfer Card + Line Chart (4-8) */}
@@ -450,16 +554,16 @@ const DashboardPage = () => {
         </Grid>
 
         <Grid item size={{ xs: 12, lg: 8 }}>
-          <SpendingChart data={appData.spendingData} />
+          <Box id="spending-chart-container" sx={{ minHeight: '380px' }} />
         </Grid>
 
         {/* Row 3: Pie Chart + Stacked Bar Chart (6-6) */}
         <Grid item size={{ xs: 12, md: 6 }}>
-          <SpendingCategories data={appData.pieData} />
+          <Box id="spending-categories-container" sx={{ minHeight: '380px' }} />
         </Grid>
 
         <Grid item size={{ xs: 12, md: 6 }}>
-          <AccountBalanceTrends data={appData.stackedBarData} />
+          <Box id="account-balance-trends-container" sx={{ minHeight: '380px' }} />
         </Grid>
 
         {/* Row 4: Recent Payments (12 - full width) */}

@@ -33,6 +33,7 @@ jobs:
       test_payment: ${{ steps.individual-tests.outputs.test_payment }}
       test_scenario: ${{ steps.individual-tests.outputs.test_scenario }}
       test_stress: ${{ steps.individual-tests.outputs.test_stress }}
+      test_microfrontend_telemetry: ${{ steps.individual-tests.outputs.test_microfrontend_telemetry }}
 
     steps:
       - name: Checkout code
@@ -54,11 +55,19 @@ jobs:
           curl https://packages.microsoft.com/config/ubuntu/$(lsb_release -rs)/prod.list | sudo tee /etc/apt/sources.list.d/mssql-release.list
           sudo apt-get update
           sudo ACCEPT_EULA=Y apt-get install -y msodbcsql18
+      - name: Install Chrome and ChromeDriver for Selenium tests
+        run: |
+          # Install Chromium and ChromeDriver for Selenium
+          sudo apt-get update
+          sudo apt-get install -y chromium-browser chromium-chromedriver
+          # Verify installation
+          chromium-browser --version
+          chromedriver --version
 
       - name: Install dependencies
         run: |
           cd tests
-          pip install pyodbc pytest pytest-xdist pytest-timeout requests
+          pip install -r requirements.txt
 
       - name: Run all Python tests individually
         if: ${{ github.event.inputs.test_suite == 'all' || github.event.inputs.test_suite == '' }}
@@ -72,7 +81,9 @@ jobs:
           BILL_PAY_SERVICE: ${{ vars.BASE_URL }}
           SUPPORT_SERVICE: ${{ vars.BASE_URL }}
           TRANSACTION_SERVICE: ${{ vars.BASE_URL }}
-          SCENARIO_SERVICE_URL: ${{ vars.BASE_URL }}
+          SCENARIO_SERVICE_URL: ${{ vars.BASE_URL }}/scenario-runner
+          NEW_RELIC_USER_API_KEY: ${{ secrets.NEW_RELIC_USER_API_KEY }}
+          NEW_RELIC_ACCOUNT_ID: ${{ vars.NEW_RELIC_ACCOUNT_ID }}
         run: |
           cd tests
 
@@ -110,7 +121,9 @@ jobs:
           BILL_PAY_SERVICE: ${{ vars.BASE_URL }}
           SUPPORT_SERVICE: ${{ vars.BASE_URL }}
           TRANSACTION_SERVICE: ${{ vars.BASE_URL }}
-          SCENARIO_SERVICE_URL: ${{ vars.BASE_URL }}
+          SCENARIO_SERVICE_URL: ${{ vars.BASE_URL }}/scenario-runner
+          NEW_RELIC_USER_API_KEY: ${{ secrets.NEW_RELIC_USER_API_KEY }}
+          NEW_RELIC_ACCOUNT_ID: ${{ vars.NEW_RELIC_ACCOUNT_ID }}
         run: |
           cd tests
           pytest test_end_to_end.py -n auto --tb=line
@@ -119,7 +132,9 @@ jobs:
         if: ${{ github.event.inputs.test_suite == 'scenario' }}
         env:
           RELIBANK_URL: ${{ vars.BASE_URL }}
-          SCENARIO_SERVICE_URL: ${{ vars.BASE_URL }}
+          SCENARIO_SERVICE_URL: ${{ vars.BASE_URL }}/scenario-runner
+          NEW_RELIC_USER_API_KEY: ${{ secrets.NEW_RELIC_USER_API_KEY }}
+          NEW_RELIC_ACCOUNT_ID: ${{ vars.NEW_RELIC_ACCOUNT_ID }}
         run: |
           cd tests
           pytest test_scenario_service.py --tb=line
@@ -130,6 +145,8 @@ jobs:
           RELIBANK_URL: ${{ vars.BASE_URL }}
           SCENARIO_SERVICE_URL: ${{ vars.BASE_URL }}
           BILL_PAY_SERVICE: ${{ vars.BASE_URL }}
+          NEW_RELIC_USER_API_KEY: ${{ secrets.NEW_RELIC_USER_API_KEY }}
+          NEW_RELIC_ACCOUNT_ID: ${{ vars.NEW_RELIC_ACCOUNT_ID }}
         run: |
           cd tests
           pytest test_payment_scenarios.py --tb=line
@@ -139,7 +156,9 @@ jobs:
         env:
           RELIBANK_URL: ${{ vars.BASE_URL }}
           BASE_URL: ${{ vars.BASE_URL }}
-          SCENARIO_SERVICE_URL: ${{ vars.BASE_URL }}
+          SCENARIO_SERVICE_URL: ${{ vars.BASE_URL }}/scenario-runner
+          NEW_RELIC_USER_API_KEY: ${{ secrets.NEW_RELIC_USER_API_KEY }}
+          NEW_RELIC_ACCOUNT_ID: ${{ vars.NEW_RELIC_ACCOUNT_ID }}
         run: |
           cd tests
           pytest test_end_to_end.py::test_frontend_loads test_scenario_service.py::test_scenario_service_health -n auto --tb=line
@@ -224,6 +243,7 @@ jobs:
             ["test_payment"]="Payment Scenarios"
             ["test_scenario"]="Scenario Service"
             ["test_stress"]="Stress Scenarios"
+            ["test_microfrontend_telemetry"]="Microfrontend Telemetry"
           )
 
           # Get test outputs JSON once (outside loop)
