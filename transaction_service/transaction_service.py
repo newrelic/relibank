@@ -63,6 +63,8 @@ class TransactionRecord(BaseModel):
     timestamp: float = Field(alias="Timestamp")
     cancellation_user_id: Optional[str] = Field(None, alias="CancellationUserID")
     cancellation_timestamp: Optional[float] = Field(None, alias="CancellationTimestamp")
+    status: Optional[str] = Field(None, alias="Status")
+    decline_reason: Optional[str] = Field(None, alias="DeclineReason")
 
     class Config:
         populate_by_name = True  # This tells Pydantic to use the alias when converting from the database row
@@ -153,6 +155,47 @@ class BillPaymentInitiatedToAcct(BaseModel):
     timestamp: float
 
 
+class BillPaymentDeclined(BaseModel):
+    eventType: str = "BillPaymentDeclined"
+    billId: str = Field(min_length=1)
+    amount: float = Field(gt=0)
+    currency: str = Field(min_length=3)
+    fromAccountId: int
+    toAccountId: int
+    reason: str
+    risk_level: str
+    risk_score: float
+    timestamp: float
+
+
+class CardPaymentProcessed(BaseModel):
+    eventType: str = "CardPaymentProcessed"
+    billId: str = Field(min_length=1)
+    amount: float = Field(gt=0)
+    currency: str = Field(min_length=3)
+    paymentIntentId: str
+    customerId: str
+    status: str
+    timestamp: float
+
+
+class CardPaymentDeclined(BaseModel):
+    eventType: str = "CardPaymentDeclined"
+    billId: str = Field(min_length=1)
+    amount: float = Field(gt=0)
+    currency: str = Field(min_length=3)
+    reason: str
+    message: str
+    paymentMethod: str
+    paymentMethodId: str
+    processor: str
+    customerId: str
+    paymentIntentId: Optional[str] = None  # May not exist if declined before Stripe
+    risk_level: Optional[str] = None  # Only present for risk assessment declines
+    risk_score: Optional[float] = None  # Only present for risk assessment declines
+    timestamp: float
+
+
 # This is a model for the response from the accounts service
 class AccountType(BaseModel):
     id: int
@@ -163,6 +206,9 @@ EVENT_MODELS = {
     "BillPaymentInitiated": BillPaymentInitiated,
     "BillPaymentInitiatedFromAcct": BillPaymentInitiatedFromAcct,
     "BillPaymentInitiatedToAcct": BillPaymentInitiatedToAcct,
+    "BillPaymentDeclined": BillPaymentDeclined,
+    "CardPaymentProcessed": CardPaymentProcessed,
+    "CardPaymentDeclined": CardPaymentDeclined,
     "RecurringPaymentScheduled": RecurringPaymentScheduled,
     "BillPaymentCancelled": BillPaymentCancelled,
     "PaymentDueNotificationEvent": PaymentDueNotificationEvent,
@@ -250,6 +296,9 @@ async def start_kafka_consumer():
             logging.info(f"Attempting to connect Kafka consumer (attempt {i + 1}/{retries})...")
             consumer = AIOKafkaConsumer(
                 "bill_payments",
+                "bill_payments_declined",
+                "card_payments",
+                "card_payments_declined",
                 "recurring_payments",
                 "payment_cancellations",
                 "payment_due_notifications",
@@ -373,6 +422,54 @@ async def start_kafka_consumer():
                         )
                         db_connection.commit()
                         logging.info(f"Credit transaction {event_model.billId} recorded in Transactions table.")
+                    elif event_type == "BillPaymentDeclined":
+                        # Record declined payment in Transactions table (no ledger updates)
+                        logging.warning(json.dumps({
+                            "event": "DECLINED_PAYMENT_RECORDED",
+                            "billing_id": event_model.billId,
+                            "amount": event_model.amount,
+                            "currency": event_model.currency,
+                            "from_account_id": event_model.fromAccountId,
+                            "to_account_id": event_model.toAccountId,
+                            "reason": event_model.reason,
+                            "risk_level": event_model.risk_level,
+                            "risk_score": event_model.risk_score
+                        }))
+
+                        # Insert declined transaction for fromAccount (debit side)
+                        cursor.execute(
+                            """
+                            INSERT INTO Transactions (EventType, BillID, Amount, Currency, AccountID, Timestamp, Status, DeclineReason)
+                            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                        """,
+                            "BillPaymentDeclinedFromAcct",
+                            event_model.billId,
+                            event_model.amount,
+                            event_model.currency,
+                            event_model.fromAccountId,
+                            event_model.timestamp,
+                            "declined",
+                            f"{event_model.reason} (Risk Level: {event_model.risk_level}, Score: {event_model.risk_score})"
+                        )
+
+                        # Insert declined transaction for toAccount (credit side)
+                        cursor.execute(
+                            """
+                            INSERT INTO Transactions (EventType, BillID, Amount, Currency, AccountID, Timestamp, Status, DeclineReason)
+                            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                        """,
+                            "BillPaymentDeclinedToAcct",
+                            event_model.billId,
+                            event_model.amount,
+                            event_model.currency,
+                            event_model.toAccountId,
+                            event_model.timestamp,
+                            "declined",
+                            f"{event_model.reason} (Risk Level: {event_model.risk_level}, Score: {event_model.risk_score})"
+                        )
+
+                        db_connection.commit()
+                        logging.info(f"Declined payment {event_model.billId} recorded in Transactions table with decline reason.")
                     elif event_type == 'RecurringPaymentScheduled':
                         # This event is a schedule, so insert it into the RecurringSchedules table
                         cursor.execute("""
@@ -401,6 +498,70 @@ async def start_kafka_consumer():
                         )
                         db_connection.commit()
                         logging.info(f"Payment for bill ID {event_model.billId} cancelled and updated.")
+                    elif event_type == "CardPaymentProcessed":
+                        # Process successful card payment
+                        logging.info(f"Processing card payment: {event_model.billId}, payment_intent: {event_model.paymentIntentId}")
+
+                        # Insert card payment using existing schema (AccountID=0 for card payments)
+                        cursor.execute(
+                            """
+                            INSERT INTO Transactions (EventType, BillID, Amount, Currency, AccountID, Timestamp, Status)
+                            VALUES (?, ?, ?, ?, ?, ?, ?)
+                        """,
+                            "CardPaymentProcessed",
+                            event_model.billId,
+                            event_model.amount,
+                            event_model.currency,
+                            0,  # AccountID=0 for card payments (no bank account involved)
+                            event_model.timestamp,
+                            event_model.status
+                        )
+                        db_connection.commit()
+                        logging.info(f"Card payment {event_model.billId} recorded in Transactions table.")
+
+                    elif event_type == "CardPaymentDeclined":
+                        # Record declined card payment in Transactions table (no ledger updates)
+                        decline_log = {
+                            "event": "DECLINED_CARD_PAYMENT_RECORDED",
+                            "billing_id": event_model.billId,
+                            "amount": event_model.amount,
+                            "currency": event_model.currency,
+                            "reason": event_model.reason,
+                            "payment_method_id": event_model.paymentMethodId,
+                            "processor": event_model.processor,
+                            "customer_id": event_model.customerId
+                        }
+                        if event_model.risk_level:
+                            decline_log["risk_level"] = event_model.risk_level
+                        if event_model.risk_score:
+                            decline_log["risk_score"] = event_model.risk_score
+                        if event_model.paymentIntentId:
+                            decline_log["payment_intent_id"] = event_model.paymentIntentId
+                        logging.warning(json.dumps(decline_log))
+
+                        # Build decline reason string with all available info
+                        decline_details = f"{event_model.reason}: {event_model.message}"
+                        if event_model.risk_level and event_model.risk_score:
+                            decline_details += f" (Risk Level: {event_model.risk_level}, Score: {event_model.risk_score})"
+                        decline_details += f" | Method: {event_model.paymentMethodId} | Processor: {event_model.processor}"
+
+                        # Insert declined card payment using existing schema (AccountID=0 for card payments)
+                        cursor.execute(
+                            """
+                            INSERT INTO Transactions (EventType, BillID, Amount, Currency, AccountID, Timestamp, Status, DeclineReason)
+                            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                        """,
+                            "CardPaymentDeclined",
+                            event_model.billId,
+                            event_model.amount,
+                            event_model.currency,
+                            0,  # AccountID=0 for card payments
+                            event_model.timestamp,
+                            "declined",
+                            decline_details
+                        )
+                        db_connection.commit()
+                        logging.info(f"Declined card payment {event_model.billId} recorded in Transactions table with decline reason: {event_model.reason}.")
                     elif event_type == "PaymentDueNotificationEvent":
                         # This event signals that a recurring payment is due
                         logging.info(
@@ -512,19 +673,28 @@ app = FastAPI(
 
 
 @app.get("/transaction-service/transactions", response_model=List[TransactionRecord])
-async def get_transactions(request: Request):
+async def get_transactions(request: Request, limit: int = 50):
     """
-    Retrieves all transactions from the database.
+    Retrieves transactions from the database.
+
+    Args:
+        limit: Maximum number of transactions to return (default: 50, max: 1000)
     """
     if not db_connection:
         raise HTTPException(status_code=503, detail="Database connection failed.")
 
+    # Enforce reasonable limits to prevent browser crashes
+    if limit < 1:
+        limit = 50
+    elif limit > 1000:
+        limit = 1000
+
     try:
         cursor = db_connection.cursor()
-        cursor.execute("SELECT * FROM Transactions")
+        cursor.execute("SELECT TOP (?) * FROM Transactions ORDER BY TransactionID DESC", (limit,))
         columns = [column[0] for column in cursor.description]
         transactions = [TransactionRecord(**dict(zip(columns, row))) for row in cursor.fetchall()]
-        logging.info(f"Retrieved {len(transactions)} transactions.")
+        logging.info(f"Retrieved {len(transactions)} transactions (limit: {limit}).")
         process_headers(dict(request.headers))
         return transactions
     except Exception as e:
@@ -571,16 +741,37 @@ async def get_transaction(bill_id: str, request: Request):
 
 
 @app.get("/transaction-service/recurring-payments", response_model=List[RecurringScheduleRecord])
-async def get_recurring_payments(request: Request):
+async def get_recurring_payments(request: Request, account_id: int = None, limit: int = 100):
     """
-    Retrieves all recurring payments from the database.
+    Retrieves recurring payments from the database.
+
+    Args:
+        account_id: Filter by AccountID (optional - if not provided, returns all schedules)
+        limit: Maximum number of schedules to return (default: 100, max: 1000)
     """
     if not db_connection:
         raise HTTPException(status_code=503, detail="Database connection failed.")
 
+    # Enforce reasonable limits
+    if limit < 1:
+        limit = 100
+    elif limit > 1000:
+        limit = 1000
+
     try:
         cursor = db_connection.cursor()
-        cursor.execute("SELECT * FROM RecurringSchedules")
+
+        # Filter by account_id if provided
+        if account_id is not None:
+            cursor.execute(
+                "SELECT TOP (?) * FROM RecurringSchedules WHERE AccountID = ? ORDER BY ScheduleID DESC",
+                (limit, account_id)
+            )
+            logging.info(f"Retrieving recurring payments for AccountID: {account_id} (limit: {limit})")
+        else:
+            cursor.execute("SELECT TOP (?) * FROM RecurringSchedules ORDER BY ScheduleID DESC", (limit,))
+            logging.info(f"Retrieving all recurring payments (limit: {limit})")
+
         columns = [column[0] for column in cursor.description]
 
         schedules = []

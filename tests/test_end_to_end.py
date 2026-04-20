@@ -8,7 +8,7 @@ from typing import Dict
 BASE_URL = os.getenv("BASE_URL", "http://localhost:3000")
 ACCOUNTS_SERVICE = os.getenv("ACCOUNTS_SERVICE", "http://localhost:5002")
 BILL_PAY_SERVICE = os.getenv("BILL_PAY_SERVICE", "http://localhost:5000")
-CHATBOT_SERVICE = os.getenv("CHATBOT_SERVICE", "http://localhost:5003")
+SUPPORT_SERVICE = os.getenv("SUPPORT_SERVICE", "http://localhost:5003")
 AUTH_SERVICE = os.getenv("AUTH_SERVICE", "http://localhost:5006")
 
 # Seeded test users (from accounts_service/postgres/init.sql)
@@ -71,16 +71,16 @@ def test_bill_pay_service_health():
     print("✓ Bill pay service is healthy")
 
 
-def test_chatbot_service_health():
-    """Test that chatbot service is healthy"""
-    print("\n=== Testing Chatbot Service Health ===")
+def test_support_service_health():
+    """Test that support service is healthy"""
+    print("\n=== Testing Support Service Health ===")
 
-    response = requests.get(f"{CHATBOT_SERVICE}/chatbot-service/health")
+    response = requests.get(f"{SUPPORT_SERVICE}/support-service/health")
 
     print(f"Status: {response.status_code}")
-    assert response.status_code == 200, f"Chatbot service health check failed: {response.status_code}"
+    assert response.status_code == 200, f"Support service health check failed: {response.status_code}"
 
-    print("✓ Chatbot service is healthy")
+    print("✓ Support service is healthy")
 
 
 def test_auth_service_health():
@@ -256,13 +256,13 @@ def test_get_bank_accounts():
         print(f"⚠ Get accounts returned {response.status_code}, may be expected for new user")
 
 
-def test_chatbot_interaction():
-    """Test chatbot service interaction"""
-    print("\n=== Testing Chatbot Interaction ===")
+def test_support_interaction():
+    """Test support service interaction"""
+    print("\n=== Testing Support Interaction ===")
 
-    # Test chatbot with a simple query as form data
+    # Test support service with a simple query as form data
     response = requests.post(
-        f"{CHATBOT_SERVICE}/chatbot-service/chat",
+        f"{SUPPORT_SERVICE}/support-service/chat",
         params={"prompt": "What services does Relibank offer?"}
     )
 
@@ -270,14 +270,14 @@ def test_chatbot_interaction():
 
     if response.status_code == 200:
         data = response.json()
-        print(f"Chatbot response: {data.get('response', '')[:100]}...")
-        assert "response" in data, "Chatbot response missing 'response' field"
-        assert len(data["response"]) > 0, "Chatbot returned empty response"
-        print("✓ Chatbot interaction successful")
+        print(f"Support response: {data.get('response', '')[:100]}...")
+        assert "response" in data, "Support response missing 'response' field"
+        assert len(data["response"]) > 0, "Support returned empty response"
+        print("✓ Support interaction successful")
     elif response.status_code == 503:
-        print("⚠ Chatbot service not ready (AI service may not be configured)")
+        print("⚠ Support service not ready (AI service may not be configured)")
     else:
-        print(f"⚠ Chatbot returned {response.status_code}: {response.text[:200]}")
+        print(f"⚠ Support returned {response.status_code}: {response.text[:200]}")
 
 
 def test_bill_payment_flow():
@@ -414,15 +414,15 @@ def test_complete_user_journey():
     # Step 6: Chat with bot
     print("Step 6: Chatting with bot...")
     chat_response = requests.post(
-        f"{CHATBOT_SERVICE}/chatbot-service/chat",
+        f"{SUPPORT_SERVICE}/support-service/chat",
         params={"prompt": "What's my account balance?"}
     )
     if chat_response.status_code == 200:
-        print("✓ Chatbot responded")
+        print("✓ Support responded")
     elif chat_response.status_code == 503:
-        print("✓ Chatbot service not ready (expected if AI not configured)")
+        print("✓ Support service not ready (expected if AI not configured)")
     else:
-        print(f"✓ Chatbot returned {chat_response.status_code}")
+        print(f"✓ Support returned {chat_response.status_code}")
 
     print("\n✓ Complete user journey successful!")
 
@@ -548,6 +548,96 @@ def test_no_credentials_returns_400():
 
     assert response.status_code == 400, f"Expected 400 when no credentials provided, got {response.status_code}"
     print(f"✓ Missing credentials → 400: {response.json().get('detail')}")
+
+def test_bill_pay_schema_validation_integer_billid():
+    """Test that /pay endpoint rejects integer billId (must be string)"""
+    print("\n=== Testing billId Type Validation ===")
+
+    # Send request with integer billId (invalid)
+    invalid_payment = {
+        "billId": 12345,  # Integer instead of string
+        "amount": 100.00,
+        "currency": "USD",
+        "fromAccountId": 1,
+        "toAccountId": 2
+    }
+
+    response = requests.post(
+        f"{BILL_PAY_SERVICE}/bill-pay-service/pay",
+        json=invalid_payment
+    )
+
+    print(f"Status: {response.status_code}")
+    print(f"Response: {response.text[:200]}")
+
+    # Should return 422 Unprocessable Entity for validation error
+    assert response.status_code == 422, \
+        f"Expected 422 for invalid billId type, got {response.status_code}"
+
+    # Check error message mentions billId
+    response_data = response.json()
+    assert "billId" in str(response_data), "Error should mention billId field"
+
+    print("✓ Integer billId correctly rejected")
+
+
+def test_bill_pay_schema_validation_snake_case():
+    """Test that /pay endpoint rejects snake_case field names (must be camelCase)"""
+    print("\n=== Testing Field Name Validation ===")
+
+    # Send request with snake_case field names (invalid)
+    invalid_payment = {
+        "bill_id": "TEST-123",  # snake_case instead of billId
+        "amount": 100.00,
+        "currency": "USD",
+        "from_account_id": 1,  # snake_case instead of fromAccountId
+        "to_account_id": 2     # snake_case instead of toAccountId
+    }
+
+    response = requests.post(
+        f"{BILL_PAY_SERVICE}/bill-pay-service/pay",
+        json=invalid_payment
+    )
+
+    print(f"Status: {response.status_code}")
+    print(f"Response: {response.text[:200]}")
+
+    # Should return 422 for validation error
+    assert response.status_code == 422, \
+        f"Expected 422 for invalid field names, got {response.status_code}"
+
+    print("✓ Snake case fields correctly rejected")
+
+
+def test_bill_pay_schema_validation_missing_fields():
+    """Test that /pay endpoint requires all mandatory fields"""
+    print("\n=== Testing Required Fields ===")
+
+    # Send request missing billId
+    incomplete_payment = {
+        "amount": 100.00,
+        "currency": "USD",
+        "fromAccountId": 1,
+        "toAccountId": 2
+    }
+
+    response = requests.post(
+        f"{BILL_PAY_SERVICE}/bill-pay-service/pay",
+        json=incomplete_payment
+    )
+
+    print(f"Status: {response.status_code}")
+    print(f"Response: {response.text[:200]}")
+
+    # Should return 422 for missing required field
+    assert response.status_code == 422, \
+        f"Expected 422 for missing billId, got {response.status_code}"
+
+    response_data = response.json()
+    assert "billId" in str(response_data) or "field required" in str(response_data).lower(), \
+        "Error should mention missing billId field"
+
+    print("✓ Missing required fields correctly rejected")
 
 
 if __name__ == "__main__":

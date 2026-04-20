@@ -1,4 +1,4 @@
-# Relibank AI Chatbot Service
+# Relibank AI Support Service
 
 This service provides a conversational AI experience for the Relibank application, acting as a conversational AI assistant. It is built using Python with the FastAPI framework and integrates with the OpenAI API for its large language model (LLM) capabilities.
 

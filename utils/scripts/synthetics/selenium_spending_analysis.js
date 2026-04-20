@@ -112,7 +112,7 @@ var assert = require('assert');
     }
 
     // Now navigate to Support
-    console.log('Navigating to Support page for chatbot interaction');
+    console.log('Navigating to Support page for support interaction');
 
     const supportLink = await $browser.findElement($driver.By.css('a[href="/support"]'));
     await supportLink.click();
@@ -142,8 +142,8 @@ var assert = require('assert');
     await sendButton1.click();
     console.log('Clicked Send button - normal question submitted');
 
-    // Wait for the chatbot to respond (give it time to process)
-    console.log('Waiting for chatbot response...');
+    // Wait for the support to respond (give it time to process)
+    console.log('Waiting for support response...');
     await $browser.sleep(4000);
 
     // Now ask the spending analysis question that triggers the blocking JS
@@ -185,8 +185,8 @@ var assert = require('assert');
       }
     }
 
-    // Wait for the blocking operation to complete and chatbot response
-    console.log('Waiting for blocking calculation to complete and chatbot response...');
+    // Wait for the blocking operation to complete and support response
+    console.log('Waiting for blocking calculation to complete and support response...');
     await $browser.sleep(10000);
 
     console.log('Spending analysis scenario completed successfully!');

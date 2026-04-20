@@ -52,7 +52,7 @@ These scripts are designed to be copied into **New Relic Synthetics** as Scripte
 
 ---
 
-### 3. `selenium_chatbot.js`
+### 3. `selenium_support.js`
 **Purpose:** Insufficient funds error flow with support interaction
 
 **What it does:**
@@ -121,5 +121,3 @@ These scripts are designed to be copied into **New Relic Synthetics** as Scripte
 - Update this URL if deploying to a different environment, change later to use environment variables for lower environments
 
 **Default Credentials:** Scripts use default login (form auto-filled)
-
-

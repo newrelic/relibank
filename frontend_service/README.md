@@ -326,7 +326,7 @@ frontend_service/
 │   │   ├── login.tsx              # Login page
 │   │   ├── dashboard.tsx          # Dashboard with accounts + charts
 │   │   ├── payments.tsx           # Payments page with bill pay
-│   │   ├── support.tsx            # Support/chatbot page
+│   │   ├── support.tsx            # Support/support page
 │   │   └── settings.tsx           # Settings page
 │   │
 │   ├── types/
@@ -684,7 +684,7 @@ The Vite dev server proxies API requests to backend services:
 // vite.config.ts
 proxy: {
   '/accounts-service': 'http://accounts-service.relibank.svc.cluster.local:5002',
-  '/chatbot-service': 'http://chatbot-service.relibank.svc.cluster.local:5003',
+  '/support-service': 'http://support-service.relibank.svc.cluster.local:5003',
   '/bill-pay-service': 'http://bill-pay-service.relibank.svc.cluster.local:5000'
 }
 ```

@@ -105,10 +105,10 @@ build:
     context: accounts_service/postgres
     docker:
       dockerfile: Dockerfile
-  - image: chatbot-service
+  - image: support-service
     context: .
     docker:
-      dockerfile: chatbot_service/Dockerfile
+      dockerfile: support_service/Dockerfile
       buildArgs:
         OPENAI_LOG: "{{.OPENAI_LOG}}"
         OPENAI_API_KEY: "{{.OPENAI_API_KEY}}"
@@ -125,6 +125,13 @@ build:
         ASSISTANT_A_ID: "{{.ASSISTANT_A_ID}}"
         ASSISTANT_B_ID: "{{.ASSISTANT_B_ID}}"
         ASSISTANT_B_DELAY_SECONDS: "{{.ASSISTANT_B_DELAY_SECONDS}}"
+        # Risk Assessment Agent deployments
+        RISK_ASSESSMENT_AGENT_4O: "{{.RISK_ASSESSMENT_AGENT_4O}}"
+        RISK_ASSESSMENT_AGENT_4O_MINI: "{{.RISK_ASSESSMENT_AGENT_4O_MINI}}"
+  - image: risk-assessment-service
+    context: .
+    docker:
+      dockerfile: risk_assessment_service/Dockerfile
   - image: scenario-runner
     context: scenario_service
     docker:
@@ -165,11 +172,28 @@ deploy:
       - scenario_service/chaos_mesh/values.yaml
       wait: true
       upgradeOnChange: true
+    - name: nri-bundle
+      remoteChart: nri-bundle
+      namespace: newrelic
+      createNamespace: true
+      repo: https://helm-charts.newrelic.com
+      version: 5.0.110
+      valuesFiles:
+      - k8s/newrelic/values.yaml
+      setValueTemplates:
+        global.licenseKey: "{{.NEW_RELIC_LICENSE_KEY}}"
+        pixie.clusterName: "relibank-dev"
+        newrelic-pixie.apiKey: "{{.NEW_RELIC_LICENSE_KEY}}"
+      wait: true
+      upgradeOnChange: true
   kubectl:
     hooks:
       before:
       - host:
           command: ["sh", "-c", "helm repo add chaos-mesh https://charts.chaos-mesh.org || true"]
+          dir: "."
+      - host:
+          command: ["sh", "-c", "helm repo add newrelic https://helm-charts.newrelic.com || true"]
           dir: "."
       - host:
           command: ["helm", "repo", "update"]
@@ -228,7 +252,7 @@ portForward:
   port: 5000
   localPort: 5000
 - resourceType: service
-  resourceName: chatbot-service
+  resourceName: support-service
   namespace: relibank
   port: 5003
   localPort: 5003
@@ -247,6 +271,11 @@ portForward:
   namespace: relibank
   port: 8000
   localPort: 8000
+- resourceType: service
+  resourceName: risk-assessment-service
+  namespace: relibank
+  port: 5001
+  localPort: 5007
 - resourceType: service
   resourceName: chaos-dashboard
   namespace: chaos-mesh

@@ -23,8 +23,8 @@ def trigger_azure_function(payload):
     Triggers the Azure Function with a JSON payload.
     """
     if not AZURE_FUNCTION_URL:
-        logger.warning("Azure Function environment variables not configured. Logging notification instead.")
-        logger.info(f"Notification triggered (LOCAL MOCK): {payload}")
+        logger.warning("Azure Function not configured, using local mock")
+        logger.info(f"Notification triggered (LOCAL MOCK): {payload.get('type')} to {payload.get('recipient')}")
         return
 
     headers = {
@@ -33,16 +33,24 @@ def trigger_azure_function(payload):
 
     try:
         response = requests.post(AZURE_FUNCTION_URL, data=json.dumps(payload), headers=headers)
-        logger.info(f"Function URL: {AZURE_FUNCTION_URL}, data: {json.dumps(payload)}, headers: {headers}")
         response.raise_for_status()
-        logger.info(f"Successfully triggered Azure Function. Status: {response.status_code}, Response: {response.text}")
+        logger.info(f"Azure Function triggered: {payload.get('type')} to {payload.get('recipient')}")
     except requests.exceptions.RequestException as e:
         newrelic.agent.notice_error(attributes={
             'service': 'notifications',
             'endpoint': 'internal',
             'action': 'trigger_azure_function'
         })
-        logger.error(f"Failed to trigger Azure Function: {e}")
+        logger.error(json.dumps({
+            "message": {
+                "log_level": "ERROR",
+                "service": "notifications_service",
+                "event": "AZURE_FUNCTION_ERROR",
+                "error": str(e),
+                "payload_type": payload.get('type'),
+                "recipient": payload.get('recipient')
+            }
+        }))
 
 
 # --- Notification Logic ---
@@ -54,11 +62,11 @@ async def process_event(message):
         event_type = event.get('eventType')
         attrs = [(k, v) for k, v in event.items() if "timestamp" not in k.lower() and v is not None]
         newrelic.agent.add_custom_attributes(attrs)
-        logger.info(f"Received event: {event_type} on topic {message.topic}")
+        logger.info(f"Processing event: {event_type} from topic {message.topic}")
 
         # --- Payment is Due Event ---
         if event_type == "PaymentDueNotificationEvent":
-            logger.info("Payment is due event processing started.")
+            logger.info("Processing payment due notification")
             
             bill_id = event.get('billId')
             amount = event.get('amount')
@@ -87,7 +95,7 @@ async def process_event(message):
 
         # --- Bill Payments Event ---
         elif event_type == "PaymentCompleted":
-            logger.info("Bill payment event processing started.")
+            logger.info("Processing payment completed notification")
 
             bill_id = event.get('billId')
             amount = event.get('amount')
@@ -113,7 +121,7 @@ async def process_event(message):
 
         # --- Recurring Payment Scheduled Event ---
         elif event_type == "RecurringPaymentScheduled":
-            logger.info("Recurring payment scheduled event processing started.")
+            logger.info("Processing recurring payment scheduled notification")
 
             bill_id = event.get('billId')
             amount = event.get('amount')
@@ -147,14 +155,28 @@ async def process_event(message):
             'endpoint': 'kafka',
             'action': 'process_event'
         })
-        logger.error(f"Failed to decode Kafka message: {e}")
+        logger.error(json.dumps({
+            "message": {
+                "log_level": "ERROR",
+                "service": "notifications_service",
+                "event": "KAFKA_DECODE_ERROR",
+                "error": str(e)
+            }
+        }))
     except Exception as e:
         newrelic.agent.notice_error(attributes={
             'service': 'notifications',
             'endpoint': 'kafka',
             'action': 'process_event'
         })
-        logger.error(f"An error occurred during event processing: {e}")
+        logger.error(json.dumps({
+            "message": {
+                "log_level": "ERROR",
+                "service": "notifications_service",
+                "event": "EVENT_PROCESSING_ERROR",
+                "error": str(e)
+            }
+        }))
 
 
 async def consume():
@@ -169,15 +191,15 @@ async def consume():
         group_id='notifications-consumer-group',
         auto_offset_reset='earliest'
     )
-    
+
     await consumer.start()
-    logger.info("Kafka consumer started successfully.")
+    logger.info("Kafka consumer started")
 
     try:
         async for message in consumer:
             await process_event(message)
     finally:
-        logger.warning("Stopping Kafka consumer.")
+        logger.warning("Stopping Kafka consumer")
         await consumer.stop()
 
 def main():
@@ -185,9 +207,16 @@ def main():
     try:
         asyncio.run(consume())
     except KeyboardInterrupt:
-        logger.info("Service interrupted by user.")
+        logger.info("Service interrupted by user")
     except Exception as e:
-        logger.error(f"A fatal error occurred in the main loop: {e}")
+        logger.error(json.dumps({
+            "message": {
+                "log_level": "ERROR",
+                "service": "notifications_service",
+                "event": "FATAL_ERROR",
+                "error": str(e)
+            }
+        }))
 
 if __name__ == '__main__':
     main()

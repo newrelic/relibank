@@ -212,10 +212,10 @@ services:
       DB_PASSWORD: YourStrong@Password!
     platform: linux/arm64/v8
       
-  chatbot-service:
+  support-service:
     build:
-      context: ./chatbot_service
-    container_name: chatbot-service
+      context: ./support_service
+    container_name: support-service
     ports:
       - "5003:5003"
     depends_on:

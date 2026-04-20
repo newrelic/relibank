@@ -47,6 +47,19 @@ echo ""
 echo "Activating virtual environment..."
 source "$VENV_DIR/bin/activate"
 
+# Check for unixodbc (required for pyodbc on macOS)
+echo ""
+echo "Checking system dependencies..."
+if [[ "$OSTYPE" == "darwin"* ]]; then
+    if ! brew list unixodbc &> /dev/null; then
+        echo "⚠ Warning: unixodbc not found (required for database tests)"
+        echo "Install with: brew install unixodbc"
+        echo ""
+    else
+        echo "✓ unixodbc is installed"
+    fi
+fi
+
 # Upgrade pip
 echo ""
 echo "Upgrading pip..."
@@ -61,6 +74,7 @@ echo ""
 pip install \
     pytest \
     requests \
+    pyodbc \
     --quiet
 
 echo "✓ Dependencies installed"

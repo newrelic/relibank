@@ -65,13 +65,13 @@ run_test() {
 
 # Test 1: Health check
 echo -e "${YELLOW}=== Test 1: Health Check ===${NC}"
-curl -s "$BASE_URL/chatbot-service/health" | jq .
+curl -s "$BASE_URL/support-service/health" | jq .
 echo ""
 echo ""
 
 # Test 2: Existing chat endpoint (should still work)
 echo -e "${YELLOW}=== Test 2: Existing Chat Endpoint ===${NC}"
-response=$(curl -s "$BASE_URL/chatbot-service/chat?prompt=What%20is%20Python")
+response=$(curl -s "$BASE_URL/support-service/chat?prompt=What%20is%20Python")
 if echo "$response" | jq . > /dev/null 2>&1; then
     echo -e "${GREEN}✓ Existing endpoint still works${NC}"
     echo "$response" | jq -r '.response' | head -c 200
@@ -86,7 +86,7 @@ echo ""
 # Test 3: Simple assistant query (no agent-to-agent)
 echo -e "${YELLOW}=== Test 3: Simple Assistant Query ===${NC}"
 run_test "Simple Query" \
-    "/chatbot-service/assistant/chat" \
+    "/support-service/assistant/chat" \
     '{
         "message": "What is Relibank?"
     }'
@@ -94,7 +94,7 @@ run_test "Simple Query" \
 # Test 4: Complex assistant query (should trigger Assistant B)
 echo -e "${YELLOW}=== Test 4: Complex Query (Agent-to-Agent) ===${NC}"
 run_test "Financial Analysis Query" \
-    "/chatbot-service/assistant/chat" \
+    "/support-service/assistant/chat" \
     '{
         "message": "Can you analyze my spending patterns from last month and provide detailed investment recommendations based on my risk profile?"
     }'
@@ -102,7 +102,7 @@ run_test "Financial Analysis Query" \
 # Test 5: Conversation with thread_id
 echo -e "${YELLOW}=== Test 5: Continued Conversation ===${NC}"
 echo "Step 1: Create new thread"
-response1=$(curl -s -X POST "$BASE_URL/chatbot-service/assistant/chat" \
+response1=$(curl -s -X POST "$BASE_URL/support-service/assistant/chat" \
     -H "Content-Type: application/json" \
     -d '{
         "message": "I want to save money for a house"
@@ -114,7 +114,7 @@ echo ""
 
 echo "Step 2: Continue conversation in same thread"
 run_test "Continued Conversation" \
-    "/chatbot-service/assistant/chat" \
+    "/support-service/assistant/chat" \
     "{
         \"message\": \"How much should I save each month?\",
         \"thread_id\": \"$thread_id\"
@@ -125,7 +125,7 @@ echo -e "${YELLOW}=== Test 6: Multiple Complex Queries ===${NC}"
 for i in {1..3}; do
     echo "Query $i/3"
     run_test "Complex Query #$i" \
-        "/chatbot-service/assistant/chat" \
+        "/support-service/assistant/chat" \
         '{
             "message": "Analyze my portfolio and suggest optimizations"
         }' > /dev/null
@@ -137,7 +137,7 @@ echo ""
 # Test 7: Error handling
 echo -e "${YELLOW}=== Test 7: Error Handling ===${NC}"
 echo "Testing invalid request format..."
-response=$(curl -s -X POST "$BASE_URL/chatbot-service/assistant/chat" \
+response=$(curl -s -X POST "$BASE_URL/support-service/assistant/chat" \
     -H "Content-Type: application/json" \
     -d '{
         "invalid_field": "test"

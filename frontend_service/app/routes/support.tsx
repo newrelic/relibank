@@ -83,20 +83,20 @@ export default function SupportPage() {
     setInputMessage('');
     setIsBotTyping(true);
 
-    // 2. Make API Call to the chatbot service
+    // 2. Make API Call to the support service
     try {
-      const apiUrl = `/chatbot-service/chat?prompt=${encodeURIComponent(userMessageText)}`;
-      
+      const apiUrl = `/support-service/chat?prompt=${encodeURIComponent(userMessageText)}`;
+
       const response = await fetch(apiUrl, {
         method: 'POST',
-        // The chatbot service requires the prompt as a query parameter and the request method is POST.
+        // The support service requires the prompt as a query parameter and the request method is POST.
         headers: {
           'Content-Type': 'application/json',
         },
       });
 
       if (!response.ok) {
-        throw new Error(`Chatbot service returned status ${response.status}`);
+        throw new Error(`Support service returned status ${response.status}`);
       }
 
       const data = await response.json();
@@ -113,16 +113,16 @@ export default function SupportPage() {
       setMessages((prev: ChatMessage[]) => [...prev, newBotMessage]);
 
     } catch (error: unknown) {
-      console.error('[Support] Chatbot API error:', error);
+      console.error('[Support] Support API error:', error);
       if (typeof window !== 'undefined' && (window as any).newrelic) {
         (window as any).newrelic.noticeError(
           error instanceof Error ? error : new Error(String(error)),
-          { component: 'SupportChat', endpoint: '/chatbot-service/chat' }
+          { component: 'SupportChat', endpoint: '/support-service/chat' }
         );
       }
       const errorMessage: ChatMessage = {
         id: Date.now() + 1,
-        text: `Sorry, I couldn't connect to the support service. Please ensure the chatbot service is running. Error: ${error instanceof Error ? error.message : 'Unknown error'}`,
+        text: `Sorry, I couldn't connect to the support service. Please ensure the support service is running. Error: ${error instanceof Error ? error.message : 'Unknown error'}`,
         sender: 'bot',
         timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
       };

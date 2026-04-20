@@ -63,6 +63,12 @@ To get the Scenario Runner Service up and running, you must deploy it to your Ku
 - Configured via API endpoints in `scenario_service.py`
 - Toggle via UI or REST API (`/api/payment-scenarios/*`)
 
+**Risk Assessment Scenarios**:
+- Controls which AI agent Support Service uses for payment risk assessment
+- Toggle between normal (gpt-4o) and rogue (gpt-4o-mini) agents via UI or REST API
+- Endpoints: `/api/risk-assessment/rogue-agent`, `/api/risk-assessment/config`
+- Support Service queries this configuration on each risk assessment request
+
 The UI buttons are automatically populated based on the contents of these files, so add new experiments and rebuild in Skaffold to see them in the dashboard.
 
 ### 🛡️ Rate Limiting

@@ -17,6 +17,26 @@ import time
 import pytest
 import requests
 from datetime import datetime, timedelta
+from pathlib import Path
+
+# Helper function to load environment variables from skaffold.env if present
+def load_env_from_skaffold():
+    """Load environment variables from skaffold.env if file exists (local development)"""
+    skaffold_env_path = Path(__file__).parent.parent / "skaffold.env"
+    if skaffold_env_path.exists():
+        with open(skaffold_env_path, 'r') as f:
+            for line in f:
+                line = line.strip()
+                if line and not line.startswith('#') and '=' in line:
+                    key, value = line.split('=', 1)
+                    # Remove quotes if present
+                    value = value.strip('"').strip("'")
+                    # Only set if not already in environment (explicit env vars take precedence)
+                    if key not in os.environ:
+                        os.environ[key] = value
+
+# Load from skaffold.env if present (for local development)
+load_env_from_skaffold()
 
 # Configuration
 ACCOUNTS_SERVICE = os.getenv("ACCOUNTS_SERVICE", "http://localhost:5002")

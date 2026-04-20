@@ -132,7 +132,8 @@ jobs:
             "scheduler-service"
             "mssql-custom"
             "postgres-custom"
-            "chatbot-service"
+            "support-service"
+            "risk-assessment-service"
             "scenario-runner"
             "otel-collector-kafka"
             "kafka-with-monitoring"
@@ -166,6 +167,11 @@ jobs:
       - name: Deploy to AKS
         if: (inputs.deploy == true || inputs.deploy == 'true') || inputs.skip_build == true
         run: |
+          echo "Deleting existing immutable Jobs..."
+          kubectl delete job postgres-init -n relibank --ignore-not-found=true
+          kubectl delete job mssql-init -n relibank --ignore-not-found=true
+          echo "✅ Jobs deleted"
+
           echo "Applying azure-prod overlay to cluster..."
           kubectl apply -k k8s/overlays/azure-prod
           echo "✅ Manifests applied successfully"
@@ -225,6 +231,38 @@ jobs:
           kubectl apply -f scenario_service/chaos_mesh/experiments/relibank-stress-scenarios.yaml
           echo "✅ Chaos experiments applied successfully"
 
+      - name: Install New Relic Observability Stack
+        if: inputs.deploy == true || inputs.deploy == 'true'
+        run: |
+          echo "Adding New Relic Helm repository..."
+          helm repo add newrelic https://helm-charts.newrelic.com
+          helm repo update
+
+          echo "Installing New Relic nri-bundle with eBPF agent..."
+          helm upgrade --install nri-bundle newrelic/nri-bundle \
+            --namespace newrelic \
+            --create-namespace \
+            --version 6.0.45 \
+            -f k8s/newrelic/values.yaml \
+            --set global.licenseKey="${{ secrets.NR_LICENSE_KEY }}" \
+            --set global.cluster="relibank-prod" \
+            --set global.lowDataMode=false \
+            --set newrelic-infrastructure.enabled=true \
+            --set newrelic-infrastructure.privileged=true \
+            --set nri-prometheus.enabled=true \
+            --set nri-metadata-injection.enabled=true \
+            --set newrelic-logging.enabled=true \
+            --set ksm.enabled=true \
+            --set controlPlane.enabled=true \
+            --set nri-kube-events.enabled=true \
+            --set nr-ebpf-agent.enabled=true \
+            --set nr-ebpf-agent.apmDataReporting=true \
+            --set nr-ebpf-agent.networkMetricsReporting=true \
+            --set pixie.enabled=false \
+            --set newrelic-pixie.enabled=false \
+            --wait
+          echo "✅ New Relic observability stack installed successfully"
+
       - name: Cleanup
         if: always()
         run: |
@@ -241,6 +279,7 @@ jobs:
           echo "All images successfully built and pushed to ${{ env.ACR_SERVER }}"
           echo "Manifests deployed to ${{ env.REQUIRED_CONTEXT }}"
           echo "Chaos Mesh installed and experiments configured"
+          echo "New Relic eBPF monitoring installed"
 
       - name: Deployment Summary (skip build)
         if: inputs.skip_build == true
@@ -251,6 +290,7 @@ jobs:
           echo "Build and push steps skipped"
           echo "Manifests deployed to ${{ env.REQUIRED_CONTEXT }}"
           echo "Chaos Mesh installed and experiments configured"
+          echo "New Relic eBPF monitoring installed"
 
       - name: Build Summary
         if: inputs.deploy != true && inputs.deploy != 'true' && inputs.skip_build != true

@@ -5,16 +5,17 @@ import os
 from typing import Dict, List
 
 # Configuration - use environment variables with local defaults
-SCENARIO_SERVICE_URL = os.getenv("SCENARIO_SERVICE_URL", "http://localhost:8000/scenario-runner")
-BILL_PAY_SERVICE_URL = os.getenv("BASE_URL", "http://localhost:5000")
+SCENARIO_SERVICE_URL = os.getenv("SCENARIO_SERVICE_URL", "http://localhost:8000")
+BILL_PAY_SERVICE_URL = os.getenv("BILL_PAY_SERVICE", "http://localhost:5000")
 NUM_PAYMENT_ATTEMPTS = 50  # Send enough to trigger scenarios
 
 @pytest.fixture
 def reset_scenarios():
     """Reset all scenarios before and after tests"""
     # Reset before test
-    response = requests.post(f"{SCENARIO_SERVICE_URL}/api/payment-scenarios/reset", timeout=10)
+    response = requests.post(f"{SCENARIO_SERVICE_URL}/scenario-runner/api/payment-scenarios/reset", timeout=10)
     assert response.status_code == 200
+    requests.post(f"{SCENARIO_SERVICE_URL}/scenario-runner/api/risk-assessment/reset", timeout=10)
 
     # Verify all scenarios are disabled
     for scenario in ["gateway_timeout", "card_decline", "stolen_card"]:
@@ -24,7 +25,8 @@ def reset_scenarios():
     yield
     # Cleanup after test
     try:
-        requests.post(f"{SCENARIO_SERVICE_URL}/api/payment-scenarios/reset", timeout=10)
+        requests.post(f"{SCENARIO_SERVICE_URL}/scenario-runner/api/payment-scenarios/reset", timeout=10)
+        requests.post(f"{SCENARIO_SERVICE_URL}/scenario-runner/api/risk-assessment/reset", timeout=10)
     except:
         pass  # Ignore cleanup errors
 
@@ -47,7 +49,7 @@ def wait_for_scenario_active(scenario_name: str, expected_enabled: bool, expecte
 
     start_time = time.time()
     while time.time() - start_time < timeout:
-        response = requests.get(f"{SCENARIO_SERVICE_URL}/api/payment-scenarios", timeout=5)
+        response = requests.get(f"{SCENARIO_SERVICE_URL}/scenario-runner/api/payment-scenarios", timeout=5)
         if response.status_code == 200:
             data = response.json()
             scenarios = data.get("scenarios", {})
@@ -72,9 +74,9 @@ def wait_for_scenario_active(scenario_name: str, expected_enabled: bool, expecte
 def enable_scenario(scenario_name: str, probability: float = None, delay: float = None) -> Dict:
     """Enable a payment scenario and wait for confirmation"""
     endpoints = {
-        "gateway_timeout": f"{SCENARIO_SERVICE_URL}/api/payment-scenarios/gateway-timeout",
-        "card_decline": f"{SCENARIO_SERVICE_URL}/api/payment-scenarios/card-decline",
-        "stolen_card": f"{SCENARIO_SERVICE_URL}/api/payment-scenarios/stolen-card"
+        "gateway_timeout": f"{SCENARIO_SERVICE_URL}/scenario-runner/api/payment-scenarios/gateway-timeout",
+        "card_decline": f"{SCENARIO_SERVICE_URL}/scenario-runner/api/payment-scenarios/card-decline",
+        "stolen_card": f"{SCENARIO_SERVICE_URL}/scenario-runner/api/payment-scenarios/stolen-card"
     }
 
     params = {"enabled": True}
@@ -100,7 +102,9 @@ def send_card_payment(bill_id: str, amount: float = 100.00) -> requests.Response
         "amount": amount,
         "currency": "usd",
         "paymentMethodId": "pm_card_visa",
-        "saveCard": False
+        "saveCard": False,
+        "payee": "Electric Company",
+        "accountId": "acc-test-standard",
     }
 
     response = requests.post(
@@ -175,7 +179,7 @@ def test_stolen_card_scenario(reset_scenarios):
     # Send payments and count stolen card declines
     stolen_declines = 0
     for i in range(5):
-        response = send_card_payment(f"BILL-STOLEN-TEST-{i:03d}", 125.00 + i)
+        response = send_card_payment(f"BILL-STOLEN-TEST-{i:03d}", 25.00)
         # Stolen card test token should be declined by Stripe
         if response.status_code == 402:
             stolen_declines += 1
@@ -252,7 +256,7 @@ def test_scenario_reset(reset_scenarios):
     enable_scenario("stolen_card", probability=100.0)
 
     # Reset all scenarios
-    response = requests.post(f"{SCENARIO_SERVICE_URL}/api/payment-scenarios/reset")
+    response = requests.post(f"{SCENARIO_SERVICE_URL}/scenario-runner/api/payment-scenarios/reset")
     assert response.status_code == 200
     print("Reset all scenarios")
 
