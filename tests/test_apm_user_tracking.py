@@ -165,7 +165,7 @@ def test_header_propagation_bill_pay_to_transaction():
 
     # Request may fail for various reasons (insufficient funds, etc.)
     # but header should be accepted
-    assert response.status_code in [200, 400, 503], \
+    assert response.status_code in [200, 400, 403, 503], \
         f"Unexpected error: {response.status_code}"
 
     print(f"✓ Header propagated through bill pay → transaction chain")

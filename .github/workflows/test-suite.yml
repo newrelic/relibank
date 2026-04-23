@@ -2,8 +2,8 @@ name: Relibank Test Suite
 
 on:
   schedule:
-    # Run daily at 9 AM PST (6pm UTC)
-    - cron: '0 14 * * *'
+    # Run daily at 5 AM PST (6pm UTC)
+    - cron: '0 13 * * *'
   workflow_dispatch:  # Allow manual trigger
     inputs:
       test_suite:
@@ -26,14 +26,21 @@ jobs:
     if: ${{ github.event.inputs.test_suite == 'all' || github.event.inputs.test_suite == 'e2e' || github.event.inputs.test_suite == 'scenario' || github.event.inputs.test_suite == 'payment' || github.event.inputs.test_suite == 'smoke' || github.event.inputs.test_suite == '' }}
     outputs:
       test_ab_testing: ${{ steps.individual-tests.outputs.test_ab_testing }}
-      test_apm_tracking: ${{ steps.individual-tests.outputs.test_apm_tracking }}
-      test_browser_tracking: ${{ steps.individual-tests.outputs.test_browser_tracking }}
+      test_apm_user_tracking: ${{ steps.individual-tests.outputs.test_apm_user_tracking }}
+      test_browser_user_tracking: ${{ steps.individual-tests.outputs.test_browser_user_tracking }}
+      test_card_payment_transactions: ${{ steps.individual-tests.outputs.test_card_payment_transactions }}
+      test_db_pool_e2e: ${{ steps.individual-tests.outputs.test_db_pool_e2e }}
+      test_db_pool: ${{ steps.individual-tests.outputs.test_db_pool }}
       test_e2e: ${{ steps.individual-tests.outputs.test_e2e }}
-      test_nr_instrumentation: ${{ steps.individual-tests.outputs.test_nr_instrumentation }}
+      test_mfe_single: ${{ steps.individual-tests.outputs.test_mfe_single }}
+      test_microfrontend_telemetry: ${{ steps.individual-tests.outputs.test_microfrontend_telemetry }}
+      test_newrelic_instrumentation: ${{ steps.individual-tests.outputs.test_newrelic_instrumentation }}
+      test_newrelic_risk_assessment: ${{ steps.individual-tests.outputs.test_newrelic_risk_assessment }}
       test_payment: ${{ steps.individual-tests.outputs.test_payment }}
+      test_rogue_deployment: ${{ steps.individual-tests.outputs.test_rogue_deployment }}
       test_scenario: ${{ steps.individual-tests.outputs.test_scenario }}
       test_stress: ${{ steps.individual-tests.outputs.test_stress }}
-      test_microfrontend_telemetry: ${{ steps.individual-tests.outputs.test_microfrontend_telemetry }}
+      test_with_interactions: ${{ steps.individual-tests.outputs.test_with_interactions }}
 
     steps:
       - name: Checkout code
@@ -81,9 +88,11 @@ jobs:
           BILL_PAY_SERVICE: ${{ vars.BASE_URL }}
           SUPPORT_SERVICE: ${{ vars.BASE_URL }}
           TRANSACTION_SERVICE: ${{ vars.BASE_URL }}
-          SCENARIO_SERVICE_URL: ${{ vars.BASE_URL }}/scenario-runner
+          SCENARIO_SERVICE_URL: ${{ vars.BASE_URL }}
           NEW_RELIC_USER_API_KEY: ${{ secrets.NEW_RELIC_USER_API_KEY }}
           NEW_RELIC_ACCOUNT_ID: ${{ vars.NEW_RELIC_ACCOUNT_ID }}
+          DB_SERVER: ${{ secrets.DB_SERVER }}
+          DB_PASSWORD: ${{ secrets.DB_PASSWORD }}
         run: |
           cd tests
 
@@ -121,7 +130,7 @@ jobs:
           BILL_PAY_SERVICE: ${{ vars.BASE_URL }}
           SUPPORT_SERVICE: ${{ vars.BASE_URL }}
           TRANSACTION_SERVICE: ${{ vars.BASE_URL }}
-          SCENARIO_SERVICE_URL: ${{ vars.BASE_URL }}/scenario-runner
+          SCENARIO_SERVICE_URL: ${{ vars.BASE_URL }}
           NEW_RELIC_USER_API_KEY: ${{ secrets.NEW_RELIC_USER_API_KEY }}
           NEW_RELIC_ACCOUNT_ID: ${{ vars.NEW_RELIC_ACCOUNT_ID }}
         run: |
@@ -132,7 +141,7 @@ jobs:
         if: ${{ github.event.inputs.test_suite == 'scenario' }}
         env:
           RELIBANK_URL: ${{ vars.BASE_URL }}
-          SCENARIO_SERVICE_URL: ${{ vars.BASE_URL }}/scenario-runner
+          SCENARIO_SERVICE_URL: ${{ vars.BASE_URL }}
           NEW_RELIC_USER_API_KEY: ${{ secrets.NEW_RELIC_USER_API_KEY }}
           NEW_RELIC_ACCOUNT_ID: ${{ vars.NEW_RELIC_ACCOUNT_ID }}
         run: |
@@ -156,7 +165,7 @@ jobs:
         env:
           RELIBANK_URL: ${{ vars.BASE_URL }}
           BASE_URL: ${{ vars.BASE_URL }}
-          SCENARIO_SERVICE_URL: ${{ vars.BASE_URL }}/scenario-runner
+          SCENARIO_SERVICE_URL: ${{ vars.BASE_URL }}
           NEW_RELIC_USER_API_KEY: ${{ secrets.NEW_RELIC_USER_API_KEY }}
           NEW_RELIC_ACCOUNT_ID: ${{ vars.NEW_RELIC_ACCOUNT_ID }}
         run: |
@@ -198,13 +207,33 @@ jobs:
     steps:
       - name: Test Results Summary
         run: |
+          # Build summary from test outputs JSON
+          TEST_OUTPUTS='${{ toJSON(needs.python-tests.outputs) }}'
+          FRONTEND_RESULT="${{ needs.frontend-tests.result }}"
+
+          # Count failures
+          FAILURES=$(echo "$TEST_OUTPUTS" | python3 -c "
+          import sys, json
+          outputs = json.load(sys.stdin)
+          failed = [k for k, v in outputs.items() if v == 'failed']
+          print('\n'.join(failed))
+          " 2>/dev/null || echo "")
+
           echo "## Relibank Test Suite Results" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "**Python Tests:** ${{ needs.python-tests.result }}" >> $GITHUB_STEP_SUMMARY
-          echo "**Frontend Tests:** ${{ needs.frontend-tests.result }}" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "**Test Suite:** ${{ github.event.inputs.test_suite || 'all' }}" >> $GITHUB_STEP_SUMMARY
           echo "**Environment:** ${{ vars.BASE_URL }}" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+          if [ -z "$FAILURES" ] && [ "$FRONTEND_RESULT" == "success" ]; then
+            echo "✅ All tests passed" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "### ❌ Failures" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            while IFS= read -r key; do
+              [ -n "$key" ] && echo "- $key" >> $GITHUB_STEP_SUMMARY
+            done <<< "$FAILURES"
+            [ "$FRONTEND_RESULT" != "success" ] && echo "- frontend-tests" >> $GITHUB_STEP_SUMMARY
+          fi
 
       - name: Configure AWS credentials
         if: always()

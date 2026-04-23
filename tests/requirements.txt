@@ -3,6 +3,8 @@
 
 # Core testing framework
 pytest>=7.4.0
+pytest-xdist>=3.3.0
+pytest-timeout>=2.1.0
 
 # HTTP requests
 requests>=2.31.0
