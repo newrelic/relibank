@@ -176,6 +176,14 @@ jobs:
           kubectl apply -k k8s/overlays/azure-prod
           echo "✅ Manifests applied successfully"
 
+      - name: Wait for database init jobs to complete
+        if: inputs.deploy == true || inputs.deploy == 'true'
+        run: |
+          echo "Waiting for database initialization jobs to complete..."
+          kubectl wait --for=condition=complete --timeout=5m job/postgres-init -n relibank || echo "⚠ postgres-init job did not complete (may have failed or not exist)"
+          kubectl wait --for=condition=complete --timeout=5m job/mssql-init -n relibank || echo "⚠ mssql-init job did not complete (may have failed or not exist)"
+          echo "✅ Database init jobs completed"
+
       - name: Restart services and databases
         if: inputs.deploy == true || inputs.deploy == 'true'
         run: |

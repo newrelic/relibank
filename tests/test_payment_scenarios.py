@@ -17,10 +17,14 @@ def reset_scenarios():
     assert response.status_code == 200
     requests.post(f"{SCENARIO_SERVICE_URL}/scenario-runner/api/risk-assessment/reset", timeout=10)
 
-    # Verify all scenarios are disabled
+    # Verify all payment scenarios are disabled
     for scenario in ["gateway_timeout", "card_decline", "stolen_card"]:
         confirmed = wait_for_scenario_active(scenario, False)
         assert confirmed, f"Failed to confirm {scenario} is disabled after reset"
+
+    # Verify risk assessment is disabled (prevents 403 interference in stolen card tests)
+    confirmed = wait_for_risk_assessment_disabled()
+    assert confirmed, "Failed to confirm risk assessment is disabled after reset"
 
     yield
     # Cleanup after test
@@ -68,6 +72,32 @@ def wait_for_scenario_active(scenario_name: str, expected_enabled: bool, expecte
         time.sleep(0.2)  # Poll every 200ms
 
     print(f"Timeout waiting for {scenario_name} to reach expected state")
+    return False
+
+
+def wait_for_risk_assessment_disabled(timeout: int = 10) -> bool:
+    """Poll the API to confirm risk assessment (rogue agent) is disabled"""
+    start_time = time.time()
+    while time.time() - start_time < timeout:
+        try:
+            response = requests.get(f"{SCENARIO_SERVICE_URL}/scenario-runner/api/risk-assessment/config", timeout=5)
+            if response.status_code == 200:
+                data = response.json()
+                scenarios = data.get("scenarios", {})
+
+                # Check if rogue agent is disabled
+                if not scenarios.get("rogue_agent_enabled", True):
+                    print("Confirmed: risk assessment (rogue agent) disabled")
+                    # Wait an additional 5 seconds for cache invalidation to fully propagate
+                    # This ensures the support service cache is cleared and new config is active
+                    time.sleep(5.0)
+                    return True
+        except:
+            pass  # Ignore request errors, keep polling
+
+        time.sleep(0.2)  # Poll every 200ms
+
+    print("Timeout waiting for risk assessment to be disabled")
     return False
 
 
@@ -169,29 +199,46 @@ def test_card_decline_scenario(reset_scenarios):
 
 
 def test_stolen_card_scenario(reset_scenarios):
-    """Test that stolen card scenario triggers with high probability"""
+    """
+    Test that stolen card scenario triggers payment declines.
+
+    Note: Risk assessment runs BEFORE Stripe in the payment flow.
+    Both 402 (Stripe decline) and 403 (risk assessment decline) are valid outcomes
+    because risk assessment may identify the suspicious payment before it reaches Stripe.
+    This is correct production behavior - risk assessment should intercept fraud.
+    """
     print("\n=== Testing Stolen Card Scenario ===")
 
     # Enable stolen card with 100% probability for testing
     result = enable_scenario("stolen_card", probability=100.0)
     print(f"Enabled: {result['message']}")
 
-    # Send payments and count stolen card declines
-    stolen_declines = 0
+    decline_count = 0
+    stripe_declines = 0
+    risk_declines = 0
+
     for i in range(5):
         response = send_card_payment(f"BILL-STOLEN-TEST-{i:03d}", 25.00)
-        # Stolen card test token should be declined by Stripe
+
+        # Both 402 (Stripe) and 403 (risk assessment) are valid decline responses
         if response.status_code == 402:
-            stolen_declines += 1
-            print(f"Payment {i+1}: DECLINED - {response.json()['detail']}")
+            # Stripe declined the stolen card
+            stripe_declines += 1
+            decline_count += 1
+            print(f"Payment {i+1}: DECLINED by Stripe (402) - {response.json()['detail']}")
+        elif response.status_code == 403:
+            # Risk assessment declined before reaching Stripe (correct behavior)
+            risk_declines += 1
+            decline_count += 1
+            print(f"Payment {i+1}: DECLINED by risk assessment (403) - intercepted fraud")
         else:
-            print(f"Payment {i+1}: Status {response.status_code}")
+            print(f"Payment {i+1}: Unexpected status {response.status_code}")
 
-    # With 100% probability, all should use stolen card token and decline
-    print(f"\nDeclined (stolen card): {stolen_declines}/5 payments")
-    assert stolen_declines >= 2, f"Expected at least 2 stolen card declines with 100% probability, got {stolen_declines}"
+    # With 100% stolen card probability, all payments should be declined by EITHER system
+    print(f"\nDecline summary: {decline_count}/5 total ({stripe_declines} Stripe, {risk_declines} risk assessment)")
+    assert decline_count >= 4, f"Expected at least 4 declines with 100% probability, got {decline_count}"
 
-    print("✓ Stolen card scenario working correctly")
+    print("✓ Stolen card scenario working correctly - fraud prevention active")
 
 
 def test_realistic_probability_distribution(reset_scenarios):
