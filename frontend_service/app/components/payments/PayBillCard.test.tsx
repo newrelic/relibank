@@ -17,6 +17,10 @@ const mockLoginContext = {
   userData: mockUserData,
   setUserData: vi.fn(),
   handleLogout: vi.fn(),
+  userId: 'alice.j@relibank.com',
+  setUserId: vi.fn(),
+  browserUserId: null,
+  setBrowserUserId: vi.fn(),
 };
 
 const renderPayBillCard = () => {
@@ -34,6 +38,11 @@ describe('PayBillCard - Payment Flow', () => {
   });
 
   it('fetches saved payment methods on mount', async () => {
+    // Mock accounts-service to return a stripe customer ID
+    (global.fetch as any).mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({ stripe_customer_id: 'cus_test' }),
+    });
     (global.fetch as any).mockResolvedValueOnce({
       ok: true,
       json: async () => ({
@@ -53,6 +62,11 @@ describe('PayBillCard - Payment Flow', () => {
   });
 
   it('validates required fields before submission', async () => {
+    // Mock accounts-service call on mount
+    (global.fetch as any).mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({ stripe_customer_id: 'cus_test' }),
+    });
     (global.fetch as any).mockResolvedValueOnce({
       ok: true,
       json: async () => ({ paymentMethods: [] }),
@@ -77,6 +91,11 @@ describe('PayBillCard - Payment Flow', () => {
   });
 
   it('processes bank account payment successfully', async () => {
+    // Mock accounts-service call on mount
+    (global.fetch as any).mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({ stripe_customer_id: 'cus_test' }),
+    });
     // Mock payment methods fetch
     (global.fetch as any).mockResolvedValueOnce({
       ok: true,
@@ -114,6 +133,11 @@ describe('PayBillCard - Payment Flow', () => {
   });
 
   it('displays saved payment methods in dropdown', async () => {
+    // Mock accounts-service to return a stripe customer ID
+    (global.fetch as any).mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({ stripe_customer_id: 'cus_test' }),
+    });
     // Mock payment methods fetch with cards
     (global.fetch as any).mockResolvedValueOnce({
       ok: true,
@@ -136,6 +160,11 @@ describe('PayBillCard - Payment Flow', () => {
   });
 
   it('resets form after successful payment', async () => {
+    // Mock accounts-service call on mount
+    (global.fetch as any).mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({ stripe_customer_id: 'cus_test' }),
+    });
     // Mock payment methods fetch
     (global.fetch as any).mockResolvedValueOnce({
       ok: true,
@@ -175,6 +204,11 @@ describe('PayBillCard - Payment Flow', () => {
   });
 
   it('shows loading state during payment processing', async () => {
+    // Mock accounts-service call on mount
+    (global.fetch as any).mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({ stripe_customer_id: 'cus_test' }),
+    });
     // Mock payment methods fetch
     (global.fetch as any).mockResolvedValueOnce({
       ok: true,
