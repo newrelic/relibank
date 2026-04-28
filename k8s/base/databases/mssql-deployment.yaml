@@ -81,6 +81,8 @@ metadata:
   namespace: relibank
   labels:
     app: mssql
+  annotations:
+    service.beta.kubernetes.io/azure-dns-label-name: relibank-mssql
 spec:
   type: LoadBalancer
   selector:

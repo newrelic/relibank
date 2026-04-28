@@ -7,7 +7,7 @@ from typing import Dict
 # Configuration - use environment variables with local defaults
 SCENARIO_SERVICE_URL = os.getenv("SCENARIO_SERVICE_URL", "http://localhost:8000")
 SUPPORT_SERVICE_URL = os.getenv("SUPPORT_SERVICE", "http://localhost:5003")
-NUM_RISK_ASSESSMENTS = 20  # Number of risk assessments to test
+NUM_RISK_ASSESSMENTS = int(os.getenv("NUM_RISK_ASSESSMENTS", "10"))  # Reduced to avoid rate limits
 
 @pytest.fixture
 def reset_risk_scenarios():
@@ -84,18 +84,38 @@ def disable_rogue_agent() -> Dict:
     return result
 
 
-def assess_payment_risk(transaction_data: Dict) -> Dict:
-    """Call Support Service to assess payment risk"""
-    response = requests.post(
-        f"{SUPPORT_SERVICE_URL}/support-service/assess-payment-risk",
-        json=transaction_data,
-        timeout=30
-    )
-    if response.status_code != 200:
-        print(f"Error response: {response.status_code}")
-        print(f"Response body: {response.text}")
-    assert response.status_code == 200, f"Expected 200, got {response.status_code}: {response.text}"
-    return response.json()
+def assess_payment_risk(transaction_data: Dict, retry_count: int = 3) -> Dict:
+    """Call Support Service to assess payment risk with retry logic for rate limits"""
+    for attempt in range(retry_count):
+        try:
+            response = requests.post(
+                f"{SUPPORT_SERVICE_URL}/support-service/assess-payment-risk",
+                json=transaction_data,
+                timeout=30
+            )
+
+            # Retry on 429 (rate limit) or 503 (service unavailable)
+            if response.status_code in [429, 503]:
+                if attempt < retry_count - 1:
+                    wait_time = (attempt + 1) * 2  # Exponential backoff: 2s, 4s, 6s
+                    print(f"Rate limit hit, waiting {wait_time}s before retry {attempt + 1}/{retry_count}...")
+                    time.sleep(wait_time)
+                    continue
+
+            if response.status_code != 200:
+                print(f"Error response: {response.status_code}")
+                print(f"Response body: {response.text}")
+            assert response.status_code == 200, f"Expected 200, got {response.status_code}: {response.text}"
+            return response.json()
+        except requests.exceptions.Timeout:
+            if attempt < retry_count - 1:
+                print(f"Request timeout, retrying {attempt + 1}/{retry_count}...")
+                time.sleep(2)
+                continue
+            raise
+
+    # If we get here, all retries failed
+    raise Exception(f"Failed after {retry_count} attempts")
 
 
 def test_get_risk_assessment_config(reset_risk_scenarios):
@@ -222,7 +242,7 @@ def test_rogue_agent_high_decline_rate(reset_risk_scenarios):
         if result["decision"] == "declined":
             normal_declined += 1
 
-        time.sleep(0.5)  # Small delay between requests
+        time.sleep(1.0)  # Delay to avoid rate limits
 
     normal_decline_rate = (normal_declined / NUM_RISK_ASSESSMENTS) * 100
 
@@ -243,7 +263,7 @@ def test_rogue_agent_high_decline_rate(reset_risk_scenarios):
         if result["decision"] == "declined":
             rogue_declined += 1
 
-        time.sleep(0.5)  # Small delay between requests
+        time.sleep(1.0)  # Delay to avoid rate limits
 
     rogue_decline_rate = (rogue_declined / NUM_RISK_ASSESSMENTS) * 100
 

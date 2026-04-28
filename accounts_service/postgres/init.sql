@@ -19,6 +19,11 @@ CREATE TABLE IF NOT EXISTS user_account (
     stripe_payment_method_name  VARCHAR(255)
 );
 
+-- Add Stripe columns if they don't exist (for databases created before commit c6079b1, March 25 2026)
+ALTER TABLE user_account ADD COLUMN IF NOT EXISTS stripe_customer_id VARCHAR(255);
+ALTER TABLE user_account ADD COLUMN IF NOT EXISTS stripe_payment_method_id VARCHAR(255);
+ALTER TABLE user_account ADD COLUMN IF NOT EXISTS stripe_payment_method_name VARCHAR(255);
+
 -- Create a table for checking accounts
 CREATE TABLE IF NOT EXISTS checking_accounts (
     id INT PRIMARY KEY,
@@ -111,6 +116,53 @@ INSERT INTO user_account (id, name, email, phone, password, stripe_customer_id, 
 ('08091011-1213-1415-1617-18191a1b1c1d', 'Corrupted Monk', 'corrupted.m@mibu.org', '555-234-5678', 'cM7#qY4mC8yD', 'cus_UDOXOcVFbiJdbn', 'pm_1TEyKaFGyca1lOb8ttY5xdHG', 'pm_card_visa'),
 ('09101112-1314-1516-1718-191a1b1c1d1e', 'Divine Dragon', 'divine.d@palace.net', '555-567-8901', 'dD3$wH6vL2fK', 'cus_UDOXtiXOGv79Q6', 'pm_1TEyKbFGyca1lOb8ZQ6lQePK', 'pm_card_mastercard'),
 ('0a111213-1415-1617-1819-1a1b1c1d1e1f', 'Demon Fire', 'demon.f@hatred.com', '555-890-1234', 'dF9@hK5xR7bM', 'cus_UDOXRJ4v1UVdYJ', 'pm_1TEyKcFGyca1lOb8XkkcaCFY', 'pm_card_discover');
+
+-- Update all users with Stripe credentials if they exist but don't have them
+-- This handles the case where the database was created before Stripe columns were added (commit c6079b1, March 25 2026)
+-- Note: These UPDATEs will only affect rows where stripe_customer_id IS NULL
+UPDATE user_account SET stripe_customer_id = 'cus_UDJUKtOkn6XoOB', stripe_payment_method_id = 'pm_1TExyFFGyca1lOb8OuCAwtEn', stripe_payment_method_name = 'pm_card_visa' WHERE id = 'b2a5c9f1-3d7f-4b0d-9a8c-9c7b5a1f2e4d' AND stripe_customer_id IS NULL;
+UPDATE user_account SET stripe_customer_id = 'cus_UDJWbyD8V585Ov', stripe_payment_method_id = 'pm_1TEyJiFGyca1lOb8mXJNWULT', stripe_payment_method_name = 'pm_card_visa' WHERE id = 'f5e8d1c6-2a9b-4c3e-8f1a-6e5b0d2c9f1a' AND stripe_customer_id IS NULL;
+UPDATE user_account SET stripe_customer_id = 'cus_UDJXmCEDzJLVQT', stripe_payment_method_id = 'pm_1TEyJjFGyca1lOb8FQmcbDbn', stripe_payment_method_name = 'pm_card_mastercard' WHERE id = 'e1f2b3c4-5d6a-7e8f-9a0b-1c2d3e4f5a6b' AND stripe_customer_id IS NULL;
+UPDATE user_account SET stripe_customer_id = 'cus_UDONEXRz6FuSOJ', stripe_payment_method_id = 'pm_1TEyJkFGyca1lOb89A11DMOY', stripe_payment_method_name = 'pm_card_discover' WHERE id = 'f47ac10b-58cc-4372-a567-0e02b2c3d471' AND stripe_customer_id IS NULL;
+UPDATE user_account SET stripe_customer_id = 'cus_UDONja6tdPGNBu', stripe_payment_method_id = 'pm_1TEyJmFGyca1lOb8Osa182qe', stripe_payment_method_name = 'pm_card_visa' WHERE id = 'd9b1e2a3-f4c5-4d6e-8f7a-9b0c1d2e3f4a' AND stripe_customer_id IS NULL;
+UPDATE user_account SET stripe_customer_id = 'cus_UDOO7Am0C4id4y', stripe_payment_method_id = 'pm_1TEyJnFGyca1lOb8ACxhFv4I', stripe_payment_method_name = 'pm_card_mastercard' WHERE id = '8c7d6e5f-4a3b-2c1d-0e9f-8a7b6c5d4e3f' AND stripe_customer_id IS NULL;
+UPDATE user_account SET stripe_customer_id = 'cus_UDOOCvDNMRi7ms', stripe_payment_method_id = 'pm_1TEyJpFGyca1lOb81c0sji5L', stripe_payment_method_name = 'pm_card_discover' WHERE id = '7f6e5d4c-3b2a-1c0d-9e8f-7a6b5c4d3e2f' AND stripe_customer_id IS NULL;
+UPDATE user_account SET stripe_customer_id = 'cus_UDOOXEjO6FUexG', stripe_payment_method_id = 'pm_1TEyJqFGyca1lOb8UzrfjPs2', stripe_payment_method_name = 'pm_card_visa' WHERE id = '6e5d4c3b-2a1c-0d9e-8f7a-6b5c4d3e2f1a' AND stripe_customer_id IS NULL;
+UPDATE user_account SET stripe_customer_id = 'cus_UDOO4JRW7eTKxr', stripe_payment_method_id = 'pm_1TEyJsFGyca1lOb8NAHbKMWj', stripe_payment_method_name = 'pm_card_mastercard' WHERE id = '5d4c3b2a-1c0d-9e8f-7a6b-5c4d3e2f1a0b' AND stripe_customer_id IS NULL;
+UPDATE user_account SET stripe_customer_id = 'cus_UDOPeiXsu2M1Gu', stripe_payment_method_id = 'pm_1TEyJtFGyca1lOb893U5efaJ', stripe_payment_method_name = 'pm_card_discover' WHERE id = '4c3b2a1c-0d9e-8f7a-6b5c-4d3e2f1a0b9c' AND stripe_customer_id IS NULL;
+UPDATE user_account SET stripe_customer_id = 'cus_UDOPteQJOTyk5s', stripe_payment_method_id = 'pm_1TEyJuFGyca1lOb84YC9kGRa', stripe_payment_method_name = 'pm_card_visa' WHERE id = '3b2a1c0d-9e8f-7a6b-5c4d-3e2f1a0b9c8d' AND stripe_customer_id IS NULL;
+UPDATE user_account SET stripe_customer_id = 'cus_UDOPLhBCElG1HZ', stripe_payment_method_id = 'pm_1TEyJwFGyca1lOb8oL1zdMXe', stripe_payment_method_name = 'pm_card_mastercard' WHERE id = '2a1c0d9e-8f7a-6b5c-4d3e-2f1a0b9c8d7e' AND stripe_customer_id IS NULL;
+UPDATE user_account SET stripe_customer_id = 'cus_UDOPc8SQ8xIuhE', stripe_payment_method_id = 'pm_1TEyJxFGyca1lOb8SELK4OMO', stripe_payment_method_name = 'pm_card_discover' WHERE id = '1c0d9e8f-7a6b-5c4d-3e2f-1a0b9c8d7e6f' AND stripe_customer_id IS NULL;
+UPDATE user_account SET stripe_customer_id = 'cus_UDOQ7OvIRYchrw', stripe_payment_method_id = 'pm_1TEyJyFGyca1lOb8pIvSaLV0', stripe_payment_method_name = 'pm_card_visa' WHERE id = '0d9e8f7a-6b5c-4d3e-2f1a-0b9c8d7e6f50' AND stripe_customer_id IS NULL;
+UPDATE user_account SET stripe_customer_id = 'cus_UDOQCRMHk2I7gb', stripe_payment_method_id = 'pm_1TEyK0FGyca1lOb8rLLhwMNl', stripe_payment_method_name = 'pm_card_mastercard' WHERE id = '9e8f7a6b-5c4d-3e2f-1a0b-9c8d7e6f5041' AND stripe_customer_id IS NULL;
+UPDATE user_account SET stripe_customer_id = 'cus_UDOQCRMFI8zKWU', stripe_payment_method_id = 'pm_1TEyK1FGyca1lOb8eK1D2FDJ', stripe_payment_method_name = 'pm_card_discover' WHERE id = '8f7a6b5c-4d3e-2f1a-0b9c-8d7e6f504032' AND stripe_customer_id IS NULL;
+UPDATE user_account SET stripe_customer_id = 'cus_UDORftTZgWGeZV', stripe_payment_method_id = 'pm_1TEyK2FGyca1lOb8HVx7vYrf', stripe_payment_method_name = 'pm_card_visa' WHERE id = '7a6b5c4d-3e2f-1a0b-9c8d-7e6f50403021' AND stripe_customer_id IS NULL;
+UPDATE user_account SET stripe_customer_id = 'cus_UDORZMSaVjHGOU', stripe_payment_method_id = 'pm_1TEyK4FGyca1lOb83qWai2QO', stripe_payment_method_name = 'pm_card_mastercard' WHERE id = '6b5c4d3e-2f1a-0b9c-8d7e-6f5040302010' AND stripe_customer_id IS NULL;
+UPDATE user_account SET stripe_customer_id = 'cus_UDORPkAgjHyrsz', stripe_payment_method_id = 'pm_1TEyK5FGyca1lOb8N0gkaQ3k', stripe_payment_method_name = 'pm_card_discover' WHERE id = '5c4d3e2f-1a0b-9c8d-7e6f-504030201001' AND stripe_customer_id IS NULL;
+UPDATE user_account SET stripe_customer_id = 'cus_UDORQrer29Mh7N', stripe_payment_method_id = 'pm_1TEyK7FGyca1lOb8qXpwaFyK', stripe_payment_method_name = 'pm_card_visa' WHERE id = '4d3e2f1a-0b9c-8d7e-6f50-403020100102' AND stripe_customer_id IS NULL;
+UPDATE user_account SET stripe_customer_id = 'cus_UDOSlLTPkHtvyT', stripe_payment_method_id = 'pm_1TEyK8FGyca1lOb8b2K6a1LF', stripe_payment_method_name = 'pm_card_mastercard' WHERE id = '3e2f1a0b-9c8d-7e6f-5040-302010010203' AND stripe_customer_id IS NULL;
+UPDATE user_account SET stripe_customer_id = 'cus_UDOSgv8r2K6AgY', stripe_payment_method_id = 'pm_1TEyK9FGyca1lOb8EP4Cjg8B', stripe_payment_method_name = 'pm_card_discover' WHERE id = '2f1a0b9c-8d7e-6f50-4030-201001020304' AND stripe_customer_id IS NULL;
+UPDATE user_account SET stripe_customer_id = 'cus_UDOSzILQZNYh7c', stripe_payment_method_id = 'pm_1TEyKBFGyca1lOb8OY3d0eaL', stripe_payment_method_name = 'pm_card_visa' WHERE id = '1a0b9c8d-7e6f-5040-3020-100102030405' AND stripe_customer_id IS NULL;
+UPDATE user_account SET stripe_customer_id = 'cus_UDOTQ5b1qjYQTW', stripe_payment_method_id = 'pm_1TEyKCFGyca1lOb8LpW8693L', stripe_payment_method_name = 'pm_card_mastercard' WHERE id = '0b9c8d7e-6f50-4030-2010-010203040506' AND stripe_customer_id IS NULL;
+UPDATE user_account SET stripe_customer_id = 'cus_UDOTcXaPe48TmT', stripe_payment_method_id = 'pm_1TEyKDFGyca1lOb8Ty79UKBj', stripe_payment_method_name = 'pm_card_discover' WHERE id = '9c8d7e6f-5040-3020-1001-020304050607' AND stripe_customer_id IS NULL;
+UPDATE user_account SET stripe_customer_id = 'cus_UDOTuw7j2C0AGf', stripe_payment_method_id = 'pm_1TEyKFFGyca1lOb8RvC0g7e1', stripe_payment_method_name = 'pm_card_visa' WHERE id = '8d7e6f50-4030-2010-0102-030405060708' AND stripe_customer_id IS NULL;
+UPDATE user_account SET stripe_customer_id = 'cus_UDOTF7pbrUU45t', stripe_payment_method_id = 'pm_1TEyKGFGyca1lOb872FOfEp3', stripe_payment_method_name = 'pm_card_mastercard' WHERE id = '7e6f5040-3020-1001-0203-040506070809' AND stripe_customer_id IS NULL;
+UPDATE user_account SET stripe_customer_id = 'cus_UDOTT01jjBDXsj', stripe_payment_method_id = 'pm_1TEyKHFGyca1lOb8NTS26on3', stripe_payment_method_name = 'pm_card_discover' WHERE id = '6f504030-2010-0102-0304-05060708090a' AND stripe_customer_id IS NULL;
+UPDATE user_account SET stripe_customer_id = 'cus_UDOUWKHgpSyKB0', stripe_payment_method_id = 'pm_1TEyKJFGyca1lOb8unmSkbq2', stripe_payment_method_name = 'pm_card_visa' WHERE id = '50403020-1001-0203-0405-0607080910ab' AND stripe_customer_id IS NULL;
+UPDATE user_account SET stripe_customer_id = 'cus_UDOUveeuxWP3vX', stripe_payment_method_id = 'pm_1TEyKKFGyca1lOb8TAgQNR0a', stripe_payment_method_name = 'pm_card_mastercard' WHERE id = '40302010-0102-0304-0506-070809101112' AND stripe_customer_id IS NULL;
+UPDATE user_account SET stripe_customer_id = 'cus_UDOUwVX2pvB0ad', stripe_payment_method_id = 'pm_1TEyKMFGyca1lOb8poNtG8jO', stripe_payment_method_name = 'pm_card_discover' WHERE id = '30201001-0203-0405-0607-080910111213' AND stripe_customer_id IS NULL;
+UPDATE user_account SET stripe_customer_id = 'cus_UDOVtzg112Mksw', stripe_payment_method_id = 'pm_1TEyKNFGyca1lOb8On2brUpu', stripe_payment_method_name = 'pm_card_visa' WHERE id = '20100102-0304-0506-0708-091011121314' AND stripe_customer_id IS NULL;
+UPDATE user_account SET stripe_customer_id = 'cus_UDOVOIyVGH99ti', stripe_payment_method_id = 'pm_1TEyKOFGyca1lOb8SHK3VMw0', stripe_payment_method_name = 'pm_card_mastercard' WHERE id = '10010203-0405-0607-0809-101112131415' AND stripe_customer_id IS NULL;
+UPDATE user_account SET stripe_customer_id = 'cus_UDOVd3mqyS2pxE', stripe_payment_method_id = 'pm_1TEyKQFGyca1lOb8jqORJEI2', stripe_payment_method_name = 'pm_card_discover' WHERE id = '01020304-0506-0708-0910-111213141516' AND stripe_customer_id IS NULL;
+UPDATE user_account SET stripe_customer_id = 'cus_UDOVfMaBsiouzb', stripe_payment_method_id = 'pm_1TEyKRFGyca1lOb839hipslU', stripe_payment_method_name = 'pm_card_visa' WHERE id = '02030405-0607-0809-1011-121314151617' AND stripe_customer_id IS NULL;
+UPDATE user_account SET stripe_customer_id = 'cus_UDOWQq6JppJPxS', stripe_payment_method_id = 'pm_1TEyKTFGyca1lOb8k5lyycUn', stripe_payment_method_name = 'pm_card_mastercard' WHERE id = '03040506-0708-0910-1112-131415161718' AND stripe_customer_id IS NULL;
+UPDATE user_account SET stripe_customer_id = 'cus_UDOW9JYOLm6JIa', stripe_payment_method_id = 'pm_1TEyKUFGyca1lOb8OqDwHwHd', stripe_payment_method_name = 'pm_card_discover' WHERE id = '04050607-0809-1011-1213-141516171819' AND stripe_customer_id IS NULL;
+UPDATE user_account SET stripe_customer_id = 'cus_UDOW6HKSWeaqF1', stripe_payment_method_id = 'pm_1TEyKVFGyca1lOb8Vq4LfgB4', stripe_payment_method_name = 'pm_card_visa' WHERE id = '05060708-0910-1112-1314-15161718191a' AND stripe_customer_id IS NULL;
+UPDATE user_account SET stripe_customer_id = 'cus_UDOXM6Lqg5ia63', stripe_payment_method_id = 'pm_1TEyKXFGyca1lOb8DrWJ9izF', stripe_payment_method_name = 'pm_card_mastercard' WHERE id = '06070809-1011-1213-1415-161718191a1b' AND stripe_customer_id IS NULL;
+UPDATE user_account SET stripe_customer_id = 'cus_UDOX2ej64dsYqh', stripe_payment_method_id = 'pm_1TEyKYFGyca1lOb8oQUI8lj0', stripe_payment_method_name = 'pm_card_discover' WHERE id = '07080910-1112-1314-1516-1718191a1b1c' AND stripe_customer_id IS NULL;
+UPDATE user_account SET stripe_customer_id = 'cus_UDOXOcVFbiJdbn', stripe_payment_method_id = 'pm_1TEyKaFGyca1lOb8ttY5xdHG', stripe_payment_method_name = 'pm_card_visa' WHERE id = '08091011-1213-1415-1617-18191a1b1c1d' AND stripe_customer_id IS NULL;
+UPDATE user_account SET stripe_customer_id = 'cus_UDOXtiXOGv79Q6', stripe_payment_method_id = 'pm_1TEyKbFGyca1lOb8ZQ6lQePK', stripe_payment_method_name = 'pm_card_mastercard' WHERE id = '09101112-1314-1516-1718-191a1b1c1d1e' AND stripe_customer_id IS NULL;
+UPDATE user_account SET stripe_customer_id = 'cus_UDOXRJ4v1UVdYJ', stripe_payment_method_id = 'pm_1TEyKcFGyca1lOb8XkkcaCFY', stripe_payment_method_name = 'pm_card_discover' WHERE id = '0a111213-1415-1617-1819-1a1b1c1d1e1f' AND stripe_customer_id IS NULL;
 
 -- Insert test accounts with integer IDs
 INSERT INTO checking_accounts (id, name, balance, routing_number, interest_rate) VALUES

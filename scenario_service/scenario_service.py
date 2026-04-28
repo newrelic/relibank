@@ -4,6 +4,7 @@ import uuid
 import yaml
 from pathlib import Path
 import sys
+import asyncio
 from fastapi import FastAPI, Request, HTTPException
 from fastapi.responses import HTMLResponse
 from typing import Dict, Any, List
@@ -768,9 +769,16 @@ async def toggle_rogue_agent(enabled: bool):
     # Invalidate support service cache so it picks up the change immediately
     try:
         async with httpx.AsyncClient(timeout=2.0) as client:
-            await client.post("http://support-service.relibank.svc.cluster.local:5003/support-service/invalidate-agent-cache")
+            response = await client.post("http://support-service.relibank.svc.cluster.local:5003/support-service/invalidate-agent-cache")
+            response.raise_for_status()
+            print("Successfully invalidated support service risk agent cache")
     except Exception as e:
-        print(f"Warning: Could not invalidate support service cache: {e}")
+        print(f"Failed to invalidate support service cache: {e}")
+        # Continue anyway - cache will expire naturally in 1 second
+
+    # Small delay to ensure cache invalidation propagates before returning
+    # This helps prevent race conditions where tests immediately send requests
+    await asyncio.sleep(0.1)
 
     return {
         "status": "success",
@@ -788,9 +796,16 @@ async def reset_risk_assessment_scenarios():
     # Invalidate support service cache so it picks up the reset immediately
     try:
         async with httpx.AsyncClient(timeout=2.0) as client:
-            await client.post("http://support-service.relibank.svc.cluster.local:5003/support-service/invalidate-agent-cache")
+            response = await client.post("http://support-service.relibank.svc.cluster.local:5003/support-service/invalidate-agent-cache")
+            response.raise_for_status()
+            print("Successfully invalidated support service risk agent cache")
     except Exception as e:
-        print(f"Warning: Could not invalidate support service cache: {e}")
+        print(f"Failed to invalidate support service cache: {e}")
+        # Continue anyway - cache will expire naturally in 1 second
+
+    # Small delay to ensure cache invalidation propagates before returning
+    # This helps prevent race conditions where tests immediately send requests
+    await asyncio.sleep(0.1)
 
     return {
         "status": "success",
