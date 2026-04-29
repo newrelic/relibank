@@ -35,6 +35,11 @@ Relibank simulates a banking system with separate services for accounts, transac
     - Kafka protocol metrics
     - Internal collector telemetry
     - Exports to New Relic via OTLP
+  - **nrdot-collector-mssql** - New Relic NRDOT collector for MSSQL database monitoring
+    - Wait stats, performance counters, lock/deadlock metrics
+    - Slow query and blocking query detection via `query_monitoring_*` config
+    - Execution plan capture routed as logs via `metricsaslogs` connector
+    - Exports to New Relic via OTLP (`instrumentation.provider = opentelemetry`)
 - **scenario-runner-service** - Runtime configuration and chaos engineering control
     - Payment failure scenarios (timeout, decline, stolen card)
     - AI agent configuration for risk assessment (normal vs rogue agent)
@@ -45,6 +50,19 @@ Relibank simulates a banking system with separate services for accounts, transac
 
 You'll need Docker Desktop with Kubernetes enabled (or Minikube), Skaffold, kubectl, and Helm installed.
 
+
+### Credentials Setup
+
+Add `MSSQL_NEWRELIC_PASSWORD` to your `skaffold.env` (it's already in the New Relic section):
+
+```bash
+# In skaffold.env, under # New Relic:
+MSSQL_NEWRELIC_PASSWORD=YourStrong@Password!
+```
+
+A pre-deploy hook in `skaffold.yaml` automatically generates `k8s/base/infrastructure/newrelic/nrdot-mssql.env` from `skaffold.env` before every deploy — no separate file to maintain. See `nrdot-mssql.env.example` for the full variable mapping.
+
+For CI/CD (GitHub Actions), add `MSSQL_NEWRELIC_PASSWORD` to the `events` environment secrets — the workflow already includes it in the `skaffold.env` creation step.
 
 ### Deploy Everything
 Note - all secrets and configs are managed under `k8s/base/configs/*`
@@ -158,6 +176,13 @@ This isn't meant to be a real banking application. It's a learning tool for:
 - Responsive web application design
 
 ## Recent Updates
+
+### NRDOT MSSQL Database Monitoring
+- **NRDOT Collector**: Dedicated `nrdot-collector-mssql` pod running New Relic's NRDOT collector v1.11.1+db-v1.2.0
+- **Wait Stats & Perf Counters**: `sqlserver.wait_stats.*`, lock/deadlock/compilation rates from `sys.dm_os_wait_stats` and `sys.dm_os_performance_counters`
+- **Slow & Blocking Queries**: Captured via `query_monitoring_*` receiver config and routed as logs through the `metricsaslogs` connector
+- **Credentials**: Managed via `k8s/base/infrastructure/newrelic/nrdot-mssql.env` (gitignored); see `nrdot-mssql.env.example`
+- **GitHub Actions**: `MSSQL_NEWRELIC_PASSWORD` and `NR_LICENSE_KEY` secrets are used to generate the credentials file at deploy time
 
 ### Stripe Per-User Credentials
 - **Seeded Stripe Data**: All 43 seeded users now have pre-populated `stripe_customer_id`, `stripe_payment_method_id`, and `stripe_payment_method_name` in Postgres

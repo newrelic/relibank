@@ -41,6 +41,7 @@ jobs:
       test_scenario: ${{ steps.individual-tests.outputs.test_scenario }}
       test_stress: ${{ steps.individual-tests.outputs.test_stress }}
       test_with_interactions: ${{ steps.individual-tests.outputs.test_with_interactions }}
+      test_nrdot_mssql_collector: ${{ steps.individual-tests.outputs.test_nrdot_mssql_collector }}
 
     steps:
       - name: Checkout code
@@ -79,7 +80,7 @@ jobs:
       - name: Run all Python tests individually
         if: ${{ github.event.inputs.test_suite == 'all' || github.event.inputs.test_suite == '' }}
         id: individual-tests
-        timeout-minutes: 15
+        timeout-minutes: 20
         env:
           RELIBANK_URL: ${{ vars.BASE_URL }}
           BASE_URL: ${{ vars.BASE_URL }}

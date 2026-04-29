@@ -51,6 +51,7 @@ BEGIN
     GRANT CONNECT SQL TO newrelic;
     GRANT VIEW SERVER STATE TO newrelic;  -- Required for DMVs (sys.dm_exec_*)
     GRANT VIEW ANY DEFINITION TO newrelic;  -- Required for execution plans
+    GRANT VIEW ANY DATABASE TO newrelic;  -- Required for NRDOT database discovery
     PRINT 'Granted server-level permissions to New Relic user';
 END;
 GO

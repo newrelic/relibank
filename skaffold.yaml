@@ -151,6 +151,10 @@ build:
       dockerfile: otel_collector_kafka/Dockerfile
       buildArgs:
         NEW_RELIC_LICENSE_KEY: "{{.NEW_RELIC_LICENSE_KEY}}"
+  - image: nrdot-collector-mssql
+    context: otel_collector_mssql
+    docker:
+      dockerfile: Dockerfile
 
 # Manifests configuration - use Kustomize to handle image name mapping and resources
 manifests:
@@ -189,6 +193,9 @@ deploy:
   kubectl:
     hooks:
       before:
+      - host:
+          command: ["sh", "-c", "printf 'MSSQL_NEWRELIC_PASSWORD=%s\\nNEW_RELIC_LICENSE_KEY=%s\\nNEW_RELIC_OTLP_ENDPOINT=%s\\n' \"${MSSQL_NEWRELIC_PASSWORD}\" \"${NEW_RELIC_LICENSE_KEY}\" \"${NEW_RELIC_OTLP_ENDPOINT:-https://otlp.nr-data.net}\" > k8s/base/infrastructure/newrelic/nrdot-mssql.env"]
+          dir: "."
       - host:
           command: ["sh", "-c", "helm repo add chaos-mesh https://charts.chaos-mesh.org || true"]
           dir: "."
