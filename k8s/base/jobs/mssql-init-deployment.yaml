@@ -7,6 +7,7 @@ metadata:
     app: mssql-init
 spec:
   backoffLimit: 3
+  activeDeadlineSeconds: 900   # 15 min: covers 60s sleep + polling + 2M-row seed + FULLSCAN stats
   template:
     metadata:
       labels:
