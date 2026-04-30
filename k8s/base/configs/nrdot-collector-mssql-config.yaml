@@ -1,0 +1,173 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: nrdot-collector-mssql-config
+  namespace: relibank
+data:
+  config.yaml: |
+    receivers:
+      newrelicsqlserver:
+        hostname: "mssql-0"
+        port: "1433"
+        username: "newrelic"
+        password: ${env:MSSQL_NEWRELIC_PASSWORD}
+        monitored_databases: ["RelibankDB"]
+        timeout: 45s
+        collection_interval: 60s
+        query_monitoring_fetch_interval: 30
+        query_monitoring_response_time_threshold: 0
+        query_monitoring_count_threshold: 20
+        interval_calculator_cache_ttl_minutes: 10
+
+    connectors:
+      metricsaslogs:
+        include_resource_attributes: true
+        include_scope_info: true
+
+    processors:
+      filter/exec_plan_include:
+        metrics:
+          include:
+            match_type: strict
+            metric_names:
+              - sqlserver.slowquery.query_details
+              - sqlserver.execution.plan
+              - sqlserver.blocking_query.details
+              - sqlserver.activequery.query_details
+
+      filter/exec_plan_exclude:
+        metrics:
+          exclude:
+            match_type: strict
+            metric_names:
+              - sqlserver.slowquery.query_details
+              - sqlserver.execution.plan
+              - sqlserver.blocking_query.details
+              - sqlserver.activequery.query_details
+
+      cumulativetodelta:
+        max_staleness: 5m
+        include:
+          match_type: strict
+          metrics:
+            # Wait stats (sys.dm_os_wait_stats)
+            - sqlserver.wait_stats.latch.wait_time_ms
+            - sqlserver.wait_stats.latch.waiting_tasks_count
+            - sqlserver.wait_stats.wait_time_ms
+            - sqlserver.wait_stats.waiting_tasks_count
+            # Instance stats (sys.dm_os_performance_counters)
+            - sqlserver.stats.sql_compilations_per_sec
+            - sqlserver.stats.sql_recompilations_per_sec
+            - sqlserver.stats.lock_waits_per_sec
+            - sqlserver.stats.deadlocks_per_sec
+            - sqlserver.stats.user_errors_per_sec
+            - sqlserver.stats.kill_connection_errors_per_sec
+            - sqlserver.access.page_splits_per_sec
+            - sqlserver.buffer.checkpoint_pages_per_sec
+            - sqlserver.bufferpool.batch_requests_per_sec
+            - sqlserver.instance.transactions_per_sec
+            - sqlserver.instance.forced_parameterizations_per_sec
+            - sqlserver.instance.full_scans_rate
+            - sqlserver.instance.lock_timeouts_rate
+            # Database log (sys.dm_os_performance_counters)
+            - sqlserver.database.log.flushes_per_sec
+            - sqlserver.database.log.bytes_flushed_per_sec
+            - sqlserver.database.log.flush_waits_per_sec
+            # Failover cluster
+            - sqlserver.failover_cluster.log_bytes_received_per_sec
+            # User connections
+            - sqlserver.user_connections.authentication.logins_per_sec
+
+      deltatorate:
+        metrics:
+          - sqlserver.wait_stats.latch.wait_time_ms
+          - sqlserver.wait_stats.latch.waiting_tasks_count
+          - sqlserver.wait_stats.wait_time_ms
+          - sqlserver.wait_stats.waiting_tasks_count
+          - sqlserver.stats.sql_compilations_per_sec
+          - sqlserver.stats.sql_recompilations_per_sec
+          - sqlserver.stats.lock_waits_per_sec
+          - sqlserver.stats.deadlocks_per_sec
+          - sqlserver.stats.user_errors_per_sec
+          - sqlserver.stats.kill_connection_errors_per_sec
+          - sqlserver.access.page_splits_per_sec
+          - sqlserver.buffer.checkpoint_pages_per_sec
+          - sqlserver.bufferpool.batch_requests_per_sec
+          - sqlserver.instance.transactions_per_sec
+          - sqlserver.instance.forced_parameterizations_per_sec
+          - sqlserver.instance.full_scans_rate
+          - sqlserver.instance.lock_timeouts_rate
+          - sqlserver.database.log.flushes_per_sec
+          - sqlserver.database.log.bytes_flushed_per_sec
+          - sqlserver.database.log.flush_waits_per_sec
+          - sqlserver.failover_cluster.log_bytes_received_per_sec
+          - sqlserver.user_connections.authentication.logins_per_sec
+
+      transform:
+        trace_statements:
+          - context: span
+            statements:
+              - truncate_all(span.attributes, 4095)
+              - truncate_all(resource.attributes, 4095)
+        log_statements:
+          - context: log
+            statements:
+              - truncate_all(log.attributes, 4095)
+              - truncate_all(resource.attributes, 4095)
+
+      resourcedetection:
+        detectors: ["system"]
+        system:
+          hostname_sources: ["os"]
+          resource_attributes:
+            host.id:
+              enabled: true
+
+      resourcedetection/db_safe:
+        detectors: ["system"]
+        override: false
+        system:
+          hostname_sources: ["os"]
+          resource_attributes:
+            host.id:
+              enabled: true
+
+      resourcedetection/env:
+        detectors: ["env"]
+        timeout: 2s
+        override: true
+
+      memory_limiter:
+        check_interval: 1s
+        limit_mib: ${env:NEW_RELIC_MEMORY_LIMIT_MIB:-256}
+
+      batch:
+
+    exporters:
+      otlphttp:
+        endpoint: ${env:NEW_RELIC_OTLP_ENDPOINT}
+        headers:
+          api-key: ${env:NEW_RELIC_LICENSE_KEY}
+        compression: gzip
+      debug:
+        verbosity: detailed
+
+    service:
+      pipelines:
+        metrics:
+          receivers: [newrelicsqlserver]
+          processors: [memory_limiter, transform, resourcedetection, resourcedetection/db_safe, resourcedetection/env, filter/exec_plan_exclude, cumulativetodelta, deltatorate, batch]
+          exporters: [otlphttp, debug]
+        logs:
+          receivers: [metricsaslogs]
+          processors: [memory_limiter, transform, resourcedetection, resourcedetection/db_safe, resourcedetection/env, batch]
+          exporters: [otlphttp]
+        metrics/exec_plan_to_logs:
+          receivers: [newrelicsqlserver]
+          processors: [memory_limiter, transform, resourcedetection, resourcedetection/db_safe, resourcedetection/env, filter/exec_plan_include, batch]
+          exporters: [metricsaslogs]
+      telemetry:
+        logs:
+          level: debug
+        metrics:
+          level: none
