@@ -51,6 +51,7 @@ BEGIN
     GRANT CONNECT SQL TO newrelic;
     GRANT VIEW SERVER STATE TO newrelic;  -- Required for DMVs (sys.dm_exec_*)
     GRANT VIEW ANY DEFINITION TO newrelic;  -- Required for execution plans
+    GRANT VIEW ANY DATABASE TO newrelic;  -- Required for NRDOT database discovery
     PRINT 'Granted server-level permissions to New Relic user';
 END;
 GO
@@ -332,6 +333,123 @@ END;
 GO
 
 -- ==============================================================================
+-- LOAD DATA - BANKING SEED FOR RICH EXECUTION PLANS
+-- Merchants (50K) and BankTransactions (2M) provide enough rows for the
+-- query optimizer to produce multi-operator execution plans with realistic
+-- cardinality estimates (Hash Match, Sort, Window Spool, etc.).
+-- Set-based inserts via CTE numbers tables keep init time under 60s.
+-- ==============================================================================
+
+-- Drop old demo tables if they exist from a previous schema version
+DROP TABLE IF EXISTS DemoSales;
+DROP TABLE IF EXISTS DemoProducts;
+DROP TABLE IF EXISTS DemoEmployees;
+GO
+
+-- Merchants: 50,000 rows across 8 categories and 6 regions
+IF NOT EXISTS (SELECT * FROM sys.tables WHERE name = 'Merchants')
+BEGIN
+    CREATE TABLE Merchants (
+        MerchantID   INT PRIMARY KEY,
+        MerchantName VARCHAR(100)   NOT NULL,
+        Category     VARCHAR(50)    NOT NULL,
+        Region       VARCHAR(30)    NOT NULL,
+        RiskTier     TINYINT        NOT NULL DEFAULT 1,
+        AnnualVolume DECIMAL(14,2),
+        IsActive     BIT            NOT NULL DEFAULT 1
+    );
+    CREATE INDEX IX_Merchants_Category ON Merchants (Category);
+    CREATE INDEX IX_Merchants_Region   ON Merchants (Region);
+    CREATE INDEX IX_Merchants_Risk     ON Merchants (RiskTier);
+
+    WITH Numbers AS (
+        SELECT TOP 50000 ROW_NUMBER() OVER (ORDER BY (SELECT NULL)) AS n
+        FROM sys.all_columns a CROSS JOIN sys.all_columns b
+    )
+    INSERT INTO Merchants (MerchantID, MerchantName, Category, Region, RiskTier, AnnualVolume, IsActive)
+    SELECT
+        n,
+        'Merchant ' + CAST(n AS VARCHAR(10)),
+        CASE (n % 8)
+            WHEN 0 THEN 'Retail'       WHEN 1 THEN 'Restaurant' WHEN 2 THEN 'Travel'
+            WHEN 3 THEN 'Healthcare'   WHEN 4 THEN 'Gas & Auto' WHEN 5 THEN 'Online'
+            WHEN 6 THEN 'Grocery'      ELSE         'Entertainment'
+        END,
+        CASE (n % 6)
+            WHEN 0 THEN 'Northeast' WHEN 1 THEN 'Southeast' WHEN 2 THEN 'Midwest'
+            WHEN 3 THEN 'Southwest' WHEN 4 THEN 'West'      ELSE         'Central'
+        END,
+        CASE WHEN n % 20 = 0 THEN 3 WHEN n % 7 = 0 THEN 2 ELSE 1 END,
+        ((n % 9000) + 1000) * 100.00,
+        CASE WHEN n % 15 = 0 THEN 0 ELSE 1 END
+    FROM Numbers;
+    PRINT 'Created Merchants table with 50000 rows';
+END;
+GO
+
+-- BankTransactions: 2,000,000 rows seeded in two 1M-row set-based batches.
+-- AccountIDs 10001-20000 align with the Ledger account range.
+IF NOT EXISTS (SELECT * FROM sys.tables WHERE name = 'BankTransactions')
+BEGIN
+    CREATE TABLE BankTransactions (
+        TxnID      INT PRIMARY KEY,
+        AccountID  INT           NOT NULL,
+        MerchantID INT           NOT NULL,
+        Amount     DECIMAL(10,2) NOT NULL,
+        TxnDate    DATETIME      NOT NULL,
+        TxnType    VARCHAR(20)   NOT NULL,
+        Status     VARCHAR(15)   NOT NULL,
+        Channel    VARCHAR(15)   NOT NULL
+    );
+    CREATE INDEX IX_BankTxn_Account  ON BankTransactions (AccountID);
+    CREATE INDEX IX_BankTxn_Merchant ON BankTransactions (MerchantID);
+    CREATE INDEX IX_BankTxn_Date     ON BankTransactions (TxnDate);
+
+    -- Batch 1: rows 1-1,000,000
+    WITH Numbers AS (
+        SELECT TOP 1000000 ROW_NUMBER() OVER (ORDER BY (SELECT NULL)) AS n
+        FROM sys.all_columns a CROSS JOIN sys.all_columns b CROSS JOIN sys.all_columns c
+    )
+    INSERT INTO BankTransactions (TxnID, AccountID, MerchantID, Amount, TxnDate, TxnType, Status, Channel)
+    SELECT
+        n,
+        (n % 10000) + 10001,
+        (n % 50000) + 1,
+        CAST(((n % 49900) + 100) AS DECIMAL(10,2)) / 100.0,
+        DATEADD(SECOND, -(n * 31), GETDATE()),
+        CASE (n % 4) WHEN 0 THEN 'Purchase' WHEN 1 THEN 'Refund' WHEN 2 THEN 'Transfer' ELSE 'ATM' END,
+        CASE WHEN n % 50 = 0 THEN 'Flagged' WHEN n % 15 = 0 THEN 'Declined' ELSE 'Approved' END,
+        CASE (n % 4) WHEN 0 THEN 'Online' WHEN 1 THEN 'InStore' WHEN 2 THEN 'Mobile' ELSE 'ATM' END
+    FROM Numbers;
+
+    -- Batch 2: rows 1,000,001-2,000,000
+    WITH Numbers AS (
+        SELECT TOP 1000000 ROW_NUMBER() OVER (ORDER BY (SELECT NULL)) + 1000000 AS n
+        FROM sys.all_columns a CROSS JOIN sys.all_columns b CROSS JOIN sys.all_columns c
+    )
+    INSERT INTO BankTransactions (TxnID, AccountID, MerchantID, Amount, TxnDate, TxnType, Status, Channel)
+    SELECT
+        n,
+        (n % 10000) + 10001,
+        (n % 50000) + 1,
+        CAST(((n % 49900) + 100) AS DECIMAL(10,2)) / 100.0,
+        DATEADD(SECOND, -(n * 31), GETDATE()),
+        CASE (n % 4) WHEN 0 THEN 'Purchase' WHEN 1 THEN 'Refund' WHEN 2 THEN 'Transfer' ELSE 'ATM' END,
+        CASE WHEN n % 50 = 0 THEN 'Flagged' WHEN n % 15 = 0 THEN 'Declined' ELSE 'Approved' END,
+        CASE (n % 4) WHEN 0 THEN 'Online' WHEN 1 THEN 'InStore' WHEN 2 THEN 'Mobile' ELSE 'ATM' END
+    FROM Numbers;
+    PRINT 'Created BankTransactions table with 2000000 rows';
+END;
+GO
+
+-- Update statistics after bulk inserts for accurate cardinality estimates
+IF EXISTS (SELECT * FROM sys.tables WHERE name = 'Merchants')
+    UPDATE STATISTICS Merchants WITH FULLSCAN;
+IF EXISTS (SELECT * FROM sys.tables WHERE name = 'BankTransactions')
+    UPDATE STATISTICS BankTransactions WITH FULLSCAN;
+GO
+
+-- ==============================================================================
 -- NEW RELIC MONITORING SETUP - DATABASE LEVEL
 -- ==============================================================================
 
@@ -353,24 +471,24 @@ BEGIN
 END;
 GO
 
--- Enable Query Store for New Relic query monitoring
+-- Enable Query Store and always enforce capture settings for New Relic query monitoring.
+-- Run unconditionally so that QUERY_CAPTURE_MODE = ALL and flush interval are always correct
+-- even when the DB already had QS enabled with different (e.g. AUTO) settings.
+PRINT 'Configuring Query Store for New Relic monitoring...';
+ALTER DATABASE RelibankDB SET QUERY_STORE = ON (
+    QUERY_CAPTURE_MODE = ALL,
+    DATA_FLUSH_INTERVAL_SECONDS = 60,
+    WAIT_STATS_CAPTURE_MODE = ON
+);
+PRINT 'Query Store configured: CAPTURE_MODE=ALL, FLUSH=60s, WAIT_STATS=ON';
 DECLARE @qs_enabled BIT;
 SELECT @qs_enabled = CONVERT(BIT, is_query_store_on)
 FROM sys.databases
 WHERE name = 'RelibankDB';
 
-IF @qs_enabled = 0 OR @qs_enabled IS NULL
+IF @qs_enabled = 1
 BEGIN
-    PRINT 'Enabling Query Store for New Relic monitoring...';
-    ALTER DATABASE RelibankDB SET QUERY_STORE = ON (
-        QUERY_CAPTURE_MODE = ALL,
-        DATA_FLUSH_INTERVAL_SECONDS = 900
-    );
-    PRINT 'Query Store enabled';
-END
-ELSE
-BEGIN
-    PRINT 'Query Store already enabled';
+    PRINT 'Query Store is active';
 END;
 GO
 

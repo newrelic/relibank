@@ -97,6 +97,7 @@ jobs:
           STRIPE_SECRET_KEY=${{ secrets.STRIPE_SECRET_KEY }}
           STRIPE_PUBLISHABLE_KEY=${{ secrets.STRIPE_PUBLISHABLE_KEY }}
           SCENARIO_SERVICE_URL=${{ vars.SCENARIO_SERVICE_URL }}
+          MSSQL_NEWRELIC_PASSWORD=${{ secrets.MSSQL_NEWRELIC_PASSWORD }}
           EOF
 
       - name: Validate APP_NAME
@@ -137,6 +138,7 @@ jobs:
             "scenario-runner"
             "otel-collector-kafka"
             "kafka-with-monitoring"
+            "nrdot-collector-mssql"
           )
 
           for IMAGE_NAME in "${IMAGES[@]}"; do

@@ -833,11 +833,12 @@ async def get_ledger_balance(account_id: int, request: Request):
         pass
 
 @app.get("/transaction-service/blocking")
-async def create_blocking_scenario(delay_seconds: int = 30, request: Request = None):
+def create_blocking_scenario(delay_seconds: int = 30, request: Request = None):
     """
-    Creates a blocking scenario on the Transactions table.
-    Starts a transaction, locks a row, and holds it for the specified delay.
-    This simulates blocking behavior for monitoring and testing purposes.
+    Creates a blocking scenario on the BankTransactions table.
+    Starts a transaction, acquires an update lock on a set of rows, then holds
+    it for the specified delay so that concurrent flagged-analysis queries contend
+    on the same rows — simulating real banking lock contention for NR demo purposes.
     """
     newrelic.agent.ignore_transaction()
     if delay_seconds < 1 or delay_seconds > 300:
@@ -846,76 +847,73 @@ async def create_blocking_scenario(delay_seconds: int = 30, request: Request = N
     if not db_connection:
         raise HTTPException(status_code=503, detail="Database connection failed.")
 
-    # Create a new connection without autocommit for transaction control
     blocking_connection = None
     try:
-        logging.info(f"Starting blocking scenario with {delay_seconds} second delay...")
+        logging.info(f"Starting blocking scenario on BankTransactions with {delay_seconds}s delay...")
 
-        # Create connection without autocommit to control transactions manually
         blocking_connection = pyodbc.connect(CONNECTION_STRING, autocommit=False)
         cursor = blocking_connection.cursor()
 
-        # Begin transaction
         cursor.execute("BEGIN TRANSACTION")
 
-        # First, ensure we have a transaction to lock
-        # Check if BILL-1701 exists, if not create it
+        # Lock a batch of high-risk flagged transactions via UPDLOCK + HOLDLOCK.
+        # The join to Merchants forces a multi-operator plan visible in NR.
         cursor.execute("""
-            IF NOT EXISTS (SELECT 1 FROM Transactions WHERE BillID = 'BILL-1701' AND EventType = 'BillPaymentInitiated')
-            BEGIN
-                INSERT INTO Transactions (EventType, BillID, Amount, Currency, AccountID, Timestamp)
-                VALUES ('BillPaymentInitiated', 'BILL-1701', 125.50, 'USD', 12345, DATEDIFF(s, '1970-01-01', GETUTCDATE()))
-            END
+            SELECT TOP 100
+                t.TxnID,
+                t.AccountID,
+                t.Amount,
+                m.Category,
+                m.RiskTier
+            FROM BankTransactions t WITH (UPDLOCK, ROWLOCK, HOLDLOCK)
+            INNER JOIN Merchants m ON m.MerchantID = t.MerchantID
+            WHERE t.Status  = 'Flagged'
+              AND m.RiskTier = 3
+            ORDER BY t.Amount DESC
         """)
+        rows = cursor.fetchall()
 
-        # First, SELECT and lock the row - this acquires and holds the lock
-        # The lock will be held throughout the transaction until COMMIT
-        cursor.execute("""
-            SELECT TOP 1 TransactionID, BillID, Amount
-            FROM Transactions WITH (UPDLOCK, ROWLOCK, HOLDLOCK)
-            WHERE BillID = 'BILL-1701'
-            AND EventType = 'BillPaymentInitiated'
-            ORDER BY TransactionID DESC
-        """)
-        row = cursor.fetchone()
-
-        if not row:
-            cursor.execute("ROLLBACK TRANSACTION")
+        if not rows:
             blocking_connection.rollback()
-            raise HTTPException(status_code=404, detail="No BILL-1701 transaction found to lock")
+            raise HTTPException(status_code=404, detail="No flagged high-risk transactions found to lock")
 
-        transaction_id = row[0]
-        bill_id = row[1]
-        amount = row[2]
+        locked_txn_id = rows[0][0]
+        locked_account = rows[0][1]
+        locked_amount = float(rows[0][2])
 
-        logging.info(f"Locked TransactionID {transaction_id} (BillID: {bill_id}). Holding lock for {delay_seconds} seconds...")
+        logging.info(f"Locked {len(rows)} flagged transactions (top TxnID {locked_txn_id}). Holding for {delay_seconds}s...")
 
-        # Now update the locked row (lock is already held from the SELECT above)
+        # Apply a review flag update while holding the lock
         cursor.execute("""
-            UPDATE Transactions
-            SET Amount = Amount + 0.01
-            WHERE TransactionID = ?
-        """, transaction_id)
+            UPDATE BankTransactions
+            SET Amount = Amount
+            WHERE TxnID IN (
+                SELECT TOP 100 t.TxnID
+                FROM BankTransactions t
+                INNER JOIN Merchants m ON m.MerchantID = t.MerchantID
+                WHERE t.Status = 'Flagged' AND m.RiskTier = 3
+                ORDER BY t.Amount DESC
+            )
+        """)
 
-        # Hold the lock for the specified duration
-        # The lock remains held because we're still in the transaction
         delay_formatted = f"00:{delay_seconds // 60:02d}:{delay_seconds % 60:02d}"
         cursor.execute(f"WAITFOR DELAY '{delay_formatted}'")
 
-        # Commit the transaction to release the lock
         cursor.execute("COMMIT TRANSACTION")
         blocking_connection.commit()
 
-        logging.info(f"Blocking scenario completed. Lock released on TransactionID {transaction_id}.")
+        logging.info(f"Blocking scenario completed. Lock released on {len(rows)} transactions.")
 
         if request:
             process_headers(dict(request.headers))
 
         return {
             "status": "completed",
-            "message": f"Blocking scenario executed successfully",
-            "locked_transaction_id": transaction_id,
-            "locked_bill_id": bill_id,
+            "message": "Blocking scenario executed successfully",
+            "locked_txn_count": len(rows),
+            "top_txn_id": locked_txn_id,
+            "top_account_id": locked_account,
+            "top_amount": locked_amount,
             "delay_seconds": delay_seconds
         }
 
@@ -925,7 +923,6 @@ async def create_blocking_scenario(delay_seconds: int = 30, request: Request = N
         logging.error(f"Error during blocking scenario: {e}")
         if blocking_connection:
             try:
-                cursor.execute("ROLLBACK TRANSACTION")
                 blocking_connection.rollback()
             except:
                 pass
@@ -940,7 +937,7 @@ async def create_blocking_scenario(delay_seconds: int = 30, request: Request = N
 
 
 @app.post("/transaction-service/adjust-amount/{bill_id}")
-async def adjust_transaction_amount(bill_id: str, adjustment: float = 0.01, request: Request = None):
+def adjust_transaction_amount(bill_id: str, adjustment: float = 0.01, request: Request = None):
     """
     Adjusts the amount of the most recent transaction for a given bill.
     Used for processing fee adjustments or corrections.
@@ -958,16 +955,25 @@ async def adjust_transaction_amount(bill_id: str, adjustment: float = 0.01, requ
         # Begin transaction explicitly
         cursor.execute("BEGIN TRANSACTION")
 
-        # Update the most recent transaction for this bill
-        # Use UPDLOCK in subquery to prevent deadlocks when multiple sessions update
+        # Single UPDATE joining Transactions × Ledger with a correlated subquery.
+        # Produces a connected multi-node execution plan:
+        #   Clustered Index Update
+        #     └─ Nested Loops (Inner Join)
+        #          ├─ Clustered Index Seek (Transactions by TransactionID)
+        #          └─ Clustered Index Seek (Ledger by AccountID)
+        #               └─ Top
+        #                    └─ Clustered Index Scan (Transactions WHERE BillID = ?)
         cursor.execute("""
-            UPDATE Transactions
-            SET Amount = Amount + ?
-            WHERE TransactionID = (
+            UPDATE t
+            SET t.Amount = t.Amount + ?
+            FROM Transactions t WITH (UPDLOCK, ROWLOCK)
+            INNER JOIN Ledger l
+                ON l.AccountID = t.AccountID
+            WHERE t.TransactionID = (
                 SELECT TOP 1 TransactionID
-                FROM Transactions WITH (UPDLOCK)
-                WHERE BillID = ?
-                AND EventType = 'BillPaymentInitiated'
+                FROM Transactions
+                WHERE BillID    = ?
+                  AND EventType = 'BillPaymentInitiated'
                 ORDER BY TransactionID DESC
             )
         """, adjustment, bill_id)
@@ -1018,17 +1024,23 @@ async def adjust_transaction_amount(bill_id: str, adjustment: float = 0.01, requ
 
 
 @app.get("/transaction-service/slow-query")
-async def generate_slow_query(query_type: str = "summary", delay_seconds: int = 3, request: Request = None):
+def generate_slow_query(query_type: str = "spending_velocity", delay_seconds: int = 6, request: Request = None):
     """
-    Generates an intentionally slow query for testing/demo purposes.
-    This endpoint helps demonstrate New Relic's slow query detection.
+    Generates an intentionally slow banking query for New Relic demo purposes.
+
+    Queries run against Merchants (50K rows) and BankTransactions (2M rows) so
+    the optimizer produces multi-operator plans with real cardinality estimates
+    (Hash Match, Sort, Window Spool, etc.) visible in the NR execution plan graph.
+
+    delay_seconds controls the lookback window in months (capped at 12), which
+    scales the number of rows processed and therefore query duration.
 
     Query types:
-    - summary: Transaction summary by EventType with aggregations
-    - account_analysis: Account-level analysis with subqueries
-    - window_functions: Running totals and moving averages
-    - self_join: Duplicate detection via self-join
-    - complex_filter: Full table scan with complex WHERE clause
+    - spending_velocity: Rolling spend + cumulative sum + rank (window functions)
+    - merchant_risk:     Aggregated risk scoring by merchant category and region
+    - transaction_patterns: CTE-based time-series pattern analysis
+    - account_velocity: Per-account spend velocity with statistical benchmarks
+    - flagged_analysis: Multi-join analysis of flagged/declined transactions
     """
     newrelic.agent.ignore_transaction()
     if not db_connection:
@@ -1037,94 +1049,174 @@ async def generate_slow_query(query_type: str = "summary", delay_seconds: int = 
     if delay_seconds < 1 or delay_seconds > 60:
         raise HTTPException(status_code=400, detail="delay_seconds must be between 1 and 60")
 
-    delay_formatted = f"00:{delay_seconds // 60:02d}:{delay_seconds % 60:02d}"
-
+    slow_connection = None
     try:
-        cursor = db_connection.cursor()
+        slow_connection = pyodbc.connect(CONNECTION_STRING, autocommit=True)
+        cursor = slow_connection.cursor()
         start_time = datetime.datetime.now()
 
-        if query_type == "summary":
-            # Transaction summary report with delay
-            cursor.execute(f"""
+        # Each query is a single statement (no DECLARE/WHILE) so that
+        # sys.dm_exec_requests and Query Store share the same query_hash.
+        # delay_seconds maps to months of lookback (capped at 12) — more months
+        # = more BankTransactions rows = longer runtime for NRDOT to observe.
+        months = min(delay_seconds, 12)
+
+        if query_type == "spending_velocity":
+            # Spending velocity analysis: 4 window functions on 6-12 months of
+            # transactions joined to merchants.
+            # Plan nodes: Clustered Index Scan × 2 → Hash Match (join) → Sort
+            #             → Window Spool × 3 → Segment → Sequence Project
+            cursor.execute("""
                 SELECT
-                    EventType,
-                    COUNT(*) AS TransactionCount,
-                    SUM(Amount) AS TotalAmount,
-                    AVG(Amount) AS AvgAmount,
-                    MIN(Amount) AS MinAmount,
-                    MAX(Amount) AS MaxAmount,
-                    COUNT(DISTINCT BillID) AS UniqueBills,
-                    COUNT(DISTINCT AccountID) AS UniqueAccounts
-                FROM Transactions
-                GROUP BY EventType
-                ORDER BY TotalAmount DESC
-                WAITFOR DELAY '{delay_formatted}';
-            """)
-            results = cursor.fetchall()
+                    t.TxnID,
+                    t.AccountID,
+                    t.MerchantID,
+                    m.Category,
+                    m.Region,
+                    m.RiskTier,
+                    t.Amount,
+                    t.TxnDate,
+                    t.TxnType,
+                    t.Channel,
+                    ROW_NUMBER()  OVER (PARTITION BY t.AccountID ORDER BY t.TxnDate)
+                                                                    AS TxnSeq,
+                    SUM(t.Amount) OVER (PARTITION BY t.AccountID ORDER BY t.TxnDate
+                                        ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW)
+                                                                    AS CumulativeSpend,
+                    AVG(t.Amount) OVER (PARTITION BY t.AccountID ORDER BY t.TxnDate
+                                        ROWS BETWEEN 99 PRECEDING AND CURRENT ROW)
+                                                                    AS MovingAvg100,
+                    RANK()        OVER (PARTITION BY m.Category ORDER BY t.Amount DESC)
+                                                                    AS GlobalAmountRank
+                FROM BankTransactions t WITH (INDEX(0))
+                INNER JOIN Merchants m WITH (INDEX(0)) ON m.MerchantID = t.MerchantID
+                WHERE t.TxnDate >= DATEADD(MONTH, -?, GETDATE())
+                ORDER BY t.AccountID, t.TxnDate
+                OPTION (MAXDOP 1)
+            """, months)
+            rows_affected = cursor.rowcount
 
-        elif query_type == "account_analysis":
-            # Inefficient subquery pattern
-            cursor.execute(f"""
-                SELECT TOP 50
-                    AccountID,
-                    (SELECT COUNT(*) FROM Transactions t WHERE t.AccountID = main.AccountID) AS TotalTransactions,
-                    (SELECT SUM(Amount) FROM Transactions t WHERE t.AccountID = main.AccountID) AS TotalSpent,
-                    (SELECT MAX(Amount) FROM Transactions t WHERE t.AccountID = main.AccountID) AS LargestTransaction
-                FROM (SELECT DISTINCT AccountID FROM Transactions) main
-                WAITFOR DELAY '{delay_formatted}';
-            """)
-            results = cursor.fetchall()
+        elif query_type == "merchant_risk":
+            # Risk-weighted merchant performance: multi-level aggregation.
+            # Plan nodes: Clustered Index Scan × 2 → Hash Match (join)
+            #             → Hash Match (aggregate) → Sort → Compute Scalar
+            cursor.execute("""
+                SELECT
+                    m.Category,
+                    m.Region,
+                    m.RiskTier,
+                    COUNT(DISTINCT t.AccountID)                         AS UniqueAccounts,
+                    COUNT(*)                                            AS TxnCount,
+                    SUM(t.Amount)                                       AS TotalVolume,
+                    AVG(t.Amount)                                       AS AvgAmount,
+                    MAX(t.Amount)                                       AS MaxAmount,
+                    SUM(CASE WHEN t.Status = 'Flagged'  THEN 1 ELSE 0 END) AS FlaggedCount,
+                    SUM(CASE WHEN t.Status = 'Declined' THEN 1 ELSE 0 END) AS DeclinedCount,
+                    SUM(CASE WHEN t.Status = 'Flagged'  THEN t.Amount ELSE 0 END)
+                                                                        AS FlaggedVolume,
+                    CAST(SUM(CASE WHEN t.Status = 'Flagged' THEN 1 ELSE 0 END) AS FLOAT)
+                        / NULLIF(COUNT(*), 0) * 100                     AS FlaggedRatePct
+                FROM BankTransactions t WITH (INDEX(0))
+                INNER JOIN Merchants m WITH (INDEX(0)) ON m.MerchantID = t.MerchantID
+                WHERE t.TxnDate >= DATEADD(MONTH, -?, GETDATE())
+                GROUP BY m.Category, m.Region, m.RiskTier
+                ORDER BY FlaggedVolume DESC
+                OPTION (MAXDOP 1)
+            """, months)
+            rows_affected = cursor.rowcount
 
-        elif query_type == "window_functions":
-            # Window functions for running totals
-            cursor.execute(f"""
-                SELECT TOP 100
-                    TransactionID,
-                    AccountID,
-                    EventType,
-                    Amount,
-                    SUM(Amount) OVER (PARTITION BY AccountID ORDER BY TransactionID) AS RunningTotal,
-                    AVG(Amount) OVER (PARTITION BY AccountID ORDER BY TransactionID ROWS BETWEEN 10 PRECEDING AND CURRENT ROW) AS MovingAvg,
-                    ROW_NUMBER() OVER (PARTITION BY AccountID ORDER BY Amount DESC) AS AmountRank
-                FROM Transactions
-                WHERE EventType IN ('BillPaymentInitiated', 'BillPaymentCompleted')
-                WAITFOR DELAY '{delay_formatted}';
-            """)
-            results = cursor.fetchall()
+        elif query_type == "transaction_patterns":
+            # CTE-based time-series: daily volume buckets + running totals.
+            # Plan nodes: CTE spool → Hash Match (join) → Sort
+            #             → Stream Aggregate → Window Spool
+            cursor.execute("""
+                WITH DailyVolume AS (
+                    SELECT
+                        CAST(t.TxnDate AS DATE)    AS TxnDay,
+                        m.Category,
+                        COUNT(*)                   AS DailyTxns,
+                        SUM(t.Amount)              AS DailyAmount,
+                        SUM(CASE WHEN t.Status = 'Flagged' THEN 1 ELSE 0 END) AS DailyFlagged
+                    FROM BankTransactions t WITH (INDEX(0))
+                    INNER JOIN Merchants m WITH (INDEX(0)) ON m.MerchantID = t.MerchantID
+                    WHERE t.TxnDate >= DATEADD(MONTH, -?, GETDATE())
+                    GROUP BY CAST(t.TxnDate AS DATE), m.Category
+                )
+                SELECT
+                    TxnDay,
+                    Category,
+                    DailyTxns,
+                    DailyAmount,
+                    DailyFlagged,
+                    SUM(DailyAmount) OVER (PARTITION BY Category
+                                           ORDER BY TxnDay
+                                           ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW)
+                                                AS CumulativeCategoryAmount,
+                    AVG(DailyTxns)   OVER (PARTITION BY Category
+                                           ORDER BY TxnDay
+                                           ROWS BETWEEN 6 PRECEDING AND CURRENT ROW)
+                                                AS Rolling7DayAvgTxns
+                FROM DailyVolume
+                ORDER BY Category, TxnDay
+                OPTION (MAXDOP 1)
+            """, months)
+            rows_affected = cursor.rowcount
 
-        elif query_type == "self_join":
-            # Self-join for duplicate detection
-            cursor.execute(f"""
-                SELECT TOP 50
-                    t1.TransactionID AS Transaction1,
-                    t2.TransactionID AS Transaction2,
-                    t1.BillID,
-                    t1.Amount,
-                    t1.AccountID,
-                    ABS(t1.Amount - t2.Amount) AS AmountDifference
-                FROM Transactions t1
-                INNER JOIN Transactions t2
-                    ON t1.BillID = t2.BillID
-                    AND t1.AccountID = t2.AccountID
-                    AND t1.TransactionID < t2.TransactionID
-                WHERE ABS(t1.Amount - t2.Amount) < 1.00
-                WAITFOR DELAY '{delay_formatted}';
-            """)
-            results = cursor.fetchall()
+        elif query_type == "account_velocity":
+            # Per-account velocity benchmarked against category average.
+            # Plan nodes: Clustered Index Scan × 2 → Hash Match (join)
+            #             → Hash Match (aggregate) × 2 → Nested Loops → Sort
+            cursor.execute("""
+                SELECT
+                    t.AccountID,
+                    m.Category,
+                    COUNT(*)                    AS TxnCount,
+                    SUM(t.Amount)               AS TotalSpend,
+                    AVG(t.Amount)               AS AvgTxnAmount,
+                    MAX(t.Amount)               AS MaxSingleTxn,
+                    SUM(CASE WHEN t.TxnType = 'Purchase'  THEN t.Amount ELSE 0 END) AS PurchaseSpend,
+                    SUM(CASE WHEN t.TxnType = 'Transfer'  THEN t.Amount ELSE 0 END) AS TransferSpend,
+                    SUM(CASE WHEN t.Channel  = 'Online'   THEN 1 ELSE 0 END)        AS OnlineTxns,
+                    SUM(CASE WHEN t.Status   = 'Flagged'  THEN 1 ELSE 0 END)        AS FlaggedTxns,
+                    AVG(AVG(t.Amount)) OVER (PARTITION BY m.Category)               AS CategoryAvgAmount
+                FROM BankTransactions t WITH (INDEX(0))
+                INNER JOIN Merchants m WITH (INDEX(0)) ON m.MerchantID = t.MerchantID
+                WHERE t.TxnDate >= DATEADD(MONTH, -?, GETDATE())
+                GROUP BY t.AccountID, m.Category
+                ORDER BY TotalSpend DESC
+                OPTION (MAXDOP 1)
+            """, months)
+            rows_affected = cursor.rowcount
 
-        elif query_type == "complex_filter":
-            # Full table scan with complex WHERE clause
-            cursor.execute(f"""
-                SELECT TOP 100 *
-                FROM Transactions
-                WHERE Amount > 100.00
-                    AND LEN(BillID) > 10
-                    AND Currency IN ('USD', 'EUR')
-                    AND EventType LIKE '%Payment%'
-                ORDER BY Amount DESC, TransactionID DESC
-                WAITFOR DELAY '{delay_formatted}';
-            """)
-            results = cursor.fetchall()
+        elif query_type == "flagged_analysis":
+            # Suspicious transaction deep-dive: multi-join with non-SARGable predicates.
+            # Plan nodes: Table Scan × 3 → Hash Match (join) × 2
+            #             → Filter → Hash Match (aggregate) → Sort
+            cursor.execute("""
+                SELECT
+                    m.Category,
+                    m.Region,
+                    t.Channel,
+                    t.TxnType,
+                    COUNT(*)                                            AS TxnCount,
+                    SUM(t.Amount)                                       AS TotalAmount,
+                    AVG(t.Amount)                                       AS AvgAmount,
+                    COUNT(DISTINCT t.AccountID)                         AS AffectedAccounts,
+                    SUM(CASE WHEN m.RiskTier = 3 THEN t.Amount ELSE 0 END) AS HighRiskVolume
+                FROM BankTransactions t WITH (INDEX(0))
+                INNER JOIN Merchants m WITH (INDEX(0)) ON m.MerchantID = t.MerchantID
+                LEFT JOIN Merchants m2 WITH (INDEX(0))
+                    ON  m2.Category = m.Category
+                    AND m2.Region   = m.Region
+                    AND m2.RiskTier > m.RiskTier
+                WHERE t.TxnDate >= DATEADD(MONTH, -?, GETDATE())
+                  AND (t.Status = 'Flagged' OR t.Status = 'Declined')
+                  AND CAST(t.Amount AS INT) > 0
+                GROUP BY m.Category, m.Region, t.Channel, t.TxnType
+                ORDER BY HighRiskVolume DESC
+                OPTION (MAXDOP 1)
+            """, months)
+            rows_affected = cursor.rowcount
 
         else:
             raise HTTPException(status_code=400, detail=f"Unknown query_type: {query_type}")
@@ -1132,18 +1224,18 @@ async def generate_slow_query(query_type: str = "summary", delay_seconds: int = 
         end_time = datetime.datetime.now()
         duration = (end_time - start_time).total_seconds()
 
-        logging.info(f"Slow query ({query_type}) completed in {duration:.2f} seconds")
+        logging.info(f"Slow query ({query_type}, {months} months) completed in {duration:.2f} seconds")
 
         if request:
             process_headers(dict(request.headers))
 
         return {
             "status": "success",
-            "message": f"Slow query executed successfully",
+            "message": "Slow query executed successfully",
             "query_type": query_type,
-            "delay_seconds": delay_seconds,
+            "months_lookback": months,
             "actual_duration_seconds": round(duration, 2),
-            "rows_returned": len(results)
+            "rows_affected": rows_affected
         }
 
     except HTTPException:
@@ -1151,6 +1243,12 @@ async def generate_slow_query(query_type: str = "summary", delay_seconds: int = 
     except Exception as e:
         logging.error(f"Error executing slow query: {e}")
         raise HTTPException(status_code=500, detail=f"Error executing slow query: {str(e)}")
+    finally:
+        if slow_connection:
+            try:
+                slow_connection.close()
+            except:
+                pass
 
 
 @app.get("/transaction-service")

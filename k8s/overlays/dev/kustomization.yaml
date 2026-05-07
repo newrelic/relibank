@@ -34,3 +34,5 @@ images:
   newTag: latest
 - name: kafka-with-monitoring
   newTag: latest
+- name: nrdot-collector-mssql
+  newTag: latest
