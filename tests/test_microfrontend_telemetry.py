@@ -127,26 +127,32 @@ def test_microfrontend_timing_events_exist():
     # Generate traffic first
     generate_dashboard_traffic()
 
-    # Query for MicroFrontEndTiming events from any of our 4 MFEs
-    # Note: Use source.id which contains our configured UUIDs, not entityGuid
+    # Query for MicroFrontEndTiming events from each MFE via FACET to avoid
+    # false positives where only one MFE reports traffic
     source_ids = "', '".join(MFE_CONFIGS.values())
     nrql = f"""
         SELECT count(*) FROM MicroFrontEndTiming
         WHERE source.id IN ('{source_ids}')
+        FACET source.id
         SINCE 10 minutes ago
     """
 
     print(f"Querying NRQL: {nrql}")
     results = query_nrql(nrql)
-    count = results[0]["count"] if results else 0
 
-    print(f"\n📊 MicroFrontEndTiming event count: {count}")
+    counts_by_id = {r["source.id"]: r["count"] for r in results if "source.id" in r}
+    mfe_names = {v: k for k, v in MFE_CONFIGS.items()}
+    print("\n📊 MicroFrontEndTiming event counts by source.id:")
+    for sid, count in counts_by_id.items():
+        print(f"  {sid}: {count}  ({mfe_names.get(sid, 'unknown')})")
 
-    assert count > 0, \
-        f"Expected MicroFrontEndTiming events for microfrontends, found {count}. " \
+    missing = [sid for sid in MFE_CONFIGS.values() if counts_by_id.get(sid, 0) == 0]
+
+    assert len(missing) == 0, \
+        f"Expected all MFEs to report MicroFrontEndTiming events, but {len(missing)} did not: {missing}. " \
         "Ensure browser agent has api.register.enabled = true and MFEs are calling .register()"
 
-    print(f"✅ Found {count} MicroFrontEndTiming event(s)")
+    print(f"✅ All {len(MFE_CONFIGS)} MFEs reported MicroFrontEndTiming events")
 
 
 @pytest.mark.slow

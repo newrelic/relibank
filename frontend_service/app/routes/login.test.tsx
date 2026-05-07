@@ -28,6 +28,10 @@ const mockLoginContext = {
   handleLogout: vi.fn(),
   userData: null,
   setUserData: vi.fn(),
+  userId: null,
+  setUserId: vi.fn(),
+  browserUserId: null,
+  setBrowserUserId: vi.fn(),
 };
 
 const renderLogin = () => {
