@@ -36,7 +36,17 @@ class TransactionServiceUser(HttpUser):
         """Get recurring payments"""
         self.client.get("/transaction-service/recurring-payments")
 
+    SLOW_QUERY_TYPES = [
+        "spending_velocity",
+        "merchant_risk",
+        "transaction_patterns",
+        "account_velocity",
+        "flagged_analysis",
+    ]
+
     @task(2)
     def slow_query(self):
-        """Hit slow query endpoint to add extra CPU load"""
-        self.client.get("/transaction-service/slow-query")
+        """Cycle through all slow query types at max lookback so NRDOT can correlate
+        active sessions to Query Store entries and emit execution plans."""
+        query_type = random.choice(self.SLOW_QUERY_TYPES)
+        self.client.get(f"/transaction-service/slow-query?query_type={query_type}&delay_seconds=12")

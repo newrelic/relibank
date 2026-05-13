@@ -14,6 +14,8 @@ spec:
         app: mssql-init
     spec:
       restartPolicy: OnFailure
+      nodeSelector:
+        kubernetes.io/arch: amd64
       containers:
       - name: mssql-init
         image: mssql-custom
