@@ -205,11 +205,11 @@ jobs:
 
       - name: Validate APP_NAME
         run: |
-          if [ "${{ env.APP_NAME }}" != "ReliBank" ]; then
-            echo "ERROR: APP_NAME is '${{ env.APP_NAME }}', expected 'ReliBank'"
+          if [ -z "${{ env.APP_NAME }}" ]; then
+            echo "ERROR: APP_NAME is not set. Add APP_NAME to the GitHub environment variables."
             exit 1
           fi
-          echo "APP_NAME=ReliBank verified"
+          echo "APP_NAME=${{ env.APP_NAME }} verified"
 
       - name: Build and Push ${{ matrix.images.image_name }}
         env:
