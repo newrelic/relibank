@@ -205,11 +205,11 @@ jobs:
 
       - name: Validate APP_NAME
         run: |
-          if [ -z "${{ env.APP_NAME }}" ]; then
+          if [ -z "${{ vars.APP_NAME }}" ]; then
             echo "ERROR: APP_NAME is not set. Add APP_NAME to the GitHub environment variables."
             exit 1
           fi
-          echo "APP_NAME=${{ env.APP_NAME }} verified"
+          echo "APP_NAME=${{ vars.APP_NAME }} verified"
 
       - name: Build and Push ${{ matrix.images.image_name }}
         env:
