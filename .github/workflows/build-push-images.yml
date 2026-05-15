@@ -203,14 +203,6 @@ jobs:
       - name: ACR Login
         run: az acr login --name ${{ env.ACR_NAME }}
 
-      - name: Validate APP_NAME
-        run: |
-          if [ -z "${{ vars.APP_NAME }}" ]; then
-            echo "ERROR: APP_NAME is not set. Add APP_NAME to the GitHub environment variables."
-            exit 1
-          fi
-          echo "APP_NAME=${{ vars.APP_NAME }} verified"
-
       - name: Build and Push ${{ matrix.images.image_name }}
         env:
           FORCE_REBUILD:           ${{ inputs.force_rebuild }}

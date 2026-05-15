@@ -220,8 +220,9 @@ if __name__ == "__main__":
     acr_name = acr_name_from_server(args.acr_server)
     hash_dir = args.hash_dir if args.hash_dir else args.build_context
 
-    # Normalize paths: strip leading './' so Path() works cleanly
-    hash_dir = hash_dir.lstrip("./") or "."
+    # Normalize paths: strip leading './' (relative) but leave absolute paths intact
+    if hash_dir.startswith("./"):
+        hash_dir = hash_dir[2:] or "."
 
     try:
         # 1. Hash the source directory
