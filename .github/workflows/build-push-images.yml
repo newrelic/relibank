@@ -210,10 +210,12 @@ jobs:
           ACR_SERVER:              ${{ env.ACR_SERVER }}
           NEW_RELIC_USER_API_KEY:  ${{ secrets.NR_USER_API_KEY }}
           NEW_RELIC_LICENSE_KEY:   ${{ secrets.NR_LICENSE_KEY }}
-          NEW_RELIC_ACCOUNT_ID:    ${{ vars.NR_ACCOUNT_ID }}
-          AGENT_TYPE:              ${{ inputs.agent || 'newrelic' }}
-          NEW_RELIC_REGION:        ${{ inputs.new_relic_region || 'US' }}
-          APP_NAME:                ${{ vars.APP_NAME }}
+          NEW_RELIC_ACCOUNT_ID:         ${{ vars.NR_ACCOUNT_ID }}
+          NEW_RELIC_BROWSER_APP_ID:     ${{ vars.NR_BROWSER_APP_ID }}
+          NEW_RELIC_TRUST_KEY:          ${{ secrets.NR_TRUST_KEY }}
+          AGENT_TYPE:                   ${{ inputs.agent || 'newrelic' }}
+          NEW_RELIC_REGION:             ${{ inputs.new_relic_region || 'US' }}
+          APP_NAME:                     ${{ vars.APP_NAME }}
         run: |
           SCRIPT_DIR="${{ github.workspace }}/scripts/image_build"
           BUILD_CONTEXT="${{ github.workspace }}/${{ matrix.images.build_context }}"
@@ -238,6 +240,8 @@ jobs:
             --nr-user-key    "$NEW_RELIC_USER_API_KEY" \
             --nr-license-key "$NEW_RELIC_LICENSE_KEY" \
             --nr-account-id  "$NEW_RELIC_ACCOUNT_ID" \
+            --nr-browser-app-id "$NEW_RELIC_BROWSER_APP_ID" \
+            --nr-trust-key   "$NEW_RELIC_TRUST_KEY" \
             --agent-type     "$AGENT_TYPE" \
             --nr-region      "$NEW_RELIC_REGION" \
             --app-name       "$APP_NAME" \
