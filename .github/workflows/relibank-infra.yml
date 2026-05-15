@@ -1,0 +1,37 @@
+name: ReliBank Infra
+
+on:
+  workflow_dispatch:
+    inputs:
+      action_type:
+        description: "deploy | destroy"
+        type: choice
+        required: true
+        default: "deploy"
+        options:
+          - deploy
+          - destroy
+      environment:
+        description: "Select environment"
+        type: choice
+        required: true
+        default: "sandbox"
+        options:
+          - sandbox
+          - staging
+          - prod
+
+jobs:
+  relibank-infra-deploy:
+    if: ${{ github.event.inputs.action_type == 'deploy' }}
+    runs-on: ubuntu-latest
+    environment: ${{ github.event.inputs.environment }}
+    steps:
+      - run: echo "stub"
+
+  relibank-infra-destroy:
+    if: ${{ github.event.inputs.action_type == 'destroy' }}
+    runs-on: ubuntu-latest
+    environment: ${{ github.event.inputs.environment }}
+    steps:
+      - run: echo "stub"
