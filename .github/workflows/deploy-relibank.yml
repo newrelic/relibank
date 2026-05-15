@@ -1,0 +1,73 @@
+name: Deploy ReliBank
+
+run-name: ${{ inputs.action_type }} ReliBank (${{ inputs.target_color }}) in ${{ inputs.environment }} by @${{ github.actor }}
+
+on:
+  workflow_dispatch:
+    inputs:
+      action_type:
+        description: "Type of deployment action"
+        type: choice
+        required: true
+        default: "deploy"
+        options:
+          - deploy
+          - destroy
+          - direct_traffic
+
+      environment:
+        description: "Select environment to deploy to"
+        type: choice
+        required: true
+        default: "staging"
+        options:
+          - prod
+          - staging
+          - sandbox
+          - development
+
+      target_color:
+        description: "Target deployment color (blue/green)"
+        type: choice
+        required: true
+        options:
+          - blue
+          - green
+
+jobs:
+  trigger-image-build:
+    name: Build and push images - downstream workflow
+    if: ${{ github.event.inputs.action_type == 'deploy' }}
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo "stub"
+
+  deploy-relibank:
+    needs: [trigger-image-build]
+    if: ${{ github.event.inputs.action_type == 'deploy' }}
+    runs-on: ubuntu-latest
+    environment: ${{ github.event.inputs.environment }}
+    steps:
+      - run: echo "stub"
+
+  destroy-relibank:
+    if: ${{ github.event.inputs.action_type == 'destroy' }}
+    runs-on: ubuntu-latest
+    environment: ${{ github.event.inputs.environment }}
+    steps:
+      - run: echo "stub"
+
+  direct-traffic-relibank:
+    if: ${{ github.event.inputs.action_type == 'direct_traffic' }}
+    runs-on: ubuntu-latest
+    environment: ${{ github.event.inputs.environment }}
+    steps:
+      - run: echo "stub"
+
+  post-deployment-tests:
+    needs: [deploy-relibank]
+    if: ${{ always() && github.event.inputs.action_type == 'deploy' && needs.deploy-relibank.result == 'success' }}
+    runs-on: ubuntu-latest
+    environment: ${{ github.event.inputs.environment }}
+    steps:
+      - run: echo "stub"

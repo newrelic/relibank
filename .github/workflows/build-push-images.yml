@@ -1,6 +1,33 @@
 name: Build & Push Container Images
 
 on:
+  workflow_call:
+    inputs:
+      target_color:
+        description: "Deployment color tag to apply to images (blue or green)"
+        type: string
+        required: true
+      environment:
+        description: "GitHub environment to use for ACR vars (sandbox, staging, prod)"
+        type: string
+        required: false
+        default: "events"
+      force_rebuild:
+        description: "Force a complete rebuild (no cache)"
+        type: boolean
+        required: false
+        default: false
+      agent:
+        description: "Agent to deploy"
+        type: string
+        required: false
+        default: "newrelic"
+      new_relic_region:
+        description: "New Relic region"
+        type: string
+        required: false
+        default: "US"
+
   workflow_dispatch:
     inputs:
       deploy:
@@ -13,26 +40,148 @@ on:
         required: false
         type: boolean
         default: false
+      target_color:
+        description: "Deployment color tag to apply to images (blue or green)"
+        required: false
+        type: string
+        default: ""
+      environment:
+        description: "GitHub environment to use for ACR vars"
+        type: choice
+        required: false
+        default: "events"
+        options:
+          - events
+          - sandbox
+          - staging
+          - prod
+      force_rebuild:
+        description: "Force a complete rebuild (no cache)"
+        type: boolean
+        required: false
+        default: false
+      agent:
+        description: "Select agent to deploy"
+        type: choice
+        required: false
+        default: "newrelic"
+        options:
+          - newrelic
+          - otel
+      new_relic_region:
+        description: "Select New Relic region"
+        type: choice
+        required: false
+        default: "US"
+        options:
+          - "US"
+
   push:
     branches:
       - main
 
+# ---------------------------------------------------------------------------
+# Shared env vars resolved once at the top level
+# ---------------------------------------------------------------------------
 env:
-  ACR_NAME: relibank
-  ACR_SERVER: relibank.azurecr.io
-  REQUIRED_CONTEXT: relibank-prod
-  APP_NAME: ${{ vars.APP_NAME }}
-  BASE_URL: ${{ vars.BASE_URL }}
+  ACR_NAME:   ${{ vars.ACR_NAME   || 'relibank' }}
+  ACR_SERVER: ${{ vars.ACR_SERVER || 'relibank.azurecr.io' }}
+  APP_NAME:   ${{ vars.APP_NAME }}
   NR_ACCOUNT_ID: ${{ vars.NR_ACCOUNT_ID }}
-  OPENAI_API_TYPE: ${{ vars.OPENAI_API_TYPE }}
-  OPENAI_API_VERSION: ${{ vars.OPENAI_API_VERSION }}
-  OPENAI_LOG: ${{ vars.OPENAI_LOG }}
-  SCENARIO_SERVICE_URL: ${{ vars.SCENARIO_SERVICE_URL }}
 
 jobs:
-  build-push-deploy:
+
+  # ---------------------------------------------------------------------------
+  # Build and push — one parallel job per service (mirrors image-deploy.yml)
+  # ---------------------------------------------------------------------------
+  build-and-push-image:
+    name: ${{ matrix.images.image_name }} - Build and Push
+    if: ${{ inputs.skip_build != true }}
+    environment: ${{ inputs.environment || 'events' }}
+    strategy:
+      fail-fast: false
+      matrix:
+        images:
+          # build_context : Docker build context (passed to `docker build`)
+          # hash_dir      : Directory to hash for cache key (service source dir)
+          # dockerfile    : Explicit Dockerfile path when not at build_context root (empty = omit flag)
+
+          - image_name:    frontend-service
+            build_context: ./frontend_service
+            hash_dir:      ./frontend_service
+            dockerfile:    ""
+
+          - image_name:    accounts-service
+            build_context: .
+            hash_dir:      ./accounts_service
+            dockerfile:    ./accounts_service/Dockerfile
+
+          - image_name:    auth-service
+            build_context: .
+            hash_dir:      ./auth_service
+            dockerfile:    ./auth_service/Dockerfile
+
+          - image_name:    transaction-service
+            build_context: .
+            hash_dir:      ./transaction_service
+            dockerfile:    ./transaction_service/Dockerfile
+
+          - image_name:    bill-pay-service
+            build_context: .
+            hash_dir:      ./bill_pay
+            dockerfile:    ./bill_pay/Dockerfile
+
+          - image_name:    notifications-service
+            build_context: ./notifications_service
+            hash_dir:      ./notifications_service
+            dockerfile:    ""
+
+          - image_name:    scheduler-service
+            build_context: ./scheduler_service
+            hash_dir:      ./scheduler_service
+            dockerfile:    ""
+
+          - image_name:    support-service
+            build_context: .
+            hash_dir:      ./support_service
+            dockerfile:    ./support_service/Dockerfile
+
+          - image_name:    risk-assessment-service
+            build_context: .
+            hash_dir:      ./risk_assessment_service
+            dockerfile:    ./risk_assessment_service/Dockerfile
+
+          - image_name:    scenario-runner
+            build_context: ./scenario_service
+            hash_dir:      ./scenario_service
+            dockerfile:    ""
+
+          - image_name:    mssql-custom
+            build_context: ./transaction_service/mssql
+            hash_dir:      ./transaction_service/mssql
+            dockerfile:    ""
+
+          - image_name:    postgres-custom
+            build_context: ./accounts_service/postgres
+            hash_dir:      ./accounts_service/postgres
+            dockerfile:    ""
+
+          - image_name:    kafka-with-monitoring
+            build_context: ./kafka_service
+            hash_dir:      ./kafka_service
+            dockerfile:    ""
+
+          - image_name:    otel-collector-kafka
+            build_context: .
+            hash_dir:      ./otel_collector_kafka
+            dockerfile:    ./otel_collector_kafka/Dockerfile
+
+          - image_name:    nrdot-collector-mssql
+            build_context: ./otel_collector_mssql
+            hash_dir:      ./otel_collector_mssql
+            dockerfile:    ""
+
     runs-on: ubuntu-latest
-    environment: events
 
     steps:
       - name: Checkout code
@@ -40,6 +189,11 @@ jobs:
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.x'
 
       - name: Azure Login
         uses: azure/login@v2
@@ -49,6 +203,68 @@ jobs:
       - name: ACR Login
         run: az acr login --name ${{ env.ACR_NAME }}
 
+      - name: Validate APP_NAME
+        run: |
+          if [ "${{ env.APP_NAME }}" != "ReliBank" ]; then
+            echo "ERROR: APP_NAME is '${{ env.APP_NAME }}', expected 'ReliBank'"
+            exit 1
+          fi
+          echo "APP_NAME=ReliBank verified"
+
+      - name: Build and Push ${{ matrix.images.image_name }}
+        env:
+          FORCE_REBUILD:           ${{ inputs.force_rebuild }}
+          TARGET_COLOR:            ${{ inputs.target_color }}
+          ACR_SERVER:              ${{ env.ACR_SERVER }}
+          NEW_RELIC_USER_API_KEY:  ${{ secrets.NR_USER_API_KEY }}
+          NEW_RELIC_LICENSE_KEY:   ${{ secrets.NR_LICENSE_KEY }}
+          NEW_RELIC_ACCOUNT_ID:    ${{ vars.NR_ACCOUNT_ID }}
+          AGENT_TYPE:              ${{ inputs.agent || 'newrelic' }}
+          NEW_RELIC_REGION:        ${{ inputs.new_relic_region || 'US' }}
+          APP_NAME:                ${{ vars.APP_NAME }}
+        run: |
+          SCRIPT_DIR="${{ github.workspace }}/scripts/image_build"
+          BUILD_CONTEXT="${{ github.workspace }}/${{ matrix.images.build_context }}"
+          HASH_DIR="${{ github.workspace }}/${{ matrix.images.hash_dir }}"
+
+          DOCKERFILE_ARG=""
+          if [ -n "${{ matrix.images.dockerfile }}" ]; then
+            DOCKERFILE_ARG="--dockerfile ${{ github.workspace }}/${{ matrix.images.dockerfile }}"
+          fi
+
+          FORCE_ARG=""
+          if [ "$FORCE_REBUILD" == "true" ]; then
+            FORCE_ARG="--force-rebuild"
+          fi
+
+          python "$SCRIPT_DIR/build_images.py" \
+            --build-context  "$BUILD_CONTEXT" \
+            --hash-dir       "$HASH_DIR" \
+            --service        "${{ matrix.images.image_name }}" \
+            --target-color   "$TARGET_COLOR" \
+            --acr-server     "$ACR_SERVER" \
+            --nr-user-key    "$NEW_RELIC_USER_API_KEY" \
+            --nr-license-key "$NEW_RELIC_LICENSE_KEY" \
+            --nr-account-id  "$NEW_RELIC_ACCOUNT_ID" \
+            --agent-type     "$AGENT_TYPE" \
+            --nr-region      "$NEW_RELIC_REGION" \
+            --app-name       "$APP_NAME" \
+            $DOCKERFILE_ARG \
+            $FORCE_ARG
+
+  # ---------------------------------------------------------------------------
+  # Deploy to AKS (non-blue-green path: workflow_dispatch with deploy=true)
+  # ---------------------------------------------------------------------------
+  deploy-to-aks:
+    needs: [build-and-push-image]
+    if: ${{ always() && (inputs.deploy == true || inputs.deploy == 'true' || inputs.skip_build == true) }}
+    runs-on: ubuntu-latest
+    environment: ${{ inputs.environment || 'events' }}
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
       - name: Set up kubectl
         uses: azure/setup-kubectl@v4
 
@@ -57,205 +273,73 @@ jobs:
         with:
           version: 'latest'
 
+      - name: Azure Login
+        uses: azure/login@v2
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
+
       - name: Configure kubectl context
         run: |
-          az aks get-credentials --resource-group ReliBank --name relibank-prod --overwrite-existing
-          kubectl config use-context ${{ env.REQUIRED_CONTEXT }}
-          echo "Current context: $(kubectl config current-context)"
+          az aks get-credentials \
+            --resource-group ${{ vars.AKS_RESOURCE_GROUP || 'ReliBank' }} \
+            --name ${{ vars.AKS_CLUSTER_NAME || 'relibank-prod' }} \
+            --overwrite-existing
 
-      - name: Install Skaffold
+      - name: Delete existing immutable Jobs
         run: |
-          curl -Lo skaffold https://storage.googleapis.com/skaffold/releases/latest/skaffold-linux-amd64
-          sudo install skaffold /usr/local/bin/
-          skaffold version
-
-      - name: Create skaffold.env file
-        run: |
-          cat > skaffold.env << EOF
-          APP_NAME=${{ vars.APP_NAME }}
-          BASE_URL=${{ vars.BASE_URL }}
-          NEW_RELIC_ACCOUNT_ID=${{ vars.NR_ACCOUNT_ID }}
-          NEW_RELIC_USER_API_KEY=${{ secrets.NR_USER_API_KEY }}
-          NEW_RELIC_LICENSE_KEY=${{ secrets.NR_LICENSE_KEY }}
-          NEW_RELIC_BROWSER_LICENSE_KEY=${{ secrets.NR_BROWSER_LICENSE_KEY }}
-          NEW_RELIC_BROWSER_APPLICATION_ID=${{ secrets.NR_BROWSER_APPLICATION_ID }}
-          NEW_RELIC_TRUST_KEY=${{ secrets.NR_TRUST_KEY }}
-          OPENAI_API_KEY=${{ secrets.OPENAI_API_KEY }}
-          OPENAI_BASE_URL=${{ secrets.OPENAI_BASE_URL }}
-          OPENAI_API_TYPE=${{ vars.OPENAI_API_TYPE }}
-          OPENAI_API_VERSION=${{ vars.OPENAI_API_VERSION }}
-          OPENAI_LOG=${{ vars.OPENAI_LOG }}
-          AZURE_OPENAI_ENDPOINT=${{ secrets.AZURE_OPENAI_ENDPOINT }}
-          AZURE_OPENAI_API_KEY=${{ secrets.AZURE_OPENAI_API_KEY }}
-          ASSISTANT_A_ID=${{ secrets.ASSISTANT_A_ID }}
-          ASSISTANT_B_ID=${{ secrets.ASSISTANT_B_ID }}
-          ASSISTANT_B_DELAY_SECONDS=${{ vars.ASSISTANT_B_DELAY_SECONDS }}
-          AZURE_ACS_CONNECTION_STRING=${{ secrets.AZURE_ACS_CONNECTION_STRING }}
-          AZURE_ACS_EMAIL_SENDER=${{ secrets.AZURE_ACS_EMAIL_SENDER }}
-          AZURE_ACS_SMS_PHONE_NUMBER=${{ secrets.AZURE_ACS_SMS_PHONE_NUMBER }}
-          AZURE_FUNCTION_URL=${{ secrets.AZURE_FUNCTION_URL }}
-          STRIPE_SECRET_KEY=${{ secrets.STRIPE_SECRET_KEY }}
-          STRIPE_PUBLISHABLE_KEY=${{ secrets.STRIPE_PUBLISHABLE_KEY }}
-          SCENARIO_SERVICE_URL=${{ vars.SCENARIO_SERVICE_URL }}
-          MSSQL_NEWRELIC_PASSWORD=${{ secrets.MSSQL_NEWRELIC_PASSWORD }}
-          EOF
-
-      - name: Validate APP_NAME
-        run: |
-          APP_NAME_VALUE=$(grep "^APP_NAME=" skaffold.env | cut -d'=' -f2)
-          if [ "${APP_NAME_VALUE}" != "ReliBank" ]; then
-            echo "ERROR: APP_NAME is '${APP_NAME_VALUE}', expected 'ReliBank'"
-            exit 1
-          fi
-          echo "✅ APP_NAME=ReliBank verified"
-
-      - name: Build images with Skaffold
-        if: inputs.skip_build != true
-        run: |
-          set -a
-          source skaffold.env
-          set +a
-          echo "✅ Loaded environment variables from skaffold.env"
-
-          skaffold build --cache-artifacts=false --file-output=build-output.json
-          echo "✅ Skaffold build completed"
-
-      - name: Tag and push images to ACR
-        if: inputs.skip_build != true
-        run: |
-          IMAGES=(
-            "frontend-service"
-            "accounts-service"
-            "auth-service"
-            "transaction-service"
-            "bill-pay-service"
-            "notifications-service"
-            "scheduler-service"
-            "mssql-custom"
-            "postgres-custom"
-            "support-service"
-            "risk-assessment-service"
-            "scenario-runner"
-            "otel-collector-kafka"
-            "kafka-with-monitoring"
-            "nrdot-collector-mssql"
-          )
-
-          for IMAGE_NAME in "${IMAGES[@]}"; do
-            echo "--- Processing: ${IMAGE_NAME} ---"
-            LOCAL_IMAGES=$(docker images --format "{{.Repository}}:{{.Tag}}" | grep "^${IMAGE_NAME}:")
-
-            if [ -z "${LOCAL_IMAGES}" ]; then
-              echo "WARNING: No local image found for ${IMAGE_NAME}. Skipping."
-              continue
-            fi
-
-            LOCAL_TAG=$(echo "${LOCAL_IMAGES}" | head -1)
-            ACR_TAG="${{ env.ACR_SERVER }}/${IMAGE_NAME}:latest"
-
-            echo "Tagging ${LOCAL_TAG} -> ${ACR_TAG}"
-            docker tag "${LOCAL_TAG}" "${ACR_TAG}"
-
-            echo "Pushing ${ACR_TAG} to ACR..."
-            docker push "${ACR_TAG}"
-
-            if [ $? -ne 0 ]; then
-              echo "ERROR: Push failed for ${IMAGE_NAME}"
-              exit 1
-            fi
-            echo "✅ Push successful for ${IMAGE_NAME}"
-          done
-
-      - name: Deploy to AKS
-        if: (inputs.deploy == true || inputs.deploy == 'true') || inputs.skip_build == true
-        run: |
-          echo "Deleting existing immutable Jobs..."
           kubectl delete job postgres-init -n relibank --ignore-not-found=true
-          kubectl delete job mssql-init -n relibank --ignore-not-found=true
-          echo "✅ Jobs deleted"
+          kubectl delete job mssql-init    -n relibank --ignore-not-found=true
 
-          echo "Applying azure-prod overlay to cluster..."
+      - name: Apply kustomize overlay
+        run: |
           kubectl apply -k k8s/overlays/azure-prod
-          echo "✅ Manifests applied successfully"
 
-      - name: Wait for database init jobs to complete
-        if: inputs.deploy == true || inputs.deploy == 'true'
+      - name: Wait for database init jobs
         run: |
-          echo "Waiting for database initialization jobs to complete..."
-          kubectl wait --for=condition=complete --timeout=5m job/postgres-init -n relibank || echo "⚠ postgres-init job did not complete (may have failed or not exist)"
-          kubectl wait --for=condition=complete --timeout=5m job/mssql-init -n relibank || echo "⚠ mssql-init job did not complete (may have failed or not exist)"
-          echo "✅ Database init jobs completed"
+          kubectl wait --for=condition=complete --timeout=5m job/postgres-init -n relibank \
+            || echo "postgres-init did not complete"
+          kubectl wait --for=condition=complete --timeout=5m job/mssql-init    -n relibank \
+            || echo "mssql-init did not complete"
 
-      - name: Restart services and databases
-        if: inputs.deploy == true || inputs.deploy == 'true'
+      - name: Restart services
         run: |
-          echo "=== Restarting Services ==="
-
-          # Restart regular deployments (excludes databases)
-          echo "Restarting application services..."
-          kubectl rollout restart deployment -n relibank \
-            --selector='app notin (accounts-db)'
-
-          # Restart database deployments (with PVC handling)
-          echo "Restarting database deployments..."
-          # Delete old database pods first to release PVCs before rollout
+          kubectl rollout restart deployment -n relibank --selector='app notin (accounts-db)'
           kubectl delete pod -n relibank -l app=accounts-db --force --grace-period=0 || true
           sleep 5
           kubectl rollout restart deployment accounts-db -n relibank
+          kubectl rollout restart statefulset  -n relibank
 
-          # Restart StatefulSets (MSSQL)
-          echo "Restarting StatefulSets..."
-          kubectl rollout restart statefulset -n relibank
-
-          # Wait for rollouts to complete
-          echo "Waiting for rollouts to complete..."
           kubectl rollout status deployment -n relibank --timeout=5m
           kubectl rollout status statefulset -n relibank --timeout=5m
 
-          echo "✅ All services, databases, and StatefulSets restarted successfully"
-
       - name: Install Chaos Mesh
-        if: inputs.deploy == true || inputs.deploy == 'true'
         run: |
-          echo "Adding Chaos Mesh Helm repository..."
           helm repo add chaos-mesh https://charts.chaos-mesh.org
           helm repo update
-
-          echo "Installing Chaos Mesh via Helm..."
           helm upgrade --install chaos-mesh chaos-mesh/chaos-mesh \
             --namespace chaos-mesh \
             --create-namespace \
             --version 2.6.2 \
             -f scenario_service/chaos_mesh/values.yaml \
             --wait
-          echo "✅ Chaos Mesh installed successfully"
 
       - name: Configure Chaos Experiments
-        if: inputs.deploy == true || inputs.deploy == 'true'
         run: |
-          echo "Labeling relibank namespace for chaos injection..."
           kubectl label namespace relibank chaos-mesh.org/inject=enabled --overwrite
-
-          echo "Applying chaos experiments..."
           kubectl apply -f scenario_service/chaos_mesh/experiments/relibank-pod-chaos-adhoc.yaml
           kubectl apply -f scenario_service/chaos_mesh/experiments/relibank-stress-scenarios.yaml
-          echo "✅ Chaos experiments applied successfully"
 
       - name: Install New Relic Observability Stack
-        if: inputs.deploy == true || inputs.deploy == 'true'
         run: |
-          echo "Adding New Relic Helm repository..."
           helm repo add newrelic https://helm-charts.newrelic.com
           helm repo update
-
-          echo "Installing New Relic nri-bundle with eBPF agent..."
           helm upgrade --install nri-bundle newrelic/nri-bundle \
             --namespace newrelic \
             --create-namespace \
             --version 6.0.45 \
             -f k8s/newrelic/values.yaml \
             --set global.licenseKey="${{ secrets.NR_LICENSE_KEY }}" \
-            --set global.cluster="relibank-prod" \
+            --set global.cluster="${{ vars.AKS_CLUSTER_NAME || 'relibank-prod' }}" \
             --set global.lowDataMode=false \
             --set newrelic-infrastructure.enabled=true \
             --set newrelic-infrastructure.privileged=true \
@@ -271,42 +355,11 @@ jobs:
             --set pixie.enabled=false \
             --set newrelic-pixie.enabled=false \
             --wait
-          echo "✅ New Relic observability stack installed successfully"
 
-      - name: Cleanup
-        if: always()
-        run: |
-          echo "Removing temporary build artifacts..."
-          rm -f build-output.json skaffold.env
-          echo "✅ Cleanup complete"
-
-      - name: Deployment Summary (with build)
-        if: (inputs.deploy == true || inputs.deploy == 'true') && inputs.skip_build != true
+      - name: Deployment Summary
         run: |
           echo "========================================"
-          echo "✅ BUILD, PUSH, AND DEPLOY COMPLETE"
+          echo "DEPLOY COMPLETE"
           echo "========================================"
-          echo "All images successfully built and pushed to ${{ env.ACR_SERVER }}"
-          echo "Manifests deployed to ${{ env.REQUIRED_CONTEXT }}"
-          echo "Chaos Mesh installed and experiments configured"
-          echo "New Relic eBPF monitoring installed"
-
-      - name: Deployment Summary (skip build)
-        if: inputs.skip_build == true
-        run: |
-          echo "========================================"
-          echo "✅ DEPLOY COMPLETE (BUILD SKIPPED)"
-          echo "========================================"
-          echo "Build and push steps skipped"
-          echo "Manifests deployed to ${{ env.REQUIRED_CONTEXT }}"
-          echo "Chaos Mesh installed and experiments configured"
-          echo "New Relic eBPF monitoring installed"
-
-      - name: Build Summary
-        if: inputs.deploy != true && inputs.deploy != 'true' && inputs.skip_build != true
-        run: |
-          echo "========================================"
-          echo "✅ BUILD AND PUSH COMPLETE"
-          echo "========================================"
-          echo "All images successfully built and pushed to ${{ env.ACR_SERVER }}"
-          echo "Deployment skipped (deploy input not enabled)"
+          echo "Cluster: ${{ vars.AKS_CLUSTER_NAME || 'relibank-prod' }}"
+          echo "ACR:     ${{ env.ACR_SERVER }}"
