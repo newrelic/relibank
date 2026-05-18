@@ -11,3 +11,18 @@ spec:
         kubernetes.io/arch: amd64
       # Remove ARM64 tolerations for MSSQL
       tolerations: []
+      containers:
+      - name: mssql
+        env:
+        # MSSQL_MEMORY_LIMIT_MB caps the memory SQL Server reports as physical;
+        # the base 1024 starves Query Performance Monitoring slow-query workloads
+        # (queries stall on RESOURCE_SEMAPHORE waits and never produce plans).
+        - name: MSSQL_MEMORY_LIMIT_MB
+          value: "6144"
+        resources:
+          requests:
+            memory: "4Gi"
+            cpu: "1"
+          limits:
+            memory: "8Gi"
+            cpu: "2"

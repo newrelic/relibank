@@ -47,6 +47,10 @@ spec:
               value: "http://relibank.local"
           image: scenario-runner
           name: scenario-runner-service
+      # Allow lifespan shutdown to cancel db-360 workers + rollback the blocker
+      # transaction before the pod is killed; uvicorn's default graceful-shutdown
+      # is 30s and we want a small headroom on top of that.
+      terminationGracePeriodSeconds: 45
       restartPolicy: Always
 ---
 apiVersion: v1
