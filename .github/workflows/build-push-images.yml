@@ -166,6 +166,19 @@ jobs:
             echo "✅ Push successful for ${IMAGE_NAME}"
           done
 
+      - name: Generate nrdot-mssql.env
+        if: (inputs.deploy == true || inputs.deploy == 'true') || inputs.skip_build == true
+        run: |
+          set -a
+          source skaffold.env
+          set +a
+          printf 'MSSQL_NEWRELIC_PASSWORD=%s\nNEW_RELIC_LICENSE_KEY=%s\nNEW_RELIC_OTLP_ENDPOINT=%s\n' \
+            "${MSSQL_NEWRELIC_PASSWORD}" \
+            "${NEW_RELIC_LICENSE_KEY}" \
+            "${NEW_RELIC_OTLP_ENDPOINT:-https://otlp.nr-data.net}" \
+            > k8s/base/infrastructure/newrelic/nrdot-mssql.env
+          echo "✅ nrdot-mssql.env generated"
+
       - name: Deploy to AKS
         if: (inputs.deploy == true || inputs.deploy == 'true') || inputs.skip_build == true
         run: |
