@@ -1,18 +1,28 @@
-from locust import main as locust_main
+# NOTE: importing `locust` at module level pulls in gevent and triggers
+# `monkey.patch_all()`, which replaces stdlib `threading` / `socket` /
+# `ssl` with green-thread equivalents. That breaks db-360's pyodbc workers
+# (they become greenlets and block the event loop on each blocking SQL call).
+# `locust.main` is only needed inside the /run_locust handler — defer the
+# import to that callsite so gevent never patches this process for the
+# common case where Locust isn't being used.
 import os
 import uuid
 import yaml
 from pathlib import Path
 import sys
 import asyncio
+import logging
+import threading
+import time
 from fastapi import FastAPI, Request, HTTPException
-from fastapi.responses import HTMLResponse
-from typing import Dict, Any, List
+from fastapi.responses import HTMLResponse, JSONResponse
+from typing import Dict, Any, List, Optional
 from kubernetes import client, config
 from kubernetes.client.rest import ApiException
 from contextlib import asynccontextmanager
 from datetime import datetime, timedelta
 import httpx
+import pyodbc
 
 # Dictionary to store parsed Chaos Mesh experiments
 CHAOS_EXPERIMENTS: Dict[str, Dict[str, Any]] = {}
@@ -188,6 +198,9 @@ async def lifespan(app: FastAPI):
 
     print(f"Chaos experiments loaded successfully on startup. Total: {loaded_count} experiments ({len(CHAOS_EXPERIMENTS)} pod chaos, {len(STRESS_EXPERIMENTS)} stress chaos)")
     yield
+    # Cancel any in-flight db-360 workers and rollback open transactions before the
+    # process exits — otherwise SIGTERM leaves UPDLOCK-holding sessions on MSSQL.
+    _shutdown_db360()
     print("Application is shutting down.")
 
 # Initialize FastAPI app with the lifespan
@@ -627,6 +640,11 @@ async def run_locust_test(locustfile_name: str, num_users: int = 1):
     sys.exit = dummy_exit
     
     try:
+        # Deferred import: pulling in locust monkey-patches threading via
+        # gevent process-wide. Acceptable here because /run_locust is the
+        # only flow that actually needs Locust, and once invoked the process
+        # is dedicated to that run.
+        from locust import main as locust_main
         locust_main.main()
         return {
             "status": "success",
@@ -901,4 +919,355 @@ async def reset_ab_test_scenarios():
         "status": "success",
         "message": "All A/B test scenarios reset to defaults",
         "config": AB_TEST_SCENARIOS
+    }
+
+
+# ============================================================================
+# db-360: New Relic Query Performance Monitoring demo load
+#
+# Spawns sustained MSSQL load (spending-velocity SELECT + blocker + contender
+# UPDATE) so the NR QPM execution-plan panel populates with rich plans
+# (Sort, Window Aggregate, Hash Match). Replaces the manual
+# `kubectl exec`-based run-banking-load.sh — these endpoints are HTTP-callable
+# from goblin-swarm CI without cluster credentials.
+#
+# Requires MSSQL with enough memory headroom (MSSQL_MEMORY_LIMIT_MB ~= 6144);
+# otherwise queries stall on RESOURCE_SEMAPHORE waits and never produce plans.
+# ============================================================================
+
+# Connection string mirrors transaction_service.py (same secret/configmap envs).
+DB360_CONNECTION_STRING = (
+    f"DRIVER={{ODBC Driver 18 for SQL Server}};"
+    f"SERVER={os.getenv('DB_SERVER', '')};"
+    f"DATABASE={os.getenv('DB_DATABASE', '')};"
+    f"UID={os.getenv('DB_USERNAME', '')};"
+    f"PWD={os.getenv('DB_PASSWORD', '')};"
+    f"TrustServerCertificate=yes"
+)
+
+# Spending-velocity SELECT — window functions over ~500K rows of
+# BankTransactions joined to Merchants. Produces Sort + Window Aggregate plan.
+# Verbatim from utils/scripts/mssql/loadgen/db-direct/run-banking-load.sh:184.
+DB360_VELOCITY_SQL = """
+SELECT
+    t.TxnID,
+    t.AccountID,
+    t.MerchantID,
+    m.Category,
+    m.Region,
+    m.RiskTier,
+    t.Amount,
+    t.TxnDate,
+    t.TxnType,
+    t.Channel,
+    ROW_NUMBER()  OVER (PARTITION BY t.AccountID ORDER BY t.TxnDate)
+                                                    AS TxnSeq,
+    SUM(t.Amount) OVER (PARTITION BY t.AccountID ORDER BY t.TxnDate
+                        ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW)
+                                                    AS CumulativeSpend,
+    AVG(t.Amount) OVER (PARTITION BY t.AccountID ORDER BY t.TxnDate
+                        ROWS BETWEEN 99 PRECEDING AND CURRENT ROW)
+                                                    AS MovingAvg100,
+    RANK()        OVER (PARTITION BY m.Category ORDER BY t.Amount DESC)
+                                                    AS GlobalAmountRank
+FROM BankTransactions t WITH (INDEX(0))
+INNER JOIN Merchants m WITH (INDEX(0)) ON m.MerchantID = t.MerchantID
+WHERE t.TxnDate >= DATEADD(MONTH, -6, GETDATE())
+ORDER BY t.AccountID, t.TxnDate
+OPTION (MAXDOP 1);
+"""
+
+# Blocker — holds UPDLOCK on flagged high-risk rows for hold_seconds, then
+# commits and repeats. WAITFOR DELAY interval is built per-cycle.
+DB360_BLOCKER_SELECT_SQL = """
+SELECT TOP 100 t.TxnID, t.AccountID, t.Amount, m.Category, m.RiskTier
+FROM BankTransactions t WITH (UPDLOCK, ROWLOCK, HOLDLOCK)
+INNER JOIN Merchants m ON m.MerchantID = t.MerchantID
+WHERE t.Status = 'Flagged' AND m.RiskTier = 3
+ORDER BY t.Amount DESC;
+"""
+DB360_BLOCKER_UPDATE_SQL = """
+UPDATE BankTransactions SET Amount = Amount WHERE TxnID IN (
+    SELECT TOP 100 t.TxnID FROM BankTransactions t
+    INNER JOIN Merchants m ON m.MerchantID = t.MerchantID
+    WHERE t.Status = 'Flagged' AND m.RiskTier = 3 ORDER BY t.Amount DESC
+);
+"""
+
+# Contender — risk-adjusted recalculation over ~500K rows. Hash join + UPDATE.
+# Verbatim from run-banking-load.sh:236.
+DB360_CONTENDER_SQL = """
+UPDATE t
+SET t.Amount = t.Amount * (1.0 + (CAST(m.RiskTier AS DECIMAL(5,4)) * 0.0001))
+FROM BankTransactions t WITH (INDEX(0))
+INNER JOIN Merchants m WITH (INDEX(0)) ON m.MerchantID = t.MerchantID
+WHERE t.TxnDate >= DATEADD(MONTH, -6, GETDATE())
+  AND t.Status = 'Approved'
+  AND m.IsActive = 1
+OPTION (MAXDOP 1);
+"""
+
+DB360_STATE: Dict[str, Any] = {
+    "running": False,
+    "started_at": None,
+    "deadline": None,            # time.monotonic() value; workers exit when reached
+    "config": {},                # workers, block_hold, max_duration
+    "workers": [],               # list of threading.Thread (daemon)
+    "stop_event": threading.Event(),
+    "stats_lock": threading.Lock(),
+    "stats": {
+        "velocity_runs": 0,
+        "blocker_runs": 0,
+        "contender_runs": 0,
+        "errors": 0,
+        "last_error": None,
+    },
+}
+# Tracked separately so /stop can call .cancel() / .rollback() on the
+# blocker's open transaction without rummaging through the worker list.
+DB360_BLOCKER_CONN: Optional[Any] = None
+DB360_LIFECYCLE_LOCK = threading.Lock()
+
+
+def _db360_hms(seconds: int) -> str:
+    """Format seconds as HH:MM:SS for T-SQL WAITFOR DELAY."""
+    return f"{seconds // 3600:02d}:{(seconds % 3600) // 60:02d}:{seconds % 60:02d}"
+
+
+def _db360_record_error(exc: Exception) -> None:
+    with DB360_STATE["stats_lock"]:
+        DB360_STATE["stats"]["errors"] += 1
+        DB360_STATE["stats"]["last_error"] = f"{type(exc).__name__}: {exc}"[:300]
+
+
+def _db360_should_stop() -> bool:
+    deadline = DB360_STATE["deadline"]
+    if DB360_STATE["stop_event"].is_set():
+        return True
+    if deadline is not None and time.monotonic() >= deadline:
+        return True
+    return False
+
+
+def _db360_velocity_worker() -> None:
+    while not _db360_should_stop():
+        try:
+            with pyodbc.connect(DB360_CONNECTION_STRING, timeout=10) as conn:
+                conn.timeout = 60
+                conn.execute(DB360_VELOCITY_SQL).fetchall()
+            with DB360_STATE["stats_lock"]:
+                DB360_STATE["stats"]["velocity_runs"] += 1
+        except Exception as exc:
+            _db360_record_error(exc)
+            # Brief back-off so a misconfigured connection doesn't spin hot.
+            DB360_STATE["stop_event"].wait(timeout=2)
+
+
+def _db360_blocker_worker(hold_seconds: int) -> None:
+    global DB360_BLOCKER_CONN
+    waitfor_sql = f"WAITFOR DELAY '{_db360_hms(hold_seconds)}';"
+    while not _db360_should_stop():
+        conn = None
+        try:
+            conn = pyodbc.connect(DB360_CONNECTION_STRING, autocommit=False, timeout=10)
+            conn.timeout = hold_seconds + 30
+            DB360_BLOCKER_CONN = conn
+            cur = conn.cursor()
+            cur.execute(DB360_BLOCKER_SELECT_SQL)
+            cur.execute(DB360_BLOCKER_UPDATE_SQL)
+            cur.execute(waitfor_sql)
+            conn.commit()
+            with DB360_STATE["stats_lock"]:
+                DB360_STATE["stats"]["blocker_runs"] += 1
+        except Exception as exc:
+            _db360_record_error(exc)
+            if conn is not None:
+                try:
+                    conn.rollback()
+                except Exception:
+                    pass
+        finally:
+            DB360_BLOCKER_CONN = None
+            if conn is not None:
+                try:
+                    conn.close()
+                except Exception:
+                    pass
+        # Brief gap between blocker cycles, but bail immediately on stop.
+        DB360_STATE["stop_event"].wait(timeout=2)
+
+
+def _db360_contender_worker() -> None:
+    while not _db360_should_stop():
+        try:
+            with pyodbc.connect(DB360_CONNECTION_STRING, autocommit=True, timeout=10) as conn:
+                conn.timeout = 60
+                conn.execute(DB360_CONTENDER_SQL)
+            with DB360_STATE["stats_lock"]:
+                DB360_STATE["stats"]["contender_runs"] += 1
+        except Exception as exc:
+            _db360_record_error(exc)
+            DB360_STATE["stop_event"].wait(timeout=2)
+
+
+def _shutdown_db360() -> None:
+    """Idempotent stop: cancel in-flight queries, rollback blocker, join threads.
+
+    Safe to call from request handlers, the FastAPI lifespan shutdown hook, or
+    multiple times in a row. Returns within ~10s even if the blocker is mid-WAITFOR.
+    """
+    global DB360_BLOCKER_CONN
+    with DB360_LIFECYCLE_LOCK:
+        if not DB360_STATE["running"]:
+            return
+        DB360_STATE["stop_event"].set()
+
+        # Abort the blocker's currently-running statement so it doesn't sit on
+        # UPDLOCK for the remainder of its WAITFOR DELAY.
+        blocker_conn = DB360_BLOCKER_CONN
+        if blocker_conn is not None:
+            try:
+                blocker_conn.cancel()
+            except Exception:
+                pass
+
+        for thread in DB360_STATE["workers"]:
+            thread.join(timeout=10)
+
+        DB360_STATE["running"] = False
+        DB360_STATE["workers"] = []
+
+
+def _db360_status_snapshot() -> Dict[str, Any]:
+    deadline = DB360_STATE["deadline"]
+    seconds_remaining = (
+        max(0, int(deadline - time.monotonic())) if deadline is not None else 0
+    )
+    workers_alive = sum(1 for t in DB360_STATE["workers"] if t.is_alive())
+    with DB360_STATE["stats_lock"]:
+        stats = dict(DB360_STATE["stats"])
+    return {
+        "running": DB360_STATE["running"],
+        "started_at": DB360_STATE["started_at"],
+        "config": DB360_STATE["config"],
+        "stats": stats,
+        "workers_alive": workers_alive,
+        "seconds_remaining": seconds_remaining,
+    }
+
+
+@app.post("/scenario-runner/api/db-360/start")
+async def start_db_360(
+    workers: int = 4,
+    block_hold: int = 120,
+    max_duration: int = 1800,
+):
+    """Spawn N spending-velocity workers + 1 blocker + 1 contender against MSSQL.
+
+    Strict semantics: 409 if already running. Caps protect MSSQL from runaway
+    fanout.
+    """
+    if not (1 <= workers <= 8):
+        raise HTTPException(status_code=400, detail="workers must be between 1 and 8")
+    if not (10 <= block_hold <= 600):
+        raise HTTPException(status_code=400, detail="block_hold must be between 10 and 600 seconds")
+    if not (60 <= max_duration <= 3600):
+        raise HTTPException(status_code=400, detail="max_duration must be between 60 and 3600 seconds")
+
+    with DB360_LIFECYCLE_LOCK:
+        if DB360_STATE["running"]:
+            raise HTTPException(
+                status_code=409,
+                detail={
+                    "message": "db-360 load is already running; call /stop first",
+                    "running": True,
+                    "started_at": DB360_STATE["started_at"],
+                    "config": DB360_STATE["config"],
+                },
+            )
+
+        DB360_STATE["stop_event"] = threading.Event()
+        DB360_STATE["started_at"] = datetime.utcnow().isoformat() + "Z"
+        DB360_STATE["deadline"] = time.monotonic() + max_duration
+        DB360_STATE["config"] = {
+            "workers": workers,
+            "block_hold": block_hold,
+            "max_duration": max_duration,
+        }
+        DB360_STATE["stats"] = {
+            "velocity_runs": 0,
+            "blocker_runs": 0,
+            "contender_runs": 0,
+            "errors": 0,
+            "last_error": None,
+        }
+        DB360_STATE["workers"] = []
+
+        for i in range(workers):
+            t = threading.Thread(
+                target=_db360_velocity_worker,
+                name=f"db360-velocity-{i}",
+                daemon=True,
+            )
+            t.start()
+            DB360_STATE["workers"].append(t)
+
+        blocker = threading.Thread(
+            target=_db360_blocker_worker,
+            args=(block_hold,),
+            name="db360-blocker",
+            daemon=True,
+        )
+        blocker.start()
+        DB360_STATE["workers"].append(blocker)
+
+        contender = threading.Thread(
+            target=_db360_contender_worker,
+            name="db360-contender",
+            daemon=True,
+        )
+        contender.start()
+        DB360_STATE["workers"].append(contender)
+
+        DB360_STATE["running"] = True
+
+    return JSONResponse(
+        status_code=202,
+        content={
+            "status": "started",
+            "message": (
+                f"db-360 load started: {workers} velocity workers + 1 blocker + 1 contender. "
+                f"Auto-stops after {max_duration}s."
+            ),
+            **_db360_status_snapshot(),
+        },
+    )
+
+
+@app.post("/scenario-runner/api/db-360/stop")
+async def stop_db_360():
+    """Cancel in-flight queries, rollback blocker transaction, return stats."""
+    was_running = DB360_STATE["running"]
+    _shutdown_db360()
+    return {
+        "status": "stopped",
+        "was_running": was_running,
+        **_db360_status_snapshot(),
+    }
+
+
+@app.get("/scenario-runner/api/db-360/status")
+async def status_db_360():
+    """Return current load state, worker counts, and aggregated query stats."""
+    return _db360_status_snapshot()
+
+
+@app.post("/scenario-runner/api/db-360/reset")
+async def reset_db_360():
+    """Alias for /stop — parity with /payment-scenarios/reset and /risk-assessment/reset."""
+    _shutdown_db360()
+    return {
+        "status": "success",
+        "message": "db-360 load stopped and reset",
+        **_db360_status_snapshot(),
     }
