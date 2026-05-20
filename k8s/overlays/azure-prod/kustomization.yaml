@@ -71,3 +71,6 @@ images:
 - name: otel-collector-kafka
   newName: relibank.azurecr.io/otel-collector-kafka
   newTag: latest
+- name: nrdot-collector-mssql
+  newName: relibank.azurecr.io/nrdot-collector-mssql
+  newTag: latest
