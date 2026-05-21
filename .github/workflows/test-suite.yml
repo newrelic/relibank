@@ -63,13 +63,11 @@ jobs:
           curl https://packages.microsoft.com/config/ubuntu/$(lsb_release -rs)/prod.list | sudo tee /etc/apt/sources.list.d/mssql-release.list
           sudo apt-get update
           sudo ACCEPT_EULA=Y apt-get install -y msodbcsql18
-      - name: Install Chrome and ChromeDriver for Selenium tests
+      - name: Verify Chrome and ChromeDriver for Selenium tests
         run: |
-          # Install Chromium and ChromeDriver for Selenium
-          sudo apt-get update
-          sudo apt-get install -y chromium-browser chromium-chromedriver
-          # Verify installation
-          chromium-browser --version
+          # Google Chrome and ChromeDriver are pre-installed on ubuntu-latest runners.
+          # chromium-browser on Ubuntu 24.04 is a snap stub and fails in CI (no snapd).
+          google-chrome --version
           chromedriver --version
 
       - name: Install dependencies
