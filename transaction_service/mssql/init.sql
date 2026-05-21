@@ -1,3 +1,12 @@
+-- Sync SA password from MSSQL_SA_PASSWORD env var on every run.
+-- Prevents drift between the k8s secret and the SQL Server data volume
+-- (SQL Server only applies MSSQL_SA_PASSWORD on first init, not restarts).
+-- The password is passed in via sqlcmd -v SAPWD="..." from the init job.
+USE master;
+GO
+ALTER LOGIN SA WITH PASSWORD = '$(SAPWD)';
+GO
+
 -- Check if the database already exists
 IF NOT EXISTS (SELECT * FROM sys.databases WHERE name = 'RelibankDB')
 BEGIN
