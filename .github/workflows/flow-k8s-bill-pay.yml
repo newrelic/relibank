@@ -113,7 +113,6 @@ jobs:
             --description "ARGOCD: Reverting previous deployment" \
             --group-id NRDEMO-101423 \
             --custom-attribute environment=production
-          cd demo_flows/k8s_bill_pay/ && python send_marker_bill_pay.py goodCommit ${{ secrets.NR_USER_API_KEY }} ${{ vars.NR_ACCOUNT_ID }}
 
       - name: Report scenario status to Krenko's Calendar
         if: always()
