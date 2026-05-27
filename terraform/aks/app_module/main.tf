@@ -1,6 +1,10 @@
 # app_module/main.tf
 # Reusable module instantiated for each blue/green color deployment.
-# Creates: AKS node pool, K8s namespace, ConfigMap, Secret, and all 10 service Deployments + Services.
+# Creates: AKS node pool, K8s namespace, ConfigMap, Secret, and all service Deployments + Services.
+#
+# All services are driven by the var.services map — see variables.tf for the full inventory.
+# To add a service: add an entry to var.services. To customize per-environment: override the
+# services variable from the caller.
 
 terraform {
   required_providers {
@@ -53,6 +57,14 @@ resource "kubernetes_namespace_v1" "relibank_color" {
 
 locals {
   ns = kubernetes_namespace_v1.relibank_color.metadata[0].name
+
+  # Overlay runtime-computed env vars (e.g. LOCUST_HOST from var.locust_host) into the
+  # services map. Default values can't reference other variables, so we merge them here.
+  services_resolved = {
+    for name, svc in var.services : name => merge(svc, {
+      extra_envs = name == "scenario-runner-service" ? merge(svc.extra_envs, { LOCUST_HOST = var.locust_host }) : svc.extra_envs
+    })
+  }
 }
 
 # --- Infrastructure ConfigMap ---
@@ -107,511 +119,113 @@ resource "kubernetes_secret_v1" "database_credentials" {
 }
 
 # ==========================================
-# FRONTEND SERVICE
+# Per-service Deployments + Services
 # ==========================================
-resource "kubernetes_deployment_v1" "frontend_service" {
+
+resource "kubernetes_deployment_v1" "service" {
+  for_each = local.services_resolved
+
   metadata {
-    name      = "frontend-service"
+    name      = each.key
     namespace = local.ns
-    labels    = { app = "frontend-service", version = var.target_color }
+    labels    = { app = each.key, version = var.target_color }
   }
+
   spec {
-    replicas = 1
-    selector { match_labels = { app = "frontend-service", version = var.target_color } }
+    replicas = each.value.replicas
+
+    selector {
+      match_labels = { app = each.key, version = var.target_color }
+    }
+
     template {
-      metadata { labels = { app = "frontend-service", version = var.target_color } }
+      metadata {
+        labels = { app = each.key, version = var.target_color }
+      }
+
       spec {
         node_selector = { "node-color" = var.target_color }
+
         container {
-          name  = "frontend-service"
-          image = "${var.acr_server}/frontend-service:${var.target_color}"
-          port { container_port = 3000 }
-          resources {
-            requests = { cpu = "1000m", memory = "1Gi" }
-            limits   = { cpu = "2000m", memory = "2Gi" }
+          name  = each.key
+          image = "${var.acr_server}/${each.value.image}:${var.target_color}"
+
+          port {
+            container_port = each.value.container_port
+          }
+
+          dynamic "resources" {
+            for_each = each.value.cpu_request != null ? [1] : []
+            content {
+              requests = {
+                cpu    = each.value.cpu_request
+                memory = each.value.memory_request
+              }
+              limits = {
+                cpu    = each.value.cpu_limit
+                memory = each.value.memory_limit
+              }
+            }
+          }
+
+          dynamic "env" {
+            for_each = each.value.config_map_envs
+            content {
+              name = env.key
+              value_from {
+                config_map_key_ref {
+                  name = "infrastructure-config"
+                  key  = env.value
+                }
+              }
+            }
+          }
+
+          dynamic "env" {
+            for_each = each.value.secret_envs
+            content {
+              name = env.key
+              value_from {
+                secret_key_ref {
+                  name = "database-credentials"
+                  key  = env.value
+                }
+              }
+            }
+          }
+
+          dynamic "env" {
+            for_each = each.value.extra_envs
+            content {
+              name  = env.key
+              value = env.value
+            }
           }
         }
       }
     }
   }
-  depends_on = [kubernetes_namespace_v1.relibank_color, azurerm_kubernetes_cluster_node_pool.relibank_color_np]
+
+  depends_on = [
+    kubernetes_config_map_v1.infrastructure_config,
+    kubernetes_secret_v1.database_credentials,
+    azurerm_kubernetes_cluster_node_pool.relibank_color_np,
+  ]
 }
 
-resource "kubernetes_service_v1" "frontend_service" {
-  metadata {
-    name      = "frontend-service"
-    namespace = local.ns
-  }
-  spec {
-    selector = { app = "frontend-service", version = var.target_color }
-    port { name = "http", port = 3000, target_port = 3000 }
-  }
-}
+resource "kubernetes_service_v1" "service" {
+  for_each = local.services_resolved
 
-# ==========================================
-# ACCOUNTS SERVICE
-# ==========================================
-resource "kubernetes_deployment_v1" "accounts_service" {
   metadata {
-    name      = "accounts-service"
+    name      = each.key
     namespace = local.ns
-    labels    = { app = "accounts-service", version = var.target_color }
   }
+
   spec {
-    replicas = 1
-    selector { match_labels = { app = "accounts-service", version = var.target_color } }
-    template {
-      metadata { labels = { app = "accounts-service", version = var.target_color } }
-      spec {
-        node_selector = { "node-color" = var.target_color }
-        container {
-          name  = "accounts-service"
-          image = "${var.acr_server}/accounts-service:${var.target_color}"
-          port { container_port = 5000 }
-          env {
-            name = "DB_HOST"
-            value_from { config_map_key_ref { name = "infrastructure-config", key = "POSTGRES_SERVER_NAME" } }
-          }
-          env {
-            name = "DB_NAME"
-            value_from { config_map_key_ref { name = "infrastructure-config", key = "POSTGRES_DATABASE_NAME" } }
-          }
-          env {
-            name = "DB_PASSWORD"
-            value_from { secret_key_ref { name = "database-credentials", key = "POSTGRES_PASSWORD" } }
-          }
-          env {
-            name = "DB_USER"
-            value_from { secret_key_ref { name = "database-credentials", key = "POSTGRES_USER" } }
-          }
-          env {
-            name = "TRANSACTION_SERVICE_URL"
-            value_from { config_map_key_ref { name = "infrastructure-config", key = "TRANSACTION_SERVICE_URL" } }
-          }
-        }
-      }
+    selector = { app = each.key, version = var.target_color }
+    port {
+      port        = each.value.service_port
+      target_port = each.value.container_port
     }
-  }
-  depends_on = [kubernetes_config_map_v1.infrastructure_config, kubernetes_secret_v1.database_credentials, azurerm_kubernetes_cluster_node_pool.relibank_color_np]
-}
-
-resource "kubernetes_service_v1" "accounts_service" {
-  metadata {
-    name      = "accounts-service"
-    namespace = local.ns
-  }
-  spec {
-    selector = { app = "accounts-service", version = var.target_color }
-    port { name = "5002", port = 5002, target_port = 5000 }
-  }
-}
-
-# ==========================================
-# AUTH SERVICE
-# ==========================================
-resource "kubernetes_deployment_v1" "auth_service" {
-  metadata {
-    name      = "auth-service"
-    namespace = local.ns
-    labels    = { app = "auth-service", version = var.target_color }
-  }
-  spec {
-    replicas = 1
-    selector { match_labels = { app = "auth-service", version = var.target_color } }
-    template {
-      metadata { labels = { app = "auth-service", version = var.target_color } }
-      spec {
-        node_selector = { "node-color" = var.target_color }
-        container {
-          name  = "auth-service"
-          image = "${var.acr_server}/auth-service:${var.target_color}"
-          port { container_port = 5002 }
-          env {
-            name = "DB_HOST"
-            value_from { config_map_key_ref { name = "infrastructure-config", key = "POSTGRES_SERVER_NAME" } }
-          }
-          env {
-            name = "DB_NAME"
-            value_from { config_map_key_ref { name = "infrastructure-config", key = "POSTGRES_DATABASE_NAME" } }
-          }
-          env {
-            name = "DB_PASSWORD"
-            value_from { secret_key_ref { name = "database-credentials", key = "POSTGRES_PASSWORD" } }
-          }
-          env {
-            name = "DB_USER"
-            value_from { secret_key_ref { name = "database-credentials", key = "POSTGRES_USER" } }
-          }
-        }
-      }
-    }
-  }
-  depends_on = [kubernetes_config_map_v1.infrastructure_config, kubernetes_secret_v1.database_credentials, azurerm_kubernetes_cluster_node_pool.relibank_color_np]
-}
-
-resource "kubernetes_service_v1" "auth_service" {
-  metadata {
-    name      = "auth-service"
-    namespace = local.ns
-  }
-  spec {
-    selector = { app = "auth-service", version = var.target_color }
-    port { name = "5002", port = 5002, target_port = 5002 }
-  }
-}
-
-# ==========================================
-# TRANSACTION SERVICE
-# ==========================================
-resource "kubernetes_deployment_v1" "transaction_service" {
-  metadata {
-    name      = "transaction-service"
-    namespace = local.ns
-    labels    = { app = "transaction-service", version = var.target_color }
-  }
-  spec {
-    replicas = 1
-    selector { match_labels = { app = "transaction-service", version = var.target_color } }
-    template {
-      metadata { labels = { app = "transaction-service", version = var.target_color } }
-      spec {
-        node_selector = { "node-color" = var.target_color }
-        container {
-          name  = "transaction-service"
-          image = "${var.acr_server}/transaction-service:${var.target_color}"
-          port { container_port = 5000 }
-          env {
-            name = "DB_DATABASE"
-            value_from { config_map_key_ref { name = "infrastructure-config", key = "MSSQL_DATABASE_NAME" } }
-          }
-          env {
-            name = "DB_PASSWORD"
-            value_from { secret_key_ref { name = "database-credentials", key = "MSSQL_SA_PASSWORD" } }
-          }
-          env {
-            name = "DB_SERVER"
-            value_from { config_map_key_ref { name = "infrastructure-config", key = "MSSQL_SERVER_NAME" } }
-          }
-          env {
-            name = "DB_USERNAME"
-            value_from { secret_key_ref { name = "database-credentials", key = "MSSQL_SA_USER" } }
-          }
-          env {
-            name = "KAFKA_BROKER"
-            value_from { config_map_key_ref { name = "infrastructure-config", key = "KAFKA_BROKER" } }
-          }
-        }
-      }
-    }
-  }
-  depends_on = [kubernetes_config_map_v1.infrastructure_config, kubernetes_secret_v1.database_credentials, azurerm_kubernetes_cluster_node_pool.relibank_color_np]
-}
-
-resource "kubernetes_service_v1" "transaction_service" {
-  metadata {
-    name      = "transaction-service"
-    namespace = local.ns
-  }
-  spec {
-    selector = { app = "transaction-service", version = var.target_color }
-    port { name = "5001", port = 5001, target_port = 5000 }
-  }
-}
-
-# ==========================================
-# BILL PAY SERVICE
-# ==========================================
-resource "kubernetes_deployment_v1" "bill_pay_service" {
-  metadata {
-    name      = "bill-pay-service"
-    namespace = local.ns
-    labels    = { app = "bill-pay-service", version = var.target_color }
-  }
-  spec {
-    replicas = 1
-    selector { match_labels = { app = "bill-pay-service", version = var.target_color } }
-    template {
-      metadata { labels = { app = "bill-pay-service", version = var.target_color } }
-      spec {
-        node_selector = { "node-color" = var.target_color }
-        container {
-          name  = "bill-pay-service"
-          image = "${var.acr_server}/bill-pay-service:${var.target_color}"
-          port { container_port = 5000 }
-          env {
-            name = "KAFKA_BROKER"
-            value_from { config_map_key_ref { name = "infrastructure-config", key = "KAFKA_BROKER" } }
-          }
-          env {
-            name = "TRANSACTION_SERVICE_URL"
-            value_from { config_map_key_ref { name = "infrastructure-config", key = "TRANSACTION_SERVICE_URL" } }
-          }
-          env {
-            name = "SCENARIO_SERVICE_URL"
-            value_from { config_map_key_ref { name = "infrastructure-config", key = "SCENARIO_RUNNER_SERVICE_URL" } }
-          }
-          env {
-            name = "ACCOUNTS_SERVICE_URL"
-            value_from { config_map_key_ref { name = "infrastructure-config", key = "ACCOUNTS_SERVICE_URL" } }
-          }
-        }
-      }
-    }
-  }
-  depends_on = [kubernetes_config_map_v1.infrastructure_config, azurerm_kubernetes_cluster_node_pool.relibank_color_np]
-}
-
-resource "kubernetes_service_v1" "bill_pay_service" {
-  metadata {
-    name      = "bill-pay-service"
-    namespace = local.ns
-  }
-  spec {
-    selector = { app = "bill-pay-service", version = var.target_color }
-    port { name = "5000", port = 5000, target_port = 5000 }
-  }
-}
-
-# ==========================================
-# SUPPORT SERVICE
-# ==========================================
-resource "kubernetes_deployment_v1" "support_service" {
-  metadata {
-    name      = "support-service"
-    namespace = local.ns
-    labels    = { app = "support-service", version = var.target_color }
-  }
-  spec {
-    replicas = 1
-    selector { match_labels = { app = "support-service", version = var.target_color } }
-    template {
-      metadata { labels = { app = "support-service", version = var.target_color } }
-      spec {
-        node_selector = { "node-color" = var.target_color }
-        container {
-          name  = "support-service"
-          image = "${var.acr_server}/support-service:${var.target_color}"
-          port { container_port = 5003 }
-          env {
-            name = "KAFKA_BROKER"
-            value_from { config_map_key_ref { name = "infrastructure-config", key = "KAFKA_BROKER" } }
-          }
-        }
-      }
-    }
-  }
-  depends_on = [kubernetes_config_map_v1.infrastructure_config, azurerm_kubernetes_cluster_node_pool.relibank_color_np]
-}
-
-resource "kubernetes_service_v1" "support_service" {
-  metadata {
-    name      = "support-service"
-    namespace = local.ns
-  }
-  spec {
-    selector = { app = "support-service", version = var.target_color }
-    port { name = "5003", port = 5003, target_port = 5003 }
-  }
-}
-
-# ==========================================
-# RISK ASSESSMENT SERVICE
-# ==========================================
-resource "kubernetes_deployment_v1" "risk_assessment_service" {
-  metadata {
-    name      = "risk-assessment-service"
-    namespace = local.ns
-    labels    = { app = "risk-assessment-service", version = var.target_color }
-  }
-  spec {
-    replicas = 1
-    selector { match_labels = { app = "risk-assessment-service", version = var.target_color } }
-    template {
-      metadata { labels = { app = "risk-assessment-service", version = var.target_color } }
-      spec {
-        node_selector = { "node-color" = var.target_color }
-        container {
-          name  = "risk-assessment-service"
-          image = "${var.acr_server}/risk-assessment-service:${var.target_color}"
-          port { container_port = 5001 }
-          env {
-            name = "KAFKA_BROKER"
-            value_from { config_map_key_ref { name = "infrastructure-config", key = "KAFKA_BROKER" } }
-          }
-        }
-      }
-    }
-  }
-  depends_on = [kubernetes_config_map_v1.infrastructure_config, azurerm_kubernetes_cluster_node_pool.relibank_color_np]
-}
-
-resource "kubernetes_service_v1" "risk_assessment_service" {
-  metadata {
-    name      = "risk-assessment-service"
-    namespace = local.ns
-  }
-  spec {
-    selector = { app = "risk-assessment-service", version = var.target_color }
-    port { name = "5001", port = 5001, target_port = 5001 }
-  }
-}
-
-# ==========================================
-# NOTIFICATIONS SERVICE
-# ==========================================
-resource "kubernetes_deployment_v1" "notifications_service" {
-  metadata {
-    name      = "notifications-service"
-    namespace = local.ns
-    labels    = { app = "notifications-service", version = var.target_color }
-  }
-  spec {
-    replicas = 1
-    selector { match_labels = { app = "notifications-service", version = var.target_color } }
-    template {
-      metadata { labels = { app = "notifications-service", version = var.target_color } }
-      spec {
-        node_selector = { "node-color" = var.target_color }
-        container {
-          name  = "notifications-service"
-          image = "${var.acr_server}/notifications-service:${var.target_color}"
-          env {
-            name = "KAFKA_BROKER"
-            value_from { config_map_key_ref { name = "infrastructure-config", key = "KAFKA_BROKER" } }
-          }
-        }
-      }
-    }
-  }
-  depends_on = [kubernetes_config_map_v1.infrastructure_config, azurerm_kubernetes_cluster_node_pool.relibank_color_np]
-}
-
-resource "kubernetes_service_v1" "notifications_service" {
-  metadata {
-    name      = "notifications-service"
-    namespace = local.ns
-  }
-  spec {
-    selector = { app = "notifications-service", version = var.target_color }
-    port { name = "5000", port = 5000, target_port = 5000 }
-  }
-}
-
-# ==========================================
-# SCHEDULER SERVICE
-# ==========================================
-resource "kubernetes_deployment_v1" "scheduler_service" {
-  metadata {
-    name      = "scheduler-service"
-    namespace = local.ns
-    labels    = { app = "scheduler-service", version = var.target_color }
-  }
-  spec {
-    replicas = 1
-    selector { match_labels = { app = "scheduler-service", version = var.target_color } }
-    template {
-      metadata { labels = { app = "scheduler-service", version = var.target_color } }
-      spec {
-        node_selector = { "node-color" = var.target_color }
-        container {
-          name  = "scheduler-service"
-          image = "${var.acr_server}/scheduler-service:${var.target_color}"
-          env {
-            name = "KAFKA_BROKER"
-            value_from { config_map_key_ref { name = "infrastructure-config", key = "KAFKA_BROKER" } }
-          }
-          env {
-            name = "DB_SERVER"
-            value_from { config_map_key_ref { name = "infrastructure-config", key = "MSSQL_SERVER_NAME" } }
-          }
-          env {
-            name = "DB_DATABASE"
-            value_from { config_map_key_ref { name = "infrastructure-config", key = "MSSQL_DATABASE_NAME" } }
-          }
-          env {
-            name = "DB_USERNAME"
-            value_from { secret_key_ref { name = "database-credentials", key = "MSSQL_SA_USER" } }
-          }
-          env {
-            name = "DB_PASSWORD"
-            value_from { secret_key_ref { name = "database-credentials", key = "MSSQL_SA_PASSWORD" } }
-          }
-        }
-      }
-    }
-  }
-  depends_on = [kubernetes_config_map_v1.infrastructure_config, kubernetes_secret_v1.database_credentials, azurerm_kubernetes_cluster_node_pool.relibank_color_np]
-}
-
-resource "kubernetes_service_v1" "scheduler_service" {
-  metadata {
-    name      = "scheduler-service"
-    namespace = local.ns
-  }
-  spec {
-    selector = { app = "scheduler-service", version = var.target_color }
-    port { name = "5004", port = 5004, target_port = 5000 }
-  }
-}
-
-# ==========================================
-# SCENARIO RUNNER SERVICE
-# ==========================================
-resource "kubernetes_deployment_v1" "scenario_runner_service" {
-  metadata {
-    name      = "scenario-runner-service"
-    namespace = local.ns
-    labels    = { app = "scenario-runner", version = var.target_color }
-  }
-  spec {
-    replicas = 1
-    selector { match_labels = { app = "scenario-runner", version = var.target_color } }
-    template {
-      metadata { labels = { app = "scenario-runner", version = var.target_color } }
-      spec {
-        node_selector = { "node-color" = var.target_color }
-        container {
-          name  = "scenario-runner-service"
-          image = "${var.acr_server}/scenario-runner:${var.target_color}"
-          port { container_port = 8000 }
-          env {
-            name = "KAFKA_BROKER"
-            value_from { config_map_key_ref { name = "infrastructure-config", key = "KAFKA_BROKER" } }
-          }
-          env {
-            name = "DB_SERVER"
-            value_from { config_map_key_ref { name = "infrastructure-config", key = "MSSQL_SERVER_NAME" } }
-          }
-          env {
-            name = "DB_DATABASE"
-            value_from { config_map_key_ref { name = "infrastructure-config", key = "MSSQL_DATABASE_NAME" } }
-          }
-          env {
-            name = "DB_USERNAME"
-            value_from { secret_key_ref { name = "database-credentials", key = "MSSQL_SA_USER" } }
-          }
-          env {
-            name = "DB_PASSWORD"
-            value_from { secret_key_ref { name = "database-credentials", key = "MSSQL_SA_PASSWORD" } }
-          }
-          env {
-            name  = "LOCUST_HOST"
-            value = var.locust_host
-          }
-        }
-      }
-    }
-  }
-  depends_on = [kubernetes_config_map_v1.infrastructure_config, kubernetes_secret_v1.database_credentials, azurerm_kubernetes_cluster_node_pool.relibank_color_np]
-}
-
-resource "kubernetes_service_v1" "scenario_runner_service" {
-  metadata {
-    name      = "scenario-runner-service"
-    namespace = local.ns
-  }
-  spec {
-    selector = { app = "scenario-runner", version = var.target_color }
-    port { port = 8000, target_port = 8000 }
   }
 }
