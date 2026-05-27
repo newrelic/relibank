@@ -3,7 +3,7 @@ output "cluster_name" {
 }
 
 output "resource_group_name" {
-  value = azurerm_resource_group.relibank_env.name
+  value = data.azurerm_resource_group.relibank_env.name
 }
 
 output "cluster_id" {

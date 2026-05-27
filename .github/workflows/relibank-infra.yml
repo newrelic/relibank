@@ -1,5 +1,7 @@
 name: ReliBank Infra
 
+run-name: ${{ inputs.action_type }} ReliBank Infra in ${{ inputs.environment }} by @${{ github.actor }}
+
 on:
   workflow_dispatch:
     inputs:
@@ -22,16 +24,205 @@ on:
           - prod
 
 jobs:
-  relibank-infra-deploy:
-    if: ${{ github.event.inputs.action_type == 'deploy' }}
-    runs-on: ubuntu-latest
-    environment: ${{ github.event.inputs.environment }}
-    steps:
-      - run: echo "stub"
 
-  relibank-infra-destroy:
+  # ---------------------------------------------------------------------------
+  # Pre-destroy safety check — refuse destroy if app deployments are still up
+  # ---------------------------------------------------------------------------
+  pre-destroy-checks:
+    name: Pre-Destroy Checks
     if: ${{ github.event.inputs.action_type == 'destroy' }}
     runs-on: ubuntu-latest
     environment: ${{ github.event.inputs.environment }}
+    outputs:
+      safe_to_destroy: ${{ steps.check.outputs.safe_to_destroy }}
+
     steps:
-      - run: echo "stub"
+      - name: Azure Login
+        uses: azure/login@v2
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
+
+      - name: Configure kubectl
+        run: |
+          az aks get-credentials \
+            --resource-group ${{ vars.AKS_RESOURCE_GROUP }} \
+            --name           ${{ vars.AKS_CLUSTER_NAME }} \
+            --overwrite-existing
+
+      - name: Check for running app deployments
+        id: check
+        run: |
+          BLUE=$(kubectl get deployments -n relibank-blue  --no-headers --ignore-not-found 2>/dev/null | wc -l | tr -d ' ')
+          GREEN=$(kubectl get deployments -n relibank-green --no-headers --ignore-not-found 2>/dev/null | wc -l | tr -d ' ')
+          echo "Found blue=$BLUE green=$GREEN deployments"
+          if [[ "$BLUE" -gt 0 || "$GREEN" -gt 0 ]]; then
+            echo "App deployments still running. Run 'Deploy ReliBank' destroy first."
+            echo "safe_to_destroy=false" >> "$GITHUB_OUTPUT"
+            exit 1
+          else
+            echo "No app deployments found. Safe to destroy infra."
+            echo "safe_to_destroy=true" >> "$GITHUB_OUTPUT"
+          fi
+
+  # ---------------------------------------------------------------------------
+  # Deploy — Stage 1 cluster, Stage 2 cluster-wide infra components
+  # ---------------------------------------------------------------------------
+  relibank-infra-deploy:
+    name: Deploy ReliBank Infra
+    if: ${{ github.event.inputs.action_type == 'deploy' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    environment: ${{ github.event.inputs.environment }}
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Azure Login
+        uses: azure/login@v2
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v2
+        with:
+          terraform_version: 1.5
+
+      # ------------------------------------------------------------------
+      # Stage 1 — AKS cluster (mirrors demogorgon init/)
+      # ------------------------------------------------------------------
+      - name: "Terraform Init (Stage 1 cluster)"
+        working-directory: terraform/aks/cluster
+        run: |
+          terraform init \
+            --backend-config="resource_group_name=ReliBank" \
+            --backend-config="storage_account_name=${{ vars.TF_STATE_STORAGE_ACCOUNT }}" \
+            --backend-config="container_name=${{ vars.TF_STATE_CONTAINER }}" \
+            --backend-config="key=relibank/${{ github.event.inputs.environment }}/cluster.tfstate" \
+            --reconfigure --upgrade
+
+      - name: "Terraform Apply (Stage 1 cluster)"
+        working-directory: terraform/aks/cluster
+        run: |
+          terraform apply \
+            -var="demo_environment=${{ github.event.inputs.environment }}" \
+            -var="aks_cluster_name=${{ vars.AKS_CLUSTER_NAME }}" \
+            -var="resource_group_name=${{ vars.AKS_RESOURCE_GROUP }}" \
+            -var="acr_name=${{ vars.ACR_NAME }}" \
+            --auto-approve
+
+      # ------------------------------------------------------------------
+      # Stage 2 — cluster-wide infra (mirrors demogorgon infra/)
+      # ------------------------------------------------------------------
+      - name: Configure kubectl (after cluster is ready)
+        run: |
+          az aks get-credentials \
+            --resource-group ${{ vars.AKS_RESOURCE_GROUP }} \
+            --name           ${{ vars.AKS_CLUSTER_NAME }} \
+            --overwrite-existing
+
+      - name: "Terraform Init (Stage 2 infra)"
+        working-directory: terraform/aks/infra
+        run: |
+          terraform init \
+            --backend-config="resource_group_name=ReliBank" \
+            --backend-config="storage_account_name=${{ vars.TF_STATE_STORAGE_ACCOUNT }}" \
+            --backend-config="container_name=${{ vars.TF_STATE_CONTAINER }}" \
+            --backend-config="key=relibank/${{ github.event.inputs.environment }}/infra.tfstate" \
+            --reconfigure --upgrade
+
+      - name: "Terraform Apply (Stage 2 infra)"
+        working-directory: terraform/aks/infra
+        run: |
+          terraform apply \
+            -var="demo_environment=${{ github.event.inputs.environment }}" \
+            -var="aks_cluster_name=${{ vars.AKS_CLUSTER_NAME }}" \
+            -var="aks_resource_group=${{ vars.AKS_RESOURCE_GROUP }}" \
+            --auto-approve
+
+      - name: Deployment Summary
+        run: |
+          echo "========================================"
+          echo "INFRA DEPLOY COMPLETE"
+          echo "========================================"
+          echo "Environment: ${{ github.event.inputs.environment }}"
+          echo "Cluster:     ${{ vars.AKS_CLUSTER_NAME }}"
+          echo "ACR:         ${{ vars.ACR_SERVER }}"
+          NGINX_IP=$(kubectl get svc ingress-nginx-controller -n ingress-nginx \
+            -o jsonpath='{.status.loadBalancer.ingress[0].ip}' 2>/dev/null || echo "<pending>")
+          echo "NGINX IP:    $NGINX_IP"
+          echo ""
+          echo "Next, run 'Deploy ReliBank' workflow with environment=${{ github.event.inputs.environment }} target_color=blue"
+
+  # ---------------------------------------------------------------------------
+  # Destroy — reverse order (infra first, then cluster)
+  # ---------------------------------------------------------------------------
+  relibank-infra-destroy:
+    name: Destroy ReliBank Infra
+    if: ${{ github.event.inputs.action_type == 'destroy' && needs.pre-destroy-checks.outputs.safe_to_destroy == 'true' }}
+    needs: [pre-destroy-checks]
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    environment: ${{ github.event.inputs.environment }}
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Azure Login
+        uses: azure/login@v2
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
+
+      - name: Configure kubectl
+        run: |
+          az aks get-credentials \
+            --resource-group ${{ vars.AKS_RESOURCE_GROUP }} \
+            --name           ${{ vars.AKS_CLUSTER_NAME }} \
+            --overwrite-existing
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v2
+        with:
+          terraform_version: 1.5
+
+      # Stage 2 first — cluster-wide infra
+      - name: "Terraform Init (Stage 2 infra)"
+        working-directory: terraform/aks/infra
+        run: |
+          terraform init \
+            --backend-config="resource_group_name=ReliBank" \
+            --backend-config="storage_account_name=${{ vars.TF_STATE_STORAGE_ACCOUNT }}" \
+            --backend-config="container_name=${{ vars.TF_STATE_CONTAINER }}" \
+            --backend-config="key=relibank/${{ github.event.inputs.environment }}/infra.tfstate" \
+            --reconfigure --upgrade
+
+      - name: "Terraform Destroy (Stage 2 infra)"
+        working-directory: terraform/aks/infra
+        run: |
+          terraform destroy \
+            -var="demo_environment=${{ github.event.inputs.environment }}" \
+            -var="aks_cluster_name=${{ vars.AKS_CLUSTER_NAME }}" \
+            -var="aks_resource_group=${{ vars.AKS_RESOURCE_GROUP }}" \
+            --auto-approve
+
+      # Stage 1 last — AKS cluster
+      - name: "Terraform Init (Stage 1 cluster)"
+        working-directory: terraform/aks/cluster
+        run: |
+          terraform init \
+            --backend-config="resource_group_name=ReliBank" \
+            --backend-config="storage_account_name=${{ vars.TF_STATE_STORAGE_ACCOUNT }}" \
+            --backend-config="container_name=${{ vars.TF_STATE_CONTAINER }}" \
+            --backend-config="key=relibank/${{ github.event.inputs.environment }}/cluster.tfstate" \
+            --reconfigure --upgrade
+
+      - name: "Terraform Destroy (Stage 1 cluster)"
+        working-directory: terraform/aks/cluster
+        run: |
+          terraform destroy \
+            -var="demo_environment=${{ github.event.inputs.environment }}" \
+            -var="aks_cluster_name=${{ vars.AKS_CLUSTER_NAME }}" \
+            -var="resource_group_name=${{ vars.AKS_RESOURCE_GROUP }}" \
+            -var="acr_name=${{ vars.ACR_NAME }}" \
+            --auto-approve

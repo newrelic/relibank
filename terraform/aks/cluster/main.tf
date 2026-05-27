@@ -18,16 +18,10 @@ provider "azurerm" {
 }
 
 # ---------------------------------------------------------------------------
-# Resource group
+# Resource group — pre-existing, created by setup-environment.sh
 # ---------------------------------------------------------------------------
-resource "azurerm_resource_group" "relibank_env" {
-  name     = var.resource_group_name
-  location = var.location
-
-  tags = {
-    environment = var.demo_environment
-    managed_by  = "terraform"
-  }
+data "azurerm_resource_group" "relibank_env" {
+  name = var.resource_group_name
 }
 
 # ---------------------------------------------------------------------------
@@ -35,8 +29,8 @@ resource "azurerm_resource_group" "relibank_env" {
 # ---------------------------------------------------------------------------
 resource "azurerm_kubernetes_cluster" "relibank" {
   name                = var.aks_cluster_name
-  location            = azurerm_resource_group.relibank_env.location
-  resource_group_name = azurerm_resource_group.relibank_env.name
+  location            = data.azurerm_resource_group.relibank_env.location
+  resource_group_name = data.azurerm_resource_group.relibank_env.name
   dns_prefix          = var.aks_cluster_name
   kubernetes_version  = var.kubernetes_version
 
@@ -67,8 +61,6 @@ resource "azurerm_kubernetes_cluster" "relibank" {
 data "azurerm_container_registry" "acr" {
   name                = var.acr_name
   resource_group_name = var.resource_group_name
-
-  depends_on = [azurerm_resource_group.relibank_env]
 }
 
 resource "azurerm_role_assignment" "acr_pull" {
