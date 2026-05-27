@@ -114,6 +114,7 @@ jobs:
             -var="aks_cluster_name=${{ vars.AKS_CLUSTER_NAME }}" \
             -var="resource_group_name=${{ vars.AKS_RESOURCE_GROUP }}" \
             -var="acr_name=${{ vars.ACR_NAME }}" \
+            -var="location=${{ vars.AZURE_LOCATION }}" \
             --auto-approve
 
       # ------------------------------------------------------------------
@@ -235,4 +236,5 @@ jobs:
             -var="aks_cluster_name=${{ vars.AKS_CLUSTER_NAME }}" \
             -var="resource_group_name=${{ vars.AKS_RESOURCE_GROUP }}" \
             -var="acr_name=${{ vars.ACR_NAME }}" \
+            -var="location=${{ vars.AZURE_LOCATION }}" \
             --auto-approve

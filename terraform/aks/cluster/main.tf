@@ -25,14 +25,23 @@ data "azurerm_resource_group" "relibank_env" {
 }
 
 # ---------------------------------------------------------------------------
+# Resolve the latest GA Kubernetes version available in the target region
+# (avoids LTS-only versions like 1.32.x that require Premium tier)
+# ---------------------------------------------------------------------------
+data "azurerm_kubernetes_service_versions" "current" {
+  location        = var.location
+  include_preview = false
+}
+
+# ---------------------------------------------------------------------------
 # AKS cluster — system node pool only; color node pools added by app_module
 # ---------------------------------------------------------------------------
 resource "azurerm_kubernetes_cluster" "relibank" {
   name                = var.aks_cluster_name
-  location            = data.azurerm_resource_group.relibank_env.location
+  location            = var.location
   resource_group_name = data.azurerm_resource_group.relibank_env.name
   dns_prefix          = var.aks_cluster_name
-  kubernetes_version  = var.kubernetes_version
+  kubernetes_version  = coalesce(var.kubernetes_version, data.azurerm_kubernetes_service_versions.current.latest_version)
 
   default_node_pool {
     name       = "system"

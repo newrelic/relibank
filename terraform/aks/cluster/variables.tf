@@ -19,13 +19,12 @@ variable "acr_name" {
 }
 
 variable "location" {
-  description = "Azure region"
+  description = "Azure region (e.g. westus2). Per-env GitHub variable AZURE_LOCATION."
   type        = string
-  default     = "westus2"
 }
 
 variable "kubernetes_version" {
-  description = "Kubernetes version for the AKS cluster"
+  description = "Kubernetes version for the AKS cluster. Leave null to use the latest GA version available in the region."
   type        = string
-  default     = "1.32"
+  default     = null
 }
