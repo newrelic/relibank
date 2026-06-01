@@ -122,6 +122,7 @@ const LoginPage = () => {
             // Store the auth token for future use
             sessionStorage.setItem('authToken', authData.token);
             sessionStorage.setItem('userId', authData.user_id);
+            sessionStorage.setItem('userEmail', authData.email);
             setUserId(authData.user_id);
 
             // On success, call handleLogin to set state and initiate navigation (via useEffect in root.tsx)
