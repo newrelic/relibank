@@ -60,9 +60,9 @@ Add `MSSQL_NEWRELIC_PASSWORD` to your `skaffold.env` (it's already in the New Re
 MSSQL_NEWRELIC_PASSWORD=YourStrong@Password!
 ```
 
-A pre-deploy hook in `skaffold.yaml` automatically generates `k8s/base/infrastructure/newrelic/nrdot-mssql.env` from `skaffold.env` before every deploy — no separate file to maintain. See `nrdot-mssql.env.example` for the full variable mapping.
+A pre-build hook on the first artifact in `skaffold.yaml` invokes [`scripts/generate-nrdot-env.sh`](scripts/generate-nrdot-env.sh), which sources `skaffold.env` and writes `k8s/base/infrastructure/newrelic/nrdot-mssql.env` (gitignored, contains real credentials) before kustomize render. If the build cache hit causes the hook to skip and you've deleted the env file, run the generator manually or use `skaffold dev --cache-artifacts=false` once. See `nrdot-mssql.env.example` for the full variable mapping.
 
-For CI/CD (GitHub Actions), add `MSSQL_NEWRELIC_PASSWORD` to the `events` environment secrets — the workflow already includes it in the `skaffold.env` creation step.
+For CI/CD (GitHub Actions), add `MSSQL_NEWRELIC_PASSWORD` to the `events` environment secrets — the workflow already includes it in the `skaffold.env` creation step and generates `nrdot-mssql.env` directly via its own step (independent of the build hook).
 
 ### Deploy Everything
 Note - all secrets and configs are managed under `k8s/base/configs/*`

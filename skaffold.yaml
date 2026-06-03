@@ -12,6 +12,15 @@ build:
   artifacts:
   - image: frontend-service
     context: frontend_service
+    # Generate nrdot-mssql.env (gitignored, sourced from skaffold.env) before
+    # kustomize render. Build hooks fire pre-render in skaffold's lifecycle —
+    # but they're skipped on cache hits, so if you delete the env file with a
+    # warm cache, run `scripts/generate-nrdot-env.sh` manually or pass
+    # --cache-artifacts=false.
+    hooks:
+      before:
+      - command: ["bash", "-c", "$(git rev-parse --show-toplevel)/scripts/generate-nrdot-env.sh"]
+        os: [darwin, linux]
     docker:
       dockerfile: Dockerfile
       buildArgs:
@@ -193,9 +202,6 @@ deploy:
   kubectl:
     hooks:
       before:
-      - host:
-          command: ["sh", "-c", "printf 'MSSQL_NEWRELIC_PASSWORD=%s\\nNEW_RELIC_LICENSE_KEY=%s\\nNEW_RELIC_OTLP_ENDPOINT=%s\\n' \"${MSSQL_NEWRELIC_PASSWORD}\" \"${NEW_RELIC_LICENSE_KEY}\" \"${NEW_RELIC_OTLP_ENDPOINT:-https://otlp.nr-data.net}\" > k8s/base/infrastructure/newrelic/nrdot-mssql.env"]
-          dir: "."
       - host:
           command: ["sh", "-c", "helm repo add chaos-mesh https://charts.chaos-mesh.org || true"]
           dir: "."
