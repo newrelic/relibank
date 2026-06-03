@@ -254,6 +254,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
       sessionStorage.removeItem('isAuthenticated');
       sessionStorage.removeItem('browserUserId');
       sessionStorage.removeItem('userId');
+      sessionStorage.removeItem('userEmail');
     }
     navigate('/');
   };

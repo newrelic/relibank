@@ -196,20 +196,39 @@ const DashboardPage = () => {
   // A/B Test: Loading state for LCP delay (delay content, not entire page)
   const [isLcpContentReady, setIsLcpContentReady] = useState(false);
 
-  // A/B Test: Apply LCP delay if user is in slow cohort
+  // Fetch fresh account balances on dashboard mount — gates LCP on live accounts-service response.
+  // When transaction-service is under CPU stress, this call slows down, directly causing LCP to increase.
+  // Also applies A/B test LCP delay if user is in slow cohort.
   useEffect(() => {
-    const applyLcpDelay = async () => {
+    const fetchAndDelay = async () => {
+      const email = sessionStorage.getItem('userEmail');
       const lcpDelay = parseInt(sessionStorage.getItem('lcpDelayMs') || '0');
+
+      const promises: Promise<any>[] = [];
+
+      if (email) {
+        promises.push(
+          fetch(`/accounts-service/accounts/${email}`)
+            .then(res => res.ok ? res.json() : null)
+            .then(data => {
+              if (data) {
+                setUserData(data);
+              }
+            })
+            .catch(() => {}) // fall back to context data already set
+        );
+      }
 
       if (lcpDelay > 0) {
         console.log(`[A/B Test] Applying ${lcpDelay}ms LCP delay for slow cohort`);
-        await new Promise(resolve => setTimeout(resolve, lcpDelay));
+        promises.push(new Promise(resolve => setTimeout(resolve, lcpDelay)));
       }
 
+      await Promise.all(promises);
       setIsLcpContentReady(true);
     };
 
-    applyLcpDelay();
+    fetchAndDelay();
   }, []);
 
   // 2. Secondary Fetch: Get additional account details after initial data is set
