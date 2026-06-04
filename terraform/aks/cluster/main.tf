@@ -43,6 +43,10 @@ resource "azurerm_kubernetes_cluster" "relibank" {
   dns_prefix          = var.aks_cluster_name
   kubernetes_version  = coalesce(var.kubernetes_version, data.azurerm_kubernetes_service_versions.current.latest_version)
 
+  # OIDC issuer is auto-enabled by Azure for new clusters and cannot be turned off.
+  # Pin it here so TF state matches the cluster.
+  oidc_issuer_enabled = true
+
   default_node_pool {
     name       = "system"
     node_count = 2
@@ -51,6 +55,11 @@ resource "azurerm_kubernetes_cluster" "relibank" {
     node_labels = {
       "nodepool-type" = "system"
       "environment"   = var.demo_environment
+    }
+
+    # Pin Azure's auto-injected upgrade defaults so TF doesn't churn.
+    upgrade_settings {
+      max_surge = "10%"
     }
   }
 
