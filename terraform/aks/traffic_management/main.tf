@@ -41,7 +41,7 @@ locals {
 
 # A record: relibank-{env}.{dns_zone} → NGINX LB public IP
 resource "azurerm_dns_a_record" "main" {
-  name                = "relibank-${var.demo_environment}"
+  name                = var.demo_environment
   zone_name           = var.dns_zone
   resource_group_name = var.dns_resource_group
   ttl                 = 300
@@ -64,7 +64,7 @@ resource "kubernetes_ingress_v1" "main_ingress" {
 
   spec {
     rule {
-      host = "relibank-${var.demo_environment}.${var.dns_zone}"
+      host = "${var.demo_environment}.${var.dns_zone}"
       http {
         path {
           path      = "/"
@@ -99,7 +99,7 @@ resource "kubernetes_ingress_v1" "canary_ingress" {
 
   spec {
     rule {
-      host = "relibank-${var.demo_environment}.${var.dns_zone}"
+      host = "${var.demo_environment}.${var.dns_zone}"
       http {
         path {
           path      = "/"
