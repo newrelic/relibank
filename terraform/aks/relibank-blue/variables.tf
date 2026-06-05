@@ -55,3 +55,16 @@ variable "postgres_user" {
   type        = string
   sensitive   = true
 }
+
+variable "azure_openai_endpoint" {
+  description = "Azure OpenAI endpoint for support-service"
+  type        = string
+  default     = ""
+}
+
+variable "azure_openai_api_key" {
+  description = "Azure OpenAI API key for support-service"
+  type        = string
+  sensitive   = true
+  default     = ""
+}

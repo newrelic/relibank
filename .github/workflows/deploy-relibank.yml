@@ -111,6 +111,8 @@ jobs:
             -var="mssql_sa_password=${{ secrets.MSSQL_SA_PASSWORD }}" \
             -var="postgres_user=${{ secrets.POSTGRES_USER }}" \
             -var="postgres_password=${{ secrets.POSTGRES_PASSWORD }}" \
+            -var="azure_openai_endpoint=${{ vars.AZURE_OPENAI_ENDPOINT }}" \
+            -var="azure_openai_api_key=${{ secrets.AZURE_OPENAI_API_KEY }}" \
             --auto-approve
 
       - name: Deployment Summary
@@ -184,6 +186,8 @@ jobs:
             -var="mssql_sa_password=${{ secrets.MSSQL_SA_PASSWORD }}" \
             -var="postgres_user=${{ secrets.POSTGRES_USER }}" \
             -var="postgres_password=${{ secrets.POSTGRES_PASSWORD }}" \
+            -var="azure_openai_endpoint=${{ vars.AZURE_OPENAI_ENDPOINT }}" \
+            -var="azure_openai_api_key=${{ secrets.AZURE_OPENAI_API_KEY }}" \
             --auto-approve
 
   # ---------------------------------------------------------------------------

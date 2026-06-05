@@ -30,13 +30,15 @@ provider "kubernetes" {
 module "relibank_green" {
   source = "../app_module"
 
-  demo_environment   = var.demo_environment
-  target_color       = "green"
-  aks_cluster_name   = var.aks_cluster_name
-  aks_resource_group = var.aks_resource_group
-  acr_server         = var.acr_server
-  mssql_sa_password  = var.mssql_sa_password
-  mssql_sa_user      = var.mssql_sa_user
-  postgres_password  = var.postgres_password
-  postgres_user      = var.postgres_user
+  demo_environment      = var.demo_environment
+  target_color          = "green"
+  aks_cluster_name      = var.aks_cluster_name
+  aks_resource_group    = var.aks_resource_group
+  acr_server            = var.acr_server
+  mssql_sa_password     = var.mssql_sa_password
+  mssql_sa_user         = var.mssql_sa_user
+  postgres_password     = var.postgres_password
+  postgres_user         = var.postgres_user
+  azure_openai_endpoint = var.azure_openai_endpoint
+  azure_openai_api_key  = var.azure_openai_api_key
 }

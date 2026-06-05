@@ -58,6 +58,19 @@ variable "locust_host" {
   default     = "http://relibank.local"
 }
 
+variable "azure_openai_endpoint" {
+  description = "Azure OpenAI endpoint for support-service. Empty string is OK — support-service will fail on startup but won't block anything else."
+  type        = string
+  default     = ""
+}
+
+variable "azure_openai_api_key" {
+  description = "Azure OpenAI API key for support-service. Empty string is OK — support-service will fail on startup but won't block anything else."
+  type        = string
+  sensitive   = true
+  default     = ""
+}
+
 variable "services" {
   description = "Per-service deployment config. Map keys are k8s service names."
   type = map(object({
@@ -145,7 +158,11 @@ variable "services" {
       container_port = 5003
       service_port   = 5003
       config_map_envs = {
-        KAFKA_BROKER = "KAFKA_BROKER"
+        KAFKA_BROKER          = "KAFKA_BROKER"
+        AZURE_OPENAI_ENDPOINT = "AZURE_OPENAI_ENDPOINT"
+      }
+      secret_envs = {
+        AZURE_OPENAI_API_KEY = "AZURE_OPENAI_API_KEY"
       }
     }
 
