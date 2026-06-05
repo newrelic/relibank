@@ -27,6 +27,27 @@ provider "kubernetes" {
   cluster_ca_certificate = base64decode(data.azurerm_kubernetes_cluster.cluster.kube_config[0].cluster_ca_certificate)
 }
 
+# Read the NGINX LB external IP — installed by relibank-infra.yml (Stage 2)
+data "kubernetes_service_v1" "ingress_nginx" {
+  metadata {
+    name      = "ingress-nginx-controller"
+    namespace = "ingress-nginx"
+  }
+}
+
+locals {
+  ingress_lb_ip = data.kubernetes_service_v1.ingress_nginx.status[0].load_balancer[0].ingress[0].ip
+}
+
+# A record: relibank-{env}.{dns_zone} → NGINX LB public IP
+resource "azurerm_dns_a_record" "main" {
+  name                = "relibank-${var.demo_environment}"
+  zone_name           = var.dns_zone
+  resource_group_name = var.dns_resource_group
+  ttl                 = 300
+  records             = [local.ingress_lb_ip]
+}
+
 # --- Main Ingress ---
 # Routes all production traffic to the active color proxy service.
 # Updating target_color and re-applying this module switches traffic.

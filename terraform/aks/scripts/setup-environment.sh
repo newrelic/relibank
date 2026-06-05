@@ -201,6 +201,11 @@ if [[ "$SKIP_SP" == "false" ]]; then
   az role assignment create --assignee "$CLIENT_ID" --role "Storage Blob Data Contributor" --scope "$STORAGE_SCOPE" --output none
   success "Storage role assigned"
 
+  info "Granting DNS Zone Contributor on relibankdemo.com zone..."
+  DNS_ZONE_SCOPE="/subscriptions/${SUBSCRIPTION_ID}/resourceGroups/relibank/providers/Microsoft.Network/dnszones/relibankdemo.com"
+  az role assignment create --assignee "$CLIENT_ID" --role "DNS Zone Contributor" --scope "$DNS_ZONE_SCOPE" --output none
+  success "DNS Zone Contributor assigned"
+
 else
   warn "Skipping service principal creation (--skip-sp)"
   CLIENT_ID="<run without --skip-sp to generate>"
