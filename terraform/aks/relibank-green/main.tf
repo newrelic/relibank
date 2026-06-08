@@ -27,18 +27,33 @@ provider "kubernetes" {
   cluster_ca_certificate = base64decode(data.azurerm_kubernetes_cluster.cluster.kube_config[0].cluster_ca_certificate)
 }
 
+# AOAI account, model deployment, and assistants are owned by terraform/aks/ai_services
+# and must be applied for this env before this module runs.
+data "terraform_remote_state" "ai_services" {
+  backend = "azurerm"
+  config = {
+    resource_group_name  = "ReliBank"
+    storage_account_name = var.tf_state_storage_account
+    container_name       = var.tf_state_container
+    key                  = "relibank/${var.demo_environment}/ai_services.tfstate"
+  }
+}
+
 module "relibank_green" {
   source = "../app_module"
 
-  demo_environment      = var.demo_environment
-  target_color          = "green"
-  aks_cluster_name      = var.aks_cluster_name
-  aks_resource_group    = var.aks_resource_group
-  acr_server            = var.acr_server
-  mssql_sa_password     = var.mssql_sa_password
-  mssql_sa_user         = var.mssql_sa_user
-  postgres_password     = var.postgres_password
-  postgres_user         = var.postgres_user
-  azure_openai_endpoint = var.azure_openai_endpoint
-  azure_openai_api_key  = var.azure_openai_api_key
+  demo_environment          = var.demo_environment
+  target_color              = "green"
+  aks_cluster_name          = var.aks_cluster_name
+  aks_resource_group        = var.aks_resource_group
+  acr_server                = var.acr_server
+  mssql_sa_password         = var.mssql_sa_password
+  mssql_sa_user             = var.mssql_sa_user
+  postgres_password         = var.postgres_password
+  postgres_user             = var.postgres_user
+  azure_openai_endpoint     = data.terraform_remote_state.ai_services.outputs.endpoint
+  azure_openai_api_key      = data.terraform_remote_state.ai_services.outputs.api_key
+  assistant_a_id            = data.terraform_remote_state.ai_services.outputs.assistant_ids["coordinator"]
+  assistant_b_id            = data.terraform_remote_state.ai_services.outputs.assistant_ids["specialist"]
+  assistant_b_delay_seconds = data.terraform_remote_state.ai_services.outputs.assistant_b_delay_seconds
 }

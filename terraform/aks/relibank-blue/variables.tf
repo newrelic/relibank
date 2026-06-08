@@ -56,15 +56,14 @@ variable "postgres_user" {
   sensitive   = true
 }
 
-variable "azure_openai_endpoint" {
-  description = "Azure OpenAI endpoint for support-service"
+variable "tf_state_storage_account" {
+  description = "Storage account holding the ai_services remote state"
   type        = string
-  default     = ""
+  default     = "relibankstate"
 }
 
-variable "azure_openai_api_key" {
-  description = "Azure OpenAI API key for support-service"
+variable "tf_state_container" {
+  description = "Blob container holding the ai_services remote state"
   type        = string
-  sensitive   = true
-  default     = ""
+  default     = "tfstate"
 }
