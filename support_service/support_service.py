@@ -289,9 +289,7 @@ class AsyncOpenAIChatModel(BaseChatModel):
                 })
 
         # Create AIMessage with tool calls
-        message = AIMessage(content=content)
-        if tool_calls:
-            message.tool_calls = tool_calls
+        message = AIMessage(content=content, tool_calls=tool_calls if tool_calls else [])
 
         generation = ChatGeneration(message=message)
 
