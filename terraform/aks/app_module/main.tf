@@ -152,8 +152,9 @@ resource "kubernetes_deployment_v1" "service" {
         node_selector = { "node-color" = var.target_color }
 
         container {
-          name  = each.key
-          image = "${var.acr_server}/${each.value.image}:${var.target_color}"
+          name              = each.key
+          image             = "${var.acr_server}/${each.value.image}:${var.target_color}"
+          image_pull_policy = "Always"
 
           port {
             container_port = each.value.container_port
