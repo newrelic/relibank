@@ -57,11 +57,7 @@ export default defineConfig(({ mode }: { mode: string }) => ({
     hmr: {
       clientPort: 3000
     },
-    allowedHosts: [
-      '.svc.cluster.local',
-      '.relibankdemo.com',
-      'relibank.westus2.cloudapp.azure.com',
-    ],
+    allowedHosts: true,
     // Proxy API requests to backend services via Kubernetes service DNS
     // Backend services include the service name in their routes (e.g., /accounts-service/accounts/...)
     // so we forward the full path without rewriting
