@@ -71,20 +71,8 @@ variable "azure_openai_api_key" {
   default     = ""
 }
 
-variable "assistant_a_id" {
-  description = "Azure OpenAI Assistant ID for the Coordinator agent (Assistant A). Empty string OK; support-service falls back to its non-assistant chat path."
-  type        = string
-  default     = ""
-}
-
-variable "assistant_b_id" {
-  description = "Azure OpenAI Assistant ID for the Financial Specialist agent (Assistant B). Empty string OK."
-  type        = string
-  default     = ""
-}
-
 variable "assistant_b_delay_seconds" {
-  description = "Demo knob — artificial delay before Assistant B responds. Set to 8 to demo the bottleneck the support-service docs describe."
+  description = "Demo knob — artificial delay before the Specialist (assistant B) LangGraph agent responds. Set to 8 to demo the bottleneck the support-service docs describe."
   type        = number
   default     = 0
 }
@@ -178,8 +166,6 @@ variable "services" {
       config_map_envs = {
         KAFKA_BROKER              = "KAFKA_BROKER"
         AZURE_OPENAI_ENDPOINT     = "AZURE_OPENAI_ENDPOINT"
-        ASSISTANT_A_ID            = "ASSISTANT_A_ID"
-        ASSISTANT_B_ID            = "ASSISTANT_B_ID"
         ASSISTANT_B_DELAY_SECONDS = "ASSISTANT_B_DELAY_SECONDS"
       }
       secret_envs = {

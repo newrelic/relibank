@@ -166,7 +166,6 @@ jobs:
             -var="demo_environment=${{ github.event.inputs.environment }}" \
             -var="location=${{ vars.AZURE_LOCATION }}" \
             -var="aks_resource_group=${{ vars.AKS_RESOURCE_GROUP }}" \
-            -var="assistant_b_delay_seconds=${{ vars.ASSISTANT_B_DELAY_SECONDS || 0 }}" \
             --auto-approve
 
       - name: Deployment Summary
@@ -238,7 +237,6 @@ jobs:
             -var="demo_environment=${{ github.event.inputs.environment }}" \
             -var="location=${{ vars.AZURE_LOCATION }}" \
             -var="aks_resource_group=${{ vars.AKS_RESOURCE_GROUP }}" \
-            -var="assistant_b_delay_seconds=${{ vars.ASSISTANT_B_DELAY_SECONDS || 0 }}" \
             --auto-approve
 
       # Stage 2 — cluster-wide infra

@@ -67,3 +67,9 @@ variable "tf_state_container" {
   type        = string
   default     = "tfstate"
 }
+
+variable "assistant_b_delay_seconds" {
+  description = "Demo knob — artificial delay (seconds) before the Specialist agent responds. Set to 8 to demo the bottleneck."
+  type        = number
+  default     = 0
+}

@@ -53,7 +53,5 @@ module "relibank_blue" {
   postgres_user             = var.postgres_user
   azure_openai_endpoint     = data.terraform_remote_state.ai_services.outputs.endpoint
   azure_openai_api_key      = data.terraform_remote_state.ai_services.outputs.api_key
-  assistant_a_id            = data.terraform_remote_state.ai_services.outputs.assistant_ids["coordinator"]
-  assistant_b_id            = data.terraform_remote_state.ai_services.outputs.assistant_ids["specialist"]
-  assistant_b_delay_seconds = data.terraform_remote_state.ai_services.outputs.assistant_b_delay_seconds
+  assistant_b_delay_seconds = var.assistant_b_delay_seconds
 }

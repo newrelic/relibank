@@ -9,12 +9,7 @@ output "api_key" {
   sensitive   = true
 }
 
-output "assistant_ids" {
-  description = "Map of assistant slug → assistant ID (e.g. coordinator → asst_xxx)"
-  value       = { for k, v in data.local_file.assistant_id : k => trimspace(v.content) }
-}
-
-output "assistant_b_delay_seconds" {
-  description = "Demo bottleneck delay (seconds) for Assistant B"
-  value       = var.assistant_b_delay_seconds
+output "deployment_names" {
+  description = "List of model deployment names available on the account"
+  value       = sort(keys(var.model_deployments))
 }

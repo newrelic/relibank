@@ -52,8 +52,8 @@ class AsyncOpenAIChatModel(BaseChatModel):
     model: str = "gpt-4-1"
     temperature: float = 0.7
     bound_tools: List[dict] = []
-    nr_trace_id: str = None  # New Relic trace ID from FastAPI endpoint
-    nr_span_id: str = None   # New Relic span ID from FastAPI endpoint
+    nr_trace_id: Optional[str] = None  # New Relic trace ID from FastAPI endpoint
+    nr_span_id: Optional[str] = None   # New Relic span ID from FastAPI endpoint
 
     class Config:
         arbitrary_types_allowed = True
@@ -600,8 +600,8 @@ class LangGraphSupportService:
         model_name: str = "gpt-4-1",
         api_version: str = "2024-05-01-preview",
         delay_seconds: int = 0,
-        nr_trace_id: str = None,
-        nr_span_id: str = None
+        nr_trace_id: Optional[str] = None,
+        nr_span_id: Optional[str] = None
     ):
         self.azure_endpoint = azure_endpoint
         self.azure_api_key = azure_api_key

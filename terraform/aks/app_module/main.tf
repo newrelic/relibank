@@ -97,8 +97,6 @@ resource "kubernetes_config_map_v1" "infrastructure_config" {
     SCHEDULER_SERVICE_URL       = "http://scheduler-service:5004"
     SCENARIO_RUNNER_SERVICE_URL = "http://scenario-runner-service:8000"
     AZURE_OPENAI_ENDPOINT       = var.azure_openai_endpoint
-    ASSISTANT_A_ID              = var.assistant_a_id
-    ASSISTANT_B_ID              = var.assistant_b_id
     ASSISTANT_B_DELAY_SECONDS   = tostring(var.assistant_b_delay_seconds)
   }
 
