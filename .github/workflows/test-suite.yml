@@ -6,6 +6,16 @@ on:
     - cron: '0 13 * * *'
   workflow_dispatch:  # Allow manual trigger
     inputs:
+      target_environment:
+        description: 'GitHub environment to target (provides BASE_URL, NR keys, DB creds)'
+        required: false
+        default: 'events'
+        type: choice
+        options:
+          - events
+          - sandbox
+          - staging
+          - prod
       test_suite:
         description: 'Test suite to run'
         required: false
@@ -22,7 +32,7 @@ on:
 jobs:
   python-tests:
     runs-on: ubuntu-latest
-    environment: events
+    environment: ${{ github.event.inputs.target_environment || 'events' }}
     if: ${{ github.event.inputs.test_suite == 'all' || github.event.inputs.test_suite == 'e2e' || github.event.inputs.test_suite == 'scenario' || github.event.inputs.test_suite == 'payment' || github.event.inputs.test_suite == 'smoke' || github.event.inputs.test_suite == '' }}
     outputs:
       test_ab_testing: ${{ steps.individual-tests.outputs.test_ab_testing }}
@@ -90,8 +100,8 @@ jobs:
           SUPPORT_SERVICE: ${{ vars.BASE_URL }}
           TRANSACTION_SERVICE: ${{ vars.BASE_URL }}
           SCENARIO_SERVICE_URL: ${{ vars.BASE_URL }}
-          NEW_RELIC_USER_API_KEY: ${{ secrets.NEW_RELIC_USER_API_KEY }}
-          NEW_RELIC_ACCOUNT_ID: ${{ vars.NEW_RELIC_ACCOUNT_ID }}
+          NEW_RELIC_USER_API_KEY: ${{ secrets.NR_USER_API_KEY }}
+          NEW_RELIC_ACCOUNT_ID: ${{ vars.NR_ACCOUNT_ID }}
           DB_SERVER: ${{ secrets.DB_SERVER }}
           DB_PASSWORD: ${{ secrets.DB_PASSWORD }}
         run: |
@@ -132,8 +142,8 @@ jobs:
           SUPPORT_SERVICE: ${{ vars.BASE_URL }}
           TRANSACTION_SERVICE: ${{ vars.BASE_URL }}
           SCENARIO_SERVICE_URL: ${{ vars.BASE_URL }}
-          NEW_RELIC_USER_API_KEY: ${{ secrets.NEW_RELIC_USER_API_KEY }}
-          NEW_RELIC_ACCOUNT_ID: ${{ vars.NEW_RELIC_ACCOUNT_ID }}
+          NEW_RELIC_USER_API_KEY: ${{ secrets.NR_USER_API_KEY }}
+          NEW_RELIC_ACCOUNT_ID: ${{ vars.NR_ACCOUNT_ID }}
         run: |
           cd tests
           pytest test_end_to_end.py -n auto --tb=line
@@ -143,8 +153,8 @@ jobs:
         env:
           RELIBANK_URL: ${{ vars.BASE_URL }}
           SCENARIO_SERVICE_URL: ${{ vars.BASE_URL }}
-          NEW_RELIC_USER_API_KEY: ${{ secrets.NEW_RELIC_USER_API_KEY }}
-          NEW_RELIC_ACCOUNT_ID: ${{ vars.NEW_RELIC_ACCOUNT_ID }}
+          NEW_RELIC_USER_API_KEY: ${{ secrets.NR_USER_API_KEY }}
+          NEW_RELIC_ACCOUNT_ID: ${{ vars.NR_ACCOUNT_ID }}
         run: |
           cd tests
           pytest test_scenario_service.py --tb=line
@@ -155,8 +165,8 @@ jobs:
           RELIBANK_URL: ${{ vars.BASE_URL }}
           SCENARIO_SERVICE_URL: ${{ vars.BASE_URL }}
           BILL_PAY_SERVICE: ${{ vars.BASE_URL }}
-          NEW_RELIC_USER_API_KEY: ${{ secrets.NEW_RELIC_USER_API_KEY }}
-          NEW_RELIC_ACCOUNT_ID: ${{ vars.NEW_RELIC_ACCOUNT_ID }}
+          NEW_RELIC_USER_API_KEY: ${{ secrets.NR_USER_API_KEY }}
+          NEW_RELIC_ACCOUNT_ID: ${{ vars.NR_ACCOUNT_ID }}
         run: |
           cd tests
           pytest test_payment_scenarios.py --tb=line
@@ -167,15 +177,15 @@ jobs:
           RELIBANK_URL: ${{ vars.BASE_URL }}
           BASE_URL: ${{ vars.BASE_URL }}
           SCENARIO_SERVICE_URL: ${{ vars.BASE_URL }}
-          NEW_RELIC_USER_API_KEY: ${{ secrets.NEW_RELIC_USER_API_KEY }}
-          NEW_RELIC_ACCOUNT_ID: ${{ vars.NEW_RELIC_ACCOUNT_ID }}
+          NEW_RELIC_USER_API_KEY: ${{ secrets.NR_USER_API_KEY }}
+          NEW_RELIC_ACCOUNT_ID: ${{ vars.NR_ACCOUNT_ID }}
         run: |
           cd tests
           pytest test_end_to_end.py::test_frontend_loads test_scenario_service.py::test_scenario_service_health -n auto --tb=line
 
   frontend-tests:
     runs-on: ubuntu-latest
-    environment: events
+    environment: ${{ github.event.inputs.target_environment || 'events' }}
     if: ${{ github.event.inputs.test_suite == 'all' || github.event.inputs.test_suite == 'frontend' || github.event.inputs.test_suite == '' }}
 
     steps:
@@ -201,7 +211,7 @@ jobs:
 
   test-summary:
     runs-on: ubuntu-latest
-    environment: events
+    environment: ${{ github.event.inputs.target_environment || 'events' }}
     needs: [python-tests, frontend-tests]
     if: always()
 
