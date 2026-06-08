@@ -51,6 +51,18 @@ resource "kubernetes_config_map_v1" "blue_proxy_config" {
             proxy_set_header X-Forwarded-Proto $scheme;
         }
 
+        location /auth-service {
+            if ($http_user_agent = "kube-probe") {
+                return 200 "OK";
+            }
+            set $upstream_auth http://auth-service.relibank-blue.svc.cluster.local:5002;
+            proxy_pass $upstream_auth;
+            proxy_set_header Host $host;
+            proxy_set_header X-Real-IP $remote_addr;
+            proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+            proxy_set_header X-Forwarded-Proto $scheme;
+        }
+
         location /support-service {
             if ($http_user_agent = "kube-probe") {
                 return 200 "OK";
