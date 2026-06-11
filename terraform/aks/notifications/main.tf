@@ -120,6 +120,11 @@ resource "azurerm_linux_function_app" "notifications" {
     AZURE_ACS_SMS_SENDER        = var.sms_sender_phone
     SMS_THROTTLE_PERCENTAGE     = tostring(var.sms_throttle_percentage)
     FUNCTIONS_EXTENSION_VERSION = "~4"
+    # Linux Consumption (Y1) needs these set explicitly for `func azure functionapp publish`
+    # to perform a remote build during deployment. Without them, the publish step succeeds
+    # silently but the function never registers.
+    SCM_DO_BUILD_DURING_DEPLOYMENT = "1"
+    ENABLE_ORYX_BUILD              = "true"
   }
 
   tags = {
