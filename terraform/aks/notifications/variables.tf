@@ -14,9 +14,9 @@ variable "aks_resource_group" {
 }
 
 variable "function_plan_sku" {
-  description = "App Service Plan SKU. FC1 = FlexConsumption (matches prod). Y1 = Consumption (universally available fallback) if FC1 is unsupported in the region."
+  description = "App Service Plan SKU. Y1 = Consumption (provider-agnostic, works on azurerm 3.x). FC1 = FlexConsumption requires azurerm 4.x or azapi (`azurerm_linux_function_app` in 3.x rejects the FC plan because functionAppConfig isn't part of its schema). Default Y1 — switch to FC1 only after the provider is bumped."
   type        = string
-  default     = "FC1"
+  default     = "Y1"
 }
 
 variable "sms_sender_phone" {
