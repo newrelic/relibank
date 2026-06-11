@@ -40,6 +40,12 @@ on:
         required: false
         default: "0"
 
+      force_rebuild:
+        description: "Force a full rebuild of all images (ignore source-hash cache). Use when build-args change but source didn't."
+        type: boolean
+        required: false
+        default: false
+
 jobs:
 
   # ---------------------------------------------------------------------------
@@ -55,6 +61,7 @@ jobs:
       environment:      ${{ github.event.inputs.environment }}
       agent:            newrelic
       new_relic_region: US
+      force_rebuild:    ${{ github.event.inputs.force_rebuild == 'true' }}
 
   # ---------------------------------------------------------------------------
   # Deploy color — terraform apply on relibank-{color}/
