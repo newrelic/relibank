@@ -117,6 +117,7 @@ resource "kubernetes_secret_v1" "database_credentials" {
     POSTGRES_PASSWORD    = var.postgres_password
     POSTGRES_USER        = var.postgres_user
     AZURE_OPENAI_API_KEY = var.azure_openai_api_key
+    AZURE_FUNCTION_URL   = var.azure_function_url
   }
 
   type       = "Opaque"

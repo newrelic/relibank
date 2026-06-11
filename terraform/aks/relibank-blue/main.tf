@@ -39,6 +39,18 @@ data "terraform_remote_state" "ai_services" {
   }
 }
 
+# Notifications Function App + ACS owned by terraform/aks/notifications.
+# Must be applied (and function code published) for this env before this module runs.
+data "terraform_remote_state" "notifications" {
+  backend = "azurerm"
+  config = {
+    resource_group_name  = "ReliBank"
+    storage_account_name = var.tf_state_storage_account
+    container_name       = var.tf_state_container
+    key                  = "relibank/${var.demo_environment}/notifications.tfstate"
+  }
+}
+
 module "relibank_blue" {
   source = "../app_module"
 
@@ -54,4 +66,5 @@ module "relibank_blue" {
   azure_openai_endpoint     = data.terraform_remote_state.ai_services.outputs.endpoint
   azure_openai_api_key      = data.terraform_remote_state.ai_services.outputs.api_key
   assistant_b_delay_seconds = var.assistant_b_delay_seconds
+  azure_function_url        = data.terraform_remote_state.notifications.outputs.function_url
 }

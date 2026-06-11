@@ -77,6 +77,13 @@ variable "assistant_b_delay_seconds" {
   default     = 0
 }
 
+variable "azure_function_url" {
+  description = "Full URL (with ?code=) of the notifications Function App. Empty string OK — notifications-service silently no-ops if unset."
+  type        = string
+  sensitive   = true
+  default     = ""
+}
+
 variable "services" {
   description = "Per-service deployment config. Map keys are k8s service names."
   type = map(object({
@@ -188,6 +195,9 @@ variable "services" {
       service_port   = 5000
       config_map_envs = {
         KAFKA_BROKER = "KAFKA_BROKER"
+      }
+      secret_envs = {
+        AZURE_FUNCTION_URL = "AZURE_FUNCTION_URL"
       }
     }
 

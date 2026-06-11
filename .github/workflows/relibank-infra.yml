@@ -168,6 +168,41 @@ jobs:
             -var="aks_resource_group=${{ vars.AKS_RESOURCE_GROUP }}" \
             --auto-approve
 
+      # ------------------------------------------------------------------
+      # Stage 4 — notifications Function App + ACS + email service.
+      # Function code publishes here too (env-scoped resource: blue + green
+      # share the same Function URL, so code-publish must NOT be in the
+      # per-color deploy workflow — see plan rationale).
+      # ------------------------------------------------------------------
+      - name: "Terraform Init (Stage 4 notifications)"
+        working-directory: terraform/aks/notifications
+        run: |
+          terraform init \
+            --backend-config="resource_group_name=ReliBank" \
+            --backend-config="storage_account_name=${{ vars.TF_STATE_STORAGE_ACCOUNT }}" \
+            --backend-config="container_name=${{ vars.TF_STATE_CONTAINER }}" \
+            --backend-config="key=relibank/${{ github.event.inputs.environment }}/notifications.tfstate" \
+            --reconfigure --upgrade
+
+      - name: "Terraform Apply (Stage 4 notifications)"
+        working-directory: terraform/aks/notifications
+        run: |
+          terraform apply \
+            -var="demo_environment=${{ github.event.inputs.environment }}" \
+            -var="location=${{ vars.AZURE_LOCATION }}" \
+            -var="aks_resource_group=${{ vars.AKS_RESOURCE_GROUP }}" \
+            -var="sms_sender_phone=${{ secrets.AZURE_ACS_SMS_PHONE_NUMBER }}" \
+            -var="sms_throttle_percentage=${{ vars.SMS_THROTTLE_PERCENTAGE || 5 }}" \
+            --auto-approve
+
+      - name: Install Azure Functions Core Tools
+        run: npm install -g azure-functions-core-tools@4 --unsafe-perm true
+
+      - name: Publish Notifications Function code
+        working-directory: notifications_service/azure_function
+        run: |
+          func azure functionapp publish relibank-${{ github.event.inputs.environment }}-notifications-fn --python
+
       - name: Deployment Summary
         run: |
           echo "========================================"
@@ -219,7 +254,29 @@ jobs:
         with:
           terraform_version: 1.5
 
-      # Stage 3 first — ai_services (assistants + AOAI account)
+      # Stage 4 first — notifications (Function App + ACS + email service)
+      - name: "Terraform Init (Stage 4 notifications)"
+        working-directory: terraform/aks/notifications
+        run: |
+          terraform init \
+            --backend-config="resource_group_name=ReliBank" \
+            --backend-config="storage_account_name=${{ vars.TF_STATE_STORAGE_ACCOUNT }}" \
+            --backend-config="container_name=${{ vars.TF_STATE_CONTAINER }}" \
+            --backend-config="key=relibank/${{ github.event.inputs.environment }}/notifications.tfstate" \
+            --reconfigure --upgrade
+
+      - name: "Terraform Destroy (Stage 4 notifications)"
+        working-directory: terraform/aks/notifications
+        run: |
+          terraform destroy \
+            -var="demo_environment=${{ github.event.inputs.environment }}" \
+            -var="location=${{ vars.AZURE_LOCATION }}" \
+            -var="aks_resource_group=${{ vars.AKS_RESOURCE_GROUP }}" \
+            -var="sms_sender_phone=${{ secrets.AZURE_ACS_SMS_PHONE_NUMBER }}" \
+            -var="sms_throttle_percentage=${{ vars.SMS_THROTTLE_PERCENTAGE || 5 }}" \
+            --auto-approve
+
+      # Stage 3 — ai_services (assistants + AOAI account)
       - name: "Terraform Init (Stage 3 ai_services)"
         working-directory: terraform/aks/ai_services
         run: |

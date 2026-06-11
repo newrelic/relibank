@@ -312,6 +312,7 @@ MSSQL_SA_USER            = SA
 MSSQL_SA_PASSWORD        = YourStrong@Password!
 POSTGRES_USER            = postgres
 POSTGRES_PASSWORD        = your_postgres_password_here
+AZURE_ACS_SMS_PHONE_NUMBER = +1XXXXXXXXXX  # E.164 ACS-purchased number (reuse prod's number for non-prod envs)
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 AZURE_CREDENTIALS value (paste this entire JSON block)
