@@ -144,9 +144,10 @@ variable "services" {
       container_port = 5000
       service_port   = 5001
       config_map_envs = {
-        DB_DATABASE  = "MSSQL_DATABASE_NAME"
-        DB_SERVER    = "MSSQL_SERVER_NAME"
-        KAFKA_BROKER = "KAFKA_BROKER"
+        DB_DATABASE          = "MSSQL_DATABASE_NAME"
+        DB_SERVER            = "MSSQL_SERVER_NAME"
+        KAFKA_BROKER         = "KAFKA_BROKER"
+        ACCOUNTS_SERVICE_URL = "ACCOUNTS_SERVICE_URL"
       }
       secret_envs = {
         DB_PASSWORD = "MSSQL_SA_PASSWORD"
@@ -175,6 +176,7 @@ variable "services" {
         KAFKA_BROKER              = "KAFKA_BROKER"
         AZURE_OPENAI_ENDPOINT     = "AZURE_OPENAI_ENDPOINT"
         ASSISTANT_B_DELAY_SECONDS = "ASSISTANT_B_DELAY_SECONDS"
+        SCENARIO_SERVICE_URL      = "SCENARIO_RUNNER_SERVICE_URL"
       }
       secret_envs = {
         AZURE_OPENAI_API_KEY = "AZURE_OPENAI_API_KEY"
@@ -186,7 +188,8 @@ variable "services" {
       container_port = 5001
       service_port   = 5001
       config_map_envs = {
-        KAFKA_BROKER = "KAFKA_BROKER"
+        KAFKA_BROKER        = "KAFKA_BROKER"
+        SUPPORT_SERVICE_URL = "SUPPORT_SERVICE_URL"
       }
     }
 
@@ -222,9 +225,10 @@ variable "services" {
       container_port = 8000
       service_port   = 8000
       config_map_envs = {
-        KAFKA_BROKER = "KAFKA_BROKER"
-        DB_SERVER    = "MSSQL_SERVER_NAME"
-        DB_DATABASE  = "MSSQL_DATABASE_NAME"
+        KAFKA_BROKER        = "KAFKA_BROKER"
+        DB_SERVER           = "MSSQL_SERVER_NAME"
+        DB_DATABASE         = "MSSQL_DATABASE_NAME"
+        SUPPORT_SERVICE_URL = "SUPPORT_SERVICE_URL"
       }
       secret_envs = {
         DB_USERNAME = "MSSQL_SA_USER"
