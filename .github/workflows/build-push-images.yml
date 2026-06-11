@@ -216,6 +216,8 @@ jobs:
           AGENT_TYPE:                   ${{ inputs.agent || 'newrelic' }}
           NEW_RELIC_REGION:             ${{ inputs.new_relic_region || 'US' }}
           APP_NAME:                     ${{ vars.APP_NAME }}
+          STRIPE_SECRET_KEY:            ${{ secrets.STRIPE_SECRET_KEY }}
+          STRIPE_PUBLISHABLE_KEY:       ${{ secrets.STRIPE_PUBLISHABLE_KEY }}
         run: |
           SCRIPT_DIR="${{ github.workspace }}/scripts/image_build"
           BUILD_CONTEXT="${{ github.workspace }}/${{ matrix.images.build_context }}"
@@ -245,6 +247,8 @@ jobs:
             --agent-type     "$AGENT_TYPE" \
             --nr-region      "$NEW_RELIC_REGION" \
             --app-name       "$APP_NAME" \
+            --stripe-secret-key      "$STRIPE_SECRET_KEY" \
+            --stripe-publishable-key "$STRIPE_PUBLISHABLE_KEY" \
             $DOCKERFILE_ARG \
             $FORCE_ARG
 

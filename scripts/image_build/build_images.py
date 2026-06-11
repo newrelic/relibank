@@ -213,6 +213,10 @@ if __name__ == "__main__":
     # App
     parser.add_argument("--app-name", dest="app_name", default="ReliBank")
 
+    # Stripe (consumed by bill-pay-service Dockerfile ARGs; harmless for other services)
+    parser.add_argument("--stripe-secret-key",      dest="stripe_secret_key",      default="")
+    parser.add_argument("--stripe-publishable-key", dest="stripe_publishable_key", default="")
+
     # Cache control
     parser.add_argument("--force-rebuild", action="store_true",
                         help="Ignore cached SHA tag and always do a full build.")
@@ -266,6 +270,8 @@ if __name__ == "__main__":
             "AGENT_TYPE":                      args.agent_type,
             "NEW_RELIC_REGION":                args.nr_region,
             "APP_NAME":                        args.app_name,
+            "STRIPE_SECRET_KEY":               args.stripe_secret_key,
+            "STRIPE_PUBLISHABLE_KEY":          args.stripe_publishable_key,
         }
 
         build_and_push_image(
