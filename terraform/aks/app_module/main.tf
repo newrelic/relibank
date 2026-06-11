@@ -96,6 +96,7 @@ resource "kubernetes_config_map_v1" "infrastructure_config" {
     SUPPORT_SERVICE_URL         = "http://support-service:5003"
     SCHEDULER_SERVICE_URL       = "http://scheduler-service:5004"
     SCENARIO_RUNNER_SERVICE_URL = "http://scenario-runner-service:8000"
+    RISK_ASSESSMENT_SERVICE_URL = "http://risk-assessment-service:5001"
     AZURE_OPENAI_ENDPOINT       = var.azure_openai_endpoint
     ASSISTANT_B_DELAY_SECONDS   = tostring(var.assistant_b_delay_seconds)
   }

@@ -159,10 +159,11 @@ variable "services" {
       container_port = 5000
       service_port   = 5000
       config_map_envs = {
-        KAFKA_BROKER            = "KAFKA_BROKER"
-        TRANSACTION_SERVICE_URL = "TRANSACTION_SERVICE_URL"
-        SCENARIO_SERVICE_URL    = "SCENARIO_RUNNER_SERVICE_URL"
-        ACCOUNTS_SERVICE_URL    = "ACCOUNTS_SERVICE_URL"
+        KAFKA_BROKER                = "KAFKA_BROKER"
+        TRANSACTION_SERVICE_URL     = "TRANSACTION_SERVICE_URL"
+        SCENARIO_SERVICE_URL        = "SCENARIO_RUNNER_SERVICE_URL"
+        ACCOUNTS_SERVICE_URL        = "ACCOUNTS_SERVICE_URL"
+        RISK_ASSESSMENT_SERVICE_URL = "RISK_ASSESSMENT_SERVICE_URL"
       }
     }
 
