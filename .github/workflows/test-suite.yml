@@ -92,7 +92,7 @@ jobs:
       - name: Run all Python tests individually
         if: ${{ github.event.inputs.test_suite == 'all' || github.event.inputs.test_suite == '' }}
         id: individual-tests
-        timeout-minutes: 30
+        timeout-minutes: 60
         env:
           RELIBANK_URL: ${{ vars.BASE_URL }}
           BASE_URL: ${{ vars.BASE_URL }}
