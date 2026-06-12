@@ -87,17 +87,18 @@ variable "azure_function_url" {
 variable "services" {
   description = "Per-service deployment config. Map keys are k8s service names."
   type = map(object({
-    image           = string
-    container_port  = number
-    service_port    = number
-    config_map_envs = optional(map(string), {})
-    secret_envs     = optional(map(string), {})
-    extra_envs      = optional(map(string), {})
-    cpu_request     = optional(string)
-    cpu_limit       = optional(string)
-    memory_request  = optional(string)
-    memory_limit    = optional(string)
-    replicas        = optional(number, 1)
+    image                = string
+    container_port       = number
+    service_port         = number
+    config_map_envs      = optional(map(string), {})
+    secret_envs          = optional(map(string), {})
+    extra_envs           = optional(map(string), {})
+    cpu_request          = optional(string)
+    cpu_limit            = optional(string)
+    memory_request       = optional(string)
+    memory_limit         = optional(string)
+    replicas             = optional(number, 1)
+    service_account_name = optional(string)
   }))
   default = {
     "frontend-service" = {
@@ -224,6 +225,8 @@ variable "services" {
       image          = "scenario-runner"
       container_port = 8000
       service_port   = 8000
+      # Needs Chaos Mesh API access — bound to a dedicated SA via ClusterRoleBinding (see main.tf).
+      service_account_name = "scenario-runner"
       config_map_envs = {
         KAFKA_BROKER        = "KAFKA_BROKER"
         DB_SERVER           = "MSSQL_SERVER_NAME"

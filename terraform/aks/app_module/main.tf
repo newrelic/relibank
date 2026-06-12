@@ -126,6 +126,59 @@ resource "kubernetes_secret_v1" "database_credentials" {
 }
 
 # ==========================================
+# RBAC for scenario-runner-service
+# Needs to create chaos-mesh.org/v1alpha1 custom resources in the color
+# namespace and read pods/namespaces cluster-wide so it can target experiments.
+# ==========================================
+
+resource "kubernetes_service_account_v1" "scenario_runner" {
+  metadata {
+    name      = "scenario-runner"
+    namespace = local.ns
+  }
+
+  depends_on = [kubernetes_namespace_v1.relibank_color]
+}
+
+resource "kubernetes_cluster_role_v1" "scenario_runner_chaos" {
+  metadata {
+    name = "scenario-runner-chaos-${var.target_color}"
+  }
+
+  # Full CRUD on every chaos-mesh.org resource (StressChaos, PodChaos, NetworkChaos, etc).
+  rule {
+    api_groups = ["chaos-mesh.org"]
+    resources  = ["*"]
+    verbs      = ["get", "list", "watch", "create", "update", "patch", "delete"]
+  }
+
+  # Read-only on pods/namespaces/services so it can resolve label selectors.
+  rule {
+    api_groups = [""]
+    resources  = ["pods", "namespaces", "services", "events"]
+    verbs      = ["get", "list", "watch"]
+  }
+}
+
+resource "kubernetes_cluster_role_binding_v1" "scenario_runner_chaos" {
+  metadata {
+    name = "scenario-runner-chaos-${var.target_color}"
+  }
+
+  role_ref {
+    api_group = "rbac.authorization.k8s.io"
+    kind      = "ClusterRole"
+    name      = kubernetes_cluster_role_v1.scenario_runner_chaos.metadata[0].name
+  }
+
+  subject {
+    kind      = "ServiceAccount"
+    name      = kubernetes_service_account_v1.scenario_runner.metadata[0].name
+    namespace = local.ns
+  }
+}
+
+# ==========================================
 # Per-service Deployments + Services
 # ==========================================
 
@@ -151,7 +204,8 @@ resource "kubernetes_deployment_v1" "service" {
       }
 
       spec {
-        node_selector = { "node-color" = var.target_color }
+        node_selector        = { "node-color" = var.target_color }
+        service_account_name = each.value.service_account_name
 
         container {
           name              = each.key
@@ -218,6 +272,8 @@ resource "kubernetes_deployment_v1" "service" {
     kubernetes_config_map_v1.infrastructure_config,
     kubernetes_secret_v1.database_credentials,
     azurerm_kubernetes_cluster_node_pool.relibank_color_np,
+    kubernetes_service_account_v1.scenario_runner,
+    kubernetes_cluster_role_binding_v1.scenario_runner_chaos,
   ]
 }
 

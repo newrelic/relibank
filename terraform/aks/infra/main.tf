@@ -77,6 +77,34 @@ resource "helm_release" "ingress_nginx" {
 }
 
 # ---------------------------------------------------------------------------
+# Chaos Mesh
+# Installs the chaos-mesh.org/v1alpha1 CRDs (PodChaos, StressChaos, etc) and
+# the controller-manager. scenario-runner-service uses these to run the demo's
+# chaos scenarios. Per-color RBAC for scenario-runner is wired in app_module.
+# ---------------------------------------------------------------------------
+resource "helm_release" "chaos_mesh" {
+  name             = "chaos-mesh"
+  repository       = "https://charts.chaos-mesh.org"
+  chart            = "chaos-mesh"
+  namespace        = "chaos-mesh"
+  create_namespace = true
+  version          = "2.7.2"
+  wait             = true
+  timeout          = 600
+
+  # AKS uses containerd, not docker — chaosDaemon needs the right socket path.
+  set {
+    name  = "chaosDaemon.runtime"
+    value = "containerd"
+  }
+
+  set {
+    name  = "chaosDaemon.socketPath"
+    value = "/run/containerd/containerd.sock"
+  }
+}
+
+# ---------------------------------------------------------------------------
 # Namespaces
 # ---------------------------------------------------------------------------
 

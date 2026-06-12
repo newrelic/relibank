@@ -75,12 +75,14 @@ jobs:
           sudo ACCEPT_EULA=Y apt-get install -y msodbcsql18
       - name: Install Chrome and ChromeDriver for Selenium tests
         run: |
-          # Install Chromium and ChromeDriver for Selenium
+          # Selenium hardcodes /usr/bin/google-chrome — install google-chrome-stable
+          # rather than chromium so test_with_interactions etc work without webdriver overrides.
           sudo apt-get update
-          sudo apt-get install -y chromium-browser chromium-chromedriver
-          # Verify installation
-          chromium-browser --version
-          chromedriver --version
+          wget -q -O /tmp/chrome.deb https://dl.google.com/linux/direct/google-chrome-stable_current_amd64.deb
+          sudo apt-get install -y /tmp/chrome.deb
+          rm /tmp/chrome.deb
+          # ChromeDriver auto-resolved by selenium-manager (built into Selenium >= 4.6); verify Chrome.
+          google-chrome --version
 
       - name: Install dependencies
         run: |
