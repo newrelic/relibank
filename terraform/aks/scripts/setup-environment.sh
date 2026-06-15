@@ -297,6 +297,7 @@ TF_STATE_STORAGE_ACCOUNT = ${STORAGE_ACCOUNT}
 TF_STATE_CONTAINER       = ${CONTAINER_NAME}
 DNS_ZONE                 = relibankdemo.com
 NR_ACCOUNT_ID            = <New Relic account ID for ${ENVIRONMENT}>
+NR_BROWSER_APP_ID        = <Browser application ID — applicationID from the NR app's JS snippet>
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 SECRETS  (Settings → Environments → ${ENVIRONMENT} → Secrets)
@@ -306,13 +307,22 @@ AZURE_CLIENT_SECRET      = ${CLIENT_SECRET}
 AZURE_SUBSCRIPTION_ID    = ${SUBSCRIPTION_ID}
 AZURE_TENANT_ID          = ${TENANT_ID}
 AZURE_CREDENTIALS        = (paste JSON below)
-NR_LICENSE_KEY           = <New Relic ingest key for ${ENVIRONMENT}>
+NR_LICENSE_KEY           = <APM ingest license key for ${ENVIRONMENT} — *FFFFNRAL suffix>
+NR_BROWSER_LICENSE_KEY   = <Browser license key for ${ENVIRONMENT} — *NRJS-* prefix; pulled from the browser app's JS snippet>
 NR_USER_API_KEY          = <New Relic user API key for ${ENVIRONMENT}>
+NR_TRUST_KEY             = <Trust key (parent account in NR org hierarchy)>
 MSSQL_SA_USER            = SA
 MSSQL_SA_PASSWORD        = YourStrong@Password!
 POSTGRES_USER            = postgres
 POSTGRES_PASSWORD        = your_postgres_password_here
 AZURE_ACS_SMS_PHONE_NUMBER = +1XXXXXXXXXX  # E.164 ACS-purchased number (reuse prod's number for non-prod envs)
+
+NOTE: NR_LICENSE_KEY and NR_BROWSER_LICENSE_KEY are DIFFERENT keys for the same account.
+  - NR_LICENSE_KEY (FFFFNRAL suffix) authorizes APM/agent ingest.
+  - NR_BROWSER_LICENSE_KEY (NRJS- prefix) authorizes browser-agent beacons. It's pulled from the browser
+    app's JS snippet in the NR UI (Browser → app → Settings → Application settings) — NOT auto-derivable
+    from the APM key. Wiring the APM key into the frontend silently breaks .register() / MicroFrontEndTiming
+    events because NR fallback-routes mismatched beacons to a default browser app.
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 AZURE_CREDENTIALS value (paste this entire JSON block)

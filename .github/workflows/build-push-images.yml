@@ -208,11 +208,12 @@ jobs:
           FORCE_REBUILD:           ${{ inputs.force_rebuild }}
           TARGET_COLOR:            ${{ inputs.target_color }}
           ACR_SERVER:              ${{ env.ACR_SERVER }}
-          NEW_RELIC_USER_API_KEY:  ${{ secrets.NR_USER_API_KEY }}
-          NEW_RELIC_LICENSE_KEY:   ${{ secrets.NR_LICENSE_KEY }}
-          NEW_RELIC_ACCOUNT_ID:         ${{ vars.NR_ACCOUNT_ID }}
-          NEW_RELIC_BROWSER_APP_ID:     ${{ vars.NR_BROWSER_APP_ID }}
-          NEW_RELIC_TRUST_KEY:          ${{ secrets.NR_TRUST_KEY }}
+          NEW_RELIC_USER_API_KEY:        ${{ secrets.NR_USER_API_KEY }}
+          NEW_RELIC_LICENSE_KEY:         ${{ secrets.NR_LICENSE_KEY }}
+          NEW_RELIC_BROWSER_LICENSE_KEY: ${{ secrets.NR_BROWSER_LICENSE_KEY }}
+          NEW_RELIC_ACCOUNT_ID:          ${{ vars.NR_ACCOUNT_ID }}
+          NEW_RELIC_BROWSER_APP_ID:      ${{ vars.NR_BROWSER_APP_ID }}
+          NEW_RELIC_TRUST_KEY:           ${{ secrets.NR_TRUST_KEY }}
           AGENT_TYPE:                   ${{ inputs.agent || 'newrelic' }}
           NEW_RELIC_REGION:             ${{ inputs.new_relic_region || 'US' }}
           APP_NAME:                     ${{ vars.APP_NAME }}
@@ -239,8 +240,9 @@ jobs:
             --service        "${{ matrix.images.image_name }}" \
             --target-color   "$TARGET_COLOR" \
             --acr-server     "$ACR_SERVER" \
-            --nr-user-key    "$NEW_RELIC_USER_API_KEY" \
-            --nr-license-key "$NEW_RELIC_LICENSE_KEY" \
+            --nr-user-key            "$NEW_RELIC_USER_API_KEY" \
+            --nr-license-key         "$NEW_RELIC_LICENSE_KEY" \
+            --nr-browser-license-key "$NEW_RELIC_BROWSER_LICENSE_KEY" \
             --nr-account-id  "$NEW_RELIC_ACCOUNT_ID" \
             --nr-browser-app-id "$NEW_RELIC_BROWSER_APP_ID" \
             --nr-trust-key   "$NEW_RELIC_TRUST_KEY" \

@@ -202,11 +202,12 @@ if __name__ == "__main__":
                              "Use the service source dir when build-context is the repo root ('.').")
 
     # New Relic / agent
-    parser.add_argument("--nr-user-key",       dest="nr_user_key",       default="")
-    parser.add_argument("--nr-license-key",    dest="nr_license_key",    default="")
-    parser.add_argument("--nr-account-id",     dest="nr_account_id",     default="")
-    parser.add_argument("--nr-browser-app-id", dest="nr_browser_app_id", default="")
-    parser.add_argument("--nr-trust-key",      dest="nr_trust_key",      default="")
+    parser.add_argument("--nr-user-key",            dest="nr_user_key",            default="")
+    parser.add_argument("--nr-license-key",         dest="nr_license_key",         default="")
+    parser.add_argument("--nr-browser-license-key", dest="nr_browser_license_key", default="")
+    parser.add_argument("--nr-account-id",          dest="nr_account_id",          default="")
+    parser.add_argument("--nr-browser-app-id",      dest="nr_browser_app_id",      default="")
+    parser.add_argument("--nr-trust-key",           dest="nr_trust_key",           default="")
     parser.add_argument("--agent-type",        dest="agent_type",        default="newrelic")
     parser.add_argument("--nr-region",         dest="nr_region",         default="US")
 
@@ -262,16 +263,17 @@ if __name__ == "__main__":
 
         # 3. Full build + push
         build_args = {
-            "NEW_RELIC_USER_API_KEY":          args.nr_user_key,
-            "NEW_RELIC_LICENSE_KEY":           args.nr_license_key,
-            "NEW_RELIC_ACCOUNT_ID":            args.nr_account_id,
+            "NEW_RELIC_USER_API_KEY":           args.nr_user_key,
+            "NEW_RELIC_LICENSE_KEY":            args.nr_license_key,
+            "NEW_RELIC_BROWSER_LICENSE_KEY":    args.nr_browser_license_key,
+            "NEW_RELIC_ACCOUNT_ID":             args.nr_account_id,
             "NEW_RELIC_BROWSER_APPLICATION_ID": args.nr_browser_app_id,
-            "NEW_RELIC_TRUST_KEY":             args.nr_trust_key,
-            "AGENT_TYPE":                      args.agent_type,
-            "NEW_RELIC_REGION":                args.nr_region,
-            "APP_NAME":                        args.app_name,
-            "STRIPE_SECRET_KEY":               args.stripe_secret_key,
-            "STRIPE_PUBLISHABLE_KEY":          args.stripe_publishable_key,
+            "NEW_RELIC_TRUST_KEY":              args.nr_trust_key,
+            "AGENT_TYPE":                       args.agent_type,
+            "NEW_RELIC_REGION":                 args.nr_region,
+            "APP_NAME":                         args.app_name,
+            "STRIPE_SECRET_KEY":                args.stripe_secret_key,
+            "STRIPE_PUBLISHABLE_KEY":           args.stripe_publishable_key,
         }
 
         build_and_push_image(
