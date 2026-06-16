@@ -159,6 +159,23 @@ jobs:
             --backend-config="key=relibank/${{ github.event.inputs.environment }}/ai_services.tfstate" \
             --reconfigure --upgrade
 
+      # Defensive: Azure soft-deletes Cognitive Services accounts on destroy with a 48h
+      # retention window. If a prior destroy was interrupted or TF state diverged, the
+      # name is reserved in the recycle bin and `terraform apply` 409s on create.
+      # Idempotent: no-op when nothing's in the recycle bin.
+      - name: "Pre-apply: purge any soft-deleted AOAI account"
+        run: |
+          AOAI_NAME="relibank-${{ github.event.inputs.environment }}-openai"
+          LOCATION="${{ vars.AZURE_LOCATION }}"
+          RG="${{ vars.AKS_RESOURCE_GROUP }}"
+          if az cognitiveservices account list-deleted --query "[?name=='${AOAI_NAME}'] | [0].name" -o tsv | grep -q .; then
+            echo "Found orphan in recycle bin — purging ${AOAI_NAME}"
+            az cognitiveservices account purge --location "${LOCATION}" --resource-group "${RG}" --name "${AOAI_NAME}"
+            echo "Purged."
+          else
+            echo "No orphan in recycle bin — nothing to purge."
+          fi
+
       - name: "Terraform Apply (Stage 3 ai_services)"
         working-directory: terraform/aks/ai_services
         run: |
