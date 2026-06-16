@@ -201,6 +201,16 @@ if [[ "$SKIP_SP" == "false" ]]; then
   az role assignment create --assignee "$CLIENT_ID" --role "Storage Blob Data Contributor" --scope "$STORAGE_SCOPE" --output none
   success "Storage role assigned"
 
+  # Cognitive Services Contributor at SUBSCRIPTION scope (not RG scope) — required so the deployer
+  # can purge soft-deleted Cognitive Services accounts (azurerm_cognitive_account destroy step).
+  # The deletedAccounts recycle bin lives at /subscriptions/<sub>/providers/Microsoft.CognitiveServices/locations/<region>/...
+  # which is OUTSIDE any RG, so the existing RG-scoped Contributor grant doesn't cover it.
+  # Without this, `terraform destroy` of the ai_services module 403s on the purge step and leaves
+  # the AOAI account in a soft-delete state.
+  info "Granting Cognitive Services Contributor at subscription scope (for AOAI purge on destroy)..."
+  az role assignment create --assignee "$CLIENT_ID" --role "Cognitive Services Contributor" --scope "/subscriptions/${SUBSCRIPTION_ID}" --output none
+  success "Cognitive Services Contributor assigned"
+
   info "Granting DNS Zone Contributor on relibankdemo.com zone..."
   DNS_ZONE_SCOPE="/subscriptions/${SUBSCRIPTION_ID}/resourceGroups/relibank/providers/Microsoft.Network/dnszones/relibankdemo.com"
   az role assignment create --assignee "$CLIENT_ID" --role "DNS Zone Contributor" --scope "$DNS_ZONE_SCOPE" --output none
