@@ -28,12 +28,21 @@ on:
           - payment
           - frontend
           - smoke
+  workflow_call:
+    inputs:
+      target_environment:
+        type: string
+        required: true
+      test_suite:
+        type: string
+        required: false
+        default: 'all'
 
 jobs:
   python-tests:
     runs-on: ubuntu-latest
-    environment: ${{ github.event.inputs.target_environment || 'events' }}
-    if: ${{ github.event.inputs.test_suite == 'all' || github.event.inputs.test_suite == 'e2e' || github.event.inputs.test_suite == 'scenario' || github.event.inputs.test_suite == 'payment' || github.event.inputs.test_suite == 'smoke' || github.event.inputs.test_suite == '' }}
+    environment: ${{ inputs.target_environment || 'events' }}
+    if: ${{ inputs.test_suite == 'all' || inputs.test_suite == 'e2e' || inputs.test_suite == 'scenario' || inputs.test_suite == 'payment' || inputs.test_suite == 'smoke' || inputs.test_suite == '' }}
     outputs:
       test_ab_testing: ${{ steps.individual-tests.outputs.test_ab_testing }}
       test_apm_user_tracking: ${{ steps.individual-tests.outputs.test_apm_user_tracking }}
@@ -90,7 +99,7 @@ jobs:
           pip install -r requirements.txt
 
       - name: Run all Python tests individually
-        if: ${{ github.event.inputs.test_suite == 'all' || github.event.inputs.test_suite == '' }}
+        if: ${{ inputs.test_suite == 'all' || inputs.test_suite == '' }}
         id: individual-tests
         timeout-minutes: 60
         env:
@@ -134,7 +143,7 @@ jobs:
           done
 
       - name: Run end-to-end tests only
-        if: ${{ github.event.inputs.test_suite == 'e2e' }}
+        if: ${{ inputs.test_suite == 'e2e' }}
         env:
           RELIBANK_URL: ${{ vars.BASE_URL }}
           BASE_URL: ${{ vars.BASE_URL }}
@@ -151,7 +160,7 @@ jobs:
           pytest test_end_to_end.py -n auto --tb=line
 
       - name: Run scenario service tests only
-        if: ${{ github.event.inputs.test_suite == 'scenario' }}
+        if: ${{ inputs.test_suite == 'scenario' }}
         env:
           RELIBANK_URL: ${{ vars.BASE_URL }}
           SCENARIO_SERVICE_URL: ${{ vars.BASE_URL }}
@@ -162,7 +171,7 @@ jobs:
           pytest test_scenario_service.py --tb=line
 
       - name: Run payment scenario tests only
-        if: ${{ github.event.inputs.test_suite == 'payment' }}
+        if: ${{ inputs.test_suite == 'payment' }}
         env:
           RELIBANK_URL: ${{ vars.BASE_URL }}
           SCENARIO_SERVICE_URL: ${{ vars.BASE_URL }}
@@ -174,7 +183,7 @@ jobs:
           pytest test_payment_scenarios.py --tb=line
 
       - name: Run smoke tests only
-        if: ${{ github.event.inputs.test_suite == 'smoke' }}
+        if: ${{ inputs.test_suite == 'smoke' }}
         env:
           RELIBANK_URL: ${{ vars.BASE_URL }}
           BASE_URL: ${{ vars.BASE_URL }}
@@ -187,8 +196,8 @@ jobs:
 
   frontend-tests:
     runs-on: ubuntu-latest
-    environment: ${{ github.event.inputs.target_environment || 'events' }}
-    if: ${{ github.event.inputs.test_suite == 'all' || github.event.inputs.test_suite == 'frontend' || github.event.inputs.test_suite == '' }}
+    environment: ${{ inputs.target_environment || 'events' }}
+    if: ${{ inputs.test_suite == 'all' || inputs.test_suite == 'frontend' || inputs.test_suite == '' }}
 
     steps:
       - name: Checkout code
@@ -213,7 +222,7 @@ jobs:
 
   test-summary:
     runs-on: ubuntu-latest
-    environment: ${{ github.event.inputs.target_environment || 'events' }}
+    environment: ${{ inputs.target_environment || 'events' }}
     needs: [python-tests, frontend-tests]
     if: always()
 

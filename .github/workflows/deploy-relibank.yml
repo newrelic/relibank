@@ -52,7 +52,7 @@ jobs:
   # Build and push images — downstream workflow_call
   # ---------------------------------------------------------------------------
   trigger-image-build:
-    name: Build and push images - downstream workflow
+    name: Build and push images
     if: ${{ github.event.inputs.action_type == 'deploy' }}
     uses: ./.github/workflows/build-push-images.yml
     secrets: inherit
@@ -67,7 +67,7 @@ jobs:
   # Deploy color — terraform apply on relibank-{color}/
   # ---------------------------------------------------------------------------
   deploy-relibank:
-    name: Deploy ReliBank ${{ github.event.inputs.target_color }}
+    name: Deploy ReliBank
     needs: [trigger-image-build]
     if: ${{ github.event.inputs.action_type == 'deploy' }}
     runs-on: ubuntu-latest
@@ -144,7 +144,7 @@ jobs:
   # Destroy color — terraform destroy on relibank-{color}/
   # ---------------------------------------------------------------------------
   destroy-relibank:
-    name: Destroy ReliBank ${{ github.event.inputs.target_color }}
+    name: Destroy ReliBank
     if: ${{ github.event.inputs.action_type == 'destroy' }}
     runs-on: ubuntu-latest
     timeout-minutes: 60
@@ -209,7 +209,7 @@ jobs:
   # Direct traffic — terraform apply on traffic_management/
   # ---------------------------------------------------------------------------
   direct-traffic-relibank:
-    name: Direct Traffic to ${{ github.event.inputs.target_color }}
+    name: Direct Traffic
     if: ${{ github.event.inputs.action_type == 'direct_traffic' }}
     runs-on: ubuntu-latest
     timeout-minutes: 30
@@ -263,13 +263,14 @@ jobs:
             --auto-approve
 
   # ---------------------------------------------------------------------------
-  # Post-deployment tests — stub
+  # Post-deployment tests — invoke test-suite.yml against the freshly deployed env
   # ---------------------------------------------------------------------------
   post-deployment-tests:
+    name: Post-deployment tests
     needs: [deploy-relibank]
-    if: ${{ always() && github.event.inputs.action_type == 'deploy' && needs.deploy-relibank.result == 'success' }}
-    runs-on: ubuntu-latest
-    environment: ${{ github.event.inputs.environment }}
-    steps:
-      - name: Stub
-        run: echo "TODO - implement post-deployment validation"
+    if: ${{ github.event.inputs.action_type == 'deploy' && needs.deploy-relibank.result == 'success' }}
+    uses: ./.github/workflows/test-suite.yml
+    secrets: inherit
+    with:
+      target_environment: ${{ github.event.inputs.environment }}
+      test_suite: all

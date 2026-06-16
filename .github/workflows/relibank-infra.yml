@@ -22,6 +22,15 @@ on:
           - sandbox
           - staging
           - prod
+      stage:
+        description: "Which stage(s) to apply (deploy only; ignored on destroy). Use ai_services or notifications to skip cluster + infra and just rebuild that piece."
+        type: choice
+        required: true
+        default: "all"
+        options:
+          - all
+          - ai_services
+          - notifications
 
 jobs:
 
@@ -97,6 +106,7 @@ jobs:
       # Stage 1 — AKS cluster (mirrors demogorgon init/)
       # ------------------------------------------------------------------
       - name: "Terraform Init (Stage 1 cluster)"
+        if: ${{ github.event.inputs.stage == 'all' }}
         working-directory: terraform/aks/cluster
         run: |
           terraform init \
@@ -107,6 +117,7 @@ jobs:
             --reconfigure --upgrade
 
       - name: "Terraform Apply (Stage 1 cluster)"
+        if: ${{ github.event.inputs.stage == 'all' }}
         working-directory: terraform/aks/cluster
         run: |
           terraform apply \
@@ -121,6 +132,7 @@ jobs:
       # Stage 2 — cluster-wide infra (mirrors demogorgon infra/)
       # ------------------------------------------------------------------
       - name: Configure kubectl (after cluster is ready)
+        if: ${{ github.event.inputs.stage == 'all' }}
         run: |
           az aks get-credentials \
             --resource-group ${{ vars.AKS_RESOURCE_GROUP }} \
@@ -128,6 +140,7 @@ jobs:
             --overwrite-existing
 
       - name: "Terraform Init (Stage 2 infra)"
+        if: ${{ github.event.inputs.stage == 'all' }}
         working-directory: terraform/aks/infra
         run: |
           terraform init \
@@ -138,6 +151,7 @@ jobs:
             --reconfigure --upgrade
 
       - name: "Terraform Apply (Stage 2 infra)"
+        if: ${{ github.event.inputs.stage == 'all' }}
         working-directory: terraform/aks/infra
         run: |
           terraform apply \
@@ -150,6 +164,7 @@ jobs:
       # Stage 3 — AOAI account, model deployment, support-service assistants
       # ------------------------------------------------------------------
       - name: "Terraform Init (Stage 3 ai_services)"
+        if: ${{ github.event.inputs.stage == 'all' || github.event.inputs.stage == 'ai_services' }}
         working-directory: terraform/aks/ai_services
         run: |
           terraform init \
@@ -164,6 +179,7 @@ jobs:
       # name is reserved in the recycle bin and `terraform apply` 409s on create.
       # Idempotent: no-op when nothing's in the recycle bin.
       - name: "Pre-apply: purge any soft-deleted AOAI account"
+        if: ${{ github.event.inputs.stage == 'all' || github.event.inputs.stage == 'ai_services' }}
         run: |
           AOAI_NAME="relibank-${{ github.event.inputs.environment }}-openai"
           LOCATION="${{ vars.AZURE_LOCATION }}"
@@ -177,6 +193,7 @@ jobs:
           fi
 
       - name: "Terraform Apply (Stage 3 ai_services)"
+        if: ${{ github.event.inputs.stage == 'all' || github.event.inputs.stage == 'ai_services' }}
         working-directory: terraform/aks/ai_services
         run: |
           terraform apply \
@@ -192,6 +209,7 @@ jobs:
       # per-color deploy workflow — see plan rationale).
       # ------------------------------------------------------------------
       - name: "Terraform Init (Stage 4 notifications)"
+        if: ${{ github.event.inputs.stage == 'all' || github.event.inputs.stage == 'notifications' }}
         working-directory: terraform/aks/notifications
         run: |
           terraform init \
@@ -202,6 +220,7 @@ jobs:
             --reconfigure --upgrade
 
       - name: "Terraform Apply (Stage 4 notifications)"
+        if: ${{ github.event.inputs.stage == 'all' || github.event.inputs.stage == 'notifications' }}
         working-directory: terraform/aks/notifications
         run: |
           terraform apply \
@@ -213,9 +232,11 @@ jobs:
             --auto-approve
 
       - name: Install Azure Functions Core Tools
+        if: ${{ github.event.inputs.stage == 'all' || github.event.inputs.stage == 'notifications' }}
         run: npm install -g azure-functions-core-tools@4 --unsafe-perm true
 
       - name: Publish Notifications Function code
+        if: ${{ github.event.inputs.stage == 'all' || github.event.inputs.stage == 'notifications' }}
         working-directory: notifications_service/azure_function
         run: |
           func azure functionapp publish relibank-${{ github.event.inputs.environment }}-notifications-fn --python
