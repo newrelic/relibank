@@ -119,11 +119,11 @@ build:
         NEW_RELIC_ACCOUNT_ID: "{{.NEW_RELIC_ACCOUNT_ID}}"
         NEW_RELIC_LICENSE_KEY: "{{.NEW_RELIC_LICENSE_KEY}}"
         APP_NAME: "{{.APP_NAME}}"
-        # Azure OpenAI Assistants configuration
+        # Azure OpenAI configuration. The deployed AI flow is LangGraph chat-completions —
+        # no Assistants API, no ASSISTANT_*_ID build args needed (see support_service.py
+        # module docstring for the architecture note).
         AZURE_OPENAI_ENDPOINT: "{{.AZURE_OPENAI_ENDPOINT}}"
         AZURE_OPENAI_API_KEY: "{{.AZURE_OPENAI_API_KEY}}"
-        ASSISTANT_A_ID: "{{.ASSISTANT_A_ID}}"
-        ASSISTANT_B_ID: "{{.ASSISTANT_B_ID}}"
         ASSISTANT_B_DELAY_SECONDS: "{{.ASSISTANT_B_DELAY_SECONDS}}"
         # Risk Assessment Agent deployments
         RISK_ASSESSMENT_AGENT_4O: "{{.RISK_ASSESSMENT_AGENT_4O}}"

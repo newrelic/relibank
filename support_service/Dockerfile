@@ -21,6 +21,8 @@ ENV NEW_RELIC_CONFIG_FILE="newrelic.ini"
 
 # AZURE_OPENAI_ENDPOINT, AZURE_OPENAI_API_KEY, and ASSISTANT_B_DELAY_SECONDS are
 # injected at runtime via the K8s ConfigMap/Secret wired by terraform/aks/app_module.
+# The deployed AI flow is LangGraph-based (chat completions API) — there is no
+# Assistants-API code path, so no ASSISTANT_*_ID values are needed.
 
 # Copy the requirements file and install dependencies
 COPY support_service/requirements.txt .

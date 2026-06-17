@@ -161,7 +161,9 @@ jobs:
             --auto-approve
 
       # ------------------------------------------------------------------
-      # Stage 3 — AOAI account, model deployment, support-service assistants
+      # Stage 3 — AOAI account + model deployments
+      # (Deployed AI flow is LangGraph chat-completions; no Assistants API
+      # is used, so no assistant entities are created or referenced.)
       # ------------------------------------------------------------------
       - name: "Terraform Init (Stage 3 ai_services)"
         if: ${{ github.event.inputs.stage == 'all' || github.event.inputs.stage == 'ai_services' }}
@@ -314,7 +316,7 @@ jobs:
             -var="sms_throttle_percentage=${{ vars.SMS_THROTTLE_PERCENTAGE || 5 }}" \
             --auto-approve
 
-      # Stage 3 — ai_services (assistants + AOAI account)
+      # Stage 3 — ai_services (AOAI account + model deployments)
       - name: "Terraform Init (Stage 3 ai_services)"
         working-directory: terraform/aks/ai_services
         run: |
