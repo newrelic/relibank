@@ -787,7 +787,8 @@ async def toggle_rogue_agent(enabled: bool):
     # Invalidate support service cache so it picks up the change immediately
     try:
         async with httpx.AsyncClient(timeout=2.0) as client:
-            response = await client.post("http://support-service.relibank.svc.cluster.local:5003/support-service/invalidate-agent-cache")
+            support_service_url = os.getenv("SUPPORT_SERVICE_URL", "http://support-service:5003")
+            response = await client.post(f"{support_service_url}/support-service/invalidate-agent-cache")
             response.raise_for_status()
             print("Successfully invalidated support service risk agent cache")
     except Exception as e:
@@ -814,7 +815,8 @@ async def reset_risk_assessment_scenarios():
     # Invalidate support service cache so it picks up the reset immediately
     try:
         async with httpx.AsyncClient(timeout=2.0) as client:
-            response = await client.post("http://support-service.relibank.svc.cluster.local:5003/support-service/invalidate-agent-cache")
+            support_service_url = os.getenv("SUPPORT_SERVICE_URL", "http://support-service:5003")
+            response = await client.post(f"{support_service_url}/support-service/invalidate-agent-cache")
             response.raise_for_status()
             print("Successfully invalidated support service risk agent cache")
     except Exception as e:

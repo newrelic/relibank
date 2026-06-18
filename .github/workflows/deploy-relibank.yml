@@ -1,10 +1,276 @@
 name: Deploy ReliBank
 
+run-name: ${{ inputs.action_type }} ReliBank (${{ inputs.target_color }}) in ${{ inputs.environment }} by @${{ github.actor }}
+
 on:
   workflow_dispatch:
+    inputs:
+      action_type:
+        description: "Type of deployment action"
+        type: choice
+        required: true
+        default: "deploy"
+        options:
+          - deploy
+          - destroy
+          - direct_traffic
+
+      environment:
+        description: "Select environment to deploy to"
+        type: choice
+        required: true
+        default: "staging"
+        options:
+          - prod
+          - staging
+          - sandbox
+          - development
+
+      target_color:
+        description: "Target deployment color (blue/green)"
+        type: choice
+        required: true
+        options:
+          - blue
+          - green
+
+      assistant_b_delay_seconds:
+        description: "Demo knob — artificial delay (seconds) before the Specialist agent responds. Set 8 to demo the bottleneck."
+        type: string
+        required: false
+        default: "0"
+
+      force_rebuild:
+        description: "Force a full rebuild of all images (ignore source-hash cache). Use when build-args change but source didn't."
+        type: boolean
+        required: false
+        default: false
 
 jobs:
-  stub:
+
+  # ---------------------------------------------------------------------------
+  # Build and push images — downstream workflow_call
+  # ---------------------------------------------------------------------------
+  trigger-image-build:
+    name: Build and push images
+    if: ${{ github.event.inputs.action_type == 'deploy' }}
+    uses: ./.github/workflows/build-push-images.yml
+    secrets: inherit
+    with:
+      target_color:     ${{ github.event.inputs.target_color }}
+      environment:      ${{ github.event.inputs.environment }}
+      agent:            newrelic
+      new_relic_region: US
+      force_rebuild:    ${{ github.event.inputs.force_rebuild == 'true' }}
+
+  # ---------------------------------------------------------------------------
+  # Deploy color — terraform apply on relibank-{color}/
+  # ---------------------------------------------------------------------------
+  deploy-relibank:
+    name: Deploy ReliBank
+    needs: [trigger-image-build]
+    if: ${{ github.event.inputs.action_type == 'deploy' }}
     runs-on: ubuntu-latest
+    timeout-minutes: 60
+    environment: ${{ github.event.inputs.environment }}
+    env:
+      ARM_CLIENT_ID:       ${{ secrets.AZURE_CLIENT_ID }}
+      ARM_CLIENT_SECRET:   ${{ secrets.AZURE_CLIENT_SECRET }}
+      ARM_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+      ARM_TENANT_ID:       ${{ secrets.AZURE_TENANT_ID }}
+
     steps:
-      - run: echo "stub"
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Azure Login
+        uses: azure/login@v2
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v2
+        with:
+          terraform_version: 1.5
+
+      - name: Configure kubectl
+        run: |
+          az aks get-credentials \
+            --resource-group ${{ vars.AKS_RESOURCE_GROUP }} \
+            --name           ${{ vars.AKS_CLUSTER_NAME }} \
+            --overwrite-existing
+
+      - name: "Terraform Init (relibank-${{ github.event.inputs.target_color }})"
+        working-directory: terraform/aks/relibank-${{ github.event.inputs.target_color }}
+        run: |
+          terraform init \
+            --backend-config="resource_group_name=ReliBank" \
+            --backend-config="storage_account_name=${{ vars.TF_STATE_STORAGE_ACCOUNT }}" \
+            --backend-config="container_name=${{ vars.TF_STATE_CONTAINER }}" \
+            --backend-config="key=relibank/${{ github.event.inputs.environment }}/${{ github.event.inputs.target_color }}.tfstate" \
+            --reconfigure --upgrade
+
+      - name: "Terraform Apply (relibank-${{ github.event.inputs.target_color }})"
+        working-directory: terraform/aks/relibank-${{ github.event.inputs.target_color }}
+        run: |
+          terraform apply \
+            -var="demo_environment=${{ github.event.inputs.environment }}" \
+            -var="aks_cluster_name=${{ vars.AKS_CLUSTER_NAME }}" \
+            -var="aks_resource_group=${{ vars.AKS_RESOURCE_GROUP }}" \
+            -var="acr_server=${{ vars.ACR_SERVER }}" \
+            -var="new_relic_license_key=${{ secrets.NR_LICENSE_KEY }}" \
+            -var="new_relic_account_id=${{ vars.NR_ACCOUNT_ID }}" \
+            -var="mssql_sa_user=${{ secrets.MSSQL_SA_USER }}" \
+            -var="mssql_sa_password=${{ secrets.MSSQL_SA_PASSWORD }}" \
+            -var="postgres_user=${{ secrets.POSTGRES_USER }}" \
+            -var="postgres_password=${{ secrets.POSTGRES_PASSWORD }}" \
+            -var="tf_state_storage_account=${{ vars.TF_STATE_STORAGE_ACCOUNT }}" \
+            -var="tf_state_container=${{ vars.TF_STATE_CONTAINER }}" \
+            -var="assistant_b_delay_seconds=${{ github.event.inputs.assistant_b_delay_seconds }}" \
+            --auto-approve
+
+      - name: Deployment Summary
+        run: |
+          echo "========================================"
+          echo "DEPLOY COMPLETE"
+          echo "========================================"
+          echo "Environment: ${{ github.event.inputs.environment }}"
+          echo "Color:       ${{ github.event.inputs.target_color }}"
+          echo "Cluster:     ${{ vars.AKS_CLUSTER_NAME }}"
+          echo "ACR:         ${{ vars.ACR_SERVER }}"
+          kubectl get deploy -n relibank-${{ github.event.inputs.target_color }} || true
+
+  # ---------------------------------------------------------------------------
+  # Destroy color — terraform destroy on relibank-{color}/
+  # ---------------------------------------------------------------------------
+  destroy-relibank:
+    name: Destroy ReliBank
+    if: ${{ github.event.inputs.action_type == 'destroy' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    environment: ${{ github.event.inputs.environment }}
+    env:
+      ARM_CLIENT_ID:       ${{ secrets.AZURE_CLIENT_ID }}
+      ARM_CLIENT_SECRET:   ${{ secrets.AZURE_CLIENT_SECRET }}
+      ARM_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+      ARM_TENANT_ID:       ${{ secrets.AZURE_TENANT_ID }}
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Azure Login
+        uses: azure/login@v2
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v2
+        with:
+          terraform_version: 1.5
+
+      - name: Configure kubectl
+        run: |
+          az aks get-credentials \
+            --resource-group ${{ vars.AKS_RESOURCE_GROUP }} \
+            --name           ${{ vars.AKS_CLUSTER_NAME }} \
+            --overwrite-existing
+
+      - name: "Terraform Init (relibank-${{ github.event.inputs.target_color }})"
+        working-directory: terraform/aks/relibank-${{ github.event.inputs.target_color }}
+        run: |
+          terraform init \
+            --backend-config="resource_group_name=ReliBank" \
+            --backend-config="storage_account_name=${{ vars.TF_STATE_STORAGE_ACCOUNT }}" \
+            --backend-config="container_name=${{ vars.TF_STATE_CONTAINER }}" \
+            --backend-config="key=relibank/${{ github.event.inputs.environment }}/${{ github.event.inputs.target_color }}.tfstate" \
+            --reconfigure --upgrade
+
+      - name: "Terraform Destroy (relibank-${{ github.event.inputs.target_color }})"
+        working-directory: terraform/aks/relibank-${{ github.event.inputs.target_color }}
+        run: |
+          terraform destroy \
+            -var="demo_environment=${{ github.event.inputs.environment }}" \
+            -var="aks_cluster_name=${{ vars.AKS_CLUSTER_NAME }}" \
+            -var="aks_resource_group=${{ vars.AKS_RESOURCE_GROUP }}" \
+            -var="acr_server=${{ vars.ACR_SERVER }}" \
+            -var="new_relic_license_key=${{ secrets.NR_LICENSE_KEY }}" \
+            -var="new_relic_account_id=${{ vars.NR_ACCOUNT_ID }}" \
+            -var="mssql_sa_user=${{ secrets.MSSQL_SA_USER }}" \
+            -var="mssql_sa_password=${{ secrets.MSSQL_SA_PASSWORD }}" \
+            -var="postgres_user=${{ secrets.POSTGRES_USER }}" \
+            -var="postgres_password=${{ secrets.POSTGRES_PASSWORD }}" \
+            -var="tf_state_storage_account=${{ vars.TF_STATE_STORAGE_ACCOUNT }}" \
+            -var="tf_state_container=${{ vars.TF_STATE_CONTAINER }}" \
+            -var="assistant_b_delay_seconds=${{ github.event.inputs.assistant_b_delay_seconds }}" \
+            --auto-approve
+
+  # ---------------------------------------------------------------------------
+  # Direct traffic — terraform apply on traffic_management/
+  # ---------------------------------------------------------------------------
+  direct-traffic-relibank:
+    name: Direct Traffic
+    if: ${{ github.event.inputs.action_type == 'direct_traffic' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    environment: ${{ github.event.inputs.environment }}
+    env:
+      ARM_CLIENT_ID:       ${{ secrets.AZURE_CLIENT_ID }}
+      ARM_CLIENT_SECRET:   ${{ secrets.AZURE_CLIENT_SECRET }}
+      ARM_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+      ARM_TENANT_ID:       ${{ secrets.AZURE_TENANT_ID }}
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Azure Login
+        uses: azure/login@v2
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v2
+        with:
+          terraform_version: 1.5
+
+      - name: Configure kubectl
+        run: |
+          az aks get-credentials \
+            --resource-group ${{ vars.AKS_RESOURCE_GROUP }} \
+            --name           ${{ vars.AKS_CLUSTER_NAME }} \
+            --overwrite-existing
+
+      - name: "Terraform Init (traffic_management)"
+        working-directory: terraform/aks/traffic_management
+        run: |
+          terraform init \
+            --backend-config="resource_group_name=ReliBank" \
+            --backend-config="storage_account_name=${{ vars.TF_STATE_STORAGE_ACCOUNT }}" \
+            --backend-config="container_name=${{ vars.TF_STATE_CONTAINER }}" \
+            --backend-config="key=relibank/${{ github.event.inputs.environment }}/traffic_management.tfstate" \
+            --reconfigure --upgrade
+
+      - name: "Direct Traffic to ${{ github.event.inputs.target_color }}"
+        working-directory: terraform/aks/traffic_management
+        run: |
+          terraform apply \
+            -var="demo_environment=${{ github.event.inputs.environment }}" \
+            -var="target_color=${{ github.event.inputs.target_color }}" \
+            -var="aks_cluster_name=${{ vars.AKS_CLUSTER_NAME }}" \
+            -var="aks_resource_group=${{ vars.AKS_RESOURCE_GROUP }}" \
+            -var="dns_zone=${{ vars.DNS_ZONE }}" \
+            --auto-approve
+
+  # ---------------------------------------------------------------------------
+  # Post-deployment tests — invoke test-suite.yml against the freshly deployed env
+  # ---------------------------------------------------------------------------
+  post-deployment-tests:
+    name: Post-deployment tests
+    needs: [deploy-relibank]
+    if: ${{ github.event.inputs.action_type == 'deploy' && needs.deploy-relibank.result == 'success' }}
+    uses: ./.github/workflows/test-suite.yml
+    secrets: inherit
+    with:
+      target_environment: ${{ github.event.inputs.environment }}
+      test_suite: all

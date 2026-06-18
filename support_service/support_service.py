@@ -1,3 +1,34 @@
+"""
+support-service — multi-agent banking assistant.
+
+ARCHITECTURE (read before adding AI infrastructure)
+====================================================
+The deployed AI path is **LangGraph chat-completions**, not the OpenAI
+Assistants API. Coordinator and Specialist are LangGraph graph nodes built
+with `AzureChatOpenAI` / `create_agent` — they call the standard chat
+completions endpoint and orchestrate via in-process state. There is **no
+Assistants API code path in production**. See LangGraphSupportService below.
+
+What this means for ops:
+- No `assistants.create()` call needs to happen at deploy time.
+- No `asst_...` IDs need to be created, stored, or injected into pods.
+- The only AOAI config support-service needs is `AZURE_OPENAI_ENDPOINT` +
+  `AZURE_OPENAI_API_KEY` (runtime-injected via app_module's k8s Secret) plus
+  the deployed model name (currently hardcoded to gpt-4-1).
+
+Vestigial state to ignore:
+- Some prod cluster pods may have `ASSISTANT_A_ID` / `ASSISTANT_B_ID` set in
+  their env from a frozen image built before the LangGraph migration. Those
+  values are dead — nothing reads them. Don't reintroduce wiring for them.
+- Older `*_assistants.py` / `setup_k8s_azure.sh` / older support_service docs
+  have been removed because they belonged to the abandoned Assistants-API
+  flow. If git history surfaces them, treat as historical only.
+
+If you genuinely want to add an Assistants-API path, do it deliberately —
+don't lean on leftover env vars or scripts as evidence that "it's already
+wired."
+"""
+
 # Force rebuild for New Relic logging
 import os
 import sys
@@ -476,11 +507,12 @@ is_ready: bool = False
 MODEL_ID = "gpt-4-1"  # Azure model name
 AZURE_API_VERSION = "2024-05-01-preview"
 
-# Azure OpenAI Assistants configuration
+# Azure OpenAI configuration. The deployed AI flow is LangGraph chat-completions —
+# we do NOT use the OpenAI Assistants API. ASSISTANT_*_ID env vars are intentionally
+# absent; if you find yourself reaching for them, see the architecture note in the
+# module docstring at the top of this file.
 AZURE_OPENAI_ENDPOINT = os.getenv("AZURE_OPENAI_ENDPOINT")
 AZURE_OPENAI_API_KEY = os.getenv("AZURE_OPENAI_API_KEY")
-ASSISTANT_A_ID = os.getenv("ASSISTANT_A_ID")
-ASSISTANT_B_ID = os.getenv("ASSISTANT_B_ID")
 
 # Demo/Testing: Artificial delay for Assistant B (in seconds)
 # Set to 5-10 to demonstrate Assistant B as bottleneck in New Relic

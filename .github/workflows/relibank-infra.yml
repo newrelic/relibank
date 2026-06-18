@@ -22,6 +22,15 @@ on:
           - sandbox
           - staging
           - prod
+      stage:
+        description: "Which stage(s) to apply (deploy only; ignored on destroy). Use ai_services or notifications to skip cluster + infra and just rebuild that piece."
+        type: choice
+        required: true
+        default: "all"
+        options:
+          - all
+          - ai_services
+          - notifications
 
 jobs:
 
@@ -73,6 +82,11 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 60
     environment: ${{ github.event.inputs.environment }}
+    env:
+      ARM_CLIENT_ID:       ${{ secrets.AZURE_CLIENT_ID }}
+      ARM_CLIENT_SECRET:   ${{ secrets.AZURE_CLIENT_SECRET }}
+      ARM_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+      ARM_TENANT_ID:       ${{ secrets.AZURE_TENANT_ID }}
 
     steps:
       - name: Checkout repo
@@ -92,6 +106,7 @@ jobs:
       # Stage 1 — AKS cluster (mirrors demogorgon init/)
       # ------------------------------------------------------------------
       - name: "Terraform Init (Stage 1 cluster)"
+        if: ${{ github.event.inputs.stage == 'all' }}
         working-directory: terraform/aks/cluster
         run: |
           terraform init \
@@ -102,6 +117,7 @@ jobs:
             --reconfigure --upgrade
 
       - name: "Terraform Apply (Stage 1 cluster)"
+        if: ${{ github.event.inputs.stage == 'all' }}
         working-directory: terraform/aks/cluster
         run: |
           terraform apply \
@@ -109,12 +125,14 @@ jobs:
             -var="aks_cluster_name=${{ vars.AKS_CLUSTER_NAME }}" \
             -var="resource_group_name=${{ vars.AKS_RESOURCE_GROUP }}" \
             -var="acr_name=${{ vars.ACR_NAME }}" \
+            -var="location=${{ vars.AZURE_LOCATION }}" \
             --auto-approve
 
       # ------------------------------------------------------------------
       # Stage 2 — cluster-wide infra (mirrors demogorgon infra/)
       # ------------------------------------------------------------------
       - name: Configure kubectl (after cluster is ready)
+        if: ${{ github.event.inputs.stage == 'all' }}
         run: |
           az aks get-credentials \
             --resource-group ${{ vars.AKS_RESOURCE_GROUP }} \
@@ -122,6 +140,7 @@ jobs:
             --overwrite-existing
 
       - name: "Terraform Init (Stage 2 infra)"
+        if: ${{ github.event.inputs.stage == 'all' }}
         working-directory: terraform/aks/infra
         run: |
           terraform init \
@@ -132,6 +151,7 @@ jobs:
             --reconfigure --upgrade
 
       - name: "Terraform Apply (Stage 2 infra)"
+        if: ${{ github.event.inputs.stage == 'all' }}
         working-directory: terraform/aks/infra
         run: |
           terraform apply \
@@ -139,6 +159,106 @@ jobs:
             -var="aks_cluster_name=${{ vars.AKS_CLUSTER_NAME }}" \
             -var="aks_resource_group=${{ vars.AKS_RESOURCE_GROUP }}" \
             --auto-approve
+
+      # ------------------------------------------------------------------
+      # Stage 3 — AOAI account + model deployments
+      # (Deployed AI flow is LangGraph chat-completions; no Assistants API
+      # is used, so no assistant entities are created or referenced.)
+      # ------------------------------------------------------------------
+      - name: "Terraform Init (Stage 3 ai_services)"
+        if: ${{ github.event.inputs.stage == 'all' || github.event.inputs.stage == 'ai_services' }}
+        working-directory: terraform/aks/ai_services
+        run: |
+          terraform init \
+            --backend-config="resource_group_name=ReliBank" \
+            --backend-config="storage_account_name=${{ vars.TF_STATE_STORAGE_ACCOUNT }}" \
+            --backend-config="container_name=${{ vars.TF_STATE_CONTAINER }}" \
+            --backend-config="key=relibank/${{ github.event.inputs.environment }}/ai_services.tfstate" \
+            --reconfigure --upgrade
+
+      # Defensive: Azure soft-deletes Cognitive Services accounts on destroy with a 48h
+      # retention window. If a prior destroy was interrupted or TF state diverged, the
+      # name is reserved in the recycle bin and `terraform apply` 409s on create.
+      # Idempotent: no-op when nothing's in the recycle bin.
+      - name: "Pre-apply: purge any soft-deleted AOAI account"
+        if: ${{ github.event.inputs.stage == 'all' || github.event.inputs.stage == 'ai_services' }}
+        run: |
+          AOAI_NAME="relibank-${{ github.event.inputs.environment }}-openai"
+          LOCATION="${{ vars.AZURE_LOCATION }}"
+          RG="${{ vars.AKS_RESOURCE_GROUP }}"
+          if az cognitiveservices account list-deleted --query "[?name=='${AOAI_NAME}'] | [0].name" -o tsv | grep -q .; then
+            echo "Found orphan in recycle bin — purging ${AOAI_NAME}"
+            az cognitiveservices account purge --location "${LOCATION}" --resource-group "${RG}" --name "${AOAI_NAME}"
+            echo "Purged."
+          else
+            echo "No orphan in recycle bin — nothing to purge."
+          fi
+
+      - name: "Terraform Apply (Stage 3 ai_services)"
+        if: ${{ github.event.inputs.stage == 'all' || github.event.inputs.stage == 'ai_services' }}
+        working-directory: terraform/aks/ai_services
+        run: |
+          terraform apply \
+            -var="demo_environment=${{ github.event.inputs.environment }}" \
+            -var="location=${{ vars.AZURE_LOCATION }}" \
+            -var="aks_resource_group=${{ vars.AKS_RESOURCE_GROUP }}" \
+            --auto-approve
+
+      # ------------------------------------------------------------------
+      # Stage 4 — notifications Function App + ACS + email service.
+      # Function code publishes here too (env-scoped resource: blue + green
+      # share the same Function URL, so code-publish must NOT be in the
+      # per-color deploy workflow — see plan rationale).
+      # ------------------------------------------------------------------
+      - name: "Terraform Init (Stage 4 notifications)"
+        if: ${{ github.event.inputs.stage == 'all' || github.event.inputs.stage == 'notifications' }}
+        working-directory: terraform/aks/notifications
+        run: |
+          terraform init \
+            --backend-config="resource_group_name=ReliBank" \
+            --backend-config="storage_account_name=${{ vars.TF_STATE_STORAGE_ACCOUNT }}" \
+            --backend-config="container_name=${{ vars.TF_STATE_CONTAINER }}" \
+            --backend-config="key=relibank/${{ github.event.inputs.environment }}/notifications.tfstate" \
+            --reconfigure --upgrade
+
+      - name: "Terraform Apply (Stage 4 notifications)"
+        if: ${{ github.event.inputs.stage == 'all' || github.event.inputs.stage == 'notifications' }}
+        working-directory: terraform/aks/notifications
+        run: |
+          terraform apply \
+            -var="demo_environment=${{ github.event.inputs.environment }}" \
+            -var="location=${{ vars.AZURE_LOCATION }}" \
+            -var="aks_resource_group=${{ vars.AKS_RESOURCE_GROUP }}" \
+            -var="sms_sender_phone=${{ secrets.AZURE_ACS_SMS_PHONE_NUMBER }}" \
+            -var="sms_throttle_percentage=${{ vars.SMS_THROTTLE_PERCENTAGE || 5 }}" \
+            --auto-approve
+
+      - name: Install Azure Functions Core Tools
+        if: ${{ github.event.inputs.stage == 'all' || github.event.inputs.stage == 'notifications' }}
+        run: npm install -g azure-functions-core-tools@4 --unsafe-perm true
+
+      # `func azure functionapp publish` is racy against fresh Function App
+      # creation — first attempt often fails with "Sequence contains no
+      # elements" while site settings finish propagating. Retry up to 3 times
+      # with 30s backoff before giving up.
+      - name: Publish Notifications Function code
+        if: ${{ github.event.inputs.stage == 'all' || github.event.inputs.stage == 'notifications' }}
+        working-directory: notifications_service/azure_function
+        run: |
+          set -e
+          for i in 1 2 3; do
+            echo "Publish attempt $i..."
+            if func azure functionapp publish relibank-${{ github.event.inputs.environment }}-notifications-fn --python; then
+              echo "Publish succeeded on attempt $i."
+              exit 0
+            fi
+            if [ "$i" -lt 3 ]; then
+              echo "Attempt $i failed; sleeping 30s before retry..."
+              sleep 30
+            fi
+          done
+          echo "All 3 publish attempts failed."
+          exit 1
 
       - name: Deployment Summary
         run: |
@@ -164,6 +284,11 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 60
     environment: ${{ github.event.inputs.environment }}
+    env:
+      ARM_CLIENT_ID:       ${{ secrets.AZURE_CLIENT_ID }}
+      ARM_CLIENT_SECRET:   ${{ secrets.AZURE_CLIENT_SECRET }}
+      ARM_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+      ARM_TENANT_ID:       ${{ secrets.AZURE_TENANT_ID }}
 
     steps:
       - name: Checkout repo
@@ -186,7 +311,96 @@ jobs:
         with:
           terraform_version: 1.5
 
-      # Stage 2 first — cluster-wide infra
+      # Stage 4 first — notifications (Function App + ACS + email service)
+      - name: "Terraform Init (Stage 4 notifications)"
+        working-directory: terraform/aks/notifications
+        run: |
+          terraform init \
+            --backend-config="resource_group_name=ReliBank" \
+            --backend-config="storage_account_name=${{ vars.TF_STATE_STORAGE_ACCOUNT }}" \
+            --backend-config="container_name=${{ vars.TF_STATE_CONTAINER }}" \
+            --backend-config="key=relibank/${{ github.event.inputs.environment }}/notifications.tfstate" \
+            --reconfigure --upgrade
+
+      - name: "Terraform Destroy (Stage 4 notifications)"
+        working-directory: terraform/aks/notifications
+        run: |
+          terraform destroy \
+            -var="demo_environment=${{ github.event.inputs.environment }}" \
+            -var="location=${{ vars.AZURE_LOCATION }}" \
+            -var="aks_resource_group=${{ vars.AKS_RESOURCE_GROUP }}" \
+            -var="sms_sender_phone=${{ secrets.AZURE_ACS_SMS_PHONE_NUMBER }}" \
+            -var="sms_throttle_percentage=${{ vars.SMS_THROTTLE_PERCENTAGE || 5 }}" \
+            --auto-approve
+
+      # Stage 3 — ai_services (AOAI account + model deployments)
+      - name: "Terraform Init (Stage 3 ai_services)"
+        working-directory: terraform/aks/ai_services
+        run: |
+          terraform init \
+            --backend-config="resource_group_name=ReliBank" \
+            --backend-config="storage_account_name=${{ vars.TF_STATE_STORAGE_ACCOUNT }}" \
+            --backend-config="container_name=${{ vars.TF_STATE_CONTAINER }}" \
+            --backend-config="key=relibank/${{ github.event.inputs.environment }}/ai_services.tfstate" \
+            --reconfigure --upgrade
+
+      - name: "Terraform Destroy (Stage 3 ai_services)"
+        working-directory: terraform/aks/ai_services
+        run: |
+          terraform destroy \
+            -var="demo_environment=${{ github.event.inputs.environment }}" \
+            -var="location=${{ vars.AZURE_LOCATION }}" \
+            -var="aks_resource_group=${{ vars.AKS_RESOURCE_GROUP }}" \
+            --auto-approve
+
+      # Stage 2 — cluster-wide infra
+      #
+      # Pre-Stage-2 cleanup. Chaos-mesh CRs (StressChaos, PodChaos, etc.) carry
+      # a `chaos-mesh/records` finalizer that only the chaos-mesh controller can
+      # clear. If the helm_release.chaos_mesh resource is destroyed before its
+      # CRs are gone, the controller disappears, the finalizers stick, and the
+      # `relibank` namespace deletion hangs (TF eventually times out with
+      # "context deadline exceeded"). Delete CRs while the controller is still
+      # running, then force-clear any stragglers.
+      - name: "Pre Stage 2 destroy — clean chaos-mesh CRs"
+        run: |
+          set +e
+          kinds=$(kubectl api-resources --api-group=chaos-mesh.org -o name 2>/dev/null | tr '\n' ' ')
+          if [ -z "$kinds" ]; then
+            echo "No chaos-mesh CRDs registered, nothing to clean."
+            exit 0
+          fi
+          echo "chaos-mesh resource kinds: $kinds"
+
+          for kind in $kinds; do
+            kubectl delete "$kind" -A --all --wait=false --ignore-not-found 2>&1 | tail -1
+          done
+
+          for i in $(seq 1 6); do
+            remaining=0
+            for kind in $kinds; do
+              n=$(kubectl get "$kind" -A --no-headers --ignore-not-found 2>/dev/null | wc -l | tr -d ' ')
+              remaining=$((remaining + n))
+            done
+            if [ "$remaining" -eq 0 ]; then
+              echo "All chaos-mesh CRs cleared."
+              exit 0
+            fi
+            echo "Still $remaining chaos-mesh CR(s) waiting on finalizers..."
+            sleep 5
+          done
+
+          echo "Force-clearing residual chaos-mesh finalizers..."
+          for kind in $kinds; do
+            kubectl get "$kind" -A --no-headers --ignore-not-found -o custom-columns="NS:.metadata.namespace,NAME:.metadata.name" 2>/dev/null \
+              | while read ns name; do
+                  [ -z "$name" ] && continue
+                  echo "  patch $kind/$name in $ns"
+                  kubectl patch "$kind" "$name" -n "$ns" --type=merge -p '{"metadata":{"finalizers":[]}}' 2>&1 | tail -1
+                done
+          done
+          exit 0
+
       - name: "Terraform Init (Stage 2 infra)"
         working-directory: terraform/aks/infra
         run: |
@@ -225,4 +439,5 @@ jobs:
             -var="aks_cluster_name=${{ vars.AKS_CLUSTER_NAME }}" \
             -var="resource_group_name=${{ vars.AKS_RESOURCE_GROUP }}" \
             -var="acr_name=${{ vars.ACR_NAME }}" \
+            -var="location=${{ vars.AZURE_LOCATION }}" \
             --auto-approve

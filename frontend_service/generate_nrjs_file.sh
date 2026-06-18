@@ -11,11 +11,12 @@ fi
 
 # Check if required environment variables are set
 if [ -z "$NEW_RELIC_BROWSER_APPLICATION_ID" ] || \
-   [ -z "$NEW_RELIC_LICENSE_KEY" ] || \
+   [ -z "$NEW_RELIC_BROWSER_LICENSE_KEY" ] || \
    [ -z "$NEW_RELIC_ACCOUNT_ID" ] || \
    [ -z "$NEW_RELIC_TRUST_KEY" ]; then
     echo "Error: One or more required environment variables are missing."
-    echo "Required: NEW_RELIC_BROWSER_APPLICATION_ID, NEW_RELIC_LICENSE_KEY, NEW_RELIC_ACCOUNT_ID, NEW_RELIC_TRUST_KEY"
+    echo "Required: NEW_RELIC_BROWSER_APPLICATION_ID, NEW_RELIC_BROWSER_LICENSE_KEY, NEW_RELIC_ACCOUNT_ID, NEW_RELIC_TRUST_KEY"
+    echo "NOTE: NEW_RELIC_BROWSER_LICENSE_KEY is the *browser* ingest key (NRJS- prefix), NOT the APM key (FFFFNRAL suffix)."
     exit 1
 fi
 
@@ -26,8 +27,10 @@ fi
 # The 'g' flag ensures all occurrences on a line are replaced
 sed -i "s#__APPLICATION_ID__#$NEW_RELIC_BROWSER_APPLICATION_ID#g" "$TARGET_FILE"
 
-# 2. Replace __LICENSE_KEY__
-sed -i "s#__LICENSE_KEY__#$NEW_RELIC_LICENSE_KEY#g" "$TARGET_FILE"
+# 2. Replace __LICENSE_KEY__ with the *browser* license key (NRJS-...). Browser license key is
+#    distinct from the APM ingest key (FFFFNRAL suffix) — wiring the APM key here causes NR to
+#    silently re-route beacons to a fallback browser app and breaks .register() / MicroFrontEndTiming.
+sed -i "s#__LICENSE_KEY__#$NEW_RELIC_BROWSER_LICENSE_KEY#g" "$TARGET_FILE"
 
 # 3. Replace __ACCOUNT_ID__
 sed -i "s#__ACCOUNT_ID__#$NEW_RELIC_ACCOUNT_ID#g" "$TARGET_FILE"
