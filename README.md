@@ -22,7 +22,7 @@ Relibank simulates a banking system with separate services for accounts, transac
   - Evaluates payment transactions before processing
   - Calls support-service AI agents for intelligent risk analysis
 - **support-service** - Relibank's AI support service (FastAPI)
-  - LangGraph-based support for customer support
+  - **LangGraph chat-completions** — Coordinator + Specialist as graph nodes built with `AzureChatOpenAI` / `create_agent`. **Not** the OpenAI Assistants API. Don't wire `ASSISTANT_*_ID` env vars or revive `create_assistants.py`-style scripts; see [docs/primer.md → AI architecture](docs/primer.md#ai-architecture-langgraph-not-assistants-api) and the module docstring at the top of [support_service.py](support_service/support_service.py) for the trap-prevention rationale.
   - Payment risk assessment using Azure OpenAI (gpt-4o/gpt-4o-mini)
 - **notifications-service** - Sends notifications via Kafka
 - **scheduler-service** - Schedules events via Kafka
