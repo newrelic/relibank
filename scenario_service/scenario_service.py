@@ -24,6 +24,24 @@ from datetime import datetime, timedelta
 import httpx
 import pyodbc
 
+# Custom logging filter to suppress repetitive health check / config endpoint logs
+class HealthCheckFilter(logging.Filter):
+    """Suppress repetitive INFO logs for health check and config endpoints"""
+    def filter(self, record: logging.LogRecord) -> bool:
+        # Suppress INFO-level logs for config endpoints that get polled frequently
+        if record.levelno == logging.INFO:
+            message = record.getMessage()
+            if 'GET /scenario-runner/api/dem-memory-leak/config' in message:
+                return False
+            if 'GET /scenario-runner/api/ab-testing/config' in message:
+                return False
+            if 'GET /scenario-runner/api/payment-scenarios/config' in message:
+                return False
+        return True
+
+# Apply the filter to uvicorn's access logger
+logging.getLogger("uvicorn.access").addFilter(HealthCheckFilter())
+
 # Dictionary to store parsed Chaos Mesh experiments
 CHAOS_EXPERIMENTS: Dict[str, Dict[str, Any]] = {}
 STRESS_EXPERIMENTS: Dict[str, Dict[str, Any]] = {}
@@ -82,6 +100,19 @@ AB_TEST_SCENARIOS = {
     "db_pool_stress_enabled": False,
     "db_pool_stress_delay_ms": 500,  # How long to hold each connection (milliseconds)
     "db_pool_stress_affected_pool": "pool-a",  # Which pool is affected (pool-a or pool-b)
+}
+
+# DEM Memory Leak Scenarios (Forrester Demo)
+DEM_FORRESTER_SCENARIOS = {
+    # Persistent toggle scenario
+    "memory_leak_toggle_enabled": False,
+    "memory_leak_rate_mb_per_sec": 10,  # MB allocated per second
+    "memory_leak_max_mb": 500,  # Maximum memory to allocate before capping
+
+    # One-time trigger scenario
+    "memory_leak_trigger_active": False,
+    "memory_leak_trigger_deadline": None,  # time.monotonic() value when it should stop
+    "memory_leak_trigger_duration_sec": 300,  # Default 5 minutes (300 seconds)
 }
 
 # Rate limiting for chaos scenarios (abuse prevention)
@@ -305,6 +336,23 @@ async def get_scenarios():
             "affected_pool": AB_TEST_SCENARIOS["db_pool_stress_affected_pool"]
         }
     })
+    # DEM Memory Leak scenarios
+    scenarios_list.append({
+        "name": "dem-memory-leak-5min",
+        "description": "DEM Memory Leak - Forrester (5-min auto-expire)",
+        "type": "stress-chaos",
+        "target_service": "accounts-service"
+    })
+    scenarios_list.append({
+        "name": "dem_memory_leak_toggle",
+        "description": "DEM Memory Leak - Forrester (Manual Toggle)",
+        "type": "ab_test",
+        "enabled": DEM_FORRESTER_SCENARIOS["memory_leak_toggle_enabled"],
+        "config": {
+            "rate_mb_per_sec": DEM_FORRESTER_SCENARIOS["memory_leak_rate_mb_per_sec"],
+            "max_mb": DEM_FORRESTER_SCENARIOS["memory_leak_max_mb"]
+        }
+    })
     return scenarios_list
 
 @app.post("/scenario-runner/api/trigger_chaos/{scenario_name}")
@@ -437,6 +485,34 @@ async def trigger_chaos_experiment(scenario_name: str):
     except ApiException as e:
         print(f"Error creating PodChaos object: {e}")
         return {"status": "error", "message": f"Failed to trigger experiment: {e.reason}"}
+
+@app.post("/scenario-runner/api/trigger_stress/dem-memory-leak-5min")
+async def trigger_dem_memory_leak_5min():
+    """Triggers a 5-minute DEM memory leak scenario that auto-expires (one-time button)"""
+    import time
+
+    # Check if already running
+    if DEM_FORRESTER_SCENARIOS["memory_leak_trigger_active"]:
+        deadline = DEM_FORRESTER_SCENARIOS["memory_leak_trigger_deadline"]
+        if deadline and time.monotonic() < deadline:
+            remaining = int(deadline - time.monotonic())
+            return {
+                "status": "error",
+                "message": f"DEM memory leak scenario already running. {remaining} seconds remaining."
+            }
+
+    # Start the scenario
+    duration_sec = DEM_FORRESTER_SCENARIOS["memory_leak_trigger_duration_sec"]
+    DEM_FORRESTER_SCENARIOS["memory_leak_trigger_active"] = True
+    DEM_FORRESTER_SCENARIOS["memory_leak_trigger_deadline"] = time.monotonic() + duration_sec
+
+    return {
+        "status": "success",
+        "message": f"DEM memory leak scenario triggered for {duration_sec // 60} minutes. Will auto-expire.",
+        "duration_seconds": duration_sec,
+        "rate_mb_per_sec": DEM_FORRESTER_SCENARIOS["memory_leak_rate_mb_per_sec"],
+        "max_mb": DEM_FORRESTER_SCENARIOS["memory_leak_max_mb"]
+    }
 
 @app.post("/scenario-runner/api/trigger_stress/{scenario_name}")
 async def trigger_stress_experiment(scenario_name: str):
@@ -921,6 +997,56 @@ async def reset_ab_test_scenarios():
         "status": "success",
         "message": "All A/B test scenarios reset to defaults",
         "config": AB_TEST_SCENARIOS
+    }
+
+
+# ============================================================================
+# DEM Memory Leak Scenarios
+# ============================================================================
+
+@app.get("/scenario-runner/api/dem-memory-leak/config")
+async def get_dem_memory_leak_config():
+    """Get current DEM memory leak scenario configuration"""
+    return {
+        "status": "success",
+        "config": DEM_FORRESTER_SCENARIOS
+    }
+
+
+@app.post("/scenario-runner/api/dem-memory-leak/toggle")
+async def toggle_dem_memory_leak_manual(enabled: bool, rate_mb_per_sec: int = 10, max_mb: int = 500):
+    """Enable/disable DEM memory leak manually (persistent toggle)"""
+    if rate_mb_per_sec < 1 or rate_mb_per_sec > 100:
+        return {"status": "error", "message": "rate_mb_per_sec must be between 1 and 100"}
+    if max_mb < 100 or max_mb > 2000:
+        return {"status": "error", "message": "max_mb must be between 100 and 2000"}
+
+    DEM_FORRESTER_SCENARIOS["memory_leak_toggle_enabled"] = enabled
+    DEM_FORRESTER_SCENARIOS["memory_leak_rate_mb_per_sec"] = rate_mb_per_sec
+    DEM_FORRESTER_SCENARIOS["memory_leak_max_mb"] = max_mb
+
+    status_msg = "enabled" if enabled else "disabled"
+    return {
+        "status": "success",
+        "message": f"DEM memory leak manual toggle {status_msg} ({rate_mb_per_sec} MB/sec, max {max_mb} MB)",
+        "config": DEM_FORRESTER_SCENARIOS
+    }
+
+
+@app.post("/scenario-runner/api/dem-memory-leak/reset")
+async def reset_dem_memory_leak_scenarios():
+    """Reset all DEM memory leak scenarios to default values"""
+    DEM_FORRESTER_SCENARIOS["memory_leak_toggle_enabled"] = False
+    DEM_FORRESTER_SCENARIOS["memory_leak_rate_mb_per_sec"] = 10
+    DEM_FORRESTER_SCENARIOS["memory_leak_max_mb"] = 500
+    DEM_FORRESTER_SCENARIOS["memory_leak_trigger_active"] = False
+    DEM_FORRESTER_SCENARIOS["memory_leak_trigger_deadline"] = None
+    DEM_FORRESTER_SCENARIOS["memory_leak_trigger_duration_sec"] = 300
+
+    return {
+        "status": "success",
+        "message": "DEM memory leak scenarios reset to defaults",
+        "config": DEM_FORRESTER_SCENARIOS
     }
 
 
