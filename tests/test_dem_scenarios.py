@@ -109,13 +109,13 @@ def test_disable_dem_toggle(reset_dem_scenarios):
     print("✓ DEM memory leak toggle disabled successfully")
 
 
-def test_trigger_dem_5min_scenario(reset_dem_scenarios):
-    """Test triggering one-time 5-minute DEM memory leak scenario"""
-    print("\n=== Testing One-Time DEM Trigger (5-min) ===")
+def test_trigger_dem_30min_scenario(reset_dem_scenarios):
+    """Test triggering one-time 30-minute DEM memory leak scenario"""
+    print("\n=== Testing One-Time DEM Trigger (30-min) ===")
 
-    # Trigger the 5-minute scenario
+    # Trigger the 30-minute scenario
     response = requests.post(
-        f"{SCENARIO_SERVICE_URL}/scenario-runner/api/trigger_stress/dem-memory-leak-5min",
+        f"{SCENARIO_SERVICE_URL}/scenario-runner/api/trigger_stress/dem-memory-leak-30min",
         timeout=10
     )
 
@@ -127,7 +127,7 @@ def test_trigger_dem_5min_scenario(reset_dem_scenarios):
 
     assert data["status"] == "success", "Status is not success"
     assert "triggered" in data["message"].lower(), "Message doesn't mention triggered"
-    assert "5 minutes" in data["message"] or "300" in str(data.get("duration_seconds", "")), "Duration not mentioned"
+    assert "30 minutes" in data["message"] or "1800" in str(data.get("duration_seconds", "")), "Duration not mentioned"
 
     # Verify trigger is active
     config_response = requests.get(f"{SCENARIO_SERVICE_URL}/scenario-runner/api/dem-memory-leak/config", timeout=10)
@@ -145,7 +145,7 @@ def test_trigger_already_running_error(reset_dem_scenarios):
 
     # Trigger the scenario first time
     response1 = requests.post(
-        f"{SCENARIO_SERVICE_URL}/scenario-runner/api/trigger_stress/dem-memory-leak-5min",
+        f"{SCENARIO_SERVICE_URL}/scenario-runner/api/trigger_stress/dem-memory-leak-30min",
         timeout=10
     )
     assert response1.status_code == 200
@@ -154,7 +154,7 @@ def test_trigger_already_running_error(reset_dem_scenarios):
     # Try to trigger again immediately (should fail)
     time.sleep(1)  # Brief pause
     response2 = requests.post(
-        f"{SCENARIO_SERVICE_URL}/scenario-runner/api/trigger_stress/dem-memory-leak-5min",
+        f"{SCENARIO_SERVICE_URL}/scenario-runner/api/trigger_stress/dem-memory-leak-30min",
         timeout=10
     )
 
@@ -246,10 +246,10 @@ def test_reset_dem_scenarios_endpoint(reset_dem_scenarios):
     config = requests.get(f"{SCENARIO_SERVICE_URL}/scenario-runner/api/dem-memory-leak/config", timeout=10).json()["config"]
 
     assert config["memory_leak_toggle_enabled"] is False, "Toggle still enabled after reset"
-    assert config["memory_leak_rate_mb_per_sec"] == 10, "Rate not reset to default (10)"
+    assert config["memory_leak_rate_mb_per_sec"] == 0.27, "Rate not reset to default (0.27)"
     assert config["memory_leak_max_mb"] == 500, "Max MB not reset to default (500)"
     assert config["memory_leak_trigger_active"] is False, "Trigger still active after reset"
-    assert config["memory_leak_trigger_duration_sec"] == 300, "Duration not reset to default (300)"
+    assert config["memory_leak_trigger_duration_sec"] == 1800, "Duration not reset to default (1800)"
 
     print("✓ All DEM scenarios reset successfully")
 
@@ -268,7 +268,7 @@ def test_scenarios_api_includes_dem_scenarios():
     dem_toggle = None
 
     for scenario in scenarios:
-        if scenario.get("name") == "dem-memory-leak-5min":
+        if scenario.get("name") == "dem-memory-leak-30min":
             dem_trigger = scenario
         elif scenario.get("name") == "dem_memory_leak_toggle":
             dem_toggle = scenario
