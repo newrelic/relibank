@@ -25,6 +25,7 @@ on:
           - staging
           - sandbox
           - development
+          - analysts
 
       target_color:
         description: "Target deployment color (blue/green)"
