@@ -22,6 +22,7 @@ on:
           - sandbox
           - staging
           - prod
+          - analysts
       stage:
         description: "Which stage(s) to apply (deploy only; ignored on destroy). Use ai_services or notifications to skip cluster + infra and just rebuild that piece."
         type: choice
