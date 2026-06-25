@@ -16,6 +16,7 @@ on:
           - sandbox
           - staging
           - prod
+          - analysts
       test_suite:
         description: 'Test suite to run'
         required: false
