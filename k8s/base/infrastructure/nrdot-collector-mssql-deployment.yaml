@@ -42,7 +42,7 @@ spec:
         - name: INTERNAL_TELEMETRY_SERVICE_NAME
           value: "relibank-mssql-collector"
         - name: INTERNAL_TELEMETRY_OTLP_ENDPOINT
-          value: "https://otlp.nr-data.net"
+          value: "http://nrdot-collector:4318"
         - name: INTERNAL_TELEMETRY_NEW_RELIC_LICENSE_KEY
           valueFrom:
             secretKeyRef:

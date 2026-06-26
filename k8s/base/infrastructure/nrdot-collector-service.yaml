@@ -1,0 +1,23 @@
+# Service for the nr-k8s-otel-collector daemonset (helm release "nrdot-bundle").
+# internalTrafficPolicy=Local routes each sender to the collector pod on its
+# own node, avoiding cross-node hops. The selector matches labels the chart
+# applies to its DaemonSet pods.
+apiVersion: v1
+kind: Service
+metadata:
+  name: nrdot-collector
+  namespace: relibank
+spec:
+  selector:
+    app.kubernetes.io/instance: nrdot-bundle
+    component: daemonset
+  internalTrafficPolicy: Local
+  ports:
+    - name: otlp-grpc
+      port: 4317
+      targetPort: 4317
+      protocol: TCP
+    - name: otlp-http
+      port: 4318
+      targetPort: 4318
+      protocol: TCP

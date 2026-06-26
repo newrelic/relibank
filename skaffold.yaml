@@ -190,6 +190,19 @@ deploy:
         newrelic-pixie.apiKey: "{{.NEW_RELIC_LICENSE_KEY}}"
       wait: true
       upgradeOnChange: true
+    - name: nrdot-bundle
+      remoteChart: nr-k8s-otel-collector
+      namespace: relibank
+      createNamespace: true
+      repo: https://helm-charts.newrelic.com
+      version: 0.11.1
+      valuesFiles:
+      - k8s/newrelic/nrdot-values.yaml
+      setValueTemplates:
+        global.licenseKey: "{{.NEW_RELIC_LICENSE_KEY}}"
+        global.cluster: "relibank-dev"
+      wait: true
+      upgradeOnChange: true
   kubectl:
     hooks:
       before:

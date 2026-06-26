@@ -31,6 +31,7 @@ resources:
 - infrastructure/kafka-deployment.yaml
 - infrastructure/otel-collector-kafka-deployment.yaml
 - infrastructure/nrdot-collector-mssql-deployment.yaml
+- infrastructure/nrdot-collector-service.yaml
 
 # Application Services
 - services/frontend-service-deployment.yaml

@@ -35,7 +35,7 @@ spec:
         - name: INTERNAL_TELEMETRY_SERVICE_NAME
           value: "relibank-kafka-collector"
         - name: INTERNAL_TELEMETRY_OTLP_ENDPOINT
-          value: "https://otlp.nr-data.net"
+          value: "http://nrdot-collector:4318"
         # INTERNAL_TELEMETRY_NEW_RELIC_LICENSE_KEY not needed - internal-telemetry-config.yaml uses NEW_RELIC_LICENSE_KEY directly
         volumeMounts:
         - name: config

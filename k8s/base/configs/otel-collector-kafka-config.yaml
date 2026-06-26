@@ -116,11 +116,9 @@ data:
 
     exporters:
       otlp/newrelic:
-        endpoint: https://otlp.nr-data.net:4317
-        headers:
-          api-key: ${env:NEW_RELIC_LICENSE_KEY}
+        endpoint: nrdot-collector:4317
         tls:
-          insecure: true  # Set to false for production; true for local testing without CA certs
+          insecure: true
         compression: gzip
         timeout: 30s
 

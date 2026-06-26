@@ -315,9 +315,7 @@ data:
 
     exporters:
       otlphttp:
-        endpoint: ${env:NEW_RELIC_OTLP_ENDPOINT}
-        headers:
-          api-key: ${env:NEW_RELIC_LICENSE_KEY}
+        endpoint: http://nrdot-collector:4318
         compression: gzip
       debug:
         verbosity: detailed
