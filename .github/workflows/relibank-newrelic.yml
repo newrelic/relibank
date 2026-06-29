@@ -1,0 +1,138 @@
+name: ReliBank NR
+
+run-name: ${{ inputs.action_type }} ReliBank NR entities in ${{ inputs.environment }} by @${{ github.actor }}
+
+on:
+  workflow_dispatch:
+    inputs:
+      action_type:
+        description: "deploy | destroy"
+        type: choice
+        required: true
+        default: "deploy"
+        options:
+          - deploy
+          - destroy
+      environment:
+        description: "Select environment"
+        type: choice
+        required: true
+        default: "sandbox"
+        options:
+          - sandbox
+          - staging
+          - prod
+          - analysts
+
+jobs:
+
+  # ---------------------------------------------------------------------------
+  # Deploy — apply the NR entity TF module against the env's NR account.
+  #
+  # Ordering note: this workflow REQUIRES that the app tier has been deployed at
+  # least once (so that APM entities exist in NR and the data sources in
+  # nr_entities.tf can resolve). See docs/deployer/runbook.md for the layer order:
+  #   relibank-infra.yml (env-scoped infra)
+  #   -> deploy-relibank.yml (color-scoped app)
+  #   -> relibank-newrelic.yml (env-scoped NR entities)
+  # ---------------------------------------------------------------------------
+  relibank-newrelic-deploy:
+    name: Deploy ReliBank NR entities
+    if: ${{ github.event.inputs.action_type == 'deploy' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    environment: ${{ github.event.inputs.environment }}
+    env:
+      ARM_CLIENT_ID:       ${{ secrets.AZURE_CLIENT_ID }}
+      ARM_CLIENT_SECRET:   ${{ secrets.AZURE_CLIENT_SECRET }}
+      ARM_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+      ARM_TENANT_ID:       ${{ secrets.AZURE_TENANT_ID }}
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Azure Login
+        uses: azure/login@v2
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v2
+        with:
+          terraform_version: 1.5
+
+      - name: "Terraform Init"
+        working-directory: terraform/aks/newrelic
+        run: |
+          terraform init \
+            --backend-config="resource_group_name=ReliBank" \
+            --backend-config="storage_account_name=${{ vars.TF_STATE_STORAGE_ACCOUNT }}" \
+            --backend-config="container_name=${{ vars.TF_STATE_CONTAINER }}" \
+            --backend-config="key=relibank/${{ github.event.inputs.environment }}/newrelic.tfstate" \
+            --reconfigure --upgrade
+
+      - name: "Terraform Apply"
+        working-directory: terraform/aks/newrelic
+        run: |
+          terraform apply \
+            -var="new_relic_account_id=${{ vars.NR_ACCOUNT_ID }}" \
+            -var="new_relic_user_api_key=${{ secrets.NR_USER_API_KEY }}" \
+            -var="new_relic_license_key=${{ secrets.NR_LICENSE_KEY }}" \
+            -var="new_relic_region=${{ vars.NR_REGION || 'US' }}" \
+            -var="demo_environment=${{ github.event.inputs.environment }}" \
+            -var="app_name=${{ vars.APP_NAME }}" \
+            --auto-approve
+
+  # ---------------------------------------------------------------------------
+  # Destroy — tear down all entities managed by this module.
+  # Run BEFORE `Deploy ReliBank destroy` for cleanliness (data sources will go
+  # stale once the app tier is destroyed and services stop reporting).
+  # ---------------------------------------------------------------------------
+  relibank-newrelic-destroy:
+    name: Destroy ReliBank NR entities
+    if: ${{ github.event.inputs.action_type == 'destroy' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    environment: ${{ github.event.inputs.environment }}
+    env:
+      ARM_CLIENT_ID:       ${{ secrets.AZURE_CLIENT_ID }}
+      ARM_CLIENT_SECRET:   ${{ secrets.AZURE_CLIENT_SECRET }}
+      ARM_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+      ARM_TENANT_ID:       ${{ secrets.AZURE_TENANT_ID }}
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Azure Login
+        uses: azure/login@v2
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v2
+        with:
+          terraform_version: 1.5
+
+      - name: "Terraform Init"
+        working-directory: terraform/aks/newrelic
+        run: |
+          terraform init \
+            --backend-config="resource_group_name=ReliBank" \
+            --backend-config="storage_account_name=${{ vars.TF_STATE_STORAGE_ACCOUNT }}" \
+            --backend-config="container_name=${{ vars.TF_STATE_CONTAINER }}" \
+            --backend-config="key=relibank/${{ github.event.inputs.environment }}/newrelic.tfstate" \
+            --reconfigure --upgrade
+
+      - name: "Terraform Destroy"
+        working-directory: terraform/aks/newrelic
+        run: |
+          terraform destroy \
+            -var="new_relic_account_id=${{ vars.NR_ACCOUNT_ID }}" \
+            -var="new_relic_user_api_key=${{ secrets.NR_USER_API_KEY }}" \
+            -var="new_relic_license_key=${{ secrets.NR_LICENSE_KEY }}" \
+            -var="new_relic_region=${{ vars.NR_REGION || 'US' }}" \
+            -var="demo_environment=${{ github.event.inputs.environment }}" \
+            -var="app_name=${{ vars.APP_NAME }}" \
+            --auto-approve
