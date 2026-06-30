@@ -4,14 +4,15 @@ Operational guide. If you're deploying, switching traffic, or recovering from a 
 
 ---
 
-## TL;DR — the four flows
+## TL;DR — the five flows
 
 | Goal | Workflows in order |
 |---|---|
-| Brand-new environment | `ReliBank Infra` (deploy, stage=all) → `Deploy ReliBank` (deploy, blue) → `Deploy ReliBank` (direct_traffic, blue) |
-| Rolling release | `Deploy ReliBank` (deploy, inactive color) → optional canary verify → `Deploy ReliBank` (direct_traffic, new color) → `Deploy ReliBank` (destroy, old color) |
+| Brand-new environment | `ReliBank Infra` (deploy, stage=all) → `Deploy ReliBank` (deploy, blue) → `Deploy ReliBank` (direct_traffic, blue) → *(once services are reporting)* `ReliBank NR` (deploy) |
+| Rolling release | `Deploy ReliBank` (deploy, inactive color) → optional canary verify → `Deploy ReliBank` (direct_traffic, new color) → `Deploy ReliBank` (destroy, old color). NR entities don't change on rolling release — entity team triggers `ReliBank NR` (deploy) separately when they merge entity changes. |
 | Infra-only refresh | `ReliBank Infra` (deploy, stage=`ai_services` or `notifications`) |
-| Full teardown | `Deploy ReliBank` (destroy) for each color → `ReliBank Infra` (destroy) |
+| NR entities + cluster agent refresh | `ReliBank NR` (deploy) — env-scoped, runs against the same NR account the app reports to. Installs/updates the cluster-side `nri-bundle` + `nr-ebpf-agent` helm charts and refreshes NR entity definitions in one apply. A follow-up `relibank-newrelic-validate` job hard-gates the workflow by NerdGraph-querying each entity and the cluster's K8sClusterSample/K8sPodSample telemetry. Requires at least one color is deployed and services are reporting (entity data sources resolve real APM entities by name). |
+| Full teardown | `ReliBank NR` (destroy) → `Deploy ReliBank` (destroy) for each color → `ReliBank Infra` (destroy). The NR-first ordering is load-bearing: the NR module's helm releases live on the cluster, so `ReliBank Infra` destroy (which tears down the cluster) would orphan that state. |
 
 ---
 
@@ -41,7 +42,7 @@ Before any workflow can succeed, the GitHub Environment must exist with the foll
 | `AZURE_CLIENT_ID` / `AZURE_CLIENT_SECRET` / `AZURE_SUBSCRIPTION_ID` / `AZURE_TENANT_ID` | Same SP, broken out for `azurerm` provider |
 | `NR_LICENSE_KEY` | APM ingest, ends in `FFFFNRAL` |
 | `NR_BROWSER_LICENSE_KEY` | Browser ingest, starts with `NRJS-`. **Different key from above.** See troubleshooting if MFE telemetry breaks. |
-| `NR_USER_API_KEY` | NerdGraph user key for tests/automation |
+| `NR_USER_API_KEY` | NerdGraph user key. Used by tests, scenario flows, AND the `ReliBank NR` workflow's TF module to CRUD NR entities (dashboards, alerts, SLIs, workloads, synthetics). Must start with `NRAK-`. |
 | `MSSQL_SA_USER` / `MSSQL_SA_PASSWORD` | MSSQL admin |
 | `POSTGRES_USER` / `POSTGRES_PASSWORD` | Postgres admin |
 | `AZURE_ACS_SMS_PHONE_NUMBER` | Sender phone for SMS |
@@ -94,6 +95,12 @@ Settings → Environments → New environment, name matches the workflow `enviro
    - `environment=sandbox`
    - `target_color=blue`
    - Sub-second NGINX rule flip. App is now live.
+4. *(Wait ~1-2 min for services to start reporting to NR.)*
+5. **`ReliBank NR`** workflow_dispatch
+   - `action_type=deploy`
+   - `environment=sandbox`
+   - Provisions placeholder NR entities (dashboard, alert policy, SLI, workload, synthetics, etc.) under `${APP_NAME} - Placeholder *`. The entity team replaces these with real definitions over time. **Required before this step:** APM entities must exist in NR — that means at least one color is deployed and services are actively reporting, otherwise the data sources in `terraform/aks/newrelic/nr_entities.tf` fail to resolve at plan time.
+   - After apply, `relibank-newrelic-validate` waits 120s then runs [`tests/workflow_validation/validate_nr_workflow.py`](../../tests/workflow_validation/validate_nr_workflow.py) — NerdGraph entity-search per TF-created entity (dashboard/alert policy/NRQL condition/destination/channel/workflow/workload/synthetics monitors) and NRQL for `K8sClusterSample` + `K8sPodSample` on the `newrelic` namespace. Any check failing fails the workflow. If a telemetry check fails, give the agents another minute and re-run the workflow (a clean re-apply is a no-op against state).
 
 ### Rolling release (env on blue, deploying green)
 
@@ -129,11 +136,20 @@ When build args (NR keys, Stripe keys, browser license key) change but source ha
 
    This is a known gap. See [Known gaps](#known-gaps).
 
+### NR entities refresh
+
+When the entity team merges entity-definition changes under `terraform/aks/newrelic/`, the changes don't apply automatically — trigger them explicitly:
+
+1. **`ReliBank NR`** — `action_type=deploy`, pick the env. Idempotent; safe to re-run anytime.
+
+If a stub data source in `nr_entities.tf` doesn't resolve (e.g. you added a new service reference before that service was deployed), TF apply fails at plan time. Deploy the missing service first, wait 1-2 min, retry.
+
 ### Full teardown
 
-1. **`Deploy ReliBank`** — `action_type=destroy`, `target_color=blue`
-2. **`Deploy ReliBank`** — `action_type=destroy`, `target_color=green`
-3. **`ReliBank Infra`** — `action_type=destroy`. Pre-destroy-checks confirms both color namespaces are empty before allowing infra destroy.
+1. **`ReliBank NR`** — `action_type=destroy`. Removes the env's NR entities before the APM data sources go stale (which they do once the app tier stops reporting).
+2. **`Deploy ReliBank`** — `action_type=destroy`, `target_color=blue`
+3. **`Deploy ReliBank`** — `action_type=destroy`, `target_color=green`
+4. **`ReliBank Infra`** — `action_type=destroy`. Pre-destroy-checks confirms both color namespaces are empty before allowing infra destroy.
 
 ---
 
