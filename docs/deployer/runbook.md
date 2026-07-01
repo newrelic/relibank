@@ -49,7 +49,19 @@ Before any workflow can succeed, the GitHub Environment must exist with the foll
 ### One-time Azure / TF state setup
 
 - The deployer service principal must have `Cognitive Services Contributor` at **subscription scope**, not RG-scoped. RG-scoped won't reach soft-deleted accounts (recycle bin lives at sub scope). Without this, AOAI Stage 3 destroy/redeploy fails the second time around.
+- The deployer SP also needs `User Access Administrator` at the env RG scope so it can create role assignments inside its own RG (e.g. binding the AKS kubelet identity to AcrPull on the ACR). `setup-environment.sh` grants this automatically; if you bootstrap the SP by hand, add it explicitly.
 - Terraform state storage account (e.g. `relibankstate`) and container (`tfstate`) must exist. `setup-environment.sh` creates them if missing.
+
+### Hard blockers before first deploy
+
+These four NR Browser app values are required to **build** the frontend image — the Dockerfile's `generate_nrjs_file.sh` fails fast if any are missing. Set them up BEFORE running `Deploy ReliBank` the first time:
+
+- `NR_ACCOUNT_ID` (variable)
+- `NR_BROWSER_APP_ID` (variable)
+- `NR_BROWSER_LICENSE_KEY` (secret, starts with `NRJS-`)
+- `NR_TRUST_KEY` (secret)
+
+All four come from a single New Relic Browser app you create in the NR UI. See [secrets_reference.md → How to create the New Relic browser app](secrets_reference.md#how-to-create-the-new-relic-browser-app-one-time-per-env) for the exact NR UI walkthrough.
 
 ---
 
@@ -60,17 +72,44 @@ These run once when standing up a new environment, then never again.
 ### 1. `setup-environment.sh`
 
 ```bash
+# from the repo root
 cd terraform/aks/scripts
 ./setup-environment.sh --environment sandbox
 ```
 
-Creates RG, ACR, deployer SP, TF state storage. Prints the GitHub secrets/variables to copy into the GH Environment.
+Creates RG, ACR, deployer SP (with `Contributor`, `User Access Administrator` on the env RG, `Cognitive Services Contributor` at sub scope, `DNS Zone Contributor` on the shared DNS zone, ACR push/pull, storage blob contributor on the shared TF state account), and TF state storage if missing. Prints the GitHub secrets/variables to copy into the GH Environment.
+
+> **If the SP-creation step hangs or fails silently** — most commonly this is your user identity lacking tenant-level perms to create AAD service principals. As a workaround, run just the `az ad sp create-for-rbac` line manually (or have a tenant admin run it for you), then assign the same roles the script grants:
+>
+> ```bash
+> az ad sp create-for-rbac --name "relibank-<env>-deployer" \
+>   --role Contributor \
+>   --scopes /subscriptions/<sub>/resourceGroups/ReliBank-<env> /subscriptions/<sub>/resourceGroups/ReliBank
+>
+> az role assignment create --assignee <appId> --role "User Access Administrator" --scope /subscriptions/<sub>/resourceGroups/ReliBank-<env>
+> az role assignment create --assignee <appId> --role "Cognitive Services Contributor" --scope /subscriptions/<sub>
+> az role assignment create --assignee <appId> --role "DNS Zone Contributor" --scope /subscriptions/<sub>/resourceGroups/relibank/providers/Microsoft.Network/dnszones/relibankdemo.com
+> # plus AcrPush/AcrPull on the ACR and Storage Blob Data Contributor on the state account
+> ```
+>
+> Then paste the `appId` / `password` / tenant / subscription into the GH Environment secrets directly. Skip Step 4 of `setup-environment.sh` on re-runs by passing `--skip-sp`.
 
 ### 2. Configure GitHub Environment
 
 Settings → Environments → New environment, name matches the workflow `environment` input (e.g. `sandbox`). Paste in the secrets/variables from step 1.
 
 > **No assistant-creation step.** The deployed AI path is LangGraph chat-completions — see [primer.md → AI architecture](primer.md#ai-architecture-langgraph-not-assistants-api). There is no `create_assistants.py`, no `Bootstrap Assistants` workflow, and no `ASSISTANT_*_ID` to wire. If you find references to those in stale docs or git history, treat them as historical.
+
+### 3. Add the new env value to workflow `environment` choice lists
+
+Each GitHub Actions workflow that takes an `environment` (or `target_environment`) input declares its allowed values inline. GH won't let you trigger a workflow with a value that isn't in the list, so adding a new env (e.g. `qa`) requires editing every workflow that gates on environment:
+
+- [`.github/workflows/build-push-images.yml`](../../.github/workflows/build-push-images.yml) — `workflow_dispatch.inputs.environment.options`
+- [`.github/workflows/deploy-relibank.yml`](../../.github/workflows/deploy-relibank.yml) — `workflow_dispatch.inputs.environment.options`
+- [`.github/workflows/relibank-infra.yml`](../../.github/workflows/relibank-infra.yml) — `workflow_dispatch.inputs.environment.options`
+- [`.github/workflows/test-suite.yml`](../../.github/workflows/test-suite.yml) — `workflow_dispatch.inputs.target_environment.options`
+
+Recommended: open a small patch PR off `main` that adds the new value to every list at once (don't bundle into feature work — keeps the workflow change reviewable in isolation).
 
 ---
 
@@ -302,3 +341,8 @@ These are open items the runbook explicitly acknowledges so you don't waste time
 - **Sandbox cluster may not exist yet.** Per memory dated 2026-05-15, only `relibank-prod` exists. Check `az aks list -g ReliBank` before assuming sandbox is up.
 - **DNS A record only updates on `direct_traffic`.** After a full infra rebuild (cluster destroyed and recreated), the new NGINX LB has a different public IP than the destroyed one, but `{env}.{dns_zone}` still points at the old IP until `direct_traffic` re-applies `traffic_management/`. Post-deployment tests will time out for the entire ~63min suite if you skip `direct_traffic` after a rebuild. See troubleshooting entry above.
 - **Silent test skips on main.** Test-suite reports passes even when individual tests skipped due to missing/renamed secrets. Read the GH step summary, not just the green checkmark.
+- **Not all Azure regions have Azure OpenAI quota.** During the `analysts` setup, `westus2` and `eastus2` had no AOAI quota — Stage 3 of `ReliBank Infra` failed on AOAI account creation. `westus3` worked. Before standing up a new env, verify your `AZURE_LOCATION` has OpenAI quota:
+  ```bash
+  az cognitiveservices account list-skus --location <region> --kind OpenAI -o table
+  ```
+  If the result is empty for your chosen region, pick a different one or request quota through the Azure portal. `setup-environment.sh` defaults to `westus2`, which is unreliable for new subscriptions — override with `--location westus3` (or your verified region) on the initial run.
