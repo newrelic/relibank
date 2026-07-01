@@ -82,7 +82,61 @@ jobs:
             -var="new_relic_region=${{ vars.NR_REGION || 'US' }}" \
             -var="demo_environment=${{ github.event.inputs.environment }}" \
             -var="app_name=${{ vars.APP_NAME }}" \
+            -var="aks_cluster_name=${{ vars.AKS_CLUSTER_NAME }}" \
+            -var="aks_resource_group=${{ vars.AKS_RESOURCE_GROUP }}" \
             --auto-approve
+
+  # ---------------------------------------------------------------------------
+  # Validate — post-apply, confirm each NR entity is queryable from the API
+  # user's perspective AND that the helm-installed cluster agents are reporting
+  # telemetry. Mirrors demogorgon's post-deployment-validation.yml validate-data
+  # job: pytest + NerdGraph, `continue-on-error: true` step + result-check step
+  # so per-test failures are visible but the overall job still fails as a hard
+  # gate.
+  # ---------------------------------------------------------------------------
+  relibank-newrelic-validate:
+    name: Validate ReliBank NR entities + telemetry
+    if: ${{ github.event.inputs.action_type == 'deploy' }}
+    needs: relibank-newrelic-deploy
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    environment: ${{ github.event.inputs.environment }}
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install dependencies
+        run: pip install pytest requests
+
+      - name: Wait for entity propagation
+        run: |
+          echo "Waiting 120s for NR entity propagation + agent first-report..."
+          sleep 120
+
+      - name: Run NR validation
+        id: nr-validate
+        continue-on-error: true
+        env:
+          NR_USER_API_KEY:  ${{ secrets.NR_USER_API_KEY }}
+          NR_ACCOUNT_ID:    ${{ vars.NR_ACCOUNT_ID }}
+          APP_NAME:         ${{ vars.APP_NAME }}
+          AKS_CLUSTER_NAME: ${{ vars.AKS_CLUSTER_NAME }}
+        run: |
+          python3 -m pytest -v tests/workflow_validation/validate_nr_workflow.py --tb=short --no-header
+
+      - name: Check validation result
+        if: always()
+        run: |
+          if [ "${{ steps.nr-validate.outcome }}" != "success" ]; then
+            echo "::error::NR entity/telemetry validation failed"
+            exit 1
+          fi
 
   # ---------------------------------------------------------------------------
   # Destroy — tear down all entities managed by this module.
@@ -135,4 +189,6 @@ jobs:
             -var="new_relic_region=${{ vars.NR_REGION || 'US' }}" \
             -var="demo_environment=${{ github.event.inputs.environment }}" \
             -var="app_name=${{ vars.APP_NAME }}" \
+            -var="aks_cluster_name=${{ vars.AKS_CLUSTER_NAME }}" \
+            -var="aks_resource_group=${{ vars.AKS_RESOURCE_GROUP }}" \
             --auto-approve
