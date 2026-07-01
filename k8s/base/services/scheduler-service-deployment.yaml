@@ -44,6 +44,13 @@ spec:
                   name: database-credentials
           image: scheduler-service
           name: scheduler-service
+          resources:
+            requests:
+              memory: "128Mi"
+              cpu: "100m"
+            limits:
+              memory: "256Mi"
+              cpu: "500m"
       restartPolicy: Always
 ---
 apiVersion: v1

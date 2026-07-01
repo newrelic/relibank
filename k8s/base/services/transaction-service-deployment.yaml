@@ -56,10 +56,14 @@ spec:
           ports:
             - containerPort: 5000
               protocol: TCP
-      restartPolicy: Always
-      resources:
+          resources:
+            requests:
+              memory: "512Mi"
+              cpu: "500m"
             limits:
-              cpu: "6"
+              memory: "1Gi"
+              cpu: "2000m"
+      restartPolicy: Always
 ---
 apiVersion: v1
 kind: Service

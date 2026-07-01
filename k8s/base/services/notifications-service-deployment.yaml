@@ -31,6 +31,13 @@ spec:
                   key: KAFKA_BROKER
           image: notifications-service
           name: notifications-service
+          resources:
+            requests:
+              memory: "128Mi"
+              cpu: "100m"
+            limits:
+              memory: "256Mi"
+              cpu: "500m"
       restartPolicy: Always
 ---
 apiVersion: v1
