@@ -23,3 +23,7 @@ skaffold
 .venv/
 .venv
 build-output.json
+
+# Claude Code: per-user overrides stay local; the shared settings.json,
+# commands/, and agents/ ARE committed for the whole demo-eng team.
+.claude/settings.local.json

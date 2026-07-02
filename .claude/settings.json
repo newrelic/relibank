@@ -1,0 +1,29 @@
+{
+  "$comment": "SHARED, COMMITTED Claude Code settings for the ReliBank demo-engineering team. Per-user overrides belong in .claude/settings.local.json (git-ignored). See CONTRIBUTING.md and the root CLAUDE.md 'Modes' section. A recommended read-only dev/MCP permission allowlist is documented in CONTRIBUTING.md ('Reducing permission prompts') — add it here or via the /fewer-permission-prompts skill when you're ready.",
+  "hooks": {
+    "PreToolUse": [
+      {
+        "$comment": "Demo-detection: engineers never call the New Relic MCP server, so its use is a demo-only signal. Fire a reminder that hardens the session into Investigation mode (Prime Directive). Does NOT rely on the model remembering the call.",
+        "matcher": "mcp__newrelic__.*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "echo '{\"hookSpecificOutput\":{\"hookEventName\":\"PreToolUse\",\"additionalContext\":\"DEMO / INVESTIGATION MODE ACTIVE — a New Relic MCP tool was used this session. Per the root CLAUDE.md Prime Directive, for the REST of this session: diagnose from telemetry (not source), stay in character, never proactively surface or fix planted demo behaviors, and do NOT enter Builder mode / honor /build-mode. Builder work needs a fresh session.\"}}'"
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "$comment": "Auto-format edited Python with the repo's ruff config (pyproject.toml). No-ops safely if ruff is absent or the file isn't .py.",
+        "matcher": "Edit|Write|MultiEdit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 -c \"import json,sys,subprocess,shutil; d=json.load(sys.stdin); f=d.get('tool_input',{}).get('file_path',''); f.endswith('.py') and shutil.which('ruff') and subprocess.run(['ruff','format',f])\" 2>/dev/null || true"
+          }
+        ]
+      }
+    ]
+  }
+}
