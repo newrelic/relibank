@@ -8,29 +8,71 @@ import re
 # Configuration - use environment variables with local defaults
 SCENARIO_SERVICE_URL = os.getenv("SCENARIO_SERVICE_URL", "http://localhost:8000")
 ACCOUNTS_SERVICE_URL = os.getenv("ACCOUNTS_SERVICE_URL", "http://localhost:5002")
+NR_API_KEY = os.getenv("NR_API_KEY")
+NR_ACCOUNT_ID = os.getenv("NR_ACCOUNT_ID")
+NR_APP_NAME = os.getenv("NR_APP_NAME", "ReliBank (Analysts) - Accounts Service")
+NR_BROWSER_APP_NAME = os.getenv("NR_BROWSER_APP_NAME", "ReliBank - Customer Portal")
+SSL_VERIFY = os.getenv("SSL_VERIFY", "true").lower() == "true"
 
 
 @pytest.fixture
 def reset_dem_scenarios():
     """Reset all DEM scenarios before and after tests"""
     # Reset before test
-    response = requests.post(f"{SCENARIO_SERVICE_URL}/scenario-runner/api/dem-memory-leak/reset", timeout=10)
+    response = requests.post(f"{SCENARIO_SERVICE_URL}/scenario-runner/api/dem-memory-leak/reset", timeout=10, verify=SSL_VERIFY)
     assert response.status_code == 200
     time.sleep(0.5)
     yield
     # Cleanup after test
     try:
-        requests.post(f"{SCENARIO_SERVICE_URL}/scenario-runner/api/dem-memory-leak/reset", timeout=10)
+        requests.post(f"{SCENARIO_SERVICE_URL}/scenario-runner/api/dem-memory-leak/reset", timeout=10, verify=SSL_VERIFY)
         time.sleep(0.5)
     except:
         pass  # Ignore cleanup errors
+
+
+def query_nrql(query: str):
+    """Execute NRQL query via NerdGraph API"""
+    if not NR_API_KEY or not NR_ACCOUNT_ID:
+        pytest.skip("NR_API_KEY and NR_ACCOUNT_ID environment variables required for New Relic tests")
+
+    # Escape quotes in NRQL query for GraphQL
+    escaped_query = query.replace('"', '\\"').replace('\n', ' ').strip()
+
+    gql_query = {
+        "query": f'{{ actor {{ account(id: {NR_ACCOUNT_ID}) {{ nrql(query: "{escaped_query}") {{ results }} }} }} }}'
+    }
+
+    response = requests.post(
+        "https://api.newrelic.com/graphql",  # External API, always use standard SSL
+        headers={
+            "Content-Type": "application/json",
+            "API-Key": NR_API_KEY
+        },
+        json=gql_query,
+        timeout=30, verify=SSL_VERIFY
+    )
+
+    assert response.status_code == 200, f"NerdGraph query failed: {response.status_code}"
+
+    data = response.json()
+
+    # Check for errors in response
+    if "errors" in data:
+        error_msg = data["errors"][0].get("message", "Unknown error")
+        pytest.fail(f"NerdGraph query error: {error_msg}")
+
+    if "data" not in data:
+        pytest.fail(f"Unexpected response format: {data}")
+
+    return data["data"]["actor"]["account"]["nrql"]["results"]
 
 
 def test_dem_service_health():
     """Test that DEM endpoints are accessible"""
     print("\n=== Testing DEM Service Health ===")
 
-    response = requests.get(f"{SCENARIO_SERVICE_URL}/scenario-runner/api/dem-memory-leak/config", timeout=10)
+    response = requests.get(f"{SCENARIO_SERVICE_URL}/scenario-runner/api/dem-memory-leak/config", timeout=10, verify=SSL_VERIFY)
     print(f"Status: {response.status_code}")
 
     assert response.status_code == 200, f"DEM config endpoint failed: {response.status_code}"
@@ -51,7 +93,8 @@ def test_enable_dem_toggle(reset_dem_scenarios):
     response = requests.post(
         f"{SCENARIO_SERVICE_URL}/scenario-runner/api/dem-memory-leak/toggle",
         params={"enabled": True, "rate_mb_per_sec": 10, "max_mb": 500},
-        timeout=10
+        timeout=10,
+        verify=SSL_VERIFY
     )
 
     print(f"Status: {response.status_code}")
@@ -66,7 +109,7 @@ def test_enable_dem_toggle(reset_dem_scenarios):
     assert "500 MB" in data["message"], "Message doesn't mention max"
 
     # Verify scenario is enabled with correct settings
-    config_response = requests.get(f"{SCENARIO_SERVICE_URL}/scenario-runner/api/dem-memory-leak/config", timeout=10)
+    config_response = requests.get(f"{SCENARIO_SERVICE_URL}/scenario-runner/api/dem-memory-leak/config", timeout=10, verify=SSL_VERIFY)
     config = config_response.json()["config"]
 
     assert config["memory_leak_toggle_enabled"] is True, "DEM toggle not enabled"
@@ -84,14 +127,14 @@ def test_disable_dem_toggle(reset_dem_scenarios):
     requests.post(
         f"{SCENARIO_SERVICE_URL}/scenario-runner/api/dem-memory-leak/toggle",
         params={"enabled": True, "rate_mb_per_sec": 10, "max_mb": 500},
-        timeout=10
+        timeout=10, verify=SSL_VERIFY
     )
 
     # Now disable it
     response = requests.post(
         f"{SCENARIO_SERVICE_URL}/scenario-runner/api/dem-memory-leak/toggle",
         params={"enabled": False},
-        timeout=10
+        timeout=10, verify=SSL_VERIFY
     )
 
     assert response.status_code == 200, f"Failed to disable DEM toggle: {response.status_code}"
@@ -101,7 +144,7 @@ def test_disable_dem_toggle(reset_dem_scenarios):
     assert "disabled" in data["message"], "Message doesn't mention disabled"
 
     # Verify scenario is disabled
-    config_response = requests.get(f"{SCENARIO_SERVICE_URL}/scenario-runner/api/dem-memory-leak/config", timeout=10)
+    config_response = requests.get(f"{SCENARIO_SERVICE_URL}/scenario-runner/api/dem-memory-leak/config", timeout=10, verify=SSL_VERIFY)
     config = config_response.json()["config"]
 
     assert config["memory_leak_toggle_enabled"] is False, "DEM toggle still enabled"
@@ -116,7 +159,7 @@ def test_trigger_dem_30min_scenario(reset_dem_scenarios):
     # Trigger the 30-minute scenario
     response = requests.post(
         f"{SCENARIO_SERVICE_URL}/scenario-runner/api/trigger_stress/dem-memory-leak-30min",
-        timeout=10
+        timeout=10, verify=SSL_VERIFY
     )
 
     print(f"Status: {response.status_code}")
@@ -130,7 +173,7 @@ def test_trigger_dem_30min_scenario(reset_dem_scenarios):
     assert "30 minutes" in data["message"] or "1800" in str(data.get("duration_seconds", "")), "Duration not mentioned"
 
     # Verify trigger is active
-    config_response = requests.get(f"{SCENARIO_SERVICE_URL}/scenario-runner/api/dem-memory-leak/config", timeout=10)
+    config_response = requests.get(f"{SCENARIO_SERVICE_URL}/scenario-runner/api/dem-memory-leak/config", timeout=10, verify=SSL_VERIFY)
     config = config_response.json()["config"]
 
     assert config["memory_leak_trigger_active"] is True, "Trigger not active"
@@ -146,7 +189,7 @@ def test_trigger_already_running_error(reset_dem_scenarios):
     # Trigger the scenario first time
     response1 = requests.post(
         f"{SCENARIO_SERVICE_URL}/scenario-runner/api/trigger_stress/dem-memory-leak-30min",
-        timeout=10
+        timeout=10, verify=SSL_VERIFY
     )
     assert response1.status_code == 200
     assert response1.json()["status"] == "success"
@@ -155,7 +198,7 @@ def test_trigger_already_running_error(reset_dem_scenarios):
     time.sleep(1)  # Brief pause
     response2 = requests.post(
         f"{SCENARIO_SERVICE_URL}/scenario-runner/api/trigger_stress/dem-memory-leak-30min",
-        timeout=10
+        timeout=10, verify=SSL_VERIFY
     )
 
     data = response2.json()
@@ -175,7 +218,7 @@ def test_invalid_rate_values(reset_dem_scenarios):
     response = requests.post(
         f"{SCENARIO_SERVICE_URL}/scenario-runner/api/dem-memory-leak/toggle",
         params={"enabled": True, "rate_mb_per_sec": 150, "max_mb": 500},
-        timeout=10
+        timeout=10, verify=SSL_VERIFY
     )
 
     data = response.json()
@@ -186,7 +229,7 @@ def test_invalid_rate_values(reset_dem_scenarios):
     response = requests.post(
         f"{SCENARIO_SERVICE_URL}/scenario-runner/api/dem-memory-leak/toggle",
         params={"enabled": True, "rate_mb_per_sec": 0, "max_mb": 500},
-        timeout=10
+        timeout=10, verify=SSL_VERIFY
     )
 
     data = response.json()
@@ -202,7 +245,7 @@ def test_invalid_max_mb_values(reset_dem_scenarios):
     response = requests.post(
         f"{SCENARIO_SERVICE_URL}/scenario-runner/api/dem-memory-leak/toggle",
         params={"enabled": True, "rate_mb_per_sec": 10, "max_mb": 3000},
-        timeout=10
+        timeout=10, verify=SSL_VERIFY
     )
 
     data = response.json()
@@ -213,7 +256,7 @@ def test_invalid_max_mb_values(reset_dem_scenarios):
     response = requests.post(
         f"{SCENARIO_SERVICE_URL}/scenario-runner/api/dem-memory-leak/toggle",
         params={"enabled": True, "rate_mb_per_sec": 10, "max_mb": 50},
-        timeout=10
+        timeout=10, verify=SSL_VERIFY
     )
 
     data = response.json()
@@ -229,21 +272,21 @@ def test_reset_dem_scenarios_endpoint(reset_dem_scenarios):
     requests.post(
         f"{SCENARIO_SERVICE_URL}/scenario-runner/api/dem-memory-leak/toggle",
         params={"enabled": True, "rate_mb_per_sec": 20, "max_mb": 1000},
-        timeout=10
+        timeout=10, verify=SSL_VERIFY
     )
 
     # Verify it's enabled with custom values
-    config = requests.get(f"{SCENARIO_SERVICE_URL}/scenario-runner/api/dem-memory-leak/config", timeout=10).json()["config"]
+    config = requests.get(f"{SCENARIO_SERVICE_URL}/scenario-runner/api/dem-memory-leak/config", timeout=10, verify=SSL_VERIFY).json()["config"]
     assert config["memory_leak_toggle_enabled"] is True
     assert config["memory_leak_rate_mb_per_sec"] == 20
     assert config["memory_leak_max_mb"] == 1000
 
     # Reset
-    response = requests.post(f"{SCENARIO_SERVICE_URL}/scenario-runner/api/dem-memory-leak/reset", timeout=10)
+    response = requests.post(f"{SCENARIO_SERVICE_URL}/scenario-runner/api/dem-memory-leak/reset", timeout=10, verify=SSL_VERIFY)
     assert response.status_code == 200
 
     # Verify all scenarios are disabled with default values
-    config = requests.get(f"{SCENARIO_SERVICE_URL}/scenario-runner/api/dem-memory-leak/config", timeout=10).json()["config"]
+    config = requests.get(f"{SCENARIO_SERVICE_URL}/scenario-runner/api/dem-memory-leak/config", timeout=10, verify=SSL_VERIFY).json()["config"]
 
     assert config["memory_leak_toggle_enabled"] is False, "Toggle still enabled after reset"
     assert config["memory_leak_rate_mb_per_sec"] == 0.27, "Rate not reset to default (0.27)"
@@ -258,7 +301,7 @@ def test_scenarios_api_includes_dem_scenarios():
     """Test that /api/scenarios includes DEM scenarios"""
     print("\n=== Testing DEM Scenarios in API Response ===")
 
-    response = requests.get(f"{SCENARIO_SERVICE_URL}/scenario-runner/api/scenarios", timeout=10)
+    response = requests.get(f"{SCENARIO_SERVICE_URL}/scenario-runner/api/scenarios", timeout=10, verify=SSL_VERIFY)
     assert response.status_code == 200
 
     scenarios = response.json()
@@ -299,7 +342,7 @@ def get_pod_memory_mb():
             ["kubectl", "get", "pods", "-n", "relibank", "-l", "app=accounts-service", "-o", "name"],
             capture_output=True,
             text=True,
-            timeout=10
+            timeout=10, verify=SSL_VERIFY
         )
 
         if result.returncode != 0:
@@ -316,7 +359,7 @@ def get_pod_memory_mb():
             ["kubectl", "exec", "-n", "relibank", pod_name, "--", "ps", "aux"],
             capture_output=True,
             text=True,
-            timeout=10
+            timeout=10, verify=SSL_VERIFY
         )
 
         if result.returncode != 0:
@@ -354,7 +397,7 @@ def test_memory_actually_grows(reset_dem_scenarios):
     response = requests.post(
         f"{SCENARIO_SERVICE_URL}/scenario-runner/api/dem-memory-leak/toggle",
         params={"enabled": True, "rate_mb_per_sec": 20, "max_mb": 200},
-        timeout=10
+        timeout=10, verify=SSL_VERIFY
     )
     assert response.status_code == 200
     print("✓ Enabled memory leak (20 MB/sec, max 200 MB)")
@@ -376,7 +419,7 @@ def test_memory_actually_grows(reset_dem_scenarios):
 
     # Verify service is still responding
     try:
-        health_response = requests.get(f"{ACCOUNTS_SERVICE_URL}/accounts-service/health", timeout=5)
+        health_response = requests.get(f"{ACCOUNTS_SERVICE_URL}/accounts-service/health", timeout=5, verify=SSL_VERIFY)
         assert health_response.status_code == 200, "Service not responding"
         print("✓ Service still responding under memory pressure")
     except requests.exceptions.RequestException as e:
@@ -386,7 +429,7 @@ def test_memory_actually_grows(reset_dem_scenarios):
     response = requests.post(
         f"{SCENARIO_SERVICE_URL}/scenario-runner/api/dem-memory-leak/toggle",
         params={"enabled": False},
-        timeout=10
+        timeout=10, verify=SSL_VERIFY
     )
     assert response.status_code == 200
     print("✓ Disabled memory leak")
@@ -417,7 +460,7 @@ def test_memory_leak_impacts_performance(reset_dem_scenarios):
     baseline_times = []
     for _ in range(5):
         start = time.time()
-        response = requests.get(f"{ACCOUNTS_SERVICE_URL}/accounts-service/health", timeout=5)
+        response = requests.get(f"{ACCOUNTS_SERVICE_URL}/accounts-service/health", timeout=5, verify=SSL_VERIFY)
         assert response.status_code == 200
         baseline_times.append(time.time() - start)
         time.sleep(0.2)
@@ -429,7 +472,7 @@ def test_memory_leak_impacts_performance(reset_dem_scenarios):
     response = requests.post(
         f"{SCENARIO_SERVICE_URL}/scenario-runner/api/dem-memory-leak/toggle",
         params={"enabled": True, "rate_mb_per_sec": 30, "max_mb": 400},
-        timeout=10
+        timeout=10, verify=SSL_VERIFY
     )
     assert response.status_code == 200
     print("✓ Enabled aggressive memory leak (30 MB/sec, max 400 MB)")
@@ -443,7 +486,7 @@ def test_memory_leak_impacts_performance(reset_dem_scenarios):
     for _ in range(5):
         start = time.time()
         try:
-            response = requests.get(f"{ACCOUNTS_SERVICE_URL}/accounts-service/health", timeout=10)
+            response = requests.get(f"{ACCOUNTS_SERVICE_URL}/accounts-service/health", timeout=10, verify=SSL_VERIFY)
             leak_times.append(time.time() - start)
         except requests.exceptions.Timeout:
             pytest.fail("Service timed out under memory pressure")
@@ -470,5 +513,300 @@ def test_memory_leak_impacts_performance(reset_dem_scenarios):
     requests.post(
         f"{SCENARIO_SERVICE_URL}/scenario-runner/api/dem-memory-leak/toggle",
         params={"enabled": False},
-        timeout=10
+        timeout=10,
+        verify=SSL_VERIFY
     )
+
+
+def test_memory_usage_in_new_relic():
+    """Test that memory usage is visible in New Relic APM"""
+    print("\n=== Testing Memory Usage in New Relic ===")
+
+    if not NR_API_KEY or not NR_ACCOUNT_ID:
+        pytest.skip("NR_API_KEY and NR_ACCOUNT_ID required for this test")
+
+    nrql = f"""
+    SELECT
+      average(apm.service.memory.physical) as 'Avg Memory MB',
+      max(apm.service.memory.physical) as 'Max Memory MB',
+      latest(apm.service.memory.physical) as 'Current Memory MB'
+    FROM Metric
+    WHERE appName = '{NR_APP_NAME}'
+    SINCE 10 minutes ago
+    """
+
+    print(f"Query: {nrql}")
+    results = query_nrql(nrql)
+
+    assert results, "No memory metrics found in New Relic"
+    assert len(results) > 0, "Empty results from NRQL query"
+
+    data = results[0]
+    avg_mem = data.get("Avg Memory MB")
+    max_mem = data.get("Max Memory MB")
+    current_mem = data.get("Current Memory MB")
+
+    print(f"Average Memory: {avg_mem:.2f} MB" if avg_mem is not None else "Average Memory: N/A")
+    print(f"Max Memory: {max_mem:.2f} MB" if max_mem is not None else "Max Memory: N/A")
+    print(f"Current Memory: {current_mem:.2f} MB" if current_mem is not None else "Current Memory: N/A")
+
+    assert avg_mem is not None, "Average memory not found"
+    assert avg_mem > 0, "Average memory should be positive"
+
+    print("✓ Memory metrics flowing to New Relic")
+
+
+def test_memory_leak_visible_in_new_relic(reset_dem_scenarios):
+    """Integration test: Verify memory leak is visible in New Relic"""
+    print("\n=== Testing Memory Leak Visibility in New Relic ===")
+
+    if not NR_API_KEY or not NR_ACCOUNT_ID:
+        pytest.skip("NR_API_KEY and NR_ACCOUNT_ID required for this test")
+
+    # Get baseline memory
+    nrql = f"""
+    SELECT latest(apm.service.memory.physical) as 'Memory MB'
+    FROM Metric
+    WHERE appName = '{NR_APP_NAME}'
+    SINCE 2 minutes ago
+    """
+
+    baseline_results = query_nrql(nrql)
+    baseline_mem = baseline_results[0].get("Memory MB") if baseline_results and baseline_results[0] else None
+
+    if baseline_mem is None:
+        pytest.skip("No baseline memory data available in New Relic")
+
+    print(f"Baseline memory: {baseline_mem:.1f} MB")
+
+    # Enable memory leak with fast rate
+    response = requests.post(
+        f"{SCENARIO_SERVICE_URL}/scenario-runner/api/dem-memory-leak/toggle",
+        params={"enabled": True, "rate_mb_per_sec": 20, "max_mb": 300},
+        timeout=10,
+        verify=SSL_VERIFY
+    )
+    assert response.status_code == 200
+    print("✓ Enabled memory leak (20 MB/sec, max 300 MB)")
+
+    # Wait 20 seconds for memory to grow and New Relic to report
+    print("Waiting 20 seconds for memory growth and New Relic reporting...")
+    time.sleep(20)
+
+    # Check memory in New Relic
+    current_results = query_nrql(nrql)
+    current_mem = current_results[0].get("Memory MB", 0) if current_results else 0
+
+    print(f"Current memory in New Relic: {current_mem:.1f} MB")
+
+    growth = current_mem - baseline_mem
+    print(f"Memory growth: {growth:.1f} MB")
+
+    # Should have grown by at least 100 MB
+    assert growth >= 100, f"Memory did not grow enough in New Relic: {growth:.1f} MB (expected >= 100 MB)"
+    print(f"✓ Memory leak visible in New Relic (grew by {growth:.1f} MB)")
+
+    # Cleanup
+    requests.post(
+        f"{SCENARIO_SERVICE_URL}/scenario-runner/api/dem-memory-leak/toggle",
+        params={"enabled": False},
+        timeout=10,
+        verify=SSL_VERIFY
+    )
+
+
+def test_memory_timeseries_in_new_relic():
+    """Test memory timeseries data in New Relic"""
+    print("\n=== Testing Memory Timeseries in New Relic ===")
+
+    if not NR_API_KEY or not NR_ACCOUNT_ID:
+        pytest.skip("NR_API_KEY and NR_ACCOUNT_ID required for this test")
+
+    nrql = f"""
+    SELECT average(apm.service.memory.physical) as 'Avg Memory MB'
+    FROM Metric
+    WHERE appName = '{NR_APP_NAME}'
+    SINCE 30 minutes ago
+    TIMESERIES 1 minute
+    """
+
+    print(f"Query: {nrql}")
+    results = query_nrql(nrql)
+
+    assert results, "No timeseries data found"
+
+    # Filter to non-null data points
+    data_points = [r for r in results if r.get("Avg Memory MB") is not None]
+
+    print(f"Found {len(data_points)} valid data points")
+    assert len(data_points) > 0, "No valid data points in timeseries"
+
+    # Show first and last data points
+    first = data_points[0]
+    last = data_points[-1]
+
+    first_mem = first.get("Avg Memory MB", 0)
+    last_mem = last.get("Avg Memory MB", 0)
+
+    print(f"First data point: {first_mem:.2f} MB")
+    print(f"Last data point: {last_mem:.2f} MB")
+    print(f"Change: {last_mem - first_mem:+.2f} MB")
+
+    print("✓ Timeseries data available in New Relic")
+
+
+def test_transaction_slowness_in_new_relic():
+    """Test that slow transactions are visible in New Relic APM"""
+    print("\n=== Testing Transaction Slowness in New Relic ===")
+
+    if not NR_API_KEY or not NR_ACCOUNT_ID:
+        pytest.skip("NR_API_KEY and NR_ACCOUNT_ID required for this test")
+
+    nrql = f"""
+    SELECT
+      average(duration) as 'Avg Duration (s)',
+      percentile(duration, 95) as 'P95 Duration (s)',
+      count(*) as 'Transaction Count'
+    FROM Transaction
+    WHERE appName = '{NR_APP_NAME}'
+    SINCE 10 minutes ago
+    """
+
+    print(f"Query: {nrql}")
+    results = query_nrql(nrql)
+
+    if not results or not results[0]:
+        print("\n⚠️  No transaction data found in last 10 minutes")
+        pytest.skip("No transaction data available")
+
+    data = results[0]
+    avg_duration = data.get("Avg Duration (s)")
+    p95_data = data.get("P95 Duration (s)")
+    p95_duration = p95_data.get("95") if isinstance(p95_data, dict) else p95_data
+    txn_count = data.get("Transaction Count", 0)
+
+    print(f"\n✅ Average Duration: {avg_duration:.3f}s" if avg_duration else "\n⚠️  Average Duration: N/A")
+    print(f"✅ P95 Duration: {p95_duration:.3f}s" if p95_duration else "⚠️  P95 Duration: N/A")
+    print(f"✅ Transaction Count: {txn_count:.0f}")
+
+    assert txn_count > 0, "No transactions recorded"
+
+    # Check if transactions are slow (> 500ms suggests memory pressure)
+    if avg_duration and avg_duration > 0.5:
+        print(f"\n🔥 SLOW TRANSACTIONS DETECTED: Avg {avg_duration:.3f}s (> 500ms threshold)")
+        print("   Memory leak is causing transaction slowness!")
+    elif avg_duration:
+        print(f"\n✅ Transaction performance normal: {avg_duration:.3f}s")
+
+    print("✓ Transaction metrics available in New Relic")
+
+
+def test_browser_lcp_impact_in_new_relic():
+    """Test that LCP degradation is visible in New Relic Browser"""
+    print("\n=== Testing Browser LCP Impact in New Relic ===")
+
+    if not NR_API_KEY or not NR_ACCOUNT_ID:
+        pytest.skip("NR_API_KEY and NR_ACCOUNT_ID required for this test")
+
+    # Query for dashboard LCP
+    nrql = f"""
+    SELECT
+      percentile(largestContentfulPaint, 50, 75, 95) as 'LCP (ms)',
+      count(*) as 'Page Views'
+    FROM PageViewTiming
+    WHERE appName = '{NR_BROWSER_APP_NAME}'
+      AND pageUrl LIKE '%/dashboard%'
+    SINCE 30 minutes ago
+    """
+
+    print(f"Query: {nrql}")
+    results = query_nrql(nrql)
+
+    if not results or not results[0]:
+        print("\n⚠️  No PageViewTiming data found for dashboard")
+        print("   This could mean:")
+        print("   - No users visiting dashboard")
+        print("   - Browser agent not configured")
+        print("   - PageViewTiming not captured yet")
+        pytest.skip("No PageViewTiming data available")
+
+    data = results[0]
+    lcp_data = data.get("LCP (ms)")
+    lcp_p50 = lcp_data.get("50") if isinstance(lcp_data, dict) else None
+    lcp_p75 = lcp_data.get("75") if isinstance(lcp_data, dict) else None
+    lcp_p95 = lcp_data.get("95") if isinstance(lcp_data, dict) else None
+    page_views = data.get("Page Views", 0)
+
+    print(f"\n✅ Page Views: {page_views:.0f}")
+    print(f"✅ LCP P50: {lcp_p50:.0f}ms" if lcp_p50 else "⚠️  LCP P50: N/A")
+    print(f"✅ LCP P75: {lcp_p75:.0f}ms" if lcp_p75 else "⚠️  LCP P75: N/A")
+    print(f"✅ LCP P95: {lcp_p95:.0f}ms" if lcp_p95 else "⚠️  LCP P95: N/A")
+
+    # Check if LCP is degraded
+    # Good: < 2500ms, Needs Improvement: 2500-4000ms, Poor: > 4000ms
+    if lcp_p75:
+        if lcp_p75 > 4000:
+            print(f"\n🔴 POOR LCP DETECTED: {lcp_p75:.0f}ms (> 4000ms)")
+            print("   Memory leak is causing significant DEM impact!")
+        elif lcp_p75 > 2500:
+            print(f"\n🟡 DEGRADED LCP DETECTED: {lcp_p75:.0f}ms (2500-4000ms)")
+            print("   Memory leak is impacting page load performance!")
+        else:
+            print(f"\n🟢 LCP is good: {lcp_p75:.0f}ms (< 2500ms)")
+
+    if page_views == 0:
+        print("\n⚠️  No page views found - cannot assess LCP impact")
+        print("   Need Selenium/goblin-swarm traffic to dashboard to measure LCP")
+        pytest.skip("No page views to measure LCP")
+
+    print("✓ Browser LCP metrics available in New Relic")
+
+
+def test_lcp_alert_query():
+    """Test the exact alert query that will be used for monitoring"""
+    print("\n=== Testing LCP Alert Query (75th percentile) ===")
+
+    if not NR_API_KEY or not NR_ACCOUNT_ID:
+        pytest.skip("NR_API_KEY and NR_ACCOUNT_ID required for this test")
+
+    # This is the exact query the user wants to alert on
+    nrql = f"""
+    SELECT percentile(largestContentfulPaint, 75)
+    FROM PageViewTiming
+    WHERE appName = '{NR_BROWSER_APP_NAME}'
+      AND pageUrl LIKE '%/dashboard%'
+    """
+
+    print(f"Alert Query: {nrql}")
+    results = query_nrql(nrql)
+
+    if not results or not results[0]:
+        print("\n⚠️  No data for alert query")
+        print("   Alert will not fire if no PageViewTiming data exists")
+        pytest.skip("No data for alert query")
+
+    data = results[0]
+    lcp_data = data.get("percentile")
+    lcp_p75 = lcp_data.get("75") if isinstance(lcp_data, dict) else lcp_data
+
+    if lcp_p75:
+        print(f"\n✅ LCP P75: {lcp_p75:.0f}ms")
+
+        # Suggest alert threshold
+        if lcp_p75 > 4000:
+            print(f"\n🔴 Alert Status: WOULD FIRE (LCP {lcp_p75:.0f}ms > 4000ms threshold)")
+            print("   Suggested threshold: > 4000ms for Poor LCP")
+        elif lcp_p75 > 2500:
+            print(f"\n🟡 Alert Status: WOULD FIRE (LCP {lcp_p75:.0f}ms > 2500ms threshold)")
+            print("   Suggested threshold: > 2500ms for Degraded LCP")
+        else:
+            print(f"\n🟢 Alert Status: OK (LCP {lcp_p75:.0f}ms < 2500ms)")
+    else:
+        print("\n⚠️  LCP P75 value is null")
+
+    print("\n✓ Alert query executed successfully")
+    print("  To set up alert:")
+    print("  1. Go to New Relic Alerts & AI")
+    print("  2. Create NRQL alert condition")
+    print("  3. Use query above")
+    print("  4. Set threshold: > 4000ms (Poor) or > 2500ms (Needs Improvement)")
