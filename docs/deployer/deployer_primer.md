@@ -16,12 +16,15 @@ That's the whole macro story. Everything below is "how does the deployer encode 
 
 ---
 
-## The two workflows and why they're split
+## The three workflows and why they're split
+
+The deployer has three top-level workflows, layered `infra → app → new relic`. Each owns a distinct scope and runs on a distinct cadence.
 
 | Workflow | Scope | Run cadence | What it owns |
 |---|---|---|---|
 | [`relibank-infra.yml`](../.github/workflows/relibank-infra.yml) | env-scoped | rarely | Cluster, cluster-wide infra, AOAI, Function App + ACS |
 | [`deploy-relibank.yml`](../.github/workflows/deploy-relibank.yml) | color-scoped | often | One app tier (10 services) per color; image build; traffic switch |
+| [`relibank-newrelic.yml`](../.github/workflows/relibank-newrelic.yml) | env-scoped (third layer) | rare-to-medium | NR entity definitions (dashboards, alerts, SLIs, workloads, synthetics) for the env. Runs AFTER the app tier so it can reference real APM entities via NerdGraph data sources. |
 
 State files mirror the split — see [terraform/aks/](../terraform/aks/):
 
@@ -33,6 +36,7 @@ relibank/{env}/notifications.tfstate      ← infra workflow, Stage 4
 relibank/{env}/blue.tfstate               ← deploy workflow (blue)
 relibank/{env}/green.tfstate              ← deploy workflow (green)
 relibank/{env}/traffic_management.tfstate ← deploy workflow (direct_traffic)
+relibank/{env}/newrelic.tfstate           ← newrelic workflow (third layer)
 ```
 
 ### The split is load-bearing — the blue/green isolation rule
@@ -69,6 +73,31 @@ Run in order on a fresh deploy; controlled by the `stage` input.
 | `post-deployment-tests` | Calls [`test-suite.yml`](../.github/workflows/test-suite.yml) workflow_call — runs Python + frontend tests against the freshly deployed color. |
 | `direct-traffic-relibank` | TF apply on [`terraform/aks/traffic_management`](../terraform/aks/traffic_management/) to flip the NGINX main rule. Sub-second cutover, no pod restart. The canary ingress (X-Test-Env header) lets you smoke-test the inactive color before flipping. |
 | `destroy-relibank` | Destroys app tier in one color. Use after traffic has been switched away. |
+
+---
+
+## The third layer: NR entities
+
+`relibank-newrelic.yml` sits conceptually above the app: `infra → app → new relic`. It manages two things in one apply:
+
+1. **NR entities** — dashboards, alert policies, NRQL conditions, notification destinations/channels/workflows, service levels (SLIs), synthetics monitors, workloads, and entity tags. Mirrors demogorgon's `applications/microservices-demo/terraform/newrelic/newrelic/` module: one file per entity type under [terraform/aks/newrelic](../terraform/aks/newrelic/).
+2. **Cluster-side NR observability stack** — the `nri-bundle` helm chart (infrastructure agent, kube-state-metrics, kubeEvents, logging, prometheus) plus the `nr-ebpf-agent` helm chart for service-level workload metrics. Installed into the `newrelic` namespace (created by [infra/main.tf](../terraform/aks/infra/main.tf)) via `data.azurerm_kubernetes_cluster` credentials passed to the `helm` + `kubernetes` providers. See [nr_infra_agent.tf](../terraform/aks/newrelic/nr_infra_agent.tf). Mirrors demogorgon's `terraform/modules/infra/eks_newrelic/` helm releases.
+
+| Job | What it does |
+|---|---|
+| `relibank-newrelic-deploy` | TF apply on [`terraform/aks/newrelic`](../terraform/aks/newrelic/). Provisions NR entities via the `newrelic/newrelic` provider AND installs the cluster-side helm charts via the `helm`/`kubernetes` providers, in one apply. Idempotent — safe to re-run anytime. |
+| `relibank-newrelic-validate` | Hard-gating post-apply check. Waits 120s for entity propagation + agent first-report, then runs [`tests/workflow_validation/validate_nr_workflow.py`](../tests/workflow_validation/validate_nr_workflow.py) — NerdGraph entity-search for each TF-created entity (dashboard, alert policy, NRQL condition, notification destination/channel, workflow, workload, synthetics monitors) and NRQL for K8sClusterSample/K8sPodSample to confirm the helm-installed agents are reporting. Mirrors demogorgon's `post-deployment-validation.yml` validate-data job. Only runs on `deploy`. |
+| `relibank-newrelic-destroy` | TF destroy. Run BEFORE app-tier destroy so APM data sources still resolve cleanly, AND before infra-tier destroy so the helm releases tear down before the cluster goes away. |
+
+### Why it's a third layer, not a stage of infra
+
+NR entities are env-scoped (one set per env, same as cluster/AOAI/notifications), but they depend on the running app tier: the placeholder data sources in [`nr_entities.tf`](../terraform/aks/newrelic/nr_entities.tf) resolve real APM entities by name (e.g. `${APP_NAME} - Support Service`), which only exist in NR after services report telemetry. That dependency on the app tier rules out putting NR in `relibank-infra.yml` (which runs BEFORE app deploy). And mixing it into `deploy-relibank.yml` would couple env-scoped resources into a color-scoped workflow — wrong scope. A separate top-level workflow keeps each workflow's scope clean.
+
+The trade-off vs demogorgon: demogorgon has a single monolithic `deploy-demogorgon.yml` with `newrelic_deploy` / `newrelic_destroy` as `action_type` values alongside app deploys, and operators are forced to pick a `target_color` even for NR actions (the input is ignored by NR jobs). ReliBank splits this out as its own workflow, which avoids the color-picker quirk. Migrating to demogorgon's pattern later is cheap (TF module unchanged; only workflow plumbing moves).
+
+### Stub-now-fill-in-later
+
+The current `terraform/aks/newrelic/` module ships placeholder stubs (one resource per entity type) so `terraform apply` succeeds end-to-end on a fresh env. Every file is marked with a single `# TMM:` line at the top calling out what to replace. TMM (the entity-management team) replaces these with real definitions over time without needing to touch the workflow or backend wiring. Dashboard JSON and synthetics-script bodies live in [`terraform/aks/newrelic/dashboards/`](../terraform/aks/newrelic/dashboards/) and [`terraform/aks/newrelic/scripts/`](../terraform/aks/newrelic/scripts/) respectively — TMM adds new template files there rather than editing the `.tf` files (mirrors demogorgon's `terraform/newrelic/{dashboards,scripts}/` layout).
 
 ---
 

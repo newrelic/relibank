@@ -1,0 +1,7 @@
+// TMM: replace this placeholder script with a real synthetic check.
+var assert = require('assert');
+$http.get('https://${demo_environment}.relibankdemo.com/',
+  function (err, response, body) {
+    assert.equal(response.statusCode, 200, 'Expected HTTP 200');
+  }
+);

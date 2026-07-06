@@ -197,6 +197,15 @@ if [[ "$SKIP_SP" == "false" ]]; then
   az role assignment create --assignee "$CLIENT_ID" --role AcrPull --scope "$ACR_SCOPE" --output none
   success "ACR roles assigned"
 
+  # User Access Administrator at ENV RG scope — required so the deployer can create
+  # role assignments inside its own RG (e.g. azurerm_role_assignment.acr_pull in
+  # terraform/aks/cluster/main.tf binds the AKS kubelet identity to AcrPull on the ACR).
+  # Contributor does NOT include Microsoft.Authorization/roleAssignments/write; only
+  # Owner and User Access Administrator do. Without this, Stage 1 cluster apply 403s.
+  info "Granting User Access Administrator at env RG scope (for azurerm_role_assignment.acr_pull)..."
+  az role assignment create --assignee "$CLIENT_ID" --role "User Access Administrator" --scope "$ENV_RG_SCOPE" --output none
+  success "User Access Administrator assigned at env RG"
+
   info "Granting Storage Blob Data Contributor on $STORAGE_ACCOUNT..."
   az role assignment create --assignee "$CLIENT_ID" --role "Storage Blob Data Contributor" --scope "$STORAGE_SCOPE" --output none
   success "Storage role assigned"

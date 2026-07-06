@@ -1,0 +1,30 @@
+{
+  "name": "${app_name} - Placeholder Dashboard",
+  "description": "Placeholder dashboard created by the ReliBank deployer's NR entities module.",
+  "permissions": "PUBLIC_READ_WRITE",
+  "pages": [
+    {
+      "name": "Overview",
+      "widgets": [
+        {
+          "title": "Support Service - Throughput",
+          "layout": {
+            "column": 1,
+            "row": 1,
+            "width": 12,
+            "height": 3
+          },
+          "visualization": { "id": "viz.line" },
+          "rawConfiguration": {
+            "nrqlQueries": [
+              {
+                "accountId": ${account_id},
+                "query": "FROM Metric SELECT rate(count(apm.service.transaction.duration), 1 minute) WHERE entityGuid = '${support_service_guid}' TIMESERIES"
+              }
+            ]
+          }
+        }
+      ]
+    }
+  ]
+}

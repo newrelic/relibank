@@ -4,14 +4,15 @@ Operational guide. If you're deploying, switching traffic, or recovering from a 
 
 ---
 
-## TL;DR — the four flows
+## TL;DR — the five flows
 
 | Goal | Workflows in order |
 |---|---|
-| Brand-new environment | `ReliBank Infra` (deploy, stage=all) → `Deploy ReliBank` (deploy, blue) → `Deploy ReliBank` (direct_traffic, blue) |
-| Rolling release | `Deploy ReliBank` (deploy, inactive color) → optional canary verify → `Deploy ReliBank` (direct_traffic, new color) → `Deploy ReliBank` (destroy, old color) |
+| Brand-new environment | `ReliBank Infra` (deploy, stage=all) → `Deploy ReliBank` (deploy, blue) → `Deploy ReliBank` (direct_traffic, blue) → *(once services are reporting)* `ReliBank NR` (deploy) |
+| Rolling release | `Deploy ReliBank` (deploy, inactive color) → optional canary verify → `Deploy ReliBank` (direct_traffic, new color) → `Deploy ReliBank` (destroy, old color). NR entities don't change on rolling release — entity team triggers `ReliBank NR` (deploy) separately when they merge entity changes. |
 | Infra-only refresh | `ReliBank Infra` (deploy, stage=`ai_services` or `notifications`) |
-| Full teardown | `Deploy ReliBank` (destroy) for each color → `ReliBank Infra` (destroy) |
+| NR entities + cluster agent refresh | `ReliBank NR` (deploy) — env-scoped, runs against the same NR account the app reports to. Installs/updates the cluster-side `nri-bundle` + `nr-ebpf-agent` helm charts and refreshes NR entity definitions in one apply. A follow-up `relibank-newrelic-validate` job hard-gates the workflow by NerdGraph-querying each entity and the cluster's K8sClusterSample/K8sPodSample telemetry. Requires at least one color is deployed and services are reporting (entity data sources resolve real APM entities by name). |
+| Full teardown | `ReliBank NR` (destroy) → `Deploy ReliBank` (destroy) for each color → `ReliBank Infra` (destroy). The NR-first ordering is load-bearing: the NR module's helm releases live on the cluster, so `ReliBank Infra` destroy (which tears down the cluster) would orphan that state. |
 
 ---
 
@@ -41,7 +42,7 @@ Before any workflow can succeed, the GitHub Environment must exist with the foll
 | `AZURE_CLIENT_ID` / `AZURE_CLIENT_SECRET` / `AZURE_SUBSCRIPTION_ID` / `AZURE_TENANT_ID` | Same SP, broken out for `azurerm` provider |
 | `NR_LICENSE_KEY` | APM ingest, ends in `FFFFNRAL` |
 | `NR_BROWSER_LICENSE_KEY` | Browser ingest, starts with `NRJS-`. **Different key from above.** See troubleshooting if MFE telemetry breaks. |
-| `NR_USER_API_KEY` | NerdGraph user key for tests/automation |
+| `NR_USER_API_KEY` | NerdGraph user key. Used by tests, scenario flows, AND the `ReliBank NR` workflow's TF module to CRUD NR entities (dashboards, alerts, SLIs, workloads, synthetics). Must start with `NRAK-`. |
 | `MSSQL_SA_USER` / `MSSQL_SA_PASSWORD` | MSSQL admin |
 | `POSTGRES_USER` / `POSTGRES_PASSWORD` | Postgres admin |
 | `AZURE_ACS_SMS_PHONE_NUMBER` | Sender phone for SMS |
@@ -49,7 +50,19 @@ Before any workflow can succeed, the GitHub Environment must exist with the foll
 ### One-time Azure / TF state setup
 
 - The deployer service principal must have `Cognitive Services Contributor` at **subscription scope**, not RG-scoped. RG-scoped won't reach soft-deleted accounts (recycle bin lives at sub scope). Without this, AOAI Stage 3 destroy/redeploy fails the second time around.
+- The deployer SP also needs `User Access Administrator` at the env RG scope so it can create role assignments inside its own RG (e.g. binding the AKS kubelet identity to AcrPull on the ACR). `setup-environment.sh` grants this automatically; if you bootstrap the SP by hand, add it explicitly.
 - Terraform state storage account (e.g. `relibankstate`) and container (`tfstate`) must exist. `setup-environment.sh` creates them if missing.
+
+### Hard blockers before first deploy
+
+These four NR Browser app values are required to **build** the frontend image — the Dockerfile's `generate_nrjs_file.sh` fails fast if any are missing. Set them up BEFORE running `Deploy ReliBank` the first time:
+
+- `NR_ACCOUNT_ID` (variable)
+- `NR_BROWSER_APP_ID` (variable)
+- `NR_BROWSER_LICENSE_KEY` (secret, starts with `NRJS-`)
+- `NR_TRUST_KEY` (secret)
+
+All four come from a single New Relic Browser app you create in the NR UI. See [secrets_reference.md → How to create the New Relic browser app](secrets_reference.md#how-to-create-the-new-relic-browser-app-one-time-per-env) for the exact NR UI walkthrough.
 
 ---
 
@@ -60,17 +73,44 @@ These run once when standing up a new environment, then never again.
 ### 1. `setup-environment.sh`
 
 ```bash
+# from the repo root
 cd terraform/aks/scripts
 ./setup-environment.sh --environment sandbox
 ```
 
-Creates RG, ACR, deployer SP, TF state storage. Prints the GitHub secrets/variables to copy into the GH Environment.
+Creates RG, ACR, deployer SP (with `Contributor`, `User Access Administrator` on the env RG, `Cognitive Services Contributor` at sub scope, `DNS Zone Contributor` on the shared DNS zone, ACR push/pull, storage blob contributor on the shared TF state account), and TF state storage if missing. Prints the GitHub secrets/variables to copy into the GH Environment.
+
+> **If the SP-creation step hangs or fails silently** — most commonly this is your user identity lacking tenant-level perms to create AAD service principals. As a workaround, run just the `az ad sp create-for-rbac` line manually (or have a tenant admin run it for you), then assign the same roles the script grants:
+>
+> ```bash
+> az ad sp create-for-rbac --name "relibank-<env>-deployer" \
+>   --role Contributor \
+>   --scopes /subscriptions/<sub>/resourceGroups/ReliBank-<env> /subscriptions/<sub>/resourceGroups/ReliBank
+>
+> az role assignment create --assignee <appId> --role "User Access Administrator" --scope /subscriptions/<sub>/resourceGroups/ReliBank-<env>
+> az role assignment create --assignee <appId> --role "Cognitive Services Contributor" --scope /subscriptions/<sub>
+> az role assignment create --assignee <appId> --role "DNS Zone Contributor" --scope /subscriptions/<sub>/resourceGroups/relibank/providers/Microsoft.Network/dnszones/relibankdemo.com
+> # plus AcrPush/AcrPull on the ACR and Storage Blob Data Contributor on the state account
+> ```
+>
+> Then paste the `appId` / `password` / tenant / subscription into the GH Environment secrets directly. Skip Step 4 of `setup-environment.sh` on re-runs by passing `--skip-sp`.
 
 ### 2. Configure GitHub Environment
 
 Settings → Environments → New environment, name matches the workflow `environment` input (e.g. `sandbox`). Paste in the secrets/variables from step 1.
 
 > **No assistant-creation step.** The deployed AI path is LangGraph chat-completions — see [primer.md → AI architecture](primer.md#ai-architecture-langgraph-not-assistants-api). There is no `create_assistants.py`, no `Bootstrap Assistants` workflow, and no `ASSISTANT_*_ID` to wire. If you find references to those in stale docs or git history, treat them as historical.
+
+### 3. Add the new env value to workflow `environment` choice lists
+
+Each GitHub Actions workflow that takes an `environment` (or `target_environment`) input declares its allowed values inline. GH won't let you trigger a workflow with a value that isn't in the list, so adding a new env (e.g. `qa`) requires editing every workflow that gates on environment:
+
+- [`.github/workflows/build-push-images.yml`](../../.github/workflows/build-push-images.yml) — `workflow_dispatch.inputs.environment.options`
+- [`.github/workflows/deploy-relibank.yml`](../../.github/workflows/deploy-relibank.yml) — `workflow_dispatch.inputs.environment.options`
+- [`.github/workflows/relibank-infra.yml`](../../.github/workflows/relibank-infra.yml) — `workflow_dispatch.inputs.environment.options`
+- [`.github/workflows/test-suite.yml`](../../.github/workflows/test-suite.yml) — `workflow_dispatch.inputs.target_environment.options`
+
+Recommended: open a small patch PR off `main` that adds the new value to every list at once (don't bundle into feature work — keeps the workflow change reviewable in isolation).
 
 ---
 
@@ -94,6 +134,12 @@ Settings → Environments → New environment, name matches the workflow `enviro
    - `environment=sandbox`
    - `target_color=blue`
    - Sub-second NGINX rule flip. App is now live.
+4. *(Wait ~1-2 min for services to start reporting to NR.)*
+5. **`ReliBank NR`** workflow_dispatch
+   - `action_type=deploy`
+   - `environment=sandbox`
+   - Provisions placeholder NR entities (dashboard, alert policy, SLI, workload, synthetics, etc.) under `${APP_NAME} - Placeholder *`. The entity team replaces these with real definitions over time. **Required before this step:** APM entities must exist in NR — that means at least one color is deployed and services are actively reporting, otherwise the data sources in `terraform/aks/newrelic/nr_entities.tf` fail to resolve at plan time.
+   - After apply, `relibank-newrelic-validate` waits 120s then runs [`tests/workflow_validation/validate_nr_workflow.py`](../../tests/workflow_validation/validate_nr_workflow.py) — NerdGraph entity-search per TF-created entity (dashboard/alert policy/NRQL condition/destination/channel/workflow/workload/synthetics monitors) and NRQL for `K8sClusterSample` + `K8sPodSample` on the `newrelic` namespace. Any check failing fails the workflow. If a telemetry check fails, give the agents another minute and re-run the workflow (a clean re-apply is a no-op against state).
 
 ### Rolling release (env on blue, deploying green)
 
@@ -129,11 +175,20 @@ When build args (NR keys, Stripe keys, browser license key) change but source ha
 
    This is a known gap. See [Known gaps](#known-gaps).
 
+### NR entities refresh
+
+When the entity team merges entity-definition changes under `terraform/aks/newrelic/`, the changes don't apply automatically — trigger them explicitly:
+
+1. **`ReliBank NR`** — `action_type=deploy`, pick the env. Idempotent; safe to re-run anytime.
+
+If a stub data source in `nr_entities.tf` doesn't resolve (e.g. you added a new service reference before that service was deployed), TF apply fails at plan time. Deploy the missing service first, wait 1-2 min, retry.
+
 ### Full teardown
 
-1. **`Deploy ReliBank`** — `action_type=destroy`, `target_color=blue`
-2. **`Deploy ReliBank`** — `action_type=destroy`, `target_color=green`
-3. **`ReliBank Infra`** — `action_type=destroy`. Pre-destroy-checks confirms both color namespaces are empty before allowing infra destroy.
+1. **`ReliBank NR`** — `action_type=destroy`. Removes the env's NR entities before the APM data sources go stale (which they do once the app tier stops reporting).
+2. **`Deploy ReliBank`** — `action_type=destroy`, `target_color=blue`
+3. **`Deploy ReliBank`** — `action_type=destroy`, `target_color=green`
+4. **`ReliBank Infra`** — `action_type=destroy`. Pre-destroy-checks confirms both color namespaces are empty before allowing infra destroy.
 
 ---
 
@@ -302,3 +357,8 @@ These are open items the runbook explicitly acknowledges so you don't waste time
 - **Sandbox cluster may not exist yet.** Per memory dated 2026-05-15, only `relibank-prod` exists. Check `az aks list -g ReliBank` before assuming sandbox is up.
 - **DNS A record only updates on `direct_traffic`.** After a full infra rebuild (cluster destroyed and recreated), the new NGINX LB has a different public IP than the destroyed one, but `{env}.{dns_zone}` still points at the old IP until `direct_traffic` re-applies `traffic_management/`. Post-deployment tests will time out for the entire ~63min suite if you skip `direct_traffic` after a rebuild. See troubleshooting entry above.
 - **Silent test skips on main.** Test-suite reports passes even when individual tests skipped due to missing/renamed secrets. Read the GH step summary, not just the green checkmark.
+- **Not all Azure regions have Azure OpenAI quota.** During the `analysts` setup, `westus2` and `eastus2` had no AOAI quota — Stage 3 of `ReliBank Infra` failed on AOAI account creation. `westus3` worked. Before standing up a new env, verify your `AZURE_LOCATION` has OpenAI quota:
+  ```bash
+  az cognitiveservices account list-skus --location <region> --kind OpenAI -o table
+  ```
+  If the result is empty for your chosen region, pick a different one or request quota through the Azure portal. `setup-environment.sh` defaults to `westus2`, which is unreliable for new subscriptions — override with `--location westus3` (or your verified region) on the initial run.
