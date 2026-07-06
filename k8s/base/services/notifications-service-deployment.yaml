@@ -33,11 +33,11 @@ spec:
           name: notifications-service
           resources:
             requests:
-              memory: "128Mi"
-              cpu: "100m"
+              memory: 128Mi
+              cpu: 100m
             limits:
-              memory: "256Mi"
-              cpu: "500m"
+              memory: 256Mi
+              cpu: 500m
       restartPolicy: Always
 ---
 apiVersion: v1
@@ -49,7 +49,7 @@ metadata:
   namespace: relibank
 spec:
   ports:
-  - name: "5000"
+  - name: 5000
     port: 5000
     targetPort: 5000
   selector:

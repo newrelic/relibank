@@ -29,11 +29,11 @@ spec:
               protocol: TCP
           resources:
             requests:
-              memory: "128Mi"
-              cpu: "100m"
+              memory: 128Mi
+              cpu: 100m
             limits:
-              memory: "256Mi"
-              cpu: "500m"
+              memory: 256Mi
+              cpu: 500m
       restartPolicy: Always
 ---
 apiVersion: v1
@@ -45,7 +45,7 @@ metadata:
   namespace: relibank
 spec:
   ports:
-  - name: "5003"
+  - name: 5003
     port: 5003
     targetPort: 5003
   selector:
