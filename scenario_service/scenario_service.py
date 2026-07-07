@@ -112,7 +112,7 @@ DEM_FORRESTER_SCENARIOS = {
     # One-time trigger scenario
     "memory_leak_trigger_active": False,
     "memory_leak_trigger_deadline": None,  # Unix timestamp (time.time()) when it should stop
-    "memory_leak_trigger_duration_sec": 600,  # Default 10 minutes (600 seconds) for faster testing
+    "memory_leak_trigger_duration_sec": 900,  # Default 15 minutes (900 seconds) - 10 min to reach max + 5 min hold
 }
 
 # Rate limiting for chaos scenarios (abuse prevention)
@@ -338,8 +338,8 @@ async def get_scenarios():
     })
     # DEM Memory Leak scenarios
     scenarios_list.append({
-        "name": "dem-memory-leak-10min",
-        "description": "DEM Memory Leak - Forrester (10-min gradual climb)",
+        "name": "dem-memory-leak-15min",
+        "description": "DEM Memory Leak - Forrester (15-min: 10-min climb + 5-min hold)",
         "type": "stress-chaos",
         "target_service": "accounts-service"
     })
@@ -486,9 +486,9 @@ async def trigger_chaos_experiment(scenario_name: str):
         print(f"Error creating PodChaos object: {e}")
         return {"status": "error", "message": f"Failed to trigger experiment: {e.reason}"}
 
-@app.post("/scenario-runner/api/trigger_stress/dem-memory-leak-10min")
-async def trigger_dem_memory_leak_10min():
-    """Triggers a 10-minute DEM memory leak scenario that auto-expires (one-time button)"""
+@app.post("/scenario-runner/api/trigger_stress/dem-memory-leak-15min")
+async def trigger_dem_memory_leak_15min():
+    """Triggers a 15-minute DEM memory leak scenario that auto-expires (10 min to reach max + 5 min hold)"""
     import time
 
     # Check if already running
@@ -1041,7 +1041,7 @@ async def reset_dem_memory_leak_scenarios():
     DEM_FORRESTER_SCENARIOS["memory_leak_max_mb"] = 800
     DEM_FORRESTER_SCENARIOS["memory_leak_trigger_active"] = False
     DEM_FORRESTER_SCENARIOS["memory_leak_trigger_deadline"] = None
-    DEM_FORRESTER_SCENARIOS["memory_leak_trigger_duration_sec"] = 600  # 10 minutes
+    DEM_FORRESTER_SCENARIOS["memory_leak_trigger_duration_sec"] = 900  # 15 minutes
 
     return {
         "status": "success",
