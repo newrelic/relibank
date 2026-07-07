@@ -4,6 +4,7 @@ import sys
 import json
 import logging
 import hashlib
+import gc
 import psycopg2
 from psycopg2 import extras, pool
 from pydantic import BaseModel, Field
@@ -287,6 +288,7 @@ async def dem_memory_leak_background_task():
                 # Clean up when disabled
                 if dem_memory_leak_data:
                     dem_memory_leak_data.clear()
+                    gc.collect()  # Force garbage collection to free memory immediately
                     prev_current_mb = 0
 
         except Exception as e:
@@ -366,6 +368,7 @@ async def lifespan(app: FastAPI):
 
     # Clean up allocated memory
     dem_memory_leak_data.clear()
+    gc.collect()  # Force garbage collection to free memory immediately
 
     if connection_pool:
         connection_pool.closeall()
