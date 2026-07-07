@@ -50,7 +50,7 @@ resource "azurerm_kubernetes_cluster" "relibank" {
   default_node_pool {
     name       = "system"
     node_count = 2
-    vm_size    = "Standard_D2s_v3"
+    vm_size    = "Standard_D4s_v3"
 
     node_labels = {
       "nodepool-type" = "system"
