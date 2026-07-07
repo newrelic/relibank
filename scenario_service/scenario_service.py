@@ -111,7 +111,7 @@ DEM_FORRESTER_SCENARIOS = {
 
     # One-time trigger scenario
     "memory_leak_trigger_active": False,
-    "memory_leak_trigger_deadline": None,  # time.monotonic() value when it should stop
+    "memory_leak_trigger_deadline": None,  # Unix timestamp (time.time()) when it should stop
     "memory_leak_trigger_duration_sec": 1800,  # Default 30 minutes (1800 seconds) to show full trend
 }
 
@@ -494,8 +494,8 @@ async def trigger_dem_memory_leak_30min():
     # Check if already running
     if DEM_FORRESTER_SCENARIOS["memory_leak_trigger_active"]:
         deadline = DEM_FORRESTER_SCENARIOS["memory_leak_trigger_deadline"]
-        if deadline and time.monotonic() < deadline:
-            remaining = int(deadline - time.monotonic())
+        if deadline and time.time() < deadline:
+            remaining = int(deadline - time.time())
             return {
                 "status": "error",
                 "message": f"DEM memory leak scenario already running. {remaining} seconds remaining."
@@ -504,7 +504,7 @@ async def trigger_dem_memory_leak_30min():
     # Start the scenario
     duration_sec = DEM_FORRESTER_SCENARIOS["memory_leak_trigger_duration_sec"]
     DEM_FORRESTER_SCENARIOS["memory_leak_trigger_active"] = True
-    DEM_FORRESTER_SCENARIOS["memory_leak_trigger_deadline"] = time.monotonic() + duration_sec
+    DEM_FORRESTER_SCENARIOS["memory_leak_trigger_deadline"] = time.time() + duration_sec
 
     return {
         "status": "success",

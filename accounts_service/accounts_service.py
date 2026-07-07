@@ -247,7 +247,7 @@ async def dem_memory_leak_background_task():
             # Check trigger (timed mode)
             elif config.get("memory_leak_trigger_active"):
                 deadline = config.get("memory_leak_trigger_deadline")
-                if deadline and time.monotonic() < deadline:
+                if deadline and time.time() < deadline:
                     should_leak = True
 
             # Log only on state changes
