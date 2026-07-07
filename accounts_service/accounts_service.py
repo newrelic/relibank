@@ -233,6 +233,8 @@ async def dem_memory_leak_background_task():
     # Track previous state to detect changes
     prev_should_leak = False
     prev_current_mb = 0
+    max_reached_time = None  # Track when we reached max capacity
+    hold_duration = 300  # Hold at max for 5 minutes (300 seconds)
 
     while True:
         try:
@@ -284,12 +286,29 @@ async def dem_memory_leak_background_task():
                     if int(current_mb / 100) != int(prev_current_mb / 100):
                         logging.info(f"DEM memory leak allocated: {current_mb:.1f} MB / {max_mb} MB")
                     prev_current_mb = current_mb
+                elif current_mb >= max_mb:
+                    # We've reached max capacity
+                    if max_reached_time is None:
+                        max_reached_time = time.time()
+                        logging.info(f"DEM memory leak reached max capacity: {current_mb:.1f} MB. Holding for {hold_duration}s.")
+
+                    # Check if we've held long enough
+                    time_at_max = time.time() - max_reached_time
+                    if time_at_max >= hold_duration:
+                        # Held at max for required duration, now clean up
+                        logging.info(f"DEM memory leak held at max for {hold_duration}s. Cleaning up now.")
+                        dem_memory_leak_data.clear()
+                        gc.collect()
+                        prev_current_mb = 0
+                        max_reached_time = None
+                        prev_should_leak = False  # Trigger "STOPPED" log on next iteration
             else:
                 # Clean up when disabled
                 if dem_memory_leak_data:
                     dem_memory_leak_data.clear()
                     gc.collect()  # Force garbage collection to free memory immediately
                     prev_current_mb = 0
+                    max_reached_time = None  # Reset timer for next run
 
         except Exception as e:
             logging.error(f"DEM memory leak background task error: {e}")
