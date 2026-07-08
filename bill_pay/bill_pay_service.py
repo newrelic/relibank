@@ -645,6 +645,12 @@ async def process_card_payment(payment: CardPaymentRequest, request: Request):
 
         # Check for card decline scenario (probability-based)
         if scenarios["card_decline_enabled"] and random.random() * 100 <= scenarios["card_decline_probability"]:
+            # Add DEM scenario tracking custom attributes
+            newrelic.agent.add_custom_attribute("transaction_amount", payment.amount)
+            newrelic.agent.add_custom_attribute("transaction_type", "card_payment")
+            newrelic.agent.add_custom_attribute("dem_scenario_active", True)
+            newrelic.agent.add_custom_attribute("failure_cause", "memory_pressure_degradation")
+
             logging.error(json.dumps({
                 "event": "PAYMENT_DECLINED",
                 "processor_model": "scenario",
@@ -694,6 +700,12 @@ async def process_card_payment(payment: CardPaymentRequest, request: Request):
 
         # Check for gateway timeout scenario (probability-based)
         if scenarios["gateway_timeout_enabled"] and random.random() * 100 <= scenarios["gateway_timeout_probability"]:
+            # Add DEM scenario tracking custom attributes
+            newrelic.agent.add_custom_attribute("transaction_amount", payment.amount)
+            newrelic.agent.add_custom_attribute("transaction_type", "card_payment")
+            newrelic.agent.add_custom_attribute("dem_scenario_active", True)
+            newrelic.agent.add_custom_attribute("failure_cause", "memory_pressure_timeout")
+
             delay = scenarios["gateway_timeout_delay"]
             logging.warning(json.dumps({
                 "event": "PAYMENT_GATEWAY_DELAY",

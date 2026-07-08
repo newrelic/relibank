@@ -506,12 +506,22 @@ async def trigger_dem_memory_leak_17min():
     DEM_FORRESTER_SCENARIOS["memory_leak_trigger_active"] = True
     DEM_FORRESTER_SCENARIOS["memory_leak_trigger_deadline"] = time.time() + duration_sec
 
+    # Automatically enable payment failure scenarios to show business impact
+    PAYMENT_SCENARIOS["card_decline_enabled"] = True
+    PAYMENT_SCENARIOS["card_decline_probability"] = 50.0
+    PAYMENT_SCENARIOS["gateway_timeout_enabled"] = True
+    PAYMENT_SCENARIOS["gateway_timeout_probability"] = 20.0
+    PAYMENT_SCENARIOS["gateway_timeout_delay"] = 10.0
+
     return {
         "status": "success",
-        "message": f"DEM memory leak scenario triggered for {duration_sec // 60} minutes. Will auto-expire.",
+        "message": f"DEM memory leak scenario triggered for {duration_sec // 60} minutes with payment failures. Will auto-expire.",
         "duration_seconds": duration_sec,
         "rate_mb_per_sec": DEM_FORRESTER_SCENARIOS["memory_leak_rate_mb_per_sec"],
-        "max_mb": DEM_FORRESTER_SCENARIOS["memory_leak_max_mb"]
+        "max_mb": DEM_FORRESTER_SCENARIOS["memory_leak_max_mb"],
+        "payment_failures_enabled": True,
+        "card_decline_probability": 50.0,
+        "gateway_timeout_probability": 20.0
     }
 
 @app.post("/scenario-runner/api/trigger_stress/{scenario_name}")
@@ -1035,7 +1045,7 @@ async def toggle_dem_memory_leak_manual(enabled: bool, rate_mb_per_sec: int = 10
 
 @app.post("/scenario-runner/api/dem-memory-leak/reset")
 async def reset_dem_memory_leak_scenarios():
-    """Reset all DEM memory leak scenarios to default values"""
+    """Reset all DEM memory leak scenarios AND payment scenarios to default values"""
     DEM_FORRESTER_SCENARIOS["memory_leak_toggle_enabled"] = False
     DEM_FORRESTER_SCENARIOS["memory_leak_rate_mb_per_sec"] = 1.3  # Fast climb (1.3 MB/sec for 10 min)
     DEM_FORRESTER_SCENARIOS["memory_leak_max_mb"] = 800
@@ -1043,10 +1053,17 @@ async def reset_dem_memory_leak_scenarios():
     DEM_FORRESTER_SCENARIOS["memory_leak_trigger_deadline"] = None
     DEM_FORRESTER_SCENARIOS["memory_leak_trigger_duration_sec"] = 1020  # 17 minutes
 
+    # Also reset payment scenarios (auto-enabled during DEM scenario)
+    PAYMENT_SCENARIOS["card_decline_enabled"] = False
+    PAYMENT_SCENARIOS["card_decline_probability"] = 0.0
+    PAYMENT_SCENARIOS["gateway_timeout_enabled"] = False
+    PAYMENT_SCENARIOS["gateway_timeout_probability"] = 0.0
+
     return {
         "status": "success",
-        "message": "DEM memory leak scenarios reset to defaults",
-        "config": DEM_FORRESTER_SCENARIOS
+        "message": "DEM memory leak scenarios and payment scenarios reset to defaults",
+        "config": DEM_FORRESTER_SCENARIOS,
+        "payment_scenarios_reset": True
     }
 
 
