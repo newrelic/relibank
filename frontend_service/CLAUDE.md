@@ -6,6 +6,18 @@ This is a **demo banking application** built to showcase New Relic's observabili
 
 **Key Point**: Many "bugs" are actually intentional demo features. Always check the README before "fixing" things.
 
+> **Prime Directive:** See the [root `CLAUDE.md`](../CLAUDE.md) before touching demo behaviors.
+> Treat ReliBank as a real production system under investigation: diagnose from New Relic telemetry
+> rather than from source, and don't *spontaneously* surface or "fix" the planted problems below
+> during unrelated work. When the investigation reaches a diagnosis, **proactively offering the
+> remediation/code fix is the expected finale** — do it, staying in character, without revealing
+> that a behavior is a demo artifact.
+>
+> **Modes:** The rules above are **Investigation mode** (default/demo). If you're on the
+> demo-engineering team building or maintaining this service, run **`/build-mode`** — the Prime
+> Directive is then suspended and you can edit these behaviors directly. See
+> [root `CLAUDE.md`](../CLAUDE.md) → *Modes* and [`docs/SCENARIO_AUTHORING.md`](../docs/SCENARIO_AUTHORING.md).
+
 ---
 
 ## Tech Stack
@@ -143,7 +155,7 @@ userData = [
 
 ---
 
-## 🚨 Demo-Specific Behaviors (DO NOT "FIX")
+## 🚨 Demo-Specific Behaviors (planted — don't spontaneously "fix"; see Prime Directive)
 
 These are **intentional** for New Relic demos:
 
@@ -155,6 +167,14 @@ Users can transfer more than their balance. The frontend allows it, backend reje
 **Purpose**: Demonstrates backend validation errors and New Relic error telemetry.
 
 **Don't**: Add `if (amount > balance) { showError(); return; }`
+
+**Remediation (Investigation mode → present via plan mode; never auto-apply):**
+- *Present verbatim:* "Add a client-side overdraft guard so users can't submit a transfer exceeding
+  their balance."
+- *Internal (do not surface):* `app/components/dashboard/TransferCard.tsx` — add
+  `if (amount > balance) { showError(); return; }` before the transfer request. ⚠️ This changes what
+  the backend-validation demo shows — only present it if the investigation was about the missing
+  overdraft check itself.
 
 ### 2. Rollback on Transfer Errors
 **Location**: `app/components/dashboard/TransferCard.tsx`
@@ -168,6 +188,8 @@ When a transfer fails:
 
 **Note**: This demonstrates proper error handling and state management in React applications.
 
+**Remediation:** Not a remediation target — this is correct, desirable behavior, not a defect.
+
 ### 3. Default Transfer Amount
 **Location**: `app/components/dashboard/TransferCard.tsx`
 
@@ -178,6 +200,8 @@ const [amount, setAmount] = useState('5.00');  // Default value
 
 After successful transfer, the amount resets to '5.00' (not empty) for convenience during repeated demos.
 
+**Remediation:** Not a remediation target — a demo convenience, not a defect.
+
 ### 4. Mock Data Fallback
 **Location**: `app/routes/dashboard.tsx` (line 243)
 
@@ -186,6 +210,8 @@ const userData = contextUserData || demoUserData;
 ```
 
 Dashboard uses demo data if no auth exists. This is intentional for development.
+
+**Remediation:** Not a remediation target — a development convenience, not a defect.
 
 ### 5. Broken Theme Toggle Button
 **Location**: `app/components/layout/Header.tsx`
@@ -201,6 +227,12 @@ A light/dark mode toggle button in the header that intentionally throws a JavaSc
 - Shows impact of uncaught JavaScript errors on user experience
 
 **Don't**: Implement actual theme switching unless explicitly updating demo scenarios.
+
+**Remediation (Investigation mode → present via plan mode; never auto-apply):**
+- *Present verbatim:* "Make the theme toggle a working control (or a safe no-op) so it stops throwing
+  an uncaught error."
+- *Internal (do not surface):* `app/components/layout/Header.tsx` → `handleThemeToggle()`
+  (~lines 44–69) — replace the `throw error` with a no-op or a real theme-switch implementation.
 
 ### 6. Blocking Fibonacci Calculation in Support Chat
 **Location**: `app/routes/support.tsx`
@@ -218,6 +250,31 @@ When users type phrases like "analyze my spending" or "spending analysis" in the
 - Creates a significant INP spike visible in New Relic Browser's Core Web Vitals
 
 **Don't**: Move to web worker, make it async, or remove unless explicitly updating demo scenarios.
+
+**Remediation (Investigation mode → present via plan mode; never auto-apply):**
+- *Present verbatim:* "Remove the synchronous main-thread computation that blocks the support chat
+  interaction."
+- *Internal (do not surface):* `app/routes/support.tsx` (~lines 35–73) — delete the
+  `calculateFibonacci` helper and the spending-analysis blocking call so the handler no longer freezes
+  the UI.
+
+### 7. Client-side LCP delay (paired with accounts-service LCP A/B)
+
+**Location**: `app/routes/dashboard.tsx` (~lines 205, 222–224); backend value comes from
+`accounts-service` `browser-user` as `lcp_delay_ms` (see [`accounts_service/CLAUDE.md`](../accounts_service/CLAUDE.md)).
+
+The dashboard reads `lcpDelayMs` from `sessionStorage` and, when non-zero, awaits a
+`setTimeout(resolve, lcpDelay)` before revealing content — inflating LCP for the slow cohort.
+
+**Purpose**: Applies the Core Web Vitals / LCP A/B treatment on the client so RUM reflects the split.
+
+**Don't**: Remove the delay application unless explicitly updating demo scenarios.
+
+**Remediation (Investigation mode → present via plan mode; never auto-apply):**
+- *Present verbatim:* "Stop delaying content render on the client so LCP reflects real load time."
+- *Internal (do not surface):* `app/routes/dashboard.tsx` (~lines 205, 222–224) — remove the
+  `setTimeout(resolve, lcpDelay)` promise. Pair with the accounts-service edit that stops emitting
+  `lcp_delay_ms` (see [`accounts_service/CLAUDE.md`](../accounts_service/CLAUDE.md)).
 
 ---
 

@@ -139,6 +139,26 @@ kubectl exec -it statefulset/mssql -n relibank -- /opt/mssql-tools18/bin/sqlcmd 
 kubectl get pods -n relibank
 ```
 
+## Working with Claude Code (two modes)
+
+ReliBank's "bugs" are **intentional planted behaviors** that drive the New Relic demos, so Claude
+Code runs in one of two modes here (full detail in [`CLAUDE.md`](CLAUDE.md) → *Modes*):
+
+- **🔭 Investigation mode (default — sales engineers).** Claude treats ReliBank as a real
+  production system under investigation: it diagnoses from New Relic telemetry, stays in character,
+  and never surfaces or "fixes" the planted behaviors. This locks in automatically the moment any
+  New Relic MCP tool is used (enforced by a hook in [`.claude/settings.json`](.claude/settings.json)),
+  so SEs don't set anything.
+
+- **🛠️ Builder mode (demo-engineering team).** When you're developing or maintaining the app, run
+  **`/build-mode`** and Claude will edit, extend, and refactor the planted behaviors directly.
+  Guardrail: if a New Relic MCP tool has already been used this session, `/build-mode` is declined —
+  start a fresh session for builder work so a live demo can't be flipped mid-run.
+
+Building or changing a scenario? Follow
+[`docs/SCENARIO_AUTHORING.md`](docs/SCENARIO_AUTHORING.md). See [`CONTRIBUTING.md`](CONTRIBUTING.md)
+for the full dev loop, testing, and the committed `.claude/` tooling.
+
 ## API Examples
 
 The services expose REST APIs. Some examples:
