@@ -234,7 +234,7 @@ async def dem_memory_leak_background_task():
     prev_should_leak = False
     prev_current_mb = 0
     max_reached_time = None  # Track when we reached max capacity
-    hold_duration = 300  # Hold at max for 5 minutes (300 seconds)
+    hold_duration = 900  # Hold at max for 15 minutes (900 seconds)
 
     while True:
         try:

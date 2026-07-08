@@ -106,13 +106,13 @@ AB_TEST_SCENARIOS = {
 DEM_FORRESTER_SCENARIOS = {
     # Persistent toggle scenario
     "memory_leak_toggle_enabled": False,
-    "memory_leak_rate_mb_per_sec": 1.3,  # MB allocated per second (~10 min climb to 800 MB for faster testing)
+    "memory_leak_rate_mb_per_sec": 0.44,  # MB allocated per second (~30 min climb to 800 MB)
     "memory_leak_max_mb": 800,  # Maximum memory to allocate before capping
 
     # One-time trigger scenario
     "memory_leak_trigger_active": False,
     "memory_leak_trigger_deadline": None,  # Unix timestamp (time.time()) when it should stop
-    "memory_leak_trigger_duration_sec": 1020,  # Default 17 minutes (1020 seconds) - 10.5 min to reach max + 5 min hold + 1.5 min buffer
+    "memory_leak_trigger_duration_sec": 2700,  # Default 45 minutes (2700 seconds) - 30 min climb + 15 min hold
 }
 
 # Rate limiting for chaos scenarios (abuse prevention)
@@ -338,8 +338,8 @@ async def get_scenarios():
     })
     # DEM Memory Leak scenarios
     scenarios_list.append({
-        "name": "dem-memory-leak-17min",
-        "description": "DEM Memory Leak - Forrester (17-min: 10.5-min climb + 5-min hold + buffer)",
+        "name": "dem-memory-leak-45min",
+        "description": "DEM Memory Leak - Forrester (45-min: 30-min climb + 15-min hold)",
         "type": "stress-chaos",
         "target_service": "accounts-service"
     })
@@ -486,9 +486,9 @@ async def trigger_chaos_experiment(scenario_name: str):
         print(f"Error creating PodChaos object: {e}")
         return {"status": "error", "message": f"Failed to trigger experiment: {e.reason}"}
 
-@app.post("/scenario-runner/api/trigger_stress/dem-memory-leak-17min")
-async def trigger_dem_memory_leak_17min():
-    """Triggers a 17-minute DEM memory leak scenario that auto-expires (10.5 min to reach max + 5 min hold + buffer)"""
+@app.post("/scenario-runner/api/trigger_stress/dem-memory-leak-45min")
+async def trigger_dem_memory_leak_45min():
+    """Triggers a 45-minute DEM memory leak scenario that auto-expires (30 min climb + 15 min hold)"""
     import time
 
     # Check if already running
@@ -1047,11 +1047,11 @@ async def toggle_dem_memory_leak_manual(enabled: bool, rate_mb_per_sec: int = 10
 async def reset_dem_memory_leak_scenarios():
     """Reset all DEM memory leak scenarios AND payment scenarios to default values"""
     DEM_FORRESTER_SCENARIOS["memory_leak_toggle_enabled"] = False
-    DEM_FORRESTER_SCENARIOS["memory_leak_rate_mb_per_sec"] = 1.3  # Fast climb (1.3 MB/sec for 10 min)
+    DEM_FORRESTER_SCENARIOS["memory_leak_rate_mb_per_sec"] = 0.44  # Slow climb (0.44 MB/sec for 30 min)
     DEM_FORRESTER_SCENARIOS["memory_leak_max_mb"] = 800
     DEM_FORRESTER_SCENARIOS["memory_leak_trigger_active"] = False
     DEM_FORRESTER_SCENARIOS["memory_leak_trigger_deadline"] = None
-    DEM_FORRESTER_SCENARIOS["memory_leak_trigger_duration_sec"] = 1020  # 17 minutes
+    DEM_FORRESTER_SCENARIOS["memory_leak_trigger_duration_sec"] = 2700  # 45 minutes
 
     # Also reset payment scenarios (auto-enabled during DEM scenario)
     PAYMENT_SCENARIOS["card_decline_enabled"] = False
