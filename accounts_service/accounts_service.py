@@ -71,7 +71,7 @@ async def get_ab_test_config():
     }
 
 async def get_dem_forrester_config():
-    """Fetch DEM memory leak scenario configuration from scenario service"""
+    """Fetch memory leak scenario configuration from scenario service"""
     try:
         async with httpx.AsyncClient() as client:
             response = await client.get(
@@ -82,7 +82,7 @@ async def get_dem_forrester_config():
                 data = response.json()
                 return data.get("config", {})
     except Exception as e:
-        logging.debug(f"Could not fetch DEM memory leak config: {e}")
+        logging.debug(f"Could not fetch memory leak config: {e}")
 
     # Return defaults if scenario service unavailable
     return {
@@ -94,7 +94,7 @@ async def get_dem_forrester_config():
         "memory_leak_trigger_duration_sec": 300
     }
 
-# Global state for DEM memory leak
+# Global state for memory leak scenario
 dem_memory_leak_data = []
 dem_memory_leak_task = None
 
@@ -224,8 +224,7 @@ def return_db_connection(conn):
 
 async def dem_memory_leak_background_task():
     """
-    Background task that monitors DEM scenario config and allocates memory.
-    Only logs when scenario state changes to reduce log spam.
+    Background task that monitors scenario config and allocates memory.
     """
     global dem_memory_leak_data
     delay = 3  # Check every 3 seconds for responsiveness
@@ -240,31 +239,32 @@ async def dem_memory_leak_background_task():
         try:
             config = await get_dem_forrester_config()
 
-            # Determine if we should leak memory
+            # Determine if we should leak memory and which rate to use
             should_leak = False
+            rate_mb = config.get("memory_leak_rate_mb_per_sec", 10)
 
             # Check toggle (persistent mode)
             if config.get("memory_leak_toggle_enabled"):
                 should_leak = True
 
-            # Check trigger (timed mode)
+            # Check 10-minute trigger (timed mode with faster ramp)
+            elif config.get("memory_leak_trigger_10min_active"):
+                deadline = config.get("memory_leak_trigger_10min_deadline")
+                if deadline and time.time() < deadline:
+                    should_leak = True
+                    rate_mb = config.get("memory_leak_trigger_10min_rate", rate_mb)
+
+            # Check 45-minute trigger (timed mode)
             elif config.get("memory_leak_trigger_active"):
                 deadline = config.get("memory_leak_trigger_deadline")
                 if deadline and time.time() < deadline:
                     should_leak = True
 
-            # Log only on state changes
+            # Track state changes (without logging)
             if should_leak != prev_should_leak:
-                if should_leak:
-                    rate_mb = config.get("memory_leak_rate_mb_per_sec", 10)
-                    max_mb = config.get("memory_leak_max_mb", 500)
-                    logging.info(f"DEM memory leak scenario STARTED (rate: {rate_mb} MB/sec, max: {max_mb} MB)")
-                else:
-                    logging.info("DEM memory leak scenario STOPPED")
                 prev_should_leak = should_leak
 
             if should_leak:
-                rate_mb = config.get("memory_leak_rate_mb_per_sec", 10)
                 max_mb = config.get("memory_leak_max_mb", 500)
 
                 # Calculate current memory usage
@@ -281,22 +281,16 @@ async def dem_memory_leak_background_task():
                         chunk[i] = 1
 
                     dem_memory_leak_data.append(chunk)  # Keep reference so it doesn't get GC'd
-
-                    # Log memory growth occasionally (every ~100 MB)
-                    if int(current_mb / 100) != int(prev_current_mb / 100):
-                        logging.info(f"DEM memory leak allocated: {current_mb:.1f} MB / {max_mb} MB")
                     prev_current_mb = current_mb
                 elif current_mb >= max_mb:
                     # We've reached max capacity
                     if max_reached_time is None:
                         max_reached_time = time.time()
-                        logging.info(f"DEM memory leak reached max capacity: {current_mb:.1f} MB. Holding for {hold_duration}s.")
 
                     # Check if we've held long enough
                     time_at_max = time.time() - max_reached_time
                     if time_at_max >= hold_duration:
                         # Held at max for required duration, now clean up
-                        logging.info(f"DEM memory leak held at max for {hold_duration}s. Cleaning up now.")
                         dem_memory_leak_data.clear()
                         gc.collect()
                         prev_current_mb = 0
@@ -311,7 +305,7 @@ async def dem_memory_leak_background_task():
                     max_reached_time = None  # Reset timer for next run
 
         except Exception as e:
-            logging.error(f"DEM memory leak background task error: {e}")
+            logging.error(f"Background task error: {e}")
 
         await asyncio.sleep(delay)
 
@@ -351,7 +345,7 @@ class AccountType(BaseModel):
 async def lifespan(app: FastAPI):
     """
     Context manager to handle startup and shutdown events.
-    Initializes database connection pool and DEM memory leak background task.
+    Initializes database connection pool and background task.
     """
     global connection_pool, dem_memory_leak_task
     retries = 10
@@ -370,9 +364,8 @@ async def lifespan(app: FastAPI):
         logging.error("Failed to create database connection pool after multiple retries. The application will not start.")
         raise ConnectionError("Failed to connect to PostgreSQL during startup.")
 
-    # Start DEM memory leak background task
+    # Start background task
     dem_memory_leak_task = asyncio.create_task(dem_memory_leak_background_task())
-    logging.info("DEM memory leak background task started.")
 
     yield
 
@@ -383,7 +376,6 @@ async def lifespan(app: FastAPI):
             await dem_memory_leak_task
         except asyncio.CancelledError:
             pass
-        logging.info("DEM memory leak background task stopped.")
 
     # Clean up allocated memory
     dem_memory_leak_data.clear()
