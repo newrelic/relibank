@@ -77,6 +77,7 @@ variable "assistant_b_delay_seconds" {
   default     = 0
 }
 
+
 variable "azure_function_url" {
   description = "Full URL (with ?code=) of the notifications Function App. Empty string OK — notifications-service silently no-ops if unset."
   type        = string
@@ -232,6 +233,7 @@ variable "services" {
         DB_SERVER           = "MSSQL_SERVER_NAME"
         DB_DATABASE         = "MSSQL_DATABASE_NAME"
         SUPPORT_SERVICE_URL = "SUPPORT_SERVICE_URL"
+        SCENARIO_UI_ENABLED = "SCENARIO_UI_ENABLED"
       }
       secret_envs = {
         DB_USERNAME = "MSSQL_SA_USER"

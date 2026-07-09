@@ -22,6 +22,8 @@ import pyodbc
 from pathlib import Path
 from typing import Dict, List
 
+from nrql_color import color_filter
+
 # Helper function to load environment variables from skaffold.env if present
 def load_env_from_skaffold():
     """Load environment variables from skaffold.env if file exists (local development)"""
@@ -243,10 +245,11 @@ def test_risk_assessment_logs_in_newrelic(reset_risk_scenarios):
     nrql = f"""
     SELECT count(*) as log_count, latest(message) as sample_message
     FROM Log
-    WHERE (message LIKE '%risk%' OR message LIKE '%assess%')
+    WHERE ((message LIKE '%risk%' OR message LIKE '%assess%')
       AND entity.name IN ('{APP_NAME_PREFIX} - Bill Pay Service',
                           '{APP_NAME_PREFIX} - Support Service',
-                          '{APP_NAME_PREFIX} - Risk Assessment Service')
+                          '{APP_NAME_PREFIX} - Risk Assessment Service'))
+      {color_filter('Log')}
     SINCE 2 minutes ago
     """
 
@@ -325,9 +328,10 @@ def test_declined_payment_shows_in_newrelic(reset_risk_scenarios):
     nrql = f"""
     SELECT count(*) as declined_log_count
     FROM Log
-    WHERE message LIKE '%declined%' OR message LIKE '%DECLINED%'
+    WHERE (message LIKE '%declined%' OR message LIKE '%DECLINED%'
       AND entity.name IN ('{APP_NAME_PREFIX} - Bill Pay Service',
-                          '{APP_NAME_PREFIX} - Support Service')
+                          '{APP_NAME_PREFIX} - Support Service'))
+      {color_filter('Log')}
     SINCE 3 minutes ago
     """
 
@@ -446,8 +450,9 @@ def test_agent_model_tracking_in_newrelic(reset_risk_scenarios):
     nrql = f"""
     SELECT count(*) as log_count
     FROM Log
-    WHERE (message LIKE '%gpt-4o%' OR message LIKE '%agent_model%')
-      AND entity.name = '{APP_NAME_PREFIX} - Support Service'
+    WHERE ((message LIKE '%gpt-4o%' OR message LIKE '%agent_model%')
+      AND entity.name = '{APP_NAME_PREFIX} - Support Service')
+      {color_filter('Log')}
     SINCE 3 minutes ago
     """
 
@@ -502,9 +507,10 @@ def test_risk_assessment_ebpf_traces(reset_risk_scenarios):
     nrql = f"""
     SELECT count(*) as span_count, average(duration) as avg_duration_ms
     FROM Span
-    WHERE entity.name = '{APP_NAME_PREFIX} - Risk Assessment Service'
+    WHERE (entity.name = '{APP_NAME_PREFIX} - Risk Assessment Service'
       OR name LIKE '%assess-risk%'
-      OR name LIKE '%risk-assessment%'
+      OR name LIKE '%risk-assessment%')
+      {color_filter('Span')}
     SINCE 3 minutes ago
     """
 
@@ -527,6 +533,7 @@ def test_risk_assessment_ebpf_traces(reset_risk_scenarios):
           AND (risk_level IS NOT NULL
                OR decision IS NOT NULL
                OR agent_model IS NOT NULL)
+          {color_filter('Span')}
         SINCE 3 minutes ago
         """
 

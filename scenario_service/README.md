@@ -20,6 +20,8 @@ The Scenario Runner Service is a Python-based FastAPI application designed to he
 
 * **Containerized**: The service is packaged in a Docker container for easy deployment in a Kubernetes environment.
 
+* **Environment-gated UI**: The web UI (`/scenario-runner/home`) is hidden in `prod` and shown in every other environment (derived from the deploy environment). See [Web UI visibility](#-web-ui-visibility) below.
+
 ---
 
 ### ⚙️ Getting Started
@@ -42,6 +44,23 @@ To get the Scenario Runner Service up and running, you must deploy it to your Ku
     ```bash
     http://localhost:8000
     ```
+
+---
+
+### 👁️ Web UI visibility
+
+The browser control panel at `/scenario-runner/home` is shown or hidden **based on the deploy
+environment**, while the REST API stays reachable either way (so backend services and automation
+that call `/scenario-runner/api/*` are never affected).
+
+- Driven by the `SCENARIO_UI_ENABLED` env var, which Terraform derives from the environment:
+  **`prod` → `false` (hidden), every other environment → `true` (shown)** —
+  `SCENARIO_UI_ENABLED = tostring(var.demo_environment != "prod")` in the `infrastructure-config`
+  ConfigMap → the scenario-runner pod. There is no per-run flag to set.
+- When `false`, `GET /scenario-runner/home` returns **404** (behaves as if the page doesn't exist).
+- It takes effect on a normal deploy of the target environment; see
+  [docs/deployer/runbook.md → Scenario Runner UI visibility](../docs/deployer/runbook.md#scenario-runner-ui-visibility).
+- Locally, set `SCENARIO_UI_ENABLED` in `skaffold.env`.
 
 ---
 

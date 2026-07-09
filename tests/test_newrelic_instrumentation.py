@@ -19,6 +19,8 @@ import requests
 from datetime import datetime, timedelta
 from pathlib import Path
 
+from nrql_color import color_filter
+
 # Helper function to load environment variables from skaffold.env if present
 def load_env_from_skaffold():
     """Load environment variables from skaffold.env if file exists (local development)"""
@@ -230,7 +232,7 @@ def test_newrelic_transactions_exist():
     print("\n=== Test: New Relic Transactions Exist ===")
 
     # Query for recent transactions (last 5 minutes)
-    nrql = "SELECT count(*) FROM Transaction WHERE appName LIKE '%Relibank%' OR appName LIKE '%Accounts Service%' OR appName LIKE '%Transaction Service%' OR appName LIKE '%Bill Pay%' SINCE 5 minutes ago"
+    nrql = f"SELECT count(*) FROM Transaction WHERE (appName LIKE '%Relibank%' OR appName LIKE '%Accounts Service%' OR appName LIKE '%Transaction Service%' OR appName LIKE '%Bill Pay%') {color_filter('Transaction')} SINCE 5 minutes ago"
 
     print(f"Querying NRQL: {nrql}")
     results = query_nrql(nrql)
@@ -258,7 +260,7 @@ def test_newrelic_user_id_tracking():
         pytest.skip("Could not generate test traffic - services may not be accessible")
 
     # Query for transactions with our test user ID
-    nrql = f"SELECT count(*) FROM Transaction WHERE enduser.id = '{test_user_id}' SINCE 5 minutes ago"
+    nrql = f"SELECT count(*) FROM Transaction WHERE enduser.id = '{test_user_id}' {color_filter('Transaction')} SINCE 5 minutes ago"
 
     print(f"\nQuerying NRQL: {nrql}")
     results = query_nrql(nrql)
@@ -318,7 +320,7 @@ def test_newrelic_services_instrumented():
 
     for service in expected_services:
         # Check for transactions from this service in the last hour
-        nrql = f"SELECT count(*) FROM Transaction WHERE appName LIKE '%{service}%' SINCE 1 hour ago"
+        nrql = f"SELECT count(*) FROM Transaction WHERE appName LIKE '%{service}%' {color_filter('Transaction')} SINCE 1 hour ago"
 
         print(f"\nChecking {service}...")
         print(f"  Query: {nrql}")
@@ -353,7 +355,7 @@ def test_newrelic_recent_activity():
     """Verify there has been recent activity in the last 10 minutes."""
     print("\n=== Test: Recent Activity ===")
 
-    nrql = "SELECT count(*) FROM Transaction WHERE appName LIKE '%Relibank%' OR appName LIKE '%Accounts Service%' OR appName LIKE '%Transaction Service%' OR appName LIKE '%Bill Pay%' SINCE 10 minutes ago"
+    nrql = f"SELECT count(*) FROM Transaction WHERE (appName LIKE '%Relibank%' OR appName LIKE '%Accounts Service%' OR appName LIKE '%Transaction Service%' OR appName LIKE '%Bill Pay%') {color_filter('Transaction')} SINCE 10 minutes ago"
 
     print(f"Querying NRQL: {nrql}")
     results = query_nrql(nrql)
@@ -378,7 +380,7 @@ def test_newrelic_error_notice_tracking():
         "WHERE (appName LIKE '%Relibank%' OR appName LIKE '%Bill Pay%') "
         "AND custom.service IS NOT NULL "
         "AND custom.endpoint IS NOT NULL "
-        "AND custom.action IS NOT NULL "
+        f"AND custom.action IS NOT NULL {color_filter('TransactionError')} "
         "SINCE 10 minutes ago"
     )
 
@@ -410,7 +412,7 @@ def test_newrelic_transaction_custom_attributes():
     nrql = (
         "SELECT count(*) FROM Transaction "
         "WHERE appName LIKE '%Bill Pay%' "
-        "AND billId IS NOT NULL "
+        f"AND billId IS NOT NULL {color_filter('Transaction')} "
         "SINCE 10 minutes ago"
     )
 

@@ -24,6 +24,11 @@ from datetime import datetime, timedelta
 import httpx
 import pyodbc
 
+# Deploy-time flag: whether the browser UI (/scenario-runner/home) is exposed.
+# The scenario API (/scenario-runner/api/*) is always reachable regardless.
+# Read once at startup; toggling requires a redeploy that rolls this pod.
+SCENARIO_UI_ENABLED = os.getenv("SCENARIO_UI_ENABLED", "true").lower() == "true"
+
 # Dictionary to store parsed Chaos Mesh experiments
 CHAOS_EXPERIMENTS: Dict[str, Dict[str, Any]] = {}
 STRESS_EXPERIMENTS: Dict[str, Dict[str, Any]] = {}
@@ -208,7 +213,10 @@ app = FastAPI(title="Relibank Scenario Runner", lifespan=lifespan)
 
 @app.get("/scenario-runner/home", response_class=HTMLResponse)
 async def read_root():
-    """Serves the main HTML page."""
+    """Serves the main HTML page (gated by the SCENARIO_UI_ENABLED deploy flag)."""
+    if not SCENARIO_UI_ENABLED:
+        # Behave as if the page doesn't exist; the API remains reachable.
+        raise HTTPException(status_code=404)
     with open("index.html", "r") as f:
         return f.read()
 

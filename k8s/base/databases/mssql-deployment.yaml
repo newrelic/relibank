@@ -71,8 +71,10 @@ spec:
       accessModes:
       - ReadWriteOnce
       resources:
+        # 8Gi headroom; the old 2Gi filled up from unbounded log growth. See init.sql
+        # (RelibankDB is set to SIMPLE recovery so the transaction log self-truncates).
         requests:
-          storage: 2Gi
+          storage: 8Gi
 ---
 apiVersion: v1
 kind: Service
