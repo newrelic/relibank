@@ -82,7 +82,7 @@ async def get_dem_forrester_config():
                 data = response.json()
                 return data.get("config", {})
     except Exception as e:
-        logging.debug(f"Could not fetch memory leak config: {e}")
+        logging.debug(f"Could not fetch config: {e}")
 
     # Return defaults if scenario service unavailable
     return {
