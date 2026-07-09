@@ -1,9 +1,15 @@
+import os
 import time
 import logging
 from typing import Dict, Any
 
 from fastapi import HTTPException
 import newrelic.agent
+
+# Deploy color (blue/green), injected per-pod via the DEPLOY_COLOR env var. Stamped as a
+# custom attribute on every transaction so New Relic APM events can be filtered by color
+# (nri-metadata-injection surfaces the namespace onto Logs/Spans but NOT APM Transactions).
+DEPLOY_COLOR = os.getenv("DEPLOY_COLOR", "")
 
 # This function is now synchronous (def) and uses time.sleep(),
 # which WILL BLOCK the entire application process.
@@ -20,6 +26,13 @@ def process_headers(headers: Dict[str, str | Any]):
     Args:
         headers: A dictionary (from Request.headers) where keys are all lowercase.
     """
+
+    # Stamp the deploy color on every transaction so APM events are filterable by color.
+    if DEPLOY_COLOR:
+        try:
+            newrelic.agent.add_custom_attribute("deploy.color", DEPLOY_COLOR)
+        except Exception as e:
+            logging.warning(f"[Color Tagging] Failed to set deploy.color: {e}")
 
     # 0. Handle New Relic APM user tracking
     browser_user_id = headers.get("x-browser-user-id")

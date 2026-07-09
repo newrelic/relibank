@@ -182,6 +182,7 @@ All tests support these environment variables for remote testing:
 | `ACCOUNTS_SERVICE` | Accounts service API URL | `http://localhost:5002` |
 | `BILL_PAY_SERVICE` | Bill pay service API URL | `http://localhost:5000` |
 | `SUPPORT_SERVICE` | Support service API URL | `http://localhost:5003` |
+| `TARGET_COLOR` | Deployment color to direct the suite at — sends `X-Test-Env`, port-forwards that color's DB, and scopes New Relic queries. Empty = active color. See [Color-aware testing](#-color-aware-testing-bluegreen). | `""` (active / local single-color) |
 
 ### Automatic Environment Variable Loading (Local Development)
 
@@ -208,6 +209,38 @@ pytest tests/test_newrelic_instrumentation.py
 ```
 
 This approach ensures tests work seamlessly in both local development and CI/CD environments without requiring duplicate environment configuration.
+
+## 🎨 Color-aware testing (blue/green)
+
+Deployed ReliBank environments run **blue/green** — two full stacks (namespaces `relibank-blue` /
+`relibank-green`), one serving live traffic. The suite is **color-aware**: it drives and verifies a
+*specific* color end to end, so a post-deploy run can validate the just-deployed (inactive) color
+**before** traffic is cut to it. All three layers key off one resolved color:
+
+- **HTTP** — [`conftest.py`](conftest.py) attaches an `X-Test-Env: <color>` header to every request
+  (when `TARGET_COLOR` is set), which relibank's canary ingress routes to that color's pods. Empty
+  `TARGET_COLOR` → no header → whatever color is **active**.
+- **Database** — the CI job port-forwards that color's in-cluster MSSQL to `127.0.0.1` and points the
+  DB-direct tests at it (`DB_SERVER=127.0.0.1`). MSSQL stays a private ClusterIP — never publicly exposed.
+- **New Relic** — [`nrql_color.py`](nrql_color.py) `color_filter(event_type)` appends a color `WHERE`
+  clause to NRQL: APM `Transaction` → `deploy.color`, `Span` → `k8s.namespace.name`, `Log` →
+  `namespace_name` (all resolve to the deployed color). `Metric` (mssql-collector) and browser
+  `PageView` have no color dimension and remain env-level.
+
+**Which color** is the *effective color*, resolved once in `test-suite.yml`: the `target_color`
+input if provided (a `Deploy ReliBank` post-deploy run passes the just-deployed color), otherwise the
+**active** color read from `main-ingress`. The scheduled cron passes nothing → validates the active color.
+
+**Scenario-UI expectation** is derived the same way: `test-suite.yml` sets `SCENARIO_UI_ENABLED` from
+`target_environment` (`prod` → off, else on), matching how Terraform derives the deployed value, so
+`test_scenario_service.py::test_scenario_ui_flag_controls_webpage` asserts the right state per env.
+
+**Local runs** (`skaffold dev` / `run_tests.sh`) are single-color — leave `TARGET_COLOR` unset and these
+layers are no-ops (no header; `DB_SERVER` defaults to localhost; NR filters render empty).
+
+See the **[Testing Runbook](../docs/deployer/testing-runbook.md)** for how to run the suite against a
+specific environment/color, DB access requirements, and how to interpret results (including the known
+pre-existing failures).
 
 ## Troubleshooting
 

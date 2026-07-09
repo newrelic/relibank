@@ -29,6 +29,15 @@ on:
           - payment
           - frontend
           - smoke
+      target_color:
+        description: 'Color to direct scenario-UI checks at (sends X-Test-Env). Empty = active color.'
+        required: false
+        default: ''
+        type: choice
+        options:
+          - ''
+          - blue
+          - green
   workflow_call:
     inputs:
       target_environment:
@@ -38,6 +47,10 @@ on:
         type: string
         required: false
         default: 'all'
+      target_color:
+        type: string
+        required: false
+        default: ''
 
 jobs:
   python-tests:
@@ -95,6 +108,47 @@ jobs:
           cd tests
           pip install -r requirements.txt
 
+      # Terraform-deployed envs deploy blue/green and keep MSSQL as a headless ClusterIP (no
+      # public endpoint). Authenticate to AKS, resolve the color under test, and port-forward
+      # THAT color's mssql to 127.0.0.1:1433 for the DB-direct tests. The resolved color is
+      # exported as EFFECTIVE_COLOR so the HTTP tests route to it (X-Test-Env, via conftest) and
+      # NR queries can filter by it. Skipped for legacy envs (events) with no AKS vars — those
+      # are single-namespace (no color) and use their own DB_SERVER secret.
+      - name: Azure Login (color-aware DB tunnel)
+        if: ${{ vars.AKS_CLUSTER_NAME != '' }}
+        uses: azure/login@v2
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
+
+      - name: Resolve effective color
+        if: ${{ vars.AKS_CLUSTER_NAME != '' }}
+        run: |
+          az aks get-credentials \
+            --resource-group "${{ vars.AKS_RESOURCE_GROUP }}" \
+            --name "${{ vars.AKS_CLUSTER_NAME }}" \
+            --overwrite-existing
+          # Directed color when provided (deploy/manual); else the ACTIVE color from
+          # main-ingress (cron/no-input). blue-service|green-service -> blue|green.
+          color="${{ inputs.target_color }}"
+          if [ -z "$color" ]; then
+            backend=$(kubectl get ingress main-ingress -n default \
+              -o jsonpath='{.spec.rules[0].http.paths[0].backend.service.name}')
+            color="${backend%-service}"
+          fi
+          echo "Effective color: ${color:-<none>}"
+          echo "EFFECTIVE_COLOR=${color}" >> "$GITHUB_ENV"
+
+      - name: Port-forward MSSQL (effective color)
+        if: ${{ vars.AKS_CLUSTER_NAME != '' }}
+        run: |
+          kubectl port-forward -n "relibank-${EFFECTIVE_COLOR}" svc/mssql 1433:1433 >/tmp/mssql-pf.log 2>&1 &
+          # Wait until 127.0.0.1:1433 accepts connections (~30s max)
+          for i in $(seq 1 30); do
+            (exec 3<>/dev/tcp/127.0.0.1/1433) 2>/dev/null && { echo "MSSQL tunnel up (relibank-${EFFECTIVE_COLOR})"; exec 3>&- ; break; }
+            sleep 1
+          done
+          (exec 3<>/dev/tcp/127.0.0.1/1433) 2>/dev/null || { echo "port-forward failed:"; cat /tmp/mssql-pf.log; exit 1; }
+
       - name: Run all Python tests individually
         if: ${{ inputs.test_suite == 'all' || inputs.test_suite == '' }}
         id: individual-tests
@@ -110,8 +164,18 @@ jobs:
           SCENARIO_SERVICE_URL: ${{ vars.BASE_URL }}
           NEW_RELIC_USER_API_KEY: ${{ secrets.NR_USER_API_KEY }}
           NEW_RELIC_ACCOUNT_ID: ${{ vars.NR_ACCOUNT_ID }}
-          DB_SERVER: ${{ secrets.DB_SERVER }}
-          DB_PASSWORD: ${{ secrets.DB_PASSWORD }}
+          # Scenario-UI webpage test: direct at a color (X-Test-Env) + expected flag state,
+          # threaded from the deploy so no manual sync. Empty color = active color.
+          TARGET_COLOR: ${{ env.EFFECTIVE_COLOR || inputs.target_color }}
+          SCENARIO_UI_ENABLED: ${{ inputs.target_environment == 'prod' && 'false' || 'true' }}
+          # DB creds are convention-agnostic and mostly zero-config:
+          #  - host: legacy events has a DB_SERVER secret (public LB) and it wins; Terraform envs
+          #    have none, so tests hit 127.0.0.1 — the "Port-forward MSSQL" step below tunnels the
+          #    active color's in-cluster (ClusterIP) DB to localhost:1433. No public exposure.
+          #  - auth: reuse the MSSQL_SA_* secrets Terraform envs already have (events' DB_PASSWORD wins).
+          DB_SERVER: ${{ secrets.DB_SERVER || '127.0.0.1' }}
+          DB_USERNAME: ${{ secrets.DB_USERNAME || secrets.MSSQL_SA_USER }}
+          DB_PASSWORD: ${{ secrets.DB_PASSWORD || secrets.MSSQL_SA_PASSWORD }}
         run: |
           cd tests
 
@@ -163,6 +227,9 @@ jobs:
           SCENARIO_SERVICE_URL: ${{ vars.BASE_URL }}
           NEW_RELIC_USER_API_KEY: ${{ secrets.NR_USER_API_KEY }}
           NEW_RELIC_ACCOUNT_ID: ${{ vars.NR_ACCOUNT_ID }}
+          # Scenario-UI webpage test: X-Test-Env color + expected flag (empty color = active)
+          TARGET_COLOR: ${{ env.EFFECTIVE_COLOR || inputs.target_color }}
+          SCENARIO_UI_ENABLED: ${{ inputs.target_environment == 'prod' && 'false' || 'true' }}
         run: |
           cd tests
           pytest test_scenario_service.py --tb=line

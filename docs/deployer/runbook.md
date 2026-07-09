@@ -154,6 +154,14 @@ Recommended: open a small patch PR off `main` that adds the new value to every l
 4. Re-run `Test Suite` workflow to verify post-flip.
 5. **`Deploy ReliBank`** — `action_type=destroy`, `target_color=blue` (cleanup; not strictly required, but reclaims node pool capacity).
 
+### Scenario Runner UI visibility
+
+Whether the browser page at `/scenario-runner/home` is served (200) or hidden (404) is **derived from the environment — not a workflow input**: **`prod` → hidden, every other environment → shown**. The scenario API (`/scenario-runner/api/*`) is reachable either way, so backend consumers and automation keep working regardless.
+
+The rule lives in `terraform/aks/app_module/main.tf` — the `infrastructure-config` ConfigMap sets `SCENARIO_UI_ENABLED = tostring(var.demo_environment != "prod")`, baked into the scenario-runner pod at startup. So it takes effect on a normal `Deploy ReliBank` of the target environment/color; there's nothing to toggle (and no per-run flag to remember).
+
+**Automated verification.** `tests/test_scenario_service.py::test_scenario_ui_flag_controls_webpage` asserts the page matches the expected state: `/scenario-runner/home` returns 200 (with the page marker) when enabled, else 404, and `/scenario-runner/api/scenarios` stays 200 either way. It's **color-directed** — set `TARGET_COLOR` to send `X-Test-Env: <color>` and validate a specific color (empty = active). The expected state is derived the same way as the deploy: `test-suite.yml` computes `SCENARIO_UI_ENABLED` from `target_environment` (`prod → false`, else `true`), so post-deploy runs validate the just-deployed color **before** cutover with no flag to pass.
+
 ### Infra-only refresh
 
 When AOAI models change or the Function App code/config needs an update — no need to touch the app tier.
@@ -266,6 +274,78 @@ kubectl rollout restart deployment -n relibank-{color}
 
 Fix: bump `MSSQL_MEMORY_LIMIT_MB` from the prod default of 1024 MB to 6144 MB. Also bump k8s resources (`requests: 4Gi/1cpu`, `limits: 8Gi/2cpu`). Demo loadgen for QPM panels: `utils/scripts/mssql/loadgen/db-direct/run-banking-load.sh` (~25s spending-velocity runs against 2M `BankTransactions`).
 
+### MSSQL out of disk: RelibankDB log filled the data volume
+
+**Symptoms:** The `mssql-0` pod is `Running` but its **log** shows `Error: 1105`/`Error: 1101` (can't allocate space) and sometimes `Operating system error 31` on a tempdb file; `df -h /var/opt/mssql` in the pod is ~99% full. The **in-cluster app** starts failing DB writes (payment/ledger inserts hang or error). Note: this is distinct from the CI `pyodbc … Login timeout expired` symptom, which is a *reachability* problem (see [DB-direct tests can't reach the database from CI](#db-direct-tests-cant-reach-the-database-from-ci)), not a disk problem — a full disk shows up as 1105/1101 in the pod log, not as a connection timeout on the runner.
+
+**Root cause:** `RelibankDB` shipped in **FULL** recovery model with no log-backup job, so the transaction log (`RelibankDB_log.ldf`) grows without bound and fills the (historically 2Gi) PVC. Once the volume is full, SQL Server can't allocate pages and every connection times out.
+
+**Diagnose** (per color — repeat for the active one, and green if you may cut back to it):
+
+```bash
+ns=relibank-blue            # or relibank-green
+SA=$(kubectl get secret database-credentials -n $ns -o jsonpath='{.data.MSSQL_SA_PASSWORD}' | base64 -d)
+SQLCMD=/opt/mssql-tools18/bin/sqlcmd
+
+kubectl exec -n $ns mssql-0 -- df -h /var/opt/mssql          # is it ~99% full?
+kubectl exec -n $ns mssql-0 -- sh -c 'du -sh /var/opt/mssql/data/*.ldf'   # log file size
+kubectl exec -n $ns mssql-0 -- "$SQLCMD" -S localhost -U sa -P "$SA" -C \
+  -Q "SELECT recovery_model_desc, log_reuse_wait_desc FROM sys.databases WHERE name='RelibankDB';"
+```
+
+**Fix — step by step.** Shrink first (frees space with no restart), then expand the volume:
+
+1. Switch to SIMPLE recovery and shrink the log (relieves the disk immediately):
+
+   ```bash
+   kubectl exec -n $ns mssql-0 -- "$SQLCMD" -S localhost -U sa -P "$SA" -C -Q "
+     ALTER DATABASE RelibankDB SET RECOVERY SIMPLE;
+     USE RelibankDB; CHECKPOINT;
+     DBCC SHRINKFILE (RelibankDB_log, 256);"
+   kubectl exec -n $ns mssql-0 -- df -h /var/opt/mssql        # should drop well below 100%
+   ```
+
+   > If `log_reuse_wait_desc` is `OLDEST_PAGE` the log may refuse to shrink until the pod is restarted (step 3). Re-run this `CHECKPOINT; DBCC SHRINKFILE` after the restart and it will drop to ~256 MB.
+
+2. Expand the PVC to 8Gi (storageclass `disk.csi.azure.com` has `allowVolumeExpansion=true`):
+
+   ```bash
+   kubectl patch pvc mssql-mssql-0 -n $ns -p '{"spec":{"resources":{"requests":{"storage":"8Gi"}}}}'
+   ```
+
+3. Finalize the resize — Azure disk grows the filesystem only on remount, so restart the pod once. **This is a brief DB outage; on the active color expect ~1 min where the app can't reach the DB.**
+
+   ```bash
+   kubectl delete pod mssql-0 -n $ns
+   kubectl rollout status statefulset/mssql -n $ns --timeout=180s
+   kubectl exec -n $ns mssql-0 -- df -h /var/opt/mssql        # now ~8Gi
+   ```
+
+4. Verify:
+
+   ```bash
+   kubectl exec -n $ns mssql-0 -- "$SQLCMD" -S localhost -U sa -P "$SA" -C \
+     -Q "SELECT recovery_model_desc, state_desc FROM sys.databases WHERE name='RelibankDB';"   # SIMPLE / ONLINE
+   ```
+
+**Prevention (already in IaC):** the PVC template is now `8Gi` (`terraform/aks/app_module/main.tf` `volume_claim_template`, mirrored in `k8s/base/databases/mssql-deployment.yaml`) and `init.sql` sets `RECOVERY SIMPLE` right after `CREATE DATABASE`, so new environments get both automatically.
+
+> ⚠️ **Applying the 8Gi template to an *existing* env replaces the StatefulSet.** A `volume_claim_template` change is immutable, so `terraform apply` will destroy/recreate the `mssql` StatefulSet. StatefulSet PVCs are retained on delete (not garbage-collected), so **data survives** and the new STS re-adopts the existing `mssql-mssql-0` PVC — but the pod restarts. For an already-running env you've patched by hand (steps above), the live PVC is already 8Gi, so this is a no-data-loss pod restart; schedule it, or `terraform state rm kubernetes_stateful_set_v1.mssql` and re-import to avoid the churn.
+
+### DB-direct tests can't reach the database from CI
+
+**Symptoms:** `test_card_payment_transactions` and `test_nrdot_mssql_collector` fail on *every* run (sandbox, staging, analysts) with `pyodbc.OperationalError ('HYT00', ... Login timeout expired)`. HTTP-only tests pass. This is **not** DB health or warm-up — the DB is simply unreachable from the runner.
+
+**Root cause:** those tests open a **direct** SQL connection to `secrets.DB_SERVER:1433`. That only works if MSSQL has a public endpoint. Old prod/`events` was deployed from `k8s/base`, where the mssql Service is `type: LoadBalancer` (`mssql-0`, public IP `relibank-mssql.westus2.cloudapp.azure.com`). The newer **Terraform blue/green deployer** (`app_module`) defines mssql as a **headless ClusterIP** (`cluster_ip = "None"`) with no external IP, so a GitHub-hosted runner has no route to it. HTTP tests still pass because they go through the public ingress LB (`{env}.{dns_zone}`), not the DB.
+
+**Fix — the test suite tunnels to the DB privately; MSSQL stays ClusterIP (matches demogorgon; no public exposure).** `test-suite.yml`'s `python-tests` job, when the target env has AKS vars (`vars.AKS_CLUSTER_NAME != ''`), logs into Azure (`azure/login@v2` + `secrets.AZURE_CREDENTIALS`), runs `az aks get-credentials`, detects the **active color** from `main-ingress`, and `kubectl port-forward`s that color's `svc/mssql` to `127.0.0.1:1433`. Tests then connect to `127.0.0.1` (`DB_SERVER: ${{ secrets.DB_SERVER || '127.0.0.1' }}`), authenticating with the `MSSQL_SA_*` secrets each Terraform env already has (`DB_PASSWORD: ${{ secrets.DB_PASSWORD || secrets.MSSQL_SA_PASSWORD }}`, `DB_USERNAME: ${{ secrets.DB_USERNAME || secrets.MSSQL_SA_USER }}`).
+
+**Zero manual setup for Terraform envs** — no `DB_SERVER`/`DB_PASSWORD` variables or secrets to create. It only requires what a deployable env already has: `AKS_CLUSTER_NAME` / `AKS_RESOURCE_GROUP` **variables** and the `AZURE_CREDENTIALS` **secret**. Just re-run **Relibank Test Suite** (`target_environment={env}`) and `test_card_payment_transactions` / `test_nrdot_mssql_collector` connect over the tunnel.
+
+- **Color is auto-detected**, so it never appears in a hostname or variable — the tunnel just targets the active color's namespace. (Assumes tests run against the live color via `BASE_URL`; add a color override input if canary DB testing of the inactive color is ever needed.)
+- **Legacy `events`** has no AKS vars, so the tunnel steps skip and it keeps using its own `DB_SERVER`/`DB_PASSWORD` secrets (which win the `||`) against its public `k8s/base` LoadBalancer.
+- The pyodbc connection string already sets `TrustServerCertificate=yes`, so connecting to `127.0.0.1` (cert CN won't match) is fine.
+
 ### Infra destroy times out with `context deadline exceeded` on `relibank` namespace
 
 Symptom: Stage 2 (`Terraform Destroy (Stage 2 infra)`) hangs for ~5min with `kubernetes_namespace_v1.relibank: Still destroying...`, then fails with `Error: context deadline exceeded`. `kubectl get ns relibank` shows status `Terminating` and `kubectl get stresschaos -n relibank -o jsonpath='{.items[*].metadata.finalizers}'` returns `["chaos-mesh/records"]`.
@@ -331,7 +411,7 @@ The Function App is **env-scoped** — both colors share one URL. After `stage=n
 
 ### Card payment / payment scenario tests intermittently fail on sandbox
 
-Likely Stripe rate-limit or green-color warm-up window (cold caches, JIT-compiled paths still warming). Re-run after a few minutes. Treat as a real failure only if persistent across multiple runs.
+Likely Stripe rate-limit or green-color warm-up window (cold caches, JIT-compiled paths still warming). Re-run after a few minutes. **If `test_card_payment_transactions` / `test_nrdot_mssql_collector` fail *every* run with `pyodbc … Login timeout expired`, that is not warm-up — those tests open a direct DB connection the CI runner can't reach on Terraform-deployed (blue/green) environments. See [DB-direct tests can't reach the database from CI](#db-direct-tests-cant-reach-the-database-from-ci).** (A separate failure mode — a genuinely full DB volume — shows up as `1105`/`1101` in the `mssql-0` pod log; see [MSSQL out of disk](#mssql-out-of-disk-relibankdb-log-filled-the-data-volume).)
 
 ### `db_pool_e2e` passes sandbox, fails prod
 

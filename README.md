@@ -45,6 +45,7 @@ Relibank simulates a banking system with separate services for accounts, transac
     - AI agent configuration for risk assessment (normal vs rogue agent)
     - Chaos Mesh experiment triggers
     - Locust load testing integration
+    - Web UI visibility derived from the environment (hidden in `prod`, shown elsewhere); the API stays reachable regardless
 
 ## Getting Started
 

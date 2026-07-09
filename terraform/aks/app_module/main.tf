@@ -99,6 +99,7 @@ resource "kubernetes_config_map_v1" "infrastructure_config" {
     RISK_ASSESSMENT_SERVICE_URL = "http://risk-assessment-service:5001"
     AZURE_OPENAI_ENDPOINT       = var.azure_openai_endpoint
     ASSISTANT_B_DELAY_SECONDS   = tostring(var.assistant_b_delay_seconds)
+    SCENARIO_UI_ENABLED         = tostring(var.demo_environment != "prod")
   }
 
   depends_on = [kubernetes_namespace_v1.relibank_color]
@@ -214,6 +215,13 @@ resource "kubernetes_deployment_v1" "service" {
 
           port {
             container_port = each.value.container_port
+          }
+
+          # Deploy color on every service — stamped onto NR APM transactions (via the shared
+          # utils/process_headers) so telemetry is filterable by color. One block, all services.
+          env {
+            name  = "DEPLOY_COLOR"
+            value = var.target_color
           }
 
           dynamic "resources" {
@@ -425,7 +433,11 @@ resource "kubernetes_stateful_set_v1" "mssql" {
       spec {
         access_modes = ["ReadWriteOnce"]
         resources {
-          requests = { storage = "2Gi" }
+          # 8Gi headroom for the RelibankDB data file + transaction log. The old 2Gi
+          # filled up (log grew under FULL recovery) and stalled the DB with 1105/1101
+          # allocation errors. RelibankDB is set to SIMPLE recovery in init.sql so the
+          # log self-truncates, but the larger volume gives durable headroom.
+          requests = { storage = "8Gi" }
         }
       }
     }

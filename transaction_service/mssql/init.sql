@@ -27,6 +27,13 @@ BEGIN
 END;
 GO
 
+-- Use SIMPLE recovery so the transaction log self-truncates on checkpoint.
+-- This is a demo/sandbox DB re-seeded on each fresh deploy; there is no log-backup
+-- job, so FULL recovery caused the log (.ldf) to grow without bound and fill the
+-- data volume, stalling the server with 1105/1101 allocation errors. Idempotent.
+ALTER DATABASE RelibankDB SET RECOVERY SIMPLE;
+GO
+
 -- ==============================================================================
 -- NEW RELIC MONITORING SETUP - SERVER LEVEL
 -- ==============================================================================

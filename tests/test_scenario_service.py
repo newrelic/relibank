@@ -20,16 +20,63 @@ def reset_scenarios_after_test():
 
 
 def test_scenario_service_health():
-    """Test that scenario service is accessible"""
+    """Test that scenario service is accessible.
+
+    Probes the always-on /scenario-runner health route rather than the UI page
+    (/scenario-runner/home), which is intentionally 404 when the SCENARIO_UI_ENABLED
+    deploy flag is off. Health must not be coupled to UI visibility.
+    """
     print("\n=== Testing Scenario Service Health ===")
 
     try:
-        response = requests.get(f"{SCENARIO_SERVICE_URL}/scenario-runner/home", timeout=5)
+        response = requests.get(f"{SCENARIO_SERVICE_URL}/scenario-runner", timeout=5)
         print(f"Status: {response.status_code}")
         assert response.status_code == 200, f"Scenario service not accessible: {response.status_code}"
         print("✓ Scenario service is accessible")
     except requests.exceptions.ConnectionError:
         pytest.fail("Cannot connect to scenario service")
+
+
+def test_scenario_ui_flag_controls_webpage():
+    """Verify the browser UI page visibility matches the SCENARIO_UI_ENABLED deploy flag.
+
+    Color-directed (demogorgon convention): when TARGET_COLOR is set, every request carries
+    an `X-Test-Env: <color>` header so it routes to that specific color (post-deployment runs
+    always set it, so the just-deployed color is validated before cutover); when unset, the
+    active color is hit. The expected state comes from SCENARIO_UI_ENABLED, threaded from the
+    same deploy that set it (default "true" — the flag's own default).
+
+    Asserts:
+      - /scenario-runner/home  -> 200 + page marker when enabled, else 404
+      - /scenario-runner/api/scenarios -> 200 regardless (the flag's invariant: API stays up)
+    """
+    print("\n=== Testing Scenario UI Flag Controls Webpage ===")
+
+    target_color = os.getenv("TARGET_COLOR", "").strip()
+    headers = {"X-Test-Env": target_color} if target_color else {}
+    # Treat unset OR empty (e.g. scheduled runs with no workflow input) as the flag's default (true).
+    expected_enabled = (os.getenv("SCENARIO_UI_ENABLED") or "true").strip().lower() == "true"
+    print(f"target_color={target_color or '<active>'} expected_enabled={expected_enabled}")
+
+    # The webpage page (gated by the flag)
+    home = requests.get(f"{SCENARIO_SERVICE_URL}/scenario-runner/home", headers=headers, timeout=10)
+    print(f"/scenario-runner/home -> {home.status_code}")
+    if expected_enabled:
+        assert home.status_code == 200, (
+            f"UI enabled but /scenario-runner/home returned {home.status_code} (expected 200)"
+        )
+        assert "Relibank Scenario Runner" in home.text, "UI page served but missing expected content marker"
+    else:
+        assert home.status_code == 404, (
+            f"UI disabled but /scenario-runner/home returned {home.status_code} (expected 404)"
+        )
+
+    # The API must remain reachable regardless of the UI flag (core invariant)
+    api = requests.get(f"{SCENARIO_SERVICE_URL}/scenario-runner/api/scenarios", headers=headers, timeout=10)
+    print(f"/scenario-runner/api/scenarios -> {api.status_code}")
+    assert api.status_code == 200, f"Scenario API not reachable ({api.status_code}) — should be up regardless of UI flag"
+
+    print(f"✓ Webpage visibility matches SCENARIO_UI_ENABLED={expected_enabled}; API reachable")
 
 
 def test_get_all_scenarios():

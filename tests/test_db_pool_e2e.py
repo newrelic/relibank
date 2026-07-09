@@ -10,6 +10,8 @@ import os
 import hashlib
 from pathlib import Path
 
+from nrql_color import color_filter
+
 # Helper function to load environment variables from skaffold.env if present
 def load_env_from_skaffold():
     """Load environment variables from skaffold.env if file exists (local development)"""
@@ -178,11 +180,12 @@ def test_db_pool_e2e_with_new_relic_validation(reset_scenario):
     print("\n📝 Step 5: Validating custom attributes in New Relic...")
 
     # Query for db.pool_id (custom attributes don't get custom. prefix when using add_custom_attribute)
-    nrql = """
+    nrql = f"""
     SELECT count(*), uniques(db.pool_id)
     FROM Transaction
     WHERE appName LIKE '%Accounts Service%'
       AND db.pool_id IS NOT NULL
+      {color_filter('Transaction')}
     SINCE 10 minutes ago
     """
 
@@ -204,13 +207,14 @@ def test_db_pool_e2e_with_new_relic_validation(reset_scenario):
     # Step 6: Validate performance difference
     print("\n📝 Step 6: Validating performance difference between pools...")
 
-    perf_nrql = """
+    perf_nrql = f"""
     SELECT
       average(duration) as 'avg_duration',
       count(*) as 'count'
     FROM Transaction
     WHERE appName LIKE '%Accounts Service%'
       AND db.pool_id IS NOT NULL
+      {color_filter('Transaction')}
     FACET db.pool_id
     SINCE 10 minutes ago
     """

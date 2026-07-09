@@ -275,3 +275,6 @@ jobs:
     with:
       target_environment: ${{ github.event.inputs.environment }}
       test_suite: all
+      # Validate the just-deployed color before cutover (via X-Test-Env). The scenario-UI
+      # expected state is derived from the environment inside test-suite.yml (prod -> off).
+      target_color: ${{ github.event.inputs.target_color }}
