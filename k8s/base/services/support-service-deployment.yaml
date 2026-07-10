@@ -45,7 +45,7 @@ metadata:
   namespace: relibank
 spec:
   ports:
-  - name: 5003
+  - name: "5003"
     port: 5003
     targetPort: 5003
   selector:
