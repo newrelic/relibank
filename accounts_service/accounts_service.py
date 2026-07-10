@@ -334,6 +334,9 @@ class Account(BaseModel):
     interest_rate: Optional[float]
     last_statement_date: Optional[str]
     account_type: str
+    # Additional fields populated during memory leak scenario for frontend impact
+    recent_transactions: Optional[List[Any]] = None
+    transaction_count: Optional[int] = None
 
 
 class AccountType(BaseModel):
@@ -523,6 +526,17 @@ async def get_accounts(email: str, request: Request):
             if not all_accounts:
                 raise HTTPException(status_code=404, detail="No accounts found for user.")
 
+            # Check if memory leak scenario is active for conditional frontend impact
+            config = await get_dem_forrester_config()
+            is_memory_leak_active = (
+                config.get("memory_leak_toggle_enabled") or
+                config.get("memory_leak_trigger_active") or
+                config.get("memory_leak_trigger_10min_active")
+            )
+
+            if is_memory_leak_active:
+                logging.info(f"[Frontend Impact] Memory leak scenario active - will fetch additional transaction data for {len(all_accounts)} accounts")
+
             # Fetch current balance from transaction-service for each account
             propagation_headers = get_propagation_headers(request)
             async with httpx.AsyncClient() as client:
@@ -558,6 +572,39 @@ async def get_accounts(email: str, request: Request):
                             'account_id': str(account_id_int)
                         })
                         account["balance"] = 0.0
+
+                    # If memory leak scenario is active, fetch additional transaction data
+                    # This multiplies the impact of backend slowness on frontend page load duration
+                    if is_memory_leak_active:
+                        try:
+                            # Additional call 1: Recent transactions
+                            tx_response = await client.get(
+                                f"{TRANSACTION_SERVICE_URL}/transaction-service/transactions/{account_id_int}",
+                                headers=propagation_headers,
+                                timeout=10.0
+                            )
+                            if tx_response.status_code == 200:
+                                account["recent_transactions"] = tx_response.json()
+                            else:
+                                account["recent_transactions"] = []
+                        except Exception as e:
+                            logging.debug(f"Could not fetch recent transactions for account {account_id_int}: {e}")
+                            account["recent_transactions"] = []
+
+                        try:
+                            # Additional call 2: Transaction count (aggregate query)
+                            count_response = await client.get(
+                                f"{TRANSACTION_SERVICE_URL}/transaction-service/transactions/{account_id_int}/count",
+                                headers=propagation_headers,
+                                timeout=10.0
+                            )
+                            if count_response.status_code == 200:
+                                account["transaction_count"] = count_response.json().get("count", 0)
+                            else:
+                                account["transaction_count"] = 0
+                        except Exception as e:
+                            logging.debug(f"Could not fetch transaction count for account {account_id_int}: {e}")
+                            account["transaction_count"] = 0
 
             return [Account(**account) for account in all_accounts]
     except Exception as e:
