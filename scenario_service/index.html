@@ -91,13 +91,14 @@
             </div>
         </div>
 
-        <!-- Status Message Section -->
-        <div id="status-message" class="mt-8 p-4 rounded-lg text-center font-medium transition-opacity duration-300 opacity-0"></div>
     </div>
+
+    <!-- Toast notifications: fixed to the viewport so feedback is always visible regardless of scroll -->
+    <div id="toast-container" class="fixed top-4 right-4 z-50 flex flex-col gap-2 w-80 max-w-[calc(100vw-2rem)]" aria-live="polite" aria-atomic="false"></div>
 
     <script>
         document.addEventListener('DOMContentLoaded', () => {
-            const statusMessage = document.getElementById('status-message');
+            const toastContainer = document.getElementById('toast-container');
             const chaosButtonsContainer = document.getElementById('chaos-buttons-container');
             const stressButtonsContainer = document.getElementById('stress-buttons-container');
             const paymentButtonsContainer = document.getElementById('payment-buttons-container');
@@ -106,19 +107,91 @@
             const runLocustBtn = document.getElementById('run-locust-test');
             const userCountSelect = document.getElementById('user-count-select');
 
+            // Toast styling + icon per message type. Kept the original green/red/gray scheme.
+            const TOAST_STYLES = {
+                success: { classes: 'bg-green-100 text-green-700 border-green-300', icon: '✓', ttl: 5000 },
+                error:   { classes: 'bg-red-100 text-red-700 border-red-300',       icon: '✗', ttl: 8000 },
+                info:    { classes: 'bg-gray-200 text-gray-800 border-gray-300',    icon: '⟳', ttl: 5000 },
+            };
+
+            // Append a floating, auto-dismissing toast. Toasts stack so rapid clicks don't clobber each other.
             const showMessage = (message, type) => {
-                statusMessage.textContent = message;
-                statusMessage.className = `mt-8 p-4 rounded-lg text-center font-medium transition-opacity duration-300 opacity-100`;
-                if (type === 'success') {
-                    statusMessage.classList.add('bg-green-100', 'text-green-700');
-                } else if (type === 'error') {
-                    statusMessage.classList.add('bg-red-100', 'text-red-700');
-                } else {
-                    statusMessage.classList.add('bg-gray-200', 'text-gray-800');
-                }
+                const style = TOAST_STYLES[type] || TOAST_STYLES.info;
+
+                const toast = document.createElement('div');
+                toast.className = `flex items-start gap-2 p-4 rounded-lg border shadow-lg font-medium text-sm ${style.classes} transition-all duration-300 ease-out opacity-0 translate-x-4`;
+                toast.setAttribute('role', type === 'error' ? 'alert' : 'status');
+
+                const iconSpan = document.createElement('span');
+                iconSpan.className = 'font-bold leading-5 shrink-0';
+                iconSpan.textContent = style.icon;
+
+                const textSpan = document.createElement('span');
+                textSpan.className = 'leading-5 break-words';
+                textSpan.textContent = message;
+
+                toast.appendChild(iconSpan);
+                toast.appendChild(textSpan);
+                toastContainer.appendChild(toast);
+
+                // Fade/slide in on the next frame.
+                requestAnimationFrame(() => {
+                    toast.classList.remove('opacity-0', 'translate-x-4');
+                });
+
+                const dismiss = () => {
+                    toast.classList.add('opacity-0', 'translate-x-4');
+                    setTimeout(() => toast.remove(), 300);
+                };
+                // Click to dismiss early; otherwise auto-dismiss after the type's TTL.
+                toast.addEventListener('click', dismiss);
+                setTimeout(dismiss, style.ttl);
+            };
+
+            // --- Per-control feedback helpers -------------------------------------------------
+
+            const SPINNER_SVG = '<svg class="animate-spin h-4 w-4 shrink-0" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path></svg>';
+
+            // Put a button into a disabled "busy" state with a spinner + label; returns a restore() closure.
+            const setButtonBusy = (button, loadingLabel) => {
+                const originalHTML = button.innerHTML;
+                const wasDisabled = button.disabled;
+                button.disabled = true;
+                button.classList.add('opacity-70', 'cursor-wait');
+                button.innerHTML = `<span class="inline-flex items-center gap-2">${SPINNER_SVG}${loadingLabel}</span>`;
+                return () => {
+                    button.innerHTML = originalHTML;
+                    button.disabled = wasDisabled;
+                    button.classList.remove('opacity-70', 'cursor-wait');
+                };
+            };
+
+            // Briefly flash a result label/color on a trigger button, then restore() it.
+            const flashButton = (button, type, label, restore) => {
+                const flashClass = type === 'success' ? '!bg-green-500' : '!bg-red-500';
+                button.disabled = true;
+                button.classList.remove('opacity-70', 'cursor-wait');
+                button.classList.add(flashClass);
+                button.innerHTML = `<span class="inline-flex items-center gap-2 font-semibold">${label}</span>`;
                 setTimeout(() => {
-                    statusMessage.classList.remove('opacity-100');
-                }, 5000);
+                    button.classList.remove(flashClass);
+                    restore();
+                }, 1800);
+            };
+
+            // Toggle pills are small; show a compact pending state and return a restore() to the prior label+class.
+            const setTogglePending = (toggle) => {
+                const originalHTML = toggle.innerHTML;
+                const originalClass = toggle.className;
+                const wasDisabled = toggle.disabled;
+                toggle.disabled = true;
+                toggle.classList.add('opacity-70', 'cursor-wait');
+                toggle.innerHTML = `<span class="inline-flex items-center">${SPINNER_SVG}</span>`;
+                return () => {
+                    toggle.innerHTML = originalHTML;
+                    toggle.className = originalClass;
+                    toggle.disabled = wasDisabled;
+                };
             };
 
             const fetchAndRenderScenarios = async () => {
@@ -149,18 +222,21 @@
                             chaosButtonsContainer.appendChild(button);
 
                             button.addEventListener('click', async () => {
-                                showMessage(`Triggering ${scenario.name}...`, 'info');
+                                const restore = setButtonBusy(button, 'Triggering…');
                                 try {
                                     const triggerResponse = await fetch(`/scenario-runner/api/trigger_chaos/${scenario.name}`, {
                                         method: 'POST',
                                     });
                                     const result = await triggerResponse.json();
                                     if (result.status === 'success') {
+                                        flashButton(button, 'success', '✓ Triggered!', restore);
                                         showMessage(`Success: ${result.message}`, 'success');
                                     } else {
+                                        flashButton(button, 'error', '✗ Failed', restore);
                                         showMessage(`Error: ${result.message}`, 'error');
                                     }
                                 } catch (e) {
+                                    flashButton(button, 'error', '✗ Failed', restore);
                                     showMessage(`Network error: Could not reach the server.`, 'error');
                                 }
                             });
@@ -183,18 +259,21 @@
                             stressButtonsContainer.appendChild(button);
 
                             button.addEventListener('click', async () => {
-                                showMessage(`Triggering stress: ${scenario.name}...`, 'info');
+                                const restore = setButtonBusy(button, 'Triggering…');
                                 try {
                                     const triggerResponse = await fetch(`/scenario-runner/api/trigger_stress/${scenario.name}`, {
                                         method: 'POST',
                                     });
                                     const result = await triggerResponse.json();
                                     if (result.status === 'success') {
+                                        flashButton(button, 'success', '✓ Triggered!', restore);
                                         showMessage(`Success: ${result.message}`, 'success');
                                     } else {
+                                        flashButton(button, 'error', '✗ Failed', restore);
                                         showMessage(`Error: ${result.message}`, 'error');
                                     }
                                 } catch (e) {
+                                    flashButton(button, 'error', '✗ Failed', restore);
                                     showMessage(`Network error: Could not reach the server.`, 'error');
                                 }
                             });
@@ -235,6 +314,7 @@
                                 e.preventDefault();
                                 e.stopPropagation();
                                 const newState = !scenario.enabled;
+                                const restore = setTogglePending(toggle);
                                 try {
                                     let endpoint;
                                     if (scenario.name === 'gateway_timeout') {
@@ -257,6 +337,7 @@
                                         toggle.className = newState
                                             ? 'bg-green-500 text-white px-3 py-1 rounded-md text-sm font-medium hover:bg-green-600 transition'
                                             : 'bg-gray-300 text-gray-700 px-3 py-1 rounded-md text-sm font-medium hover:bg-gray-400 transition';
+                                        toggle.disabled = false;
                                         showMessage(result.message, 'success');
 
                                         // Update probability display
@@ -270,9 +351,11 @@
                                             scenario.config.probability = prob;
                                         }
                                     } else {
+                                        restore();
                                         showMessage(`Error: ${result.message}`, 'error');
                                     }
                                 } catch (e) {
+                                    restore();
                                     showMessage(`Network error: ${e.message}`, 'error');
                                 }
                             });
@@ -311,6 +394,7 @@
                                 e.preventDefault();
                                 e.stopPropagation();
                                 const newState = !scenario.enabled;
+                                const restore = setTogglePending(toggle);
                                 try {
                                     let endpoint;
                                     if (scenario.name === 'rogue_agent') {
@@ -327,12 +411,15 @@
                                         toggle.className = newState
                                             ? 'bg-red-500 text-white px-3 py-1 rounded-md text-sm font-medium hover:bg-red-600 transition'
                                             : 'bg-gray-300 text-gray-700 px-3 py-1 rounded-md text-sm font-medium hover:bg-gray-400 transition';
+                                        toggle.disabled = false;
                                         configDiv.textContent = newState ? `Agent: ${scenario.config.agent_name}` : 'Agent: gpt-4o (normal)';
                                         showMessage(result.message, 'success');
                                     } else {
+                                        restore();
                                         showMessage(`Error: ${result.message}`, 'error');
                                     }
                                 } catch (e) {
+                                    restore();
                                     showMessage(`Network error: ${e.message}`, 'error');
                                 }
                             });
@@ -375,6 +462,7 @@
                                 e.preventDefault();
                                 e.stopPropagation();
                                 const newState = !scenario.enabled;
+                                const restore = setTogglePending(toggle);
                                 try {
                                     let endpoint;
                                     if (scenario.name === 'lcp_slowness_percentage') {
@@ -399,11 +487,14 @@
                                         toggle.className = newState
                                             ? 'bg-green-500 text-white px-3 py-1 rounded-md text-sm font-medium hover:bg-green-600 transition'
                                             : 'bg-gray-300 text-gray-700 px-3 py-1 rounded-md text-sm font-medium hover:bg-gray-400 transition';
+                                        toggle.disabled = false;
                                         showMessage(result.message, 'success');
                                     } else {
+                                        restore();
                                         showMessage(`Error: ${result.message}`, 'error');
                                     }
                                 } catch (e) {
+                                    restore();
                                     showMessage(`Network error: ${e.message}`, 'error');
                                 }
                             });
@@ -419,7 +510,7 @@
                 runLocustBtn.addEventListener('click', async () => {
                     const numUsers = userCountSelect.value;
                     const locustfileName = 'pay_cancel.py';
-                    showMessage(`Running Locust test with ${numUsers} users...`, 'info');
+                    const restore = setButtonBusy(runLocustBtn, 'Running…');
 
                     try {
                         // FIX 3: Added /scenario-runner prefix to the run locust path
@@ -428,13 +519,16 @@
                         });
                         const result = await response.json();
                         if (result.status === 'success') {
+                            flashButton(runLocustBtn, 'success', '✓ Started!', restore);
                             showMessage(`Success: ${result.message}`, 'success');
                             console.log(result.output);
                         } else {
+                            flashButton(runLocustBtn, 'error', '✗ Failed', restore);
                             showMessage(`Error: ${result.message}`, 'error');
                             console.error(result.output);
                         }
                     } catch (e) {
+                        flashButton(runLocustBtn, 'error', '✗ Failed', restore);
                         showMessage(`Network error: Could not reach the server.`, 'error');
                     }
                 });
