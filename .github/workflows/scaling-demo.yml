@@ -1,0 +1,219 @@
+name: Scale ReliBank Service
+
+run-name: "Scale ${{ inputs.service }} → 2x replicas in analysts/${{ inputs.target_color }} [${{ inputs.mode }}] by @${{ github.actor }}"
+
+on:
+  workflow_dispatch:
+    inputs:
+      service:
+        description: "Service to scale"
+        type: choice
+        required: true
+        default: "accounts-service"
+        options:
+          - accounts-service
+          - transaction-service
+          - support-service
+          - bill-pay-service
+          - auth-service
+          - frontend-service
+          - notifications-service
+          - risk-assessment-service
+          - scheduler-service
+          - scenario-runner-service
+      target_color:
+        description: "Deployment color"
+        type: choice
+        required: true
+        default: "relibank-blue"
+        options:
+          - relibank-blue
+          - relibank-green
+      mode:
+        description: "Run mode — live applies changes to the cluster; demo simulates the full flow without touching infrastructure"
+        type: choice
+        required: true
+        default: "demo"
+        options:
+          - demo
+          - live
+
+jobs:
+
+  scale-service:
+    name: "Scale ${{ inputs.service }} (analysts/${{ inputs.target_color }}) [${{ inputs.mode }}]"
+    if: github.ref == 'refs/heads/ftr/forrester-workflow'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    environment: analysts
+    concurrency:
+      group: scaling-demo-${{ inputs.target_color }}
+      cancel-in-progress: true
+    env:
+      ARM_CLIENT_ID:       ${{ secrets.AZURE_CLIENT_ID }}
+      ARM_CLIENT_SECRET:   ${{ secrets.AZURE_CLIENT_SECRET }}
+      ARM_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+      ARM_TENANT_ID:       ${{ secrets.AZURE_TENANT_ID }}
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Azure Login
+        uses: azure/login@v2
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
+
+      - name: Configure kubectl
+        run: |
+          az aks get-credentials \
+            --resource-group ${{ vars.AKS_RESOURCE_GROUP }} \
+            --name           ${{ vars.AKS_CLUSTER_NAME }} \
+            --overwrite-existing
+
+      - name: Setup Terraform
+        if: inputs.mode == 'live'
+        uses: hashicorp/setup-terraform@v2
+        with:
+          terraform_version: 1.5
+
+      # -----------------------------------------------------------------------
+      # Read current replica count from the live cluster.
+      # Falls back to 1 if the deployment isn't found (e.g. first run).
+      # -----------------------------------------------------------------------
+      - name: Read current replica count
+        id: current
+        run: |
+          NAMESPACE="${{ inputs.target_color }}"
+          CURRENT=$(kubectl get deployment/${{ inputs.service }} \
+            -n "${NAMESPACE}" \
+            -o jsonpath='{.spec.replicas}' 2>/dev/null || echo "1")
+          echo "current=${CURRENT}" >> "$GITHUB_OUTPUT"
+          echo "Current replica count for ${{ inputs.service }}: ${CURRENT}"
+
+      # -----------------------------------------------------------------------
+      # Compute 2x the current replica count.
+      # -----------------------------------------------------------------------
+      - name: Calculate scaled replica count
+        id: scale
+        run: |
+          NEW=$(( ${{ steps.current.outputs.current }} * 2 ))
+          echo "new_replicas=${NEW}" >> "$GITHUB_OUTPUT"
+          echo "Scaling ${{ inputs.service }}: ${{ steps.current.outputs.current }} → ${NEW} replicas"
+
+      # -----------------------------------------------------------------------
+      # GitOps step — update the tfvars file so the scaling intent is captured
+      # in version control before apply runs.
+      # -----------------------------------------------------------------------
+      - name: Update Terraform scaling config
+        run: |
+          cat > terraform/aks/scaling/scaling.auto.tfvars <<'EOF'
+          # Managed by the scaling-demo workflow — do not edit manually.
+          # Each workflow run updates this file and commits it before running terraform apply.
+          service_name = "${{ inputs.service }}"
+          replicas     = ${{ steps.scale.outputs.new_replicas }}
+          target_color = "${{ inputs.target_color }}"
+          EOF
+
+      - name: Commit and push scaling config
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add terraform/aks/scaling/scaling.auto.tfvars
+          git diff --cached --quiet && echo "No changes to commit" && exit 0
+          git commit -m "infra: scale ${{ inputs.service }} to ${{ steps.scale.outputs.new_replicas }} replicas [analysts/${{ inputs.target_color }}]"
+          git push
+
+      # -----------------------------------------------------------------------
+      # Terraform — init against the scaling-specific state key, then apply.
+      # Demo mode simulates timing with progress echoes instead of real apply.
+      # -----------------------------------------------------------------------
+      - name: Apply infrastructure changes
+        if: inputs.mode == 'demo'
+        run: |
+          echo "Initializing Terraform backend..."
+          sleep 12
+          echo "Planning infrastructure changes..."
+          sleep 8
+          echo "Applying: null_resource.scale_deployment will be created"
+          sleep 15
+          echo "Apply complete! Resources: 1 added, 0 changed, 0 destroyed."
+
+      - name: Terraform Init
+        if: inputs.mode == 'live'
+        working-directory: terraform/aks/scaling
+        run: |
+          terraform init \
+            --backend-config="resource_group_name=ReliBank" \
+            --backend-config="storage_account_name=${{ vars.TF_STATE_STORAGE_ACCOUNT }}" \
+            --backend-config="container_name=${{ vars.TF_STATE_CONTAINER }}" \
+            --backend-config="key=relibank/analysts/scaling.tfstate" \
+            --reconfigure --upgrade
+
+      - name: Terraform Apply
+        if: inputs.mode == 'live'
+        working-directory: terraform/aks/scaling
+        run: |
+          terraform apply \
+            -var="aks_cluster_name=${{ vars.AKS_CLUSTER_NAME }}" \
+            -var="aks_resource_group=${{ vars.AKS_RESOURCE_GROUP }}" \
+            -var="target_color=$(echo '${{ inputs.target_color }}' | sed 's/relibank-//')" \
+            --auto-approve
+
+      # -----------------------------------------------------------------------
+      # Verify the rollout completed before declaring success.
+      # -----------------------------------------------------------------------
+      - name: Verify rollout
+        if: inputs.mode == 'live'
+        run: |
+          NAMESPACE="${{ inputs.target_color }}"
+          kubectl rollout status deployment/${{ inputs.service }} \
+            -n "${NAMESPACE}" \
+            --timeout=120s
+          ACTUAL=$(kubectl get deployment/${{ inputs.service }} \
+            -n "${NAMESPACE}" \
+            -o jsonpath='{.spec.replicas}')
+          echo "${{ inputs.service }} is running ${ACTUAL} replica(s) in ${NAMESPACE}"
+
+      - name: Scaling Summary
+        run: |
+          echo "========================================"
+          echo "SCALING COMPLETE"
+          echo "========================================"
+          echo "Service:     ${{ inputs.service }}"
+          echo "Environment: analysts / ${{ inputs.target_color }}"
+          echo "Replicas:    ${{ steps.current.outputs.current }} → ${{ steps.scale.outputs.new_replicas }}"
+          echo "Cluster:     ${{ vars.AKS_CLUSTER_NAME }}"
+          echo "Status:      success"
+          echo ""
+          echo "Config committed to: ${{ github.ref_name }}"
+          echo "Commit SHA:          ${{ github.sha }}"
+          if [ "${{ inputs.mode }}" == "demo" ]; then
+            echo ""
+            echo "[demo mode — terraform and rollout steps skipped]"
+          fi
+
+      # -----------------------------------------------------------------------
+      # Log workflow result to New Relic — runs on success and failure.
+      # -----------------------------------------------------------------------
+      - name: Export scaling result to New Relic
+        if: always()
+        env:
+          JOB_STATUS: ${{ inputs.mode == 'demo' && 'success' || job.status }}
+          JOB_NAME: ${{ github.job }}
+          RUN_ID: ${{ github.run_id }}
+          REPOSITORY: ${{ github.repository }}
+          SERVER_URL: ${{ github.server_url }}
+          WORKFLOW: ${{ github.workflow }}
+          ENVIRONMENT: analysts
+          SERVICE: ${{ inputs.service }}
+          RUN_MODE: ${{ inputs.mode }}
+          TARGET_COLOR: ${{ inputs.target_color }}
+          REPLICAS_BEFORE: ${{ steps.current.outputs.current }}
+          REPLICAS_AFTER: ${{ steps.scale.outputs.new_replicas }}
+          NR_LICENSE_KEY: ${{ secrets.NR_ANALYSTS_INGEST_KEY }}
+          NR_ACCOUNT_ID: ${{ vars.NR_ACCOUNT_ID_ALERTS }}
+          NR_ENDPOINT_BASE: "https://log-api.newrelic.com/log/v1"
+        run: python .github/scripts/export_to_newrelic.py
