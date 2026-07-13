@@ -1,1 +1,11 @@
-# placeholder
+name: Scale ReliBank Service
+
+on:
+  workflow_dispatch:
+
+jobs:
+  placeholder:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Forrester Placeholder
+        run: echo "This is a placeholder, branch is ftr/forrester-workflow"
