@@ -225,6 +225,22 @@ if [[ "$SKIP_SP" == "false" ]]; then
   az role assignment create --assignee "$CLIENT_ID" --role "DNS Zone Contributor" --scope "$DNS_ZONE_SCOPE" --output none
   success "DNS Zone Contributor assigned"
 
+  # Reader + Monitoring Reader at SUBSCRIPTION scope — required so New Relic's Azure cloud
+  # polling integration (terraform/aks/newrelic/nr_azure_integration.tf) can enumerate resources
+  # and read Azure Monitor metrics for this env's Function App. NR's polling does subscription-
+  # level discovery even though nr_azure_integration.tf filters results down to this env's RG,
+  # so the grant must be sub-scoped, not RG-scoped — same reasoning as the Cognitive Services
+  # Contributor grant above. Without this, the NR link/integration Terraform still applies
+  # cleanly, but polling silently 403s and no AzureFunctionsAppSample data ever appears.
+  info "Granting Reader + Monitoring Reader at subscription scope (for NR Azure Functions polling)..."
+  az role assignment create --assignee "$CLIENT_ID" --role "Reader" --scope "/subscriptions/${SUBSCRIPTION_ID}" --output none
+  az role assignment create --assignee "$CLIENT_ID" --role "Monitoring Reader" --scope "/subscriptions/${SUBSCRIPTION_ID}" --output none
+  success "Reader + Monitoring Reader assigned at subscription scope"
+
+  info "Ensuring microsoft.insights resource provider is registered (required for NR Azure polling)..."
+  az provider register --namespace microsoft.insights
+  success "microsoft.insights provider registration ensured"
+
 else
   warn "Skipping service principal creation (--skip-sp)"
   CLIENT_ID="<run without --skip-sp to generate>"

@@ -30,3 +30,9 @@ variable "sms_throttle_percentage" {
   type        = number
   default     = 5
 }
+
+variable "simulate_notifications" {
+  description = "Demo knob: when true, notify_user_trigger logs a simulated email/SMS send instead of calling Azure Communication Services. Default true — ACS is currently blocked subscription-wide (SubscriptionBlocked/Unauthorized, see docs/deployer/runbook.md and ticket-maker/2026-07-15-relibank-notification-delivery-failures). Flip to false per-environment once ACS is confirmed fixed there."
+  type        = bool
+  default     = true
+}

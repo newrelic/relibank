@@ -18,6 +18,9 @@ locals {
   plan_name            = "relibank-${var.demo_environment}-asp"
   acs_name             = "relibank-${var.demo_environment}-acs"
   email_service_name   = "relibank-${var.demo_environment}-email"
+
+  log_analytics_workspace_name = "relibank-${var.demo_environment}-notifications-law"
+  appinsights_name             = "relibank-${var.demo_environment}-notifications-ai"
 }
 
 # ---------------------------------------------------------------------------
@@ -98,6 +101,41 @@ resource "azurerm_communication_service_email_domain_association" "this" {
 }
 
 # ---------------------------------------------------------------------------
+# Log Analytics workspace + Application Insights — required for the Function
+# App to generate invocation-level telemetry (execution counts, HTTP error
+# metrics). Without this, memory/status metrics still work (they come from
+# the host directly), but functionExecutionCount/http5xx never populate in
+# Azure Monitor at all, regardless of real traffic — confirmed by querying
+# Azure Monitor's metrics API directly. Workspace-based mode is required;
+# the classic standalone Application Insights mode is being phased out.
+# ---------------------------------------------------------------------------
+resource "azurerm_log_analytics_workspace" "notifications" {
+  name                = local.log_analytics_workspace_name
+  resource_group_name = var.aks_resource_group
+  location            = var.location
+  sku                 = "PerGB2018"
+  retention_in_days   = 30
+
+  tags = {
+    environment = var.demo_environment
+    managed_by  = "terraform"
+  }
+}
+
+resource "azurerm_application_insights" "notifications" {
+  name                = local.appinsights_name
+  resource_group_name = var.aks_resource_group
+  location            = var.location
+  workspace_id        = azurerm_log_analytics_workspace.notifications.id
+  application_type    = "web"
+
+  tags = {
+    environment = var.demo_environment
+    managed_by  = "terraform"
+  }
+}
+
+# ---------------------------------------------------------------------------
 # Linux Python Function App — runtime that hosts notify_user_trigger.
 # ---------------------------------------------------------------------------
 resource "azurerm_linux_function_app" "notifications" {
@@ -115,11 +153,13 @@ resource "azurerm_linux_function_app" "notifications" {
   }
 
   app_settings = {
-    AZURE_ACS_CONNECTION_STRING = azurerm_communication_service.acs.primary_connection_string
-    AZURE_ACS_EMAIL_SENDER      = "DoNotReply@${azurerm_email_communication_service_domain.email.mail_from_sender_domain}"
-    AZURE_ACS_SMS_SENDER        = var.sms_sender_phone
-    SMS_THROTTLE_PERCENTAGE     = tostring(var.sms_throttle_percentage)
-    FUNCTIONS_EXTENSION_VERSION = "~4"
+    AZURE_ACS_CONNECTION_STRING           = azurerm_communication_service.acs.primary_connection_string
+    AZURE_ACS_EMAIL_SENDER                = "DoNotReply@${azurerm_email_communication_service_domain.email.mail_from_sender_domain}"
+    AZURE_ACS_SMS_SENDER                  = var.sms_sender_phone
+    SMS_THROTTLE_PERCENTAGE               = tostring(var.sms_throttle_percentage)
+    SIMULATE_NOTIFICATIONS                = tostring(var.simulate_notifications)
+    APPLICATIONINSIGHTS_CONNECTION_STRING = azurerm_application_insights.notifications.connection_string
+    FUNCTIONS_EXTENSION_VERSION           = "~4"
     # Linux Consumption (Y1) needs these set explicitly for `func azure functionapp publish`
     # to perform a remote build during deployment. Without them, the publish step succeeds
     # silently but the function never registers.
