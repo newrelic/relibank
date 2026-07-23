@@ -13,6 +13,7 @@ Relibank simulates a banking system with separate services for accounts, transac
   - Bill payments, fund transfers, recurring payments
   - New Relic Browser monitoring integration
 - **accounts-service** - Manages user accounts (FastAPI + PostgreSQL)
+- **auth-service** - Authenticates users (login) against the accounts database (FastAPI + PostgreSQL)
 - **transaction-service** - Processes and retrieves payment transactions (FastAPI + MSSQL)
   - GET endpoint for recurring payment schedules
   - Kafka consumer for payment events
@@ -157,8 +158,9 @@ Code runs in one of two modes here (full detail in [`CLAUDE.md`](CLAUDE.md) → 
   start a fresh session for builder work so a live demo can't be flipped mid-run.
 
 Building or changing a scenario? Follow
-[`docs/SCENARIO_AUTHORING.md`](docs/SCENARIO_AUTHORING.md). See [`CONTRIBUTING.md`](CONTRIBUTING.md)
-for the full dev loop, testing, and the committed `.claude/` tooling.
+[`docs/SCENARIO_AUTHORING.md`](docs/SCENARIO_AUTHORING.md). See [`testing.md`](testing.md)
+for the dev loop and testing, and [`docs/README_TEMPLATE.md`](docs/README_TEMPLATE.md) for the
+per-service README baseline every service's docs should follow.
 
 ## API Examples
 

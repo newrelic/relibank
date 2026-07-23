@@ -26,6 +26,20 @@ The scheduler service works with the following data sources:
 
 ---
 
+### 🔧 Configuration
+
+#### Environment Variables
+
+| Variable | Default | Description |
+| :--- | :--- | :--- |
+| `KAFKA_BROKER` | `kafka:29092` | Kafka broker address. |
+| `DB_SERVER` | `mssql` | MSSQL host. |
+| `DB_DATABASE` | `RelibankDB` | MSSQL database name. |
+| `DB_USERNAME` | `SA` | MSSQL user. |
+| `DB_PASSWORD` | — | MSSQL password. |
+
+---
+
 ### ⚙️ How to Run
 
 This service is deployed as part of the larger **Relibank** application stack using Skaffold and Kubernetes.

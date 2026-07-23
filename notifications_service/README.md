@@ -27,6 +27,19 @@ The service is configured to consume events from the following Kafka topics:
 
 ---
 
+### 🔧 Configuration
+
+#### Environment Variables
+
+| Variable | Default | Description |
+| :--- | :--- | :--- |
+| `KAFKA_BROKER` | `kafka:29092` | Kafka broker address. |
+| `AZURE_FUNCTION_URL` | — | URL of the Azure Function that actually sends email/SMS (real send path, when configured). |
+
+The commented-out `AZURE_ACS_*` variables in the k8s deployment (`AZURE_ACS_CONNECTION_STRING`, `AZURE_ACS_EMAIL_SENDER`, `AZURE_ACS_SMS_PHONE_NUMBER`) belong to the separate Azure Function App (`azure_function/function_app.py`), not this container — see that file for its own configuration.
+
+---
+
 ### ⚙️ How to Run
 
 This service is deployed as part of the larger **Relibank** application stack using Skaffold and Kubernetes.

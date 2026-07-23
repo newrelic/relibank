@@ -86,6 +86,21 @@ class RecurringScheduleRecord(BaseModel):
 
 ---
 
+### 🔧 Configuration
+
+#### Environment Variables
+
+| Variable | Default | Description |
+| :--- | :--- | :--- |
+| `DB_SERVER` | `mssql` | MSSQL host. |
+| `DB_DATABASE` | `RelibankDB` | MSSQL database name. |
+| `DB_USERNAME` | `SA` | MSSQL user. |
+| `DB_PASSWORD` | — | MSSQL password. |
+| `ACCOUNTS_SERVICE_URL` | `http://accounts-service:5000` | Accounts Service endpoint. |
+| `KAFKA_BROKER` | `kafka:29092` | Kafka broker address. |
+
+---
+
 ### ⚙️ How to Run
 
 This service is deployed as part of the larger **Relibank** application stack using Skaffold and Kubernetes.

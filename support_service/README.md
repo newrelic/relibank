@@ -24,13 +24,26 @@ The service exposes the following API endpoint for interacting with the AI model
 
 ---
 
+### 🔧 Configuration
+
+#### Environment Variables
+
+| Variable | Default | Description |
+| :--- | :--- | :--- |
+| `AZURE_OPENAI_ENDPOINT` | — | Azure OpenAI endpoint used by the LangGraph chat-completions agents. |
+| `AZURE_OPENAI_API_KEY` | — | Azure OpenAI API key, runtime-injected via a k8s Secret. |
+| `ASSISTANT_B_DELAY_SECONDS` | `0` | Artificial response delay (seconds) for the "Assistant B" agent, used in demo scenarios. |
+| `SCENARIO_SERVICE_URL` | `http://scenario-runner-service.relibank.svc.cluster.local:8000` | Scenario Service endpoint, queried for active AI agent configuration. |
+
+---
+
 ### ⚙️ How to Run
 
 This service is deployed as part of the larger **Relibank** application stack using Skaffold and Kubernetes.
 
 1. **Ensure Prerequisites**: Make sure you have Docker Desktop (with Kubernetes enabled) or Minikube, Skaffold, kubectl, and Helm installed.
 
-2. **Configure Environment**: From the root of the `relibank` repository, populate `skaffold.env` with the required secrets and configuration values, including the `OPENAI_API_KEY`.
+2. **Configure Environment**: From the root of the `relibank` repository, populate `skaffold.env` with the required secrets and configuration values, including `AZURE_OPENAI_ENDPOINT` and `AZURE_OPENAI_API_KEY`.
 
 3. **Start the Stack**: Run the following command from the root directory to build all images and deploy all services to your local Kubernetes cluster:
 

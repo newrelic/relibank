@@ -109,6 +109,23 @@ All 43 test users in `accounts_service/postgres/init.sql` have Stripe IDs pre-po
 
 ---
 
+### 🔧 Configuration
+
+#### Environment Variables
+
+| Variable | Default | Description |
+| :--- | :--- | :--- |
+| `DB_HOST` | `accounts-db` | Postgres host. |
+| `DB_NAME` | `accountsdb` | Postgres database name. |
+| `DB_USER` | `postgres` | Postgres user. |
+| `DB_PASSWORD` | — | Postgres password. |
+| `TRANSACTION_SERVICE_SERVICE_HOST` | `transaction-service` | Host used to build the Transaction Service URL (ledger lookups). Kubernetes auto-injects this per-Service env var. |
+| `TRANSACTION_SERVICE_SERVICE_PORT` | `5001` | Port used to build the Transaction Service URL. |
+| `SCENARIO_RUNNER_SERVICE_SERVICE_HOST` | `scenario-runner-service` | Host for the Scenario Service (A/B testing config). |
+| `SCENARIO_RUNNER_SERVICE_SERVICE_PORT` | `8000` | Port for the Scenario Service. |
+
+---
+
 ### ⚙️ How to Run
 
 This service is deployed as part of the larger **Relibank** application stack using Skaffold and Kubernetes.

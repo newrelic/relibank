@@ -111,6 +111,22 @@ These scenarios are also available in the Postman collection under "scenario ser
 
 ---
 
+### 🔧 Configuration
+
+#### Environment Variables
+
+| Variable | Default | Description |
+| :--- | :--- | :--- |
+| `STRIPE_SECRET_KEY` | — | Stripe secret key for card payments. See **Stripe Configuration** above for how to obtain it. |
+| `STRIPE_PUBLISHABLE_KEY` | — | Stripe publishable key, used by the frontend for card tokenization. |
+| `KAFKA_BROKER` | `kafka:29092` | Kafka broker address. |
+| `TRANSACTION_SERVICE_URL` | `http://transaction-service:5001` | Transaction Service endpoint (duplicate `billId` checks, recording outcomes). |
+| `ACCOUNTS_SERVICE_URL` | `http://accounts-service:5002` | Accounts Service endpoint (Stripe customer/payment-method lookup by user UUID). |
+| `RISK_ASSESSMENT_SERVICE_URL` | `http://risk-assessment-service.relibank.svc.cluster.local:5001` | Risk Assessment Service endpoint, called before a transaction is committed. |
+| `SCENARIO_SERVICE_URL` | `http://scenario-runner-service.relibank.svc.cluster.local:8000` | Scenario Service endpoint, used for demo scenario toggles. |
+
+---
+
 ### ⚙️ How to Run
 
 This service is designed to be run using Skaffold as part of the larger **Relibank** application stack.

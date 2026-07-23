@@ -4,6 +4,8 @@ A React-based banking demo application built with React Router v7, Material-UI, 
 
 ## 🏗️ Architecture Overview
 
+**Interface**: This is the only browser-facing service in the stack. It calls three backend services directly — `accounts-service` (users/accounts, Stripe fields), `support-service` (AI chat), and `bill-pay-service` (payments) — see [Backend Service Proxy](#backend-service-proxy) and [Bill Pay Service Endpoint Coverage](#bill-pay-service-endpoint-coverage) below for the exact routes used.
+
 ### Tech Stack
 - **Framework**: React Router v7 (SPA mode with client-side routing)
 - **UI Library**: Material-UI (MUI)
