@@ -272,7 +272,7 @@ kubectl rollout restart deployment -n relibank-{color}
 
 `MSSQL_MEMORY_LIMIT_MB` capped too low. With memory pressure, heavy queries queue indefinitely on `RESOURCE_SEMAPHORE` and never get plan handles, so `dm_exec_query_plan` rows never appear and the QPM exec-plan metric never emits.
 
-Fix: bump `MSSQL_MEMORY_LIMIT_MB` from the prod default of 1024 MB to 6144 MB. Also bump k8s resources (`requests: 4Gi/1cpu`, `limits: 8Gi/2cpu`). Demo loadgen for QPM panels: `utils/scripts/mssql/loadgen/db-direct/run-banking-load.sh` (~25s spending-velocity runs against 2M `BankTransactions`).
+Fix: bump `MSSQL_MEMORY_LIMIT_MB` from the prod default of 1024 MB to 6144 MB. Also bump k8s resources (`requests: 4Gi/1cpu`, `limits: 8Gi/2cpu`). Demo loadgen for QPM panels: `scripts/mssql/loadgen/db-direct/run-banking-load.sh` (~25s spending-velocity runs against 2M `BankTransactions`).
 
 ### MSSQL out of disk: RelibankDB log filled the data volume
 

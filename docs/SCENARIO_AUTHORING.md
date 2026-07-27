@@ -112,7 +112,7 @@ too, and add a row to the planted-behavior table in the **root `CLAUDE.md`**.
 To keep the demo environment lively, add `.github/workflows/flow-<name>.yml` modeled on
 `flow-lcp-ab-test.yml`: enable via `curl` → verify via the `config` endpoint → drop a New Relic
 change-tracking marker → wait for data → disable → (report status). The marker uses
-`utils/scripts/new_relic/send_change_tracking_marker.py` (see `flow-lcp-ab-test.yml` lines ~35–111).
+`scripts/new_relic/send_change_tracking_marker.py` (see `flow-lcp-ab-test.yml` lines ~35–111).
 
 ### 5. Test it
 

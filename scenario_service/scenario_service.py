@@ -957,7 +957,7 @@ DB360_CONNECTION_STRING = (
 
 # Spending-velocity SELECT — window functions over ~500K rows of
 # BankTransactions joined to Merchants. Produces Sort + Window Aggregate plan.
-# Verbatim from utils/scripts/mssql/loadgen/db-direct/run-banking-load.sh:184.
+# Verbatim from scripts/mssql/loadgen/db-direct/run-banking-load.sh.
 DB360_VELOCITY_SQL = """
 SELECT
     t.TxnID,

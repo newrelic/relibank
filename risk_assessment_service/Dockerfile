@@ -13,9 +13,6 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 COPY risk_assessment_service/requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Copy the centralized utils directory (if needed for shared code)
-COPY utils /app/utils
-
 # Copy the application code
 COPY risk_assessment_service /app
 

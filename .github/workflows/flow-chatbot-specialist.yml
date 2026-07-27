@@ -55,7 +55,7 @@ jobs:
 # --------------- demo flow ---------------
       - name: Send deployment marker (coordinator update)
         run: |
-          python utils/scripts/new_relic/send_change_tracking_marker.py \
+          python scripts/new_relic/send_change_tracking_marker.py \
             --api-key ${{ secrets.NR_USER_API_KEY }} \
             --account-id ${{ vars.NR_ACCOUNT_ID }} \
             --app-name "Support Service" \

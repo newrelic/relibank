@@ -186,7 +186,7 @@ jobs:
           NR_ENDPOINT_BASE: "https://log-api.newrelic.com/log/v1"
 
         run: |
-          cd utils/github_action_monitoring && python export_to_newrelic.py
+          cd scripts/github_action_monitoring && python export_to_newrelic.py
 
       - name: Report scenario status to Krenko's Calendar
         if: always()

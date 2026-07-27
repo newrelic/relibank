@@ -9,7 +9,7 @@ If multiple entities are returned the script prints a table and exits — no mar
 is created for ambiguous results.
 
 Usage (DEPLOYMENT via APM entity):
-    python utils/scripts/new_relic/send_change_tracking_marker.py \
+    python scripts/new_relic/send_change_tracking_marker.py \
         --api-key $NR_USER_API_KEY \
         --account-id $NR_ACCOUNT_ID \
         --app-name "My Service" \
@@ -23,7 +23,7 @@ Usage (DEPLOYMENT via APM entity):
         --custom-attribute team=payments
 
 Usage (FEATURE_FLAG via BROWSER entity):
-    python utils/scripts/new_relic/send_change_tracking_marker.py \
+    python scripts/new_relic/send_change_tracking_marker.py \
         --api-key $NR_USER_API_KEY \
         --account-id $NR_ACCOUNT_ID \
         --app-name "Customer Portal" \
