@@ -36,9 +36,8 @@ Relibank simulates a banking system with separate services for accounts, transac
     - Internal collector telemetry
     - Exports to New Relic via OTLP
   - **nrdot-collector-mssql** - New Relic NRDOT collector for MSSQL database monitoring
-    - Wait stats, performance counters, lock/deadlock metrics
-    - Slow query and blocking query detection via `query_monitoring_*` config
-    - Execution plan capture routed as logs via `metricsaslogs` connector
+    - `nrsqlserver` receiver: wait stats, lock/deadlock, buffer pool, tempdb, and other `sqlserver.*` metrics
+    - Slow query and top-query sampling via the receiver's native `events.db.server.*` config, surfaced as logs
     - Exports to New Relic via OTLP (`instrumentation.provider = opentelemetry`)
 - **scenario-runner-service** - Runtime configuration and chaos engineering control
     - Payment failure scenarios (timeout, decline, stolen card)
@@ -199,9 +198,9 @@ This isn't meant to be a real banking application. It's a learning tool for:
 ## Recent Updates
 
 ### NRDOT MSSQL Database Monitoring
-- **NRDOT Collector**: Dedicated `nrdot-collector-mssql` pod running New Relic's NRDOT collector v1.11.1+db-v1.2.0
-- **Wait Stats & Perf Counters**: `sqlserver.wait_stats.*`, lock/deadlock/compilation rates from `sys.dm_os_wait_stats` and `sys.dm_os_performance_counters`
-- **Slow & Blocking Queries**: Captured via `query_monitoring_*` receiver config and routed as logs through the `metricsaslogs` connector
+- **NRDOT Collector**: Dedicated `nrdot-collector-mssql` pod running the `nrsqlserver` receiver, installed from [newrelic/nrdot-collector-releases](https://github.com/newrelic/nrdot-collector-releases)
+- **Wait Stats & Perf Counters**: `sqlserver.os.wait.duration`, lock/deadlock/compilation rates and other `sqlserver.*` metrics
+- **Slow & Blocking Queries**: Captured via the receiver's native `events.db.server.query_sample` / `db.server.top_query` config and surfaced as logs
 - **Credentials**: Managed via `k8s/base/infrastructure/newrelic/nrdot-mssql.env` (gitignored); see `nrdot-mssql.env.example`
 - **GitHub Actions**: `MSSQL_NEWRELIC_PASSWORD` and `NR_LICENSE_KEY` secrets are used to generate the credentials file at deploy time
 

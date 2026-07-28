@@ -20,7 +20,7 @@ spec:
         image: nrdot-collector-mssql
         imagePullPolicy: IfNotPresent
         command:
-          - nrdot-collector-host
+          - nrdot-collector
           - --config=/etc/otelcol/config.yaml
           - --config=/etc/otelcol/internal-telemetry-config.yaml
         env:
