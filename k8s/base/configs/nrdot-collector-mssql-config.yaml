@@ -438,6 +438,15 @@ data:
         timeout: 2s
         override: true
 
+      resource/mssql_identity:
+        attributes:
+          - key: host.name
+            value: "mssql-0-${env:RELIBANK_ENVIRONMENT}"
+            action: upsert
+          - key: host.id
+            value: "mssql-0-${env:RELIBANK_ENVIRONMENT}"
+            action: upsert
+
     exporters:
       otlphttp:
         endpoint: ${env:NEW_RELIC_OTLP_ENDPOINT}
@@ -475,12 +484,20 @@ data:
           processors: [memory_limiter, transform, resourcedetection, resourcedetection/cloud, resourcedetection/env, batch]
           exporters: [otlphttp]
         metrics:
-          receivers: [nrsqlserver, otlp]
+          receivers: [otlp]
           processors: [memory_limiter, transform, resourcedetection, resourcedetection/cloud, resourcedetection/env, batch]
+          exporters: [otlphttp]
+        metrics/mssql:
+          receivers: [nrsqlserver]
+          processors: [memory_limiter, transform, resourcedetection, resourcedetection/env, resource/mssql_identity, batch]
           exporters: [otlphttp, debug]
         logs:
-          receivers: [nrsqlserver, otlp, filelog]
+          receivers: [otlp, filelog]
           processors: [memory_limiter, transform, resourcedetection, resourcedetection/db_safe, resourcedetection/env, batch]
+          exporters: [otlphttp]
+        logs/mssql:
+          receivers: [nrsqlserver]
+          processors: [memory_limiter, transform, resourcedetection, resourcedetection/env, resource/mssql_identity, batch]
           exporters: [otlphttp]
       extensions: [health_check]
       telemetry:

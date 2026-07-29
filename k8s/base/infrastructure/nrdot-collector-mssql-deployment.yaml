@@ -24,6 +24,8 @@ spec:
           - --config=/etc/otelcol/config.yaml
           - --config=/etc/otelcol/internal-telemetry-config.yaml
         env:
+        - name: RELIBANK_ENVIRONMENT
+          value: "local"
         - name: MSSQL_NEWRELIC_PASSWORD
           valueFrom:
             secretKeyRef:
