@@ -203,6 +203,7 @@ This isn't meant to be a real banking application. It's a learning tool for:
 - **Slow & Blocking Queries**: Captured via the receiver's native `events.db.server.query_sample` / `db.server.top_query` config and surfaced as logs
 - **Credentials**: Managed via `k8s/base/infrastructure/newrelic/nrdot-mssql.env` (gitignored); see `nrdot-mssql.env.example`
 - **GitHub Actions**: `MSSQL_NEWRELIC_PASSWORD` and `NR_LICENSE_KEY` secrets are used to generate the credentials file at deploy time
+- **Execution-plan viewer demo query**: New Relic currently drops any execution plan XML over 128KB (platform limitation). For a reliable demo, trigger `GET /transaction-service/slow-query?query_type=flagged_analysis` — measured at ~32.6KB from real scenario traffic, safely under the cap. `spending_velocity` (~45.3KB) is also safe as a backup. See `generate_slow_query()` in `transaction_service.py` for the full query-type list and measurements.
 
 ### Stripe Per-User Credentials
 - **Seeded Stripe Data**: All 43 seeded users now have pre-populated `stripe_customer_id`, `stripe_payment_method_id`, and `stripe_payment_method_name` in Postgres
