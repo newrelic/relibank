@@ -497,7 +497,7 @@ data:
           exporters: [otlphttp]
         logs/mssql:
           receivers: [nrsqlserver]
-          processors: [memory_limiter, transform, resourcedetection, resourcedetection/env, resource/mssql_identity, batch]
+          processors: [memory_limiter, resourcedetection, resourcedetection/env, resource/mssql_identity, batch]
           exporters: [otlphttp]
       extensions: [health_check]
       telemetry:
