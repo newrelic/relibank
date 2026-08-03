@@ -23,6 +23,12 @@ patches:
     target:
       kind: StatefulSet
       name: mssql
+  # support-service needs Azure OpenAI creds from the existing cluster secret;
+  # the base manifest never wired them after the LangGraph migration.
+  - path: support-service-azure-openai-patch.yaml
+    target:
+      kind: Deployment
+      name: support-service
   - path: infrastructure-config.yaml
     target:
       kind: ConfigMap

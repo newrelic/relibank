@@ -1,0 +1,21 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: support-service
+  namespace: relibank
+spec:
+  template:
+    spec:
+      containers:
+      - name: support-service
+        env:
+        - name: AZURE_OPENAI_ENDPOINT
+          valueFrom:
+            secretKeyRef:
+              name: azure-openai-secrets-d8b9fdck9d
+              key: endpoint
+        - name: AZURE_OPENAI_API_KEY
+          valueFrom:
+            secretKeyRef:
+              name: azure-openai-secrets-d8b9fdck9d
+              key: api-key
