@@ -4,6 +4,7 @@ import sys
 import json
 import logging
 import hashlib
+import gc
 import psycopg2
 from psycopg2 import extras, pool
 from pydantic import BaseModel, Field
@@ -68,6 +69,34 @@ async def get_ab_test_config():
         "db_pool_stress_delay_ms": 0,
         "db_pool_stress_affected_pool": "pool-a"
     }
+
+async def get_dem_forrester_config():
+    """Fetch memory leak scenario configuration from scenario service"""
+    try:
+        async with httpx.AsyncClient() as client:
+            response = await client.get(
+                f"{SCENARIO_SERVICE_URL}/scenario-runner/api/dem-memory-leak/config",
+                timeout=2.0
+            )
+            if response.status_code == 200:
+                data = response.json()
+                return data.get("config", {})
+    except Exception as e:
+        logging.debug(f"Could not fetch config: {e}")
+
+    # Return defaults if scenario service unavailable
+    return {
+        "memory_leak_toggle_enabled": False,
+        "memory_leak_rate_mb_per_sec": 10,
+        "memory_leak_max_mb": 500,
+        "memory_leak_trigger_active": False,
+        "memory_leak_trigger_deadline": None,
+        "memory_leak_trigger_duration_sec": 300
+    }
+
+# Global state for memory leak scenario
+dem_memory_leak_data = []
+dem_memory_leak_task = None
 
 def assign_user_to_pool(user_id: str) -> str:
     """
@@ -193,6 +222,109 @@ def return_db_connection(conn):
     if connection_pool and conn:
         connection_pool.putconn(conn)
 
+async def dem_memory_leak_background_task():
+    """
+    Background task that monitors scenario config and allocates memory.
+    """
+    global dem_memory_leak_data
+    delay = 3  # Check every 3 seconds for responsiveness
+
+    # Track previous state to detect changes
+    prev_should_leak = False
+    prev_current_mb = 0
+    max_reached_time = None  # Track when we reached max capacity
+    hold_duration = 900  # Hold at max for 15 minutes (900 seconds)
+
+    while True:
+        try:
+            config = await get_dem_forrester_config()
+
+            # Determine if we should leak memory and which rate to use
+            should_leak = False
+            rate_mb = config.get("memory_leak_rate_mb_per_sec", 10)
+
+            # Check toggle (persistent mode)
+            if config.get("memory_leak_toggle_enabled"):
+                should_leak = True
+
+            # Check 10-minute trigger (timed mode with faster ramp)
+            elif config.get("memory_leak_trigger_10min_active"):
+                deadline = config.get("memory_leak_trigger_10min_deadline")
+                if deadline and time.time() < deadline:
+                    should_leak = True
+                    rate_mb = config.get("memory_leak_trigger_10min_rate", rate_mb)
+
+            # Check 45-minute trigger (timed mode)
+            elif config.get("memory_leak_trigger_active"):
+                deadline = config.get("memory_leak_trigger_deadline")
+                if deadline and time.time() < deadline:
+                    should_leak = True
+
+            # Track state changes (without logging)
+            if should_leak != prev_should_leak:
+                prev_should_leak = should_leak
+
+            if should_leak:
+                max_mb = config.get("memory_leak_max_mb", 500)
+
+                # Calculate current memory usage
+                current_mb = sum(len(chunk) for chunk in dem_memory_leak_data) / (1024 * 1024)
+
+                if current_mb < max_mb:
+                    # Allocate memory proportional to delay (rate_mb is per second)
+                    chunk_size = int(rate_mb * delay * 1024 * 1024)  # Convert MB to bytes
+                    chunk = bytearray(chunk_size)  # Allocate memory
+
+                    # Force memory to be resident in RAM by writing to it
+                    # This ensures the OS actually allocates physical memory
+                    for i in range(0, chunk_size, 4096):  # Write every 4KB page
+                        chunk[i] = 1
+
+                    dem_memory_leak_data.append(chunk)  # Keep reference so it doesn't get GC'd
+                    prev_current_mb = current_mb
+                elif current_mb >= max_mb:
+                    # We've reached max capacity
+                    if max_reached_time is None:
+                        max_reached_time = time.time()
+
+                    # Check if we've held long enough
+                    time_at_max = time.time() - max_reached_time
+                    if time_at_max >= hold_duration:
+                        # Held at max for required duration, now clean up
+                        dem_memory_leak_data.clear()
+                        gc.collect()
+
+                        # Force Python to return memory to OS (Linux only)
+                        try:
+                            import ctypes
+                            ctypes.CDLL('libc.so.6').malloc_trim(0)
+                        except Exception:
+                            pass  # Ignore if not on Linux or malloc_trim unavailable
+
+                        prev_current_mb = 0
+                        max_reached_time = None
+                        prev_should_leak = False  # Trigger "STOPPED" log on next iteration
+            else:
+                # Clean up when disabled
+                if dem_memory_leak_data:
+                    dem_memory_leak_data.clear()
+                    gc.collect()  # Force garbage collection to free memory immediately
+
+                    # Force Python to return memory to OS (Linux only)
+                    try:
+                        import ctypes
+                        ctypes.CDLL('libc.so.6').malloc_trim(0)
+                    except Exception:
+                        pass  # Ignore if not on Linux or malloc_trim unavailable
+
+                    prev_current_mb = 0
+                    max_reached_time = None  # Reset timer for next run
+
+        except Exception as e:
+            logging.error(f"Background task error: {e}")
+
+        await asyncio.sleep(delay)
+
 # Pydantic models for user and account data
 class User(BaseModel):
     id: str
@@ -218,6 +350,9 @@ class Account(BaseModel):
     interest_rate: Optional[float]
     last_statement_date: Optional[str]
     account_type: str
+    # Additional fields populated during memory leak scenario for frontend impact
+    recent_transactions: Optional[List[Any]] = None
+    transaction_count: Optional[int] = None
 
 
 class AccountType(BaseModel):
@@ -229,9 +364,9 @@ class AccountType(BaseModel):
 async def lifespan(app: FastAPI):
     """
     Context manager to handle startup and shutdown events.
-    Initializes database connection pool.
+    Initializes database connection pool and background task.
     """
-    global connection_pool
+    global connection_pool, dem_memory_leak_task
     retries = 10
     delay = 3
     for i in range(retries):
@@ -248,7 +383,29 @@ async def lifespan(app: FastAPI):
         logging.error("Failed to create database connection pool after multiple retries. The application will not start.")
         raise ConnectionError("Failed to connect to PostgreSQL during startup.")
 
+    # Start background task
+    dem_memory_leak_task = asyncio.create_task(dem_memory_leak_background_task())
+
     yield
+
+    # Shutdown: cancel background task and clean up memory
+    if dem_memory_leak_task:
+        dem_memory_leak_task.cancel()
+        try:
+            await dem_memory_leak_task
+        except asyncio.CancelledError:
+            pass
+
+    # Clean up allocated memory
+    dem_memory_leak_data.clear()
+    gc.collect()  # Force garbage collection to free memory immediately
+
+    # Force Python to return memory to OS (Linux only)
+    try:
+        import ctypes
+        ctypes.CDLL('libc.so.6').malloc_trim(0)
+    except Exception:
+        pass  # Ignore if not on Linux or malloc_trim unavailable
 
     if connection_pool:
         connection_pool.closeall()
@@ -392,6 +549,14 @@ async def get_accounts(email: str, request: Request):
             if not all_accounts:
                 raise HTTPException(status_code=404, detail="No accounts found for user.")
 
+            # Check if memory leak scenario is active for conditional frontend impact
+            config = await get_dem_forrester_config()
+            is_memory_leak_active = (
+                config.get("memory_leak_toggle_enabled") or
+                config.get("memory_leak_trigger_active") or
+                config.get("memory_leak_trigger_10min_active")
+            )
+
             # Fetch current balance from transaction-service for each account
             propagation_headers = get_propagation_headers(request)
             async with httpx.AsyncClient() as client:
@@ -427,6 +592,39 @@ async def get_accounts(email: str, request: Request):
                             'account_id': str(account_id_int)
                         })
                         account["balance"] = 0.0
+
+                    # If memory leak scenario is active, fetch additional transaction data
+                    # This multiplies the impact of backend slowness on frontend page load duration
+                    if is_memory_leak_active:
+                        try:
+                            # Additional call 1: Recent transactions
+                            tx_response = await client.get(
+                                f"{TRANSACTION_SERVICE_URL}/transaction-service/transactions/{account_id_int}",
+                                headers=propagation_headers,
+                                timeout=10.0
+                            )
+                            if tx_response.status_code == 200:
+                                account["recent_transactions"] = tx_response.json()
+                            else:
+                                account["recent_transactions"] = []
+                        except Exception as e:
+                            logging.debug(f"Could not fetch recent transactions for account {account_id_int}: {e}")
+                            account["recent_transactions"] = []
+
+                        try:
+                            # Additional call 2: Transaction count (aggregate query)
+                            count_response = await client.get(
+                                f"{TRANSACTION_SERVICE_URL}/transaction-service/transactions/{account_id_int}/count",
+                                headers=propagation_headers,
+                                timeout=10.0
+                            )
+                            if count_response.status_code == 200:
+                                account["transaction_count"] = count_response.json().get("count", 0)
+                            else:
+                                account["transaction_count"] = 0
+                        except Exception as e:
+                            logging.debug(f"Could not fetch transaction count for account {account_id_int}: {e}")
+                            account["transaction_count"] = 0
 
             return [Account(**account) for account in all_accounts]
     except Exception as e:

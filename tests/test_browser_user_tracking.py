@@ -17,7 +17,7 @@ import uuid
 from typing import Dict, List
 
 # Configuration
-ACCOUNTS_SERVICE = os.getenv("ACCOUNTS_SERVICE", "http://localhost:5002")
+ACCOUNTS_SERVICE_URL = os.getenv("ACCOUNTS_SERVICE_URL", "http://localhost:5002")
 
 
 def get_valid_user_ids(count: int = 3) -> List[str]:
@@ -29,7 +29,7 @@ def get_valid_user_ids(count: int = 3) -> List[str]:
     max_attempts = count * 10  # Try up to 10x the requested count
 
     for _ in range(max_attempts):
-        response = requests.get(f"{ACCOUNTS_SERVICE}/accounts-service/browser-user")
+        response = requests.get(f"{ACCOUNTS_SERVICE_URL}/accounts-service/browser-user")
         if response.status_code == 200:
             data = response.json()
             user_ids.add(data["user_id"])
@@ -43,7 +43,7 @@ def test_browser_user_random_assignment():
     """Test that endpoint returns a valid random user ID when no header is provided"""
     print("\n=== Testing Random User ID Assignment ===")
 
-    response = requests.get(f"{ACCOUNTS_SERVICE}/accounts-service/browser-user")
+    response = requests.get(f"{ACCOUNTS_SERVICE_URL}/accounts-service/browser-user")
 
     print(f"Status: {response.status_code}")
     assert response.status_code == 200, f"Endpoint failed: {response.status_code}"
@@ -81,7 +81,7 @@ def test_browser_user_header_override():
     headers = {"x-browser-user-id": test_user_id}
 
     response = requests.get(
-        f"{ACCOUNTS_SERVICE}/accounts-service/browser-user",
+        f"{ACCOUNTS_SERVICE_URL}/accounts-service/browser-user",
         headers=headers
     )
 
@@ -109,7 +109,7 @@ def test_browser_user_invalid_header_fallback():
     headers = {"x-browser-user-id": invalid_user_id}
 
     response = requests.get(
-        f"{ACCOUNTS_SERVICE}/accounts-service/browser-user",
+        f"{ACCOUNTS_SERVICE_URL}/accounts-service/browser-user",
         headers=headers
     )
 
@@ -135,7 +135,7 @@ def test_browser_user_malformed_header():
     headers = {"x-browser-user-id": "not-a-valid-uuid"}
 
     response = requests.get(
-        f"{ACCOUNTS_SERVICE}/accounts-service/browser-user",
+        f"{ACCOUNTS_SERVICE_URL}/accounts-service/browser-user",
         headers=headers
     )
 
@@ -165,7 +165,7 @@ def test_browser_user_randomness():
     num_requests = 10
 
     for i in range(num_requests):
-        response = requests.get(f"{ACCOUNTS_SERVICE}/accounts-service/browser-user")
+        response = requests.get(f"{ACCOUNTS_SERVICE_URL}/accounts-service/browser-user")
         assert response.status_code == 200
         data = response.json()
         user_ids.add(data["user_id"])
@@ -197,7 +197,7 @@ def test_browser_user_consistency():
     # Make multiple requests with same header
     for i in range(5):
         response = requests.get(
-            f"{ACCOUNTS_SERVICE}/accounts-service/browser-user",
+            f"{ACCOUNTS_SERVICE_URL}/accounts-service/browser-user",
             headers=headers
         )
         assert response.status_code == 200
@@ -222,7 +222,7 @@ def test_browser_user_multiple_valid_headers():
     for test_user_id in valid_user_ids:
         headers = {"x-browser-user-id": test_user_id}
         response = requests.get(
-            f"{ACCOUNTS_SERVICE}/accounts-service/browser-user",
+            f"{ACCOUNTS_SERVICE_URL}/accounts-service/browser-user",
             headers=headers
         )
         assert response.status_code == 200

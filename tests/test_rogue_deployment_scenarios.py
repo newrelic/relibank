@@ -6,7 +6,7 @@ from typing import Dict
 
 # Configuration - use environment variables with local defaults
 SCENARIO_SERVICE_URL = os.getenv("SCENARIO_SERVICE_URL", "http://localhost:8000")
-SUPPORT_SERVICE_URL = os.getenv("SUPPORT_SERVICE", "http://localhost:5003")
+SUPPORT_SERVICE_URL = os.getenv("SUPPORT_SERVICE_URL", "http://localhost:5003")
 NUM_RISK_ASSESSMENTS = int(os.getenv("NUM_RISK_ASSESSMENTS", "10"))  # Reduced to avoid rate limits
 
 @pytest.fixture

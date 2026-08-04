@@ -30,7 +30,7 @@ data "azurerm_kubernetes_cluster" "cluster" {
 resource "azurerm_kubernetes_cluster_node_pool" "relibank_color_np" {
   name                  = var.target_color
   kubernetes_cluster_id = data.azurerm_kubernetes_cluster.cluster.id
-  vm_size               = "Standard_D2s_v3"
+  vm_size               = "Standard_D4s_v3"
   node_count            = 3
 
   node_labels = {

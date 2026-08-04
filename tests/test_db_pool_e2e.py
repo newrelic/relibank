@@ -33,7 +33,7 @@ load_env_from_skaffold()
 
 # Configuration
 SCENARIO_SERVICE_URL = os.getenv("SCENARIO_SERVICE_URL", "http://localhost:8000")
-ACCOUNTS_SERVICE_URL = os.getenv("ACCOUNTS_SERVICE", "http://localhost:5002")
+ACCOUNTS_SERVICE_URL = os.getenv("ACCOUNTS_SERVICE_URL", "http://localhost:5002")
 NR_USER_API_KEY = os.getenv("NEW_RELIC_USER_API_KEY")
 NR_ACCOUNT_ID = os.getenv("NEW_RELIC_ACCOUNT_ID", "4182956")
 NERDGRAPH_URL = "https://api.newrelic.com/graphql"
