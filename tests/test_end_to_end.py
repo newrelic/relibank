@@ -5,11 +5,11 @@ import uuid
 from typing import Dict
 
 # Configuration - use environment variables with local defaults
-BASE_URL = os.getenv("BASE_URL", "http://localhost:3000")
-ACCOUNTS_SERVICE = os.getenv("ACCOUNTS_SERVICE", "http://localhost:5002")
-BILL_PAY_SERVICE = os.getenv("BILL_PAY_SERVICE", "http://localhost:5000")
-SUPPORT_SERVICE = os.getenv("SUPPORT_SERVICE", "http://localhost:5003")
-AUTH_SERVICE = os.getenv("AUTH_SERVICE", "http://localhost:5006")
+FRONTEND_SERVICE_URL = os.getenv("FRONTEND_SERVICE_URL", "http://localhost:3000")
+ACCOUNTS_SERVICE_URL = os.getenv("ACCOUNTS_SERVICE_URL", "http://localhost:5002")
+BILL_PAY_SERVICE_URL = os.getenv("BILL_PAY_SERVICE_URL", "http://localhost:5000")
+SUPPORT_SERVICE_URL = os.getenv("SUPPORT_SERVICE_URL", "http://localhost:5003")
+AUTH_SERVICE_URL = os.getenv("AUTH_SERVICE_URL", "http://localhost:5006")
 
 # Seeded test users (from accounts_service/postgres/init.sql)
 ALICE_USER_ID = "b2a5c9f1-3d7f-4b0d-9a8c-9c7b5a1f2e4d"
@@ -35,7 +35,7 @@ def test_frontend_loads():
     """Test that the React frontend loads successfully"""
     print("\n=== Testing Frontend ===" )
 
-    response = requests.get(f"{BASE_URL}/")
+    response = requests.get(f"{FRONTEND_SERVICE_URL}/")
 
     print(f"Status: {response.status_code}")
     assert response.status_code == 200, f"Frontend failed to load: {response.status_code}"
@@ -51,7 +51,7 @@ def test_accounts_service_health():
     """Test that accounts service is healthy"""
     print("\n=== Testing Accounts Service Health ===")
 
-    response = requests.get(f"{ACCOUNTS_SERVICE}/accounts-service/health")
+    response = requests.get(f"{ACCOUNTS_SERVICE_URL}/accounts-service/health")
 
     print(f"Status: {response.status_code}")
     assert response.status_code == 200, f"Accounts service health check failed: {response.status_code}"
@@ -63,7 +63,7 @@ def test_bill_pay_service_health():
     """Test that bill pay service is healthy"""
     print("\n=== Testing Bill Pay Service Health ===")
 
-    response = requests.get(f"{BILL_PAY_SERVICE}/bill-pay-service/health")
+    response = requests.get(f"{BILL_PAY_SERVICE_URL}/bill-pay-service/health")
 
     print(f"Status: {response.status_code}")
     assert response.status_code == 200, f"Bill pay service health check failed: {response.status_code}"
@@ -75,7 +75,7 @@ def test_support_service_health():
     """Test that support service is healthy"""
     print("\n=== Testing Support Service Health ===")
 
-    response = requests.get(f"{SUPPORT_SERVICE}/support-service/health")
+    response = requests.get(f"{SUPPORT_SERVICE_URL}/support-service/health")
 
     print(f"Status: {response.status_code}")
     assert response.status_code == 200, f"Support service health check failed: {response.status_code}"
@@ -87,7 +87,7 @@ def test_auth_service_health():
     """Test that auth service is healthy"""
     print("\n=== Testing Auth Service Health ===")
 
-    response = requests.get(f"{AUTH_SERVICE}/auth-service/health")
+    response = requests.get(f"{AUTH_SERVICE_URL}/auth-service/health")
 
     print(f"Status: {response.status_code}")
     assert response.status_code == 200, f"Auth service health check failed: {response.status_code}"
@@ -106,7 +106,7 @@ def test_auth_service_login():
     }
 
     response = requests.post(
-        f"{AUTH_SERVICE}/auth-service/login",
+        f"{AUTH_SERVICE_URL}/auth-service/login",
         json=login_data
     )
 
@@ -132,7 +132,7 @@ def test_auth_service_login():
     }
 
     response = requests.post(
-        f"{AUTH_SERVICE}/auth-service/login",
+        f"{AUTH_SERVICE_URL}/auth-service/login",
         json=invalid_login
     )
 
@@ -148,7 +148,7 @@ def test_create_user_account():
 
     # Create user
     response = requests.post(
-        f"{ACCOUNTS_SERVICE}/accounts-service/users",
+        f"{ACCOUNTS_SERVICE_URL}/accounts-service/users",
         json=TEST_USER
     )
 
@@ -168,10 +168,10 @@ def test_get_user_account():
     print("\n=== Testing Get User Account ===")
 
     # Ensure user exists first
-    requests.post(f"{ACCOUNTS_SERVICE}/accounts-service/users", json=TEST_USER)
+    requests.post(f"{ACCOUNTS_SERVICE_URL}/accounts-service/users", json=TEST_USER)
 
     # Get user info
-    response = requests.get(f"{ACCOUNTS_SERVICE}/accounts-service/users/{TEST_USER['email']}")
+    response = requests.get(f"{ACCOUNTS_SERVICE_URL}/accounts-service/users/{TEST_USER['email']}")
 
     print(f"Status: {response.status_code}")
     assert response.status_code == 200, f"Failed to get user account: {response.status_code}"
@@ -188,7 +188,7 @@ def test_create_bank_account():
     print("\n=== Testing Bank Account Creation ===")
 
     # Ensure user exists
-    requests.post(f"{ACCOUNTS_SERVICE}/accounts-service/users", json=TEST_USER)
+    requests.post(f"{ACCOUNTS_SERVICE_URL}/accounts-service/users", json=TEST_USER)
 
     # Create bank account with all required fields
     account_data = {
@@ -202,7 +202,7 @@ def test_create_bank_account():
     }
 
     response = requests.post(
-        f"{ACCOUNTS_SERVICE}/accounts-service/accounts/{TEST_USER['email']}",
+        f"{ACCOUNTS_SERVICE_URL}/accounts-service/accounts/{TEST_USER['email']}",
         json=account_data
     )
 
@@ -224,7 +224,7 @@ def test_get_bank_accounts():
     print("\n=== Testing Get Bank Accounts ===")
 
     # Ensure user and account exist
-    requests.post(f"{ACCOUNTS_SERVICE}/accounts-service/users", json=TEST_USER)
+    requests.post(f"{ACCOUNTS_SERVICE_URL}/accounts-service/users", json=TEST_USER)
     account_data = {
         "id": int(os.getpid()),
         "name": "Test Checking Account",
@@ -235,12 +235,12 @@ def test_get_bank_accounts():
         "account_type": "checking"
     }
     requests.post(
-        f"{ACCOUNTS_SERVICE}/accounts-service/accounts/{TEST_USER['email']}",
+        f"{ACCOUNTS_SERVICE_URL}/accounts-service/accounts/{TEST_USER['email']}",
         json=account_data
     )
 
     # Get accounts
-    response = requests.get(f"{ACCOUNTS_SERVICE}/accounts-service/accounts/{TEST_USER['email']}")
+    response = requests.get(f"{ACCOUNTS_SERVICE_URL}/accounts-service/accounts/{TEST_USER['email']}")
 
     print(f"Status: {response.status_code}")
 
@@ -262,7 +262,7 @@ def test_support_interaction():
 
     # Test support service with a simple query as form data
     response = requests.post(
-        f"{SUPPORT_SERVICE}/support-service/chat",
+        f"{SUPPORT_SERVICE_URL}/support-service/chat",
         params={"prompt": "What services does Relibank offer?"}
     )
 
@@ -294,7 +294,7 @@ def test_bill_payment_flow():
     }
 
     response = requests.post(
-        f"{BILL_PAY_SERVICE}/bill-pay-service/pay",
+        f"{BILL_PAY_SERVICE_URL}/bill-pay-service/pay",
         json=payment_request
     )
 
@@ -327,7 +327,7 @@ def test_complete_user_journey():
     # Step 1: Login with existing user
     print("Step 1: Logging in...")
     login_response = requests.post(
-        f"{AUTH_SERVICE}/auth-service/login",
+        f"{AUTH_SERVICE_URL}/auth-service/login",
         json=login_credentials
     )
 
@@ -358,7 +358,7 @@ def test_complete_user_journey():
 
     print("Step 2: Creating test user...")
     user_response = requests.post(
-        f"{ACCOUNTS_SERVICE}/accounts-service/users",
+        f"{ACCOUNTS_SERVICE_URL}/accounts-service/users",
         json=journey_user
     )
     assert user_response.status_code in [200, 201, 500], "User creation failed"
@@ -376,7 +376,7 @@ def test_complete_user_journey():
         "account_type": "checking"
     }
     account_response = requests.post(
-        f"{ACCOUNTS_SERVICE}/accounts-service/accounts/{journey_user['email']}",
+        f"{ACCOUNTS_SERVICE_URL}/accounts-service/accounts/{journey_user['email']}",
         json=account_data
     )
     if account_response.status_code in [200, 201]:
@@ -386,7 +386,7 @@ def test_complete_user_journey():
 
     # Step 4: Get account information
     print("Step 4: Retrieving account info...")
-    accounts_response = requests.get(f"{ACCOUNTS_SERVICE}/accounts-service/accounts/{journey_user['email']}")
+    accounts_response = requests.get(f"{ACCOUNTS_SERVICE_URL}/accounts-service/accounts/{journey_user['email']}")
     if accounts_response.status_code == 200:
         accounts = accounts_response.json()
         print(f"✓ Account info retrieved: {len(accounts)} account(s)")
@@ -396,7 +396,7 @@ def test_complete_user_journey():
     # Step 5: Make a payment
     print("Step 5: Making a payment...")
     payment_response = requests.post(
-        f"{BILL_PAY_SERVICE}/bill-pay-service/pay",
+        f"{BILL_PAY_SERVICE_URL}/bill-pay-service/pay",
         json={
             "billId": f"journey_bill_{os.getpid()}",
             "amount": 250.00,
@@ -414,7 +414,7 @@ def test_complete_user_journey():
     # Step 6: Chat with bot
     print("Step 6: Chatting with bot...")
     chat_response = requests.post(
-        f"{SUPPORT_SERVICE}/support-service/chat",
+        f"{SUPPORT_SERVICE_URL}/support-service/chat",
         params={"prompt": "What's my account balance?"}
     )
     if chat_response.status_code == 200:
@@ -429,7 +429,7 @@ def test_complete_user_journey():
 
 def get_stripe_customer_id(user_id: str) -> str:
     """Fetch stripe_customer_id for a seeded user from the accounts service."""
-    response = requests.get(f"{ACCOUNTS_SERVICE}/accounts-service/users/by-id/{user_id}", timeout=10)
+    response = requests.get(f"{ACCOUNTS_SERVICE_URL}/accounts-service/users/by-id/{user_id}", timeout=10)
     assert response.status_code == 200, f"Failed to fetch user {user_id}: {response.status_code}"
     return response.json()["stripe_customer_id"]
 
@@ -443,7 +443,7 @@ def send_card_payment_by_user(bill_id: str, user_id: str, amount: float = 100.00
         "userId": user_id,
         "saveCard": False
     }
-    return requests.post(f"{BILL_PAY_SERVICE}/bill-pay-service/card-payment", json=payload, timeout=15)
+    return requests.post(f"{BILL_PAY_SERVICE_URL}/bill-pay-service/card-payment", json=payload, timeout=15)
 
 
 def test_alice_payment_methods_visible():
@@ -454,7 +454,7 @@ def test_alice_payment_methods_visible():
     if not customer_id:
         pytest.skip("Alice has no stripe_customer_id in DB (test data not seeded)")
 
-    response = requests.get(f"{BILL_PAY_SERVICE}/bill-pay-service/payment-methods/{customer_id}", timeout=10)
+    response = requests.get(f"{BILL_PAY_SERVICE_URL}/bill-pay-service/payment-methods/{customer_id}", timeout=10)
     assert response.status_code == 200, f"Failed to list Alice's cards: {response.status_code}"
 
     data = response.json()
@@ -494,7 +494,7 @@ def test_bob_payment_methods_visible():
 
     assert alice_customer_id != bob_customer_id, "Alice and Bob must have different Stripe customer IDs"
 
-    response = requests.get(f"{BILL_PAY_SERVICE}/bill-pay-service/payment-methods/{bob_customer_id}", timeout=10)
+    response = requests.get(f"{BILL_PAY_SERVICE_URL}/bill-pay-service/payment-methods/{bob_customer_id}", timeout=10)
     assert response.status_code == 200, f"Failed to list Bob's cards: {response.status_code}"
 
     data = response.json()
@@ -560,7 +560,7 @@ def test_no_credentials_returns_400():
     print("\n=== Testing No Credentials Returns 400 ===")
 
     response = requests.post(
-        f"{BILL_PAY_SERVICE}/bill-pay-service/card-payment",
+        f"{BILL_PAY_SERVICE_URL}/bill-pay-service/card-payment",
         json={"billId": "BILL-NO-CREDS-001", "amount": 50.00, "currency": "usd", "saveCard": False},
         timeout=10
     )
@@ -582,7 +582,7 @@ def test_bill_pay_schema_validation_integer_billid():
     }
 
     response = requests.post(
-        f"{BILL_PAY_SERVICE}/bill-pay-service/pay",
+        f"{BILL_PAY_SERVICE_URL}/bill-pay-service/pay",
         json=invalid_payment
     )
 
@@ -614,7 +614,7 @@ def test_bill_pay_schema_validation_snake_case():
     }
 
     response = requests.post(
-        f"{BILL_PAY_SERVICE}/bill-pay-service/pay",
+        f"{BILL_PAY_SERVICE_URL}/bill-pay-service/pay",
         json=invalid_payment
     )
 
@@ -641,7 +641,7 @@ def test_bill_pay_schema_validation_missing_fields():
     }
 
     response = requests.post(
-        f"{BILL_PAY_SERVICE}/bill-pay-service/pay",
+        f"{BILL_PAY_SERVICE_URL}/bill-pay-service/pay",
         json=incomplete_payment
     )
 

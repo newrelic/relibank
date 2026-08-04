@@ -156,12 +156,13 @@ jobs:
         env:
           RELIBANK_URL: ${{ vars.BASE_URL }}
           BASE_URL: ${{ vars.BASE_URL }}
-          ACCOUNTS_SERVICE: ${{ vars.BASE_URL }}
-          AUTH_SERVICE: ${{ vars.BASE_URL }}
-          BILL_PAY_SERVICE: ${{ vars.BASE_URL }}
-          SUPPORT_SERVICE: ${{ vars.BASE_URL }}
-          TRANSACTION_SERVICE: ${{ vars.BASE_URL }}
+          ACCOUNTS_SERVICE_URL: ${{ vars.BASE_URL }}
+          AUTH_SERVICE_URL: ${{ vars.BASE_URL }}
+          BILL_PAY_SERVICE_URL: ${{ vars.BASE_URL }}
+          SUPPORT_SERVICE_URL: ${{ vars.BASE_URL }}
+          TRANSACTION_SERVICE_URL: ${{ vars.BASE_URL }}
           SCENARIO_SERVICE_URL: ${{ vars.BASE_URL }}
+          FRONTEND_SERVICE_URL: ${{ vars.BASE_URL }}
           NEW_RELIC_USER_API_KEY: ${{ secrets.NR_USER_API_KEY }}
           NEW_RELIC_ACCOUNT_ID: ${{ vars.NR_ACCOUNT_ID }}
           # Scenario-UI webpage test: direct at a color (X-Test-Env) + expected flag state,
@@ -208,12 +209,13 @@ jobs:
         env:
           RELIBANK_URL: ${{ vars.BASE_URL }}
           BASE_URL: ${{ vars.BASE_URL }}
-          ACCOUNTS_SERVICE: ${{ vars.BASE_URL }}
-          AUTH_SERVICE: ${{ vars.BASE_URL }}
-          BILL_PAY_SERVICE: ${{ vars.BASE_URL }}
-          SUPPORT_SERVICE: ${{ vars.BASE_URL }}
-          TRANSACTION_SERVICE: ${{ vars.BASE_URL }}
+          ACCOUNTS_SERVICE_URL: ${{ vars.BASE_URL }}
+          AUTH_SERVICE_URL: ${{ vars.BASE_URL }}
+          BILL_PAY_SERVICE_URL: ${{ vars.BASE_URL }}
+          SUPPORT_SERVICE_URL: ${{ vars.BASE_URL }}
+          TRANSACTION_SERVICE_URL: ${{ vars.BASE_URL }}
           SCENARIO_SERVICE_URL: ${{ vars.BASE_URL }}
+          FRONTEND_SERVICE_URL: ${{ vars.BASE_URL }}
           NEW_RELIC_USER_API_KEY: ${{ secrets.NR_USER_API_KEY }}
           NEW_RELIC_ACCOUNT_ID: ${{ vars.NR_ACCOUNT_ID }}
         run: |
@@ -239,7 +241,7 @@ jobs:
         env:
           RELIBANK_URL: ${{ vars.BASE_URL }}
           SCENARIO_SERVICE_URL: ${{ vars.BASE_URL }}
-          BILL_PAY_SERVICE: ${{ vars.BASE_URL }}
+          BILL_PAY_SERVICE_URL: ${{ vars.BASE_URL }}
           NEW_RELIC_USER_API_KEY: ${{ secrets.NR_USER_API_KEY }}
           NEW_RELIC_ACCOUNT_ID: ${{ vars.NR_ACCOUNT_ID }}
         run: |
@@ -251,6 +253,7 @@ jobs:
         env:
           RELIBANK_URL: ${{ vars.BASE_URL }}
           BASE_URL: ${{ vars.BASE_URL }}
+          FRONTEND_SERVICE_URL: ${{ vars.BASE_URL }}
           SCENARIO_SERVICE_URL: ${{ vars.BASE_URL }}
           NEW_RELIC_USER_API_KEY: ${{ secrets.NR_USER_API_KEY }}
           NEW_RELIC_ACCOUNT_ID: ${{ vars.NR_ACCOUNT_ID }}

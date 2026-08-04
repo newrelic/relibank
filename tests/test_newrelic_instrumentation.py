@@ -41,9 +41,9 @@ def load_env_from_skaffold():
 load_env_from_skaffold()
 
 # Configuration
-ACCOUNTS_SERVICE = os.getenv("ACCOUNTS_SERVICE", "http://localhost:5002")
-TRANSACTION_SERVICE = os.getenv("TRANSACTION_SERVICE", "http://localhost:5001")
-BILL_PAY_SERVICE = os.getenv("BILL_PAY_SERVICE", "http://localhost:5000")
+ACCOUNTS_SERVICE_URL = os.getenv("ACCOUNTS_SERVICE_URL", "http://localhost:5002")
+TRANSACTION_SERVICE_URL = os.getenv("TRANSACTION_SERVICE_URL", "http://localhost:5001")
+BILL_PAY_SERVICE_URL = os.getenv("BILL_PAY_SERVICE_URL", "http://localhost:5000")
 NEW_RELIC_API_KEY = os.getenv("NEW_RELIC_USER_API_KEY")
 NEW_RELIC_ACCOUNT_ID = os.getenv("NEW_RELIC_ACCOUNT_ID", "4182956")
 
@@ -81,7 +81,7 @@ def generate_test_traffic_once():
     # Hit accounts service (non-ignored endpoint)
     try:
         response = requests.get(
-            f"{ACCOUNTS_SERVICE}/accounts-service/user/traffic-test@relibank.com",
+            f"{ACCOUNTS_SERVICE_URL}/accounts-service/user/traffic-test@relibank.com",
             headers=headers,
             timeout=10
         )
@@ -102,7 +102,7 @@ def generate_test_traffic_once():
 
     try:
         response = requests.post(
-            f"{BILL_PAY_SERVICE}/bill-pay-service/pay",
+            f"{BILL_PAY_SERVICE_URL}/bill-pay-service/pay",
             json=payment_data,
             headers=headers,
             timeout=10
@@ -116,7 +116,7 @@ def generate_test_traffic_once():
     # Trigger a StripeError to populate TransactionError with notice_error attributes
     try:
         requests.post(
-            f"{BILL_PAY_SERVICE}/bill-pay-service/card-pay",
+            f"{BILL_PAY_SERVICE_URL}/bill-pay-service/card-pay",
             json={"paymentMethodId": "pm_card_invalid", "amount": 10.00, "customerId": "cus_test_invalid"},
             headers=headers,
             timeout=10
@@ -181,7 +181,7 @@ def generate_test_traffic():
     # 1. Accounts service (non-ignored endpoint)
     try:
         response = requests.get(
-            f"{ACCOUNTS_SERVICE}/accounts-service/user/traffic-test@relibank.com",
+            f"{ACCOUNTS_SERVICE_URL}/accounts-service/user/traffic-test@relibank.com",
             headers=headers,
             timeout=10
         )
@@ -194,7 +194,7 @@ def generate_test_traffic():
     # 2. Transaction service (non-ignored endpoint)
     try:
         response = requests.get(
-            f"{TRANSACTION_SERVICE}/transaction-service/transactions",
+            f"{TRANSACTION_SERVICE_URL}/transaction-service/transactions",
             headers=headers,
             timeout=10
         )
@@ -207,7 +207,7 @@ def generate_test_traffic():
     # 3. Bill pay service (non-ignored endpoint)
     try:
         response = requests.get(
-            f"{BILL_PAY_SERVICE}/bill-pay-service/payment-scenarios",
+            f"{BILL_PAY_SERVICE_URL}/bill-pay-service/payment-scenarios",
             headers=headers,
             timeout=10
         )
@@ -295,7 +295,7 @@ def test_newrelic_services_instrumented():
 
     try:
         response = requests.post(
-            f"{BILL_PAY_SERVICE}/bill-pay-service/pay",
+            f"{BILL_PAY_SERVICE_URL}/bill-pay-service/pay",
             json=payment_data,
             headers={"x-browser-user-id": test_user_id},
             timeout=10
@@ -440,9 +440,9 @@ if __name__ == "__main__":
 
     print("🧪 Running New Relic Instrumentation Tests")
     print(f"   Account ID: {NEW_RELIC_ACCOUNT_ID}")
-    print(f"   Accounts Service: {ACCOUNTS_SERVICE}")
-    print(f"   Transaction Service: {TRANSACTION_SERVICE}")
-    print(f"   Bill Pay Service: {BILL_PAY_SERVICE}")
+    print(f"   Accounts Service: {ACCOUNTS_SERVICE_URL}")
+    print(f"   Transaction Service: {TRANSACTION_SERVICE_URL}")
+    print(f"   Bill Pay Service: {BILL_PAY_SERVICE_URL}")
 
     # Run tests with pytest
     pytest.main([__file__, "-v", "-s"])

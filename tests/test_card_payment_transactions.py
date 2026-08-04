@@ -14,7 +14,7 @@ from pathlib import Path
 
 
 # Service URLs
-BILL_PAY_SERVICE_URL = os.getenv("BILL_PAY_SERVICE", "http://localhost:5000")
+BILL_PAY_SERVICE_URL = os.getenv("BILL_PAY_SERVICE_URL", "http://localhost:5000")
 SCENARIO_SERVICE_URL = os.getenv("SCENARIO_SERVICE_URL", "http://localhost:8000")
 
 # Database connection details

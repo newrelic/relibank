@@ -19,11 +19,11 @@ import time
 from typing import Dict
 
 # Configuration
-ACCOUNTS_SERVICE = os.getenv("ACCOUNTS_SERVICE", "http://localhost:5002")
-BILL_PAY_SERVICE = os.getenv("BILL_PAY_SERVICE", "http://localhost:5000")
-TRANSACTION_SERVICE = os.getenv("TRANSACTION_SERVICE", "http://localhost:5001")
-AUTH_SERVICE = os.getenv("AUTH_SERVICE", "http://localhost:5006")
-SUPPORT_SERVICE = os.getenv("SUPPORT_SERVICE", "http://localhost:5003")
+ACCOUNTS_SERVICE_URL = os.getenv("ACCOUNTS_SERVICE_URL", "http://localhost:5002")
+BILL_PAY_SERVICE_URL = os.getenv("BILL_PAY_SERVICE_URL", "http://localhost:5000")
+TRANSACTION_SERVICE_URL = os.getenv("TRANSACTION_SERVICE_URL", "http://localhost:5001")
+AUTH_SERVICE_URL = os.getenv("AUTH_SERVICE_URL", "http://localhost:5006")
+SUPPORT_SERVICE_URL = os.getenv("SUPPORT_SERVICE_URL", "http://localhost:5003")
 
 # Test user data
 TEST_USER_ID = "test-apm-user-123"
@@ -36,7 +36,7 @@ def test_accounts_service_accepts_user_id_header():
 
     headers = {"x-browser-user-id": TEST_USER_ID}
     response = requests.get(
-        f"{ACCOUNTS_SERVICE}/accounts-service/health",
+        f"{ACCOUNTS_SERVICE_URL}/accounts-service/health",
         headers=headers
     )
 
@@ -52,7 +52,7 @@ def test_bill_pay_service_accepts_user_id_header():
 
     headers = {"x-browser-user-id": TEST_USER_ID}
     response = requests.get(
-        f"{BILL_PAY_SERVICE}/bill-pay-service",
+        f"{BILL_PAY_SERVICE_URL}/bill-pay-service",
         headers=headers
     )
 
@@ -68,7 +68,7 @@ def test_transaction_service_accepts_user_id_header():
 
     headers = {"x-browser-user-id": TEST_USER_ID}
     response = requests.get(
-        f"{TRANSACTION_SERVICE}/transaction-service",
+        f"{TRANSACTION_SERVICE_URL}/transaction-service",
         headers=headers
     )
 
@@ -84,7 +84,7 @@ def test_auth_service_accepts_user_id_header():
 
     headers = {"x-browser-user-id": TEST_USER_ID}
     response = requests.post(
-        f"{AUTH_SERVICE}/auth-service/health",
+        f"{AUTH_SERVICE_URL}/auth-service/health",
         headers=headers
     )
 
@@ -103,7 +103,7 @@ def test_support_service_accepts_user_id_header():
 
     headers = {"x-browser-user-id": TEST_USER_ID}
     response = requests.get(
-        f"{SUPPORT_SERVICE}/support-service",
+        f"{SUPPORT_SERVICE_URL}/support-service",
         headers=headers
     )
 
@@ -121,7 +121,7 @@ def test_header_propagation_accounts_to_transaction():
 
     # Call accounts service which internally calls transaction service
     response = requests.get(
-        f"{ACCOUNTS_SERVICE}/accounts-service/accounts/{TEST_EMAIL}",
+        f"{ACCOUNTS_SERVICE_URL}/accounts-service/accounts/{TEST_EMAIL}",
         headers=headers
     )
 
@@ -156,7 +156,7 @@ def test_header_propagation_bill_pay_to_transaction():
     }
 
     response = requests.post(
-        f"{BILL_PAY_SERVICE}/bill-pay-service/pay",
+        f"{BILL_PAY_SERVICE_URL}/bill-pay-service/pay",
         headers=headers,
         json=payment_data
     )
@@ -177,10 +177,10 @@ def test_services_work_without_header():
 
     # Test each service health endpoint without header
     services = [
-        (ACCOUNTS_SERVICE, "/accounts-service/health"),
-        (BILL_PAY_SERVICE, "/bill-pay-service"),
-        (TRANSACTION_SERVICE, "/transaction-service"),
-        (SUPPORT_SERVICE, "/support-service"),
+        (ACCOUNTS_SERVICE_URL, "/accounts-service/health"),
+        (BILL_PAY_SERVICE_URL, "/bill-pay-service"),
+        (TRANSACTION_SERVICE_URL, "/transaction-service"),
+        (SUPPORT_SERVICE_URL, "/support-service"),
     ]
 
     for service_url, endpoint in services:
@@ -206,7 +206,7 @@ def test_header_with_different_user_ids():
     for user_id in user_ids:
         headers = {"x-browser-user-id": user_id}
         response = requests.get(
-            f"{ACCOUNTS_SERVICE}/accounts-service/health",
+            f"{ACCOUNTS_SERVICE_URL}/accounts-service/health",
             headers=headers
         )
         print(f"  User ID '{user_id}': {response.status_code}")
@@ -226,7 +226,7 @@ def test_header_propagation_full_chain():
     # Step 1: Get user from accounts service
     print(f"  Step 1: Accounts service with user ID: {test_user_id}")
     response1 = requests.get(
-        f"{ACCOUNTS_SERVICE}/accounts-service/users/{TEST_EMAIL}",
+        f"{ACCOUNTS_SERVICE_URL}/accounts-service/users/{TEST_EMAIL}",
         headers=headers
     )
     print(f"    Status: {response1.status_code}")
@@ -234,7 +234,7 @@ def test_header_propagation_full_chain():
     # Step 2: Check browser user endpoint
     print(f"  Step 2: Browser user endpoint")
     response2 = requests.get(
-        f"{ACCOUNTS_SERVICE}/accounts-service/browser-user",
+        f"{ACCOUNTS_SERVICE_URL}/accounts-service/browser-user",
         headers=headers
     )
     print(f"    Status: {response2.status_code}")
@@ -255,7 +255,7 @@ def test_concurrent_requests_with_different_user_ids():
     def make_request(user_id):
         headers = {"x-browser-user-id": user_id}
         response = requests.get(
-            f"{ACCOUNTS_SERVICE}/accounts-service/health",
+            f"{ACCOUNTS_SERVICE_URL}/accounts-service/health",
             headers=headers
         )
         return user_id, response.status_code
@@ -278,10 +278,10 @@ def test_missing_user_id_header():
     print("\n=== Testing Missing User ID Header ===")
 
     services = [
-        ("Accounts", f"{ACCOUNTS_SERVICE}/accounts-service/health"),
-        ("Bill Pay", f"{BILL_PAY_SERVICE}/bill-pay-service/health"),
-        ("Transaction", f"{TRANSACTION_SERVICE}/transaction-service/health"),
-        ("Auth", f"{AUTH_SERVICE}/auth-service/health"),
+        ("Accounts", f"{ACCOUNTS_SERVICE_URL}/accounts-service/health"),
+        ("Bill Pay", f"{BILL_PAY_SERVICE_URL}/bill-pay-service/health"),
+        ("Transaction", f"{TRANSACTION_SERVICE_URL}/transaction-service/health"),
+        ("Auth", f"{AUTH_SERVICE_URL}/auth-service/health"),
     ]
 
     for service_name, url in services:
@@ -311,7 +311,7 @@ def test_rapid_user_id_changes():
         headers = {"x-browser-user-id": user_id}
 
         response = session.get(
-            f"{ACCOUNTS_SERVICE}/accounts-service/health",
+            f"{ACCOUNTS_SERVICE_URL}/accounts-service/health",
             headers=headers
         )
 
@@ -333,7 +333,7 @@ def test_user_tracking_performance_impact():
         headers = {"x-browser-user-id": f"perf-test-user-{i}"}
         start = time.time()
         response = requests.get(
-            f"{ACCOUNTS_SERVICE}/accounts-service/health",
+            f"{ACCOUNTS_SERVICE_URL}/accounts-service/health",
             headers=headers
         )
         duration = time.time() - start
@@ -345,7 +345,7 @@ def test_user_tracking_performance_impact():
     for _ in range(num_requests):
         start = time.time()
         response = requests.get(
-            f"{ACCOUNTS_SERVICE}/accounts-service/health"
+            f"{ACCOUNTS_SERVICE_URL}/accounts-service/health"
         )
         duration = time.time() - start
         if response.status_code == 200:
@@ -371,7 +371,7 @@ def test_browser_user_endpoint():
     print("\n=== Testing Browser User ID Generation Endpoint ===")
 
     # Test that endpoint returns a user ID
-    response = requests.get(f"{ACCOUNTS_SERVICE}/accounts-service/browser-user")
+    response = requests.get(f"{ACCOUNTS_SERVICE_URL}/accounts-service/browser-user")
 
     assert response.status_code == 200, \
         f"Browser user endpoint failed: {response.status_code}"
@@ -391,7 +391,7 @@ def test_browser_user_endpoint():
 
     # Test that subsequent calls return the same user ID (session persistence)
     response2 = requests.get(
-        f"{ACCOUNTS_SERVICE}/accounts-service/browser-user",
+        f"{ACCOUNTS_SERVICE_URL}/accounts-service/browser-user",
         cookies=response.cookies
     )
     data2 = response2.json()

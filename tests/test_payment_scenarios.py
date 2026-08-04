@@ -6,7 +6,7 @@ from typing import Dict, List
 
 # Configuration - use environment variables with local defaults
 SCENARIO_SERVICE_URL = os.getenv("SCENARIO_SERVICE_URL", "http://localhost:8000")
-BILL_PAY_SERVICE_URL = os.getenv("BILL_PAY_SERVICE", "http://localhost:5000")
+BILL_PAY_SERVICE_URL = os.getenv("BILL_PAY_SERVICE_URL", "http://localhost:5000")
 NUM_PAYMENT_ATTEMPTS = 50  # Send enough to trigger scenarios
 
 @pytest.fixture

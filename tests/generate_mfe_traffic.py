@@ -53,7 +53,7 @@ def generate_mfe_traffic_with_selenium(frontend_url=None):
         None (generates traffic and MicroFrontEndTiming events in New Relic)
     """
     if frontend_url is None:
-        frontend_url = os.getenv("RELIBANK_URL", "http://localhost:3000")
+        frontend_url = os.getenv("FRONTEND_SERVICE_URL", "http://localhost:3000")
 
     logger.info(f"Starting Selenium traffic generation for {frontend_url}")
     driver = setup_driver()

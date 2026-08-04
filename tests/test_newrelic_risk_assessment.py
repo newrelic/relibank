@@ -45,9 +45,9 @@ load_env_from_skaffold()
 
 # Configuration
 SCENARIO_SERVICE_URL = os.getenv("SCENARIO_SERVICE_URL", "http://localhost:8000")
-BILL_PAY_SERVICE = os.getenv("BILL_PAY_SERVICE", "http://localhost:5000")
-ACCOUNTS_SERVICE = os.getenv("ACCOUNTS_SERVICE", "http://localhost:5002")
-SUPPORT_SERVICE = os.getenv("SUPPORT_SERVICE_URL", "http://localhost:5003")
+BILL_PAY_SERVICE_URL = os.getenv("BILL_PAY_SERVICE_URL", "http://localhost:5000")
+ACCOUNTS_SERVICE_URL = os.getenv("ACCOUNTS_SERVICE_URL", "http://localhost:5002")
+SUPPORT_SERVICE_URL = os.getenv("SUPPORT_SERVICE_URL", "http://localhost:5003")
 
 NEW_RELIC_API_KEY = os.getenv("NEW_RELIC_USER_API_KEY")
 NEW_RELIC_ACCOUNT_ID = os.getenv("NEW_RELIC_ACCOUNT_ID", "4182956")
@@ -182,7 +182,7 @@ def disable_rogue_agent():
 
 def get_test_account_data():
     """Get test account data for making payments"""
-    response = requests.get(f"{ACCOUNTS_SERVICE}/accounts-service/accounts/1", timeout=10)
+    response = requests.get(f"{ACCOUNTS_SERVICE_URL}/accounts-service/accounts/1", timeout=10)
     assert response.status_code == 200
     return response.json()
 
@@ -199,7 +199,7 @@ def make_test_payment(amount: float = 100.0, from_account_id: int = 1, to_accoun
     }
 
     response = requests.post(
-        f"{BILL_PAY_SERVICE}/bill-pay-service/pay",
+        f"{BILL_PAY_SERVICE_URL}/bill-pay-service/pay",
         json=payment_data,
         timeout=30
     )

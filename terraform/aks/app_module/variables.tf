@@ -116,6 +116,10 @@ variable "services" {
       image          = "accounts-service"
       container_port = 5000
       service_port   = 5002
+      cpu_request    = "250m"
+      cpu_limit      = "1000m"
+      memory_request = "512Mi"
+      memory_limit   = "1Gi"
       config_map_envs = {
         DB_HOST                 = "POSTGRES_SERVER_NAME"
         DB_NAME                 = "POSTGRES_DATABASE_NAME"
@@ -131,6 +135,10 @@ variable "services" {
       image          = "auth-service"
       container_port = 5002
       service_port   = 5002
+      cpu_request    = "100m"
+      cpu_limit      = "500m"
+      memory_request = "128Mi"
+      memory_limit   = "256Mi"
       config_map_envs = {
         DB_HOST = "POSTGRES_SERVER_NAME"
         DB_NAME = "POSTGRES_DATABASE_NAME"
@@ -145,6 +153,10 @@ variable "services" {
       image          = "transaction-service"
       container_port = 5000
       service_port   = 5001
+      cpu_request    = "500m"
+      cpu_limit      = "2000m"
+      memory_request = "512Mi"
+      memory_limit   = "1Gi"
       config_map_envs = {
         DB_DATABASE          = "MSSQL_DATABASE_NAME"
         DB_SERVER            = "MSSQL_SERVER_NAME"
@@ -161,6 +173,10 @@ variable "services" {
       image          = "bill-pay-service"
       container_port = 5000
       service_port   = 5000
+      cpu_request    = "250m"
+      cpu_limit      = "1000m"
+      memory_request = "256Mi"
+      memory_limit   = "1Gi"
       config_map_envs = {
         KAFKA_BROKER                = "KAFKA_BROKER"
         TRANSACTION_SERVICE_URL     = "TRANSACTION_SERVICE_URL"
@@ -174,6 +190,10 @@ variable "services" {
       image          = "support-service"
       container_port = 5003
       service_port   = 5003
+      cpu_request    = "100m"
+      cpu_limit      = "500m"
+      memory_request = "128Mi"
+      memory_limit   = "1Gi"
       config_map_envs = {
         KAFKA_BROKER              = "KAFKA_BROKER"
         AZURE_OPENAI_ENDPOINT     = "AZURE_OPENAI_ENDPOINT"
@@ -189,6 +209,10 @@ variable "services" {
       image          = "risk-assessment-service"
       container_port = 5001
       service_port   = 5001
+      cpu_request    = "100m"
+      cpu_limit      = "500m"
+      memory_request = "128Mi"
+      memory_limit   = "256Mi"
       config_map_envs = {
         KAFKA_BROKER        = "KAFKA_BROKER"
         SUPPORT_SERVICE_URL = "SUPPORT_SERVICE_URL"
@@ -199,6 +223,10 @@ variable "services" {
       image          = "notifications-service"
       container_port = 5000
       service_port   = 5000
+      cpu_request    = "100m"
+      cpu_limit      = "500m"
+      memory_request = "128Mi"
+      memory_limit   = "256Mi"
       config_map_envs = {
         KAFKA_BROKER = "KAFKA_BROKER"
       }
@@ -211,6 +239,10 @@ variable "services" {
       image          = "scheduler-service"
       container_port = 5000
       service_port   = 5004
+      cpu_request    = "100m"
+      cpu_limit      = "500m"
+      memory_request = "128Mi"
+      memory_limit   = "256Mi"
       config_map_envs = {
         KAFKA_BROKER = "KAFKA_BROKER"
         DB_SERVER    = "MSSQL_SERVER_NAME"

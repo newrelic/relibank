@@ -6,7 +6,7 @@ from typing import Dict
 
 # Configuration - use environment variables with local defaults
 SCENARIO_SERVICE_URL = os.getenv("SCENARIO_SERVICE_URL", "http://localhost:8000")
-ACCOUNTS_SERVICE_URL = os.getenv("ACCOUNTS_SERVICE", "http://localhost:5002")
+ACCOUNTS_SERVICE_URL = os.getenv("ACCOUNTS_SERVICE_URL", "http://localhost:5002")
 
 # NOTE: This test suite only tests the COHORT-BASED LCP slowness scenario
 # (affects 11 hardcoded test users). The PERCENTAGE-BASED scenario
