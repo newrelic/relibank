@@ -15,12 +15,30 @@ import os
 
 import pytest
 import requests
+from generate_mfe_traffic import setup_driver
 
 
 @pytest.fixture(scope="session")
 def target_color():
     """Deployment color the run is directed at; '' means active color / no routing."""
     return os.getenv("TARGET_COLOR", "").strip()
+
+
+@pytest.fixture
+def colored_driver(target_color):
+    """Headless Chrome driver routed to ``target_color`` via X-Test-Env (CDP).
+
+    Selenium's navigation requests never go through ``requests.Session``, so the
+    ``_route_requests_to_color`` header injection below doesn't reach them — this
+    fixture is the Selenium-side equivalent, for tests that need to load a specific
+    color's browser app directly (e.g. LCP checks, where the metric can only be
+    measured client-side; see test_lcp_regression.py for why).
+    """
+    driver = setup_driver(color=target_color or None)
+    try:
+        yield driver
+    finally:
+        driver.quit()
 
 
 @pytest.fixture(autouse=True, scope="session")

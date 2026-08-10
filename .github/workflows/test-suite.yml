@@ -65,6 +65,7 @@ jobs:
       test_db_pool_e2e: ${{ steps.individual-tests.outputs.test_db_pool_e2e }}
       test_db_pool: ${{ steps.individual-tests.outputs.test_db_pool }}
       test_e2e: ${{ steps.individual-tests.outputs.test_e2e }}
+      test_lcp_regression: ${{ steps.individual-tests.outputs.test_lcp_regression }}
       test_mfe_single: ${{ steps.individual-tests.outputs.test_mfe_single }}
       test_microfrontend_telemetry: ${{ steps.individual-tests.outputs.test_microfrontend_telemetry }}
       test_newrelic_instrumentation: ${{ steps.individual-tests.outputs.test_newrelic_instrumentation }}
@@ -357,6 +358,7 @@ jobs:
             ["test_apm_tracking"]="APM User Tracking"
             ["test_browser_tracking"]="Browser User Tracking"
             ["test_e2e"]="End to End"
+            ["test_lcp_regression"]="LCP Regression"
             ["test_nr_instrumentation"]="New Relic Instrumentation"
             ["test_payment"]="Payment Scenarios"
             ["test_scenario"]="Scenario Service"

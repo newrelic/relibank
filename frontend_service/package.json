@@ -14,7 +14,7 @@
     "build:all": "npm run build:mfe:ad-banner && npm run build:mfe:spending-chart && npm run build:mfe:spending-categories && npm run build:mfe:account-balance-trends && npm run build",
     "build": "react-router build",
     "dev": "react-router dev",
-    "start": "react-router-serve ./build/server/index.js",
+    "start": "serve -s build/client -l tcp://0.0.0.0:3000",
     "typecheck": "react-router typegen && tsc",
     "test": "vitest run",
     "test:watch": "vitest",
@@ -34,7 +34,8 @@
     "react-dom": "^19.1.0",
     "react-router": "^7.7.1",
     "react-router-dom": "^7.8.0",
-    "recharts": "^3.1.2"
+    "recharts": "^3.1.2",
+    "serve": "^14.2.6"
   },
   "devDependencies": {
     "@react-router/dev": "^7.7.1",
