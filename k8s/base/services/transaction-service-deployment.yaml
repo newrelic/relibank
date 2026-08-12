@@ -42,6 +42,11 @@ spec:
                 configMapKeyRef:
                   key: KAFKA_BROKER
                   name: infrastructure-config
+            - name: ACCOUNTS_SERVICE_URL
+              valueFrom:
+                configMapKeyRef:
+                  key: ACCOUNTS_SERVICE_URL
+                  name: infrastructure-config
           image: transaction-service
           # livenessProbe:
           #   exec:

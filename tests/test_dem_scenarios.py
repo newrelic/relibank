@@ -7,8 +7,8 @@ import os
 SCENARIO_SERVICE_URL = os.getenv("SCENARIO_SERVICE_URL", "http://localhost:8000")
 NR_API_KEY = os.getenv("NEW_RELIC_USER_API_KEY")
 NR_ACCOUNT_ID = os.getenv("NEW_RELIC_ACCOUNT_ID")
-NR_APP_NAME = os.getenv("NR_APP_NAME", "ReliBank (Analysts) - Accounts Service")
-NR_BROWSER_APP_NAME = os.getenv("NR_BROWSER_APP_NAME", "ReliBank - Customer Portal")
+NR_APP_NAME = os.getenv("NR_APP_NAME") or f"{os.getenv('APP_NAME', 'ReliBank')} - Accounts Service"
+NR_BROWSER_APP_NAME = os.getenv("NR_BROWSER_APP_NAME", "Relibank - Customer Portal")
 SSL_VERIFY = os.getenv("SSL_VERIFY", "true").lower() == "true"
 
 

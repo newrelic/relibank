@@ -463,6 +463,8 @@ async def get_user(email: str, request: Request):
             if not user:
                 raise HTTPException(status_code=404, detail="User not found.")
             return User(**user)
+    except HTTPException:
+        raise
     except Exception as e:
         logging.error(f"Error retrieving user: {e}")
         newrelic.agent.notice_error(attributes={
@@ -627,6 +629,8 @@ async def get_accounts(email: str, request: Request):
                             account["transaction_count"] = 0
 
             return [Account(**account) for account in all_accounts]
+    except HTTPException:
+        raise
     except Exception as e:
         logging.exception(f"Error retrieving accounts: {e}")
         newrelic.agent.notice_error(attributes={
@@ -676,6 +680,8 @@ async def get_account_type(account_id: int, request: Request):
             process_headers(dict(request.headers))
 
             raise HTTPException(status_code=404, detail="Account not found.")
+    except HTTPException:
+        raise
     except Exception as e:
         logging.error(f"Error retrieving account type: {e}")
         newrelic.agent.notice_error(attributes={
@@ -823,6 +829,10 @@ async def create_account(email: str, account: Account, request: Request):
                 'action': 'create_account'
             })
             raise HTTPException(status_code=400, detail="Invalid account data provided.")
+    except HTTPException:
+        if conn:
+            conn.rollback()
+        raise
     except Exception as e:
         if conn:
             conn.rollback()

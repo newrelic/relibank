@@ -1,5 +1,6 @@
 import asyncio
 import os
+import re
 import sys
 import json
 import logging
@@ -23,6 +24,24 @@ from utils import process_headers
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
 
 newrelic.agent.initialize()
+
+
+def _error_group_callback(exception, info):
+    """Collapse errors that only differ by a runtime value (e.g. an account ID in a
+    URL, like '.../account/type/921' vs '.../account/type/872') into one error
+    group instead of fragmenting the Errors Inbox into hundreds of near-identical
+    groups. Only sets error.group.name — error.message is untouched, so anything
+    asserting on message content elsewhere is unaffected.
+    """
+    message = info.get("error.message") or ""
+    if not message:
+        return None
+    normalized = re.sub(r"\d+", "N", message)
+    return f"{info.get('error.class', 'Unknown')}: {normalized}"
+
+
+newrelic.agent.set_error_group_callback(_error_group_callback)
+
 
 def get_propagation_headers(request: Request) -> dict:
     """
@@ -247,7 +266,7 @@ async def get_account_type(account_id: int, headers: dict = None):
     Makes an API call to the accounts service to get the account type.
     Optionally propagates headers if provided.
     """
-    accounts_service_url = os.getenv("ACCOUNTS_SERVICE_URL", "http://accounts-service:5000")
+    accounts_service_url = os.getenv("ACCOUNTS_SERVICE_URL", "http://accounts-service:5002")
     async with httpx.AsyncClient() as client:
         try:
             response = await client.get(

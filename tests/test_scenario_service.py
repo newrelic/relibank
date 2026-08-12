@@ -347,11 +347,14 @@ def test_scenario_persistence():
     # Retrieve and verify settings persisted
     scenarios = requests.get(f"{SCENARIO_SERVICE_URL}/scenario-runner/api/payment-scenarios").json()["scenarios"]
 
-    assert scenarios["gateway_timeout_enabled"] is True, "Settings did not persist"
-    assert scenarios["gateway_timeout_probability"] == 33.3, "Probability did not persist"
-    assert scenarios["gateway_timeout_delay"] == 4.5, "Delay did not persist"
+    try:
+        assert scenarios["gateway_timeout_enabled"] is True, "Settings did not persist"
+        assert scenarios["gateway_timeout_probability"] == 33.3, "Probability did not persist"
+        assert scenarios["gateway_timeout_delay"] == 4.5, "Delay did not persist"
 
-    print("✓ Scenario settings persist correctly")
+        print("✓ Scenario settings persist correctly")
+    finally:
+        requests.post(f"{SCENARIO_SERVICE_URL}/scenario-runner/api/payment-scenarios/reset")
 
 
 # ===== CHAOS SCENARIOS SMOKE TESTS =====
@@ -474,6 +477,58 @@ def test_locust_start_stop():
             print(f"⚠ Unexpected status: {start_response.status_code}")
     except Exception as e:
         print(f"⚠ Locust scenarios test skipped: {e}")
+
+
+# These "stress-chaos"-labeled scenario names have their own dedicated FastAPI route
+# (@app.post("/scenario-runner/api/trigger_stress/dem-memory-leak-45min") etc.), registered
+# as an exact-match path *before* the generic dry_run-aware
+# /trigger_stress/{scenario_name} handler. FastAPI always matches the literal path first,
+# so `?dry_run=true` against these silently reaches the dedicated handler instead — which
+# ignores the param and unconditionally flips a real in-process feature flag (no chaos-mesh
+# selector involved at all, so "matched_pods" doesn't even apply). Never call these from a
+# "dry run" test — do NOT remove this exclusion without adding real dry_run support to
+# those two dedicated endpoints first.
+_SCENARIOS_WITHOUT_DRY_RUN_SUPPORT = {"dem-memory-leak-45min", "dem-memory-leak-10min"}
+
+
+def test_all_chaos_scenarios_have_matching_pods():
+    """Dry-run every registered chaos/stress scenario and assert its selector
+    actually matches at least one live pod. Catches selector/namespace drift
+    (e.g. a hardcoded namespace that doesn't exist on this cluster's blue/green
+    setup) before it silently no-ops the next time someone triggers it for real.
+    """
+    scenarios = requests.get(f"{SCENARIO_SERVICE_URL}/scenario-runner/api/scenarios", timeout=10).json()
+    checked = []
+    for s in scenarios:
+        if s["type"] not in ("chaos-mesh", "stress-chaos"):
+            continue  # payment/ab_test/feature_flag scenarios aren't selector-based
+        if s["name"] in _SCENARIOS_WITHOUT_DRY_RUN_SUPPORT:
+            continue
+        endpoint = "trigger_chaos" if s["type"] == "chaos-mesh" else "trigger_stress"
+        resp = requests.post(
+            f"{SCENARIO_SERVICE_URL}/scenario-runner/api/{endpoint}/{s['name']}",
+            params={"dry_run": "true"},
+            timeout=10,
+        )
+        assert resp.status_code == 200, f"{s['name']}: dry-run call failed ({resp.status_code})"
+        data = resp.json()
+        # Confirm the call actually reached the dry_run-aware code path rather than some
+        # other route that ignored the param and triggered for real — if a future scenario
+        # ever adds a dedicated route like the two excluded above, we want a loud failure
+        # here, not a silently-skipped assertion.
+        assert data.get("dry_run") is True, (
+            f"Scenario '{s['name']}' ({s['type']}) did not return dry_run=true — this call "
+            f"may not have been a dry run at all and could have triggered a real action. "
+            f"Response: {data}. If this scenario has its own dedicated, non-dry-run-aware "
+            f"route, add it to _SCENARIOS_WITHOUT_DRY_RUN_SUPPORT above instead of letting "
+            f"this test call it."
+        )
+        checked.append((s["name"], data.get("matched_pods", 0)))
+        assert data.get("matched_pods", 0) > 0, (
+            f"Scenario '{s['name']}' ({s['type']}) matched 0 pods — it would silently "
+            f"no-op if triggered for real. {data.get('message')}"
+        )
+    print(f"✓ {len(checked)} chaos/stress scenarios all matched >=1 pod: {checked}")
 
 
 if __name__ == "__main__":

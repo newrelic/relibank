@@ -143,6 +143,44 @@ CHAOS_RATE_LIMIT = {
     "active_experiments": 0  # Counter for active chaos experiments
 }
 
+
+def get_current_namespace(default: str = "relibank") -> str:
+    """The namespace this pod is actually running in.
+
+    Terraform-managed envs (sandbox/staging/prod) are blue/green
+    (``relibank-blue``/``relibank-green``), while legacy envs (events) are a
+    single ``relibank`` namespace. The chaos-mesh experiment YAMLs hardcode
+    ``relibank``, which silently matches zero pods on a blue/green cluster
+    ("no pods matched selector"). Every pod gets its own namespace mounted by
+    the serviceaccount token by default, so read that instead of trusting the
+    YAML — this keeps chaos scenarios working regardless of which env/color
+    scenario-service itself is deployed into.
+    """
+    try:
+        with open("/var/run/secrets/kubernetes.io/serviceaccount/namespace") as f:
+            return f.read().strip() or default
+    except OSError:
+        return default
+
+
+def _selector_pod_count(selector: dict) -> int:
+    """How many live pods a chaos/stress selector would actually match, without
+    creating any chaos-mesh resource. Backs the trigger endpoints' `dry_run`
+    option — catches selector/namespace drift (e.g. a hardcoded namespace that
+    doesn't exist on this cluster) before it silently no-ops a real experiment.
+    """
+    core_v1 = client.CoreV1Api()
+    label_selectors = selector.get("labelSelectors", {})
+    label_selector_str = ",".join(f"{k}={v}" for k, v in label_selectors.items())
+    total = 0
+    for namespace in selector.get("namespaces", []):
+        try:
+            pods = core_v1.list_namespaced_pod(namespace=namespace, label_selector=label_selector_str)
+            total += len(pods.items)
+        except ApiException as e:
+            print(f"WARNING: dry-run pod lookup failed for namespace '{namespace}': {e}")
+    return total
+
 # Define the lifespan of the application
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -150,6 +188,9 @@ async def lifespan(app: FastAPI):
     Loads chaos experiment definitions on application startup and initializes Kubernetes client.
     """
     global api_client
+
+    current_namespace = get_current_namespace()
+    print(f"INFO: Chaos experiments will target namespace '{current_namespace}' (this pod's own namespace)")
 
     base_dir = Path(__file__).parent.absolute()
     pod_chaos_file = base_dir / "chaos_mesh" / "experiments" / "relibank-pod-chaos-adhoc.yaml"
@@ -173,12 +214,15 @@ async def lifespan(app: FastAPI):
                         name = doc["metadata"]["name"]
                         description = doc["metadata"].get("labels", {}).get("target-flow", "No description available.")
 
-                        # Store the complete experiment spec for ad-hoc execution
+                        # Store the complete experiment spec for ad-hoc execution.
+                        # Override the YAML's hardcoded namespace with wherever this
+                        # pod actually runs (see get_current_namespace) so the
+                        # selector matches real pods on blue/green clusters.
                         CHAOS_EXPERIMENTS[name] = {
-                            "namespace": doc["metadata"]["namespace"],
+                            "namespace": current_namespace,
                             "action": doc["spec"]["action"],
                             "mode": doc["spec"]["mode"],
-                            "selector": doc["spec"]["selector"],
+                            "selector": {**doc["spec"]["selector"], "namespaces": [current_namespace]},
                             "duration": doc["spec"]["duration"],
                             "gracePeriod": doc["spec"]["gracePeriod"],
                             "description": description
@@ -209,11 +253,13 @@ async def lifespan(app: FastAPI):
                         name = doc["metadata"]["name"]
                         description = doc["metadata"].get("labels", {}).get("target-flow", "No description available.")
 
-                        # Store the complete stress experiment spec
+                        # Store the complete stress experiment spec. Override the
+                        # YAML's hardcoded namespace the same way as CHAOS_EXPERIMENTS
+                        # above, so this matches real pods on blue/green clusters.
                         STRESS_EXPERIMENTS[name] = {
-                            "namespace": doc["metadata"]["namespace"],
+                            "namespace": current_namespace,
                             "mode": doc["spec"]["mode"],
-                            "selector": doc["spec"]["selector"],
+                            "selector": {**doc["spec"]["selector"], "namespaces": [current_namespace]},
                             "duration": doc["spec"]["duration"],
                             "stressors": doc["spec"]["stressors"],
                             "description": description
@@ -376,10 +422,29 @@ async def get_scenarios():
     return scenarios_list
 
 @app.post("/scenario-runner/api/trigger_chaos/{scenario_name}")
-async def trigger_chaos_experiment(scenario_name: str):
-    """Triggers a one-time Chaos Mesh experiment with rate limiting."""
+async def trigger_chaos_experiment(scenario_name: str, dry_run: bool = False):
+    """Triggers a one-time Chaos Mesh experiment with rate limiting.
+
+    dry_run=true checks whether the scenario's selector would match any live
+    pods right now — without creating a chaos-mesh resource, consuming the
+    rate limit, or disrupting anything. Meant to be exercised by the test
+    suite on every run so selector/namespace drift is caught immediately
+    instead of silently no-opping the next time someone actually triggers it.
+    """
     if scenario_name not in CHAOS_EXPERIMENTS:
         return {"error": f"Scenario '{scenario_name}' not found."}
+
+    if dry_run:
+        matched = _selector_pod_count(CHAOS_EXPERIMENTS[scenario_name]["selector"])
+        return {
+            "status": "success" if matched > 0 else "warning",
+            "dry_run": True,
+            "message": (
+                f"Dry run: selector would match {matched} pod(s)." if matched > 0
+                else "Dry run: selector matched 0 pods — triggering this for real would silently no-op."
+            ),
+            "matched_pods": matched
+        }
 
     # Check rate limit cooldown period
     now = datetime.now()
@@ -587,10 +652,28 @@ async def trigger_dem_memory_leak_10min():
     }
 
 @app.post("/scenario-runner/api/trigger_stress/{scenario_name}")
-async def trigger_stress_experiment(scenario_name: str):
-    """Triggers a one-time Stress Chaos experiment with rate limiting."""
+async def trigger_stress_experiment(scenario_name: str, dry_run: bool = False):
+    """Triggers a one-time Stress Chaos experiment with rate limiting.
+
+    dry_run=true checks whether the scenario's selector would match any live
+    pods right now — without creating a chaos-mesh resource, consuming the
+    rate limit, or disrupting anything. See trigger_chaos_experiment's
+    docstring for why this exists.
+    """
     if scenario_name not in STRESS_EXPERIMENTS:
         return {"error": f"Stress scenario '{scenario_name}' not found."}
+
+    if dry_run:
+        matched = _selector_pod_count(STRESS_EXPERIMENTS[scenario_name]["selector"])
+        return {
+            "status": "success" if matched > 0 else "warning",
+            "dry_run": True,
+            "message": (
+                f"Dry run: selector would match {matched} pod(s)." if matched > 0
+                else "Dry run: selector matched 0 pods — triggering this for real would silently no-op."
+            ),
+            "matched_pods": matched
+        }
 
     # Check rate limit cooldown period
     now = datetime.now()
