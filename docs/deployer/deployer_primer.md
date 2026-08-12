@@ -166,7 +166,14 @@ Cognitive Services accounts retain in a 48h recycle bin after destroy. If a dest
 
 If destroy/redeploy starts failing, check both pieces are still in place.
 
-### 4. AI architecture: LangGraph, not Assistants API
+### 4. NR Azure Functions monitoring needs subscription-scope IAM + App Insights
+
+New Relic's Azure Functions integration is **cloud-polling** (Azure Monitor, ~5 min interval) — there's no agent inside the Function App. `terraform/aks/newrelic/nr_azure_integration.tf` links each env's Azure subscription to that env's NR account and scopes polling to that env's resource group. Two gotchas found the hard way:
+
+1. **Subscription-scoped `Reader` + `Monitoring Reader`** on the deployer SP — same shape as the AOAI Cognitive Services Contributor grant above. Without it, the Terraform still applies cleanly (it's an NR-side resource, not an Azure-side one), but polling silently 403s and no telemetry ever appears. `setup-environment.sh` grants this for new environments; already-bootstrapped ones need a one-time manual `az role assignment create` catch-up.
+2. **Execution-count metrics need Application Insights.** Status/config data (state, resource group) and instance-level metrics (memory) come from the Azure host directly and work with no extra setup. But `functionExecutionCount`, `http5xx`, and friends require the Function App to have Application Insights connected — the notifications Function App doesn't, so those fields stay empty even after a confirmed real invocation. Confirmed directly against Azure Monitor's own metrics API, not just NR — this is an Azure platform behavior, not an NR polling or Terraform gap.
+
+### 5. AI architecture: LangGraph, not Assistants API
 
 The deployed AI flow in `support-service` is a **LangGraph chat-completions** workflow. Coordinator and Specialist are graph nodes built with `AzureChatOpenAI` / `create_agent` — they hit the standard chat-completions endpoint and orchestrate via in-process state. **The OpenAI Assistants API is not used in production.**
 
@@ -189,6 +196,8 @@ The invariants above are not hypothetical; each one came from an incident that w
 | Invariant / gotcha | Why it exists |
 |---|---|
 | Subscription-scoped `Cognitive Services Contributor` | Initial deploy worked; second destroy/apply cycle failed with 403 because the SP couldn't reach the sub-scoped recycle bin. |
+| Subscription-scoped `Reader` + `Monitoring Reader` for NR Azure polling | `nr_azure_integration.tf` applied with zero errors, but sandbox reported no `AzureFunctionsAppSample` data — silent 403 on Azure's side, easy to mistake for normal 5-10 min polling propagation delay. |
+| No Application Insights on the notifications Function App | `functionExecutionCount`/`http5xx` never populate even after a confirmed real invocation — memory/status metrics work fine, which masks that the execution-metrics pipeline was never wired up at all. |
 | Pre-apply AOAI purge step | State divergence (manual `terraform state rm`, network flake mid-destroy, interrupted CI run) leaves orphans the next apply 409s on. |
 | Function App + AOAI in infra workflow only | Early version put Function code publish in per-color deploy. A green deploy republished function code mid-day and regressed blue in prod. |
 | Frontend uses NRJS- key, not FFFFNRAL | Initial wiring used the APM key for both. Browser monitoring "worked" (PageViews showed) but MFE timing tests silently failed because beacons routed to the wrong app. |

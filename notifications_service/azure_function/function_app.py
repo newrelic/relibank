@@ -21,6 +21,14 @@ ACS_EMAIL_SENDER = os.environ.get("AZURE_ACS_EMAIL_SENDER", "DoNotReply@a0c2117c
 # SMS throttling configuration
 SMS_THROTTLE_PERCENTAGE = int(os.environ.get("SMS_THROTTLE_PERCENTAGE", "5"))
 
+# Demo knob: Azure Communication Services is currently blocked at the subscription level
+# (SubscriptionBlocked for email, Unauthorized for SMS — see docs/deployer/runbook.md and
+# ticket-maker/2026-07-15-relibank-notification-delivery-failures). While that's unresolved,
+# simulate sends instead of calling ACS so the pipeline stays demonstrably healthy. Flip to
+# false per-environment once ACS is confirmed fixed there — the real ACS code paths below are
+# left intact for exactly that.
+SIMULATE_NOTIFICATIONS = os.environ.get("SIMULATE_NOTIFICATIONS", "true").lower() == "true"
+
 # --- Global ACS Clients ---
 SMS_CLIENT = None
 EMAIL_CLIENT = None
@@ -64,6 +72,10 @@ def should_send_sms(recipient_phone):
 
 def send_email(subject, body, recipient_address):
     """Sends an email notification via Azure Communication Services."""
+    if SIMULATE_NOTIFICATIONS:
+        logging.info(f"Sending email to {recipient_address} based on customer preference.")
+        return {'status': 'succeeded', 'message': 'Email sent successfully (simulated).'}
+
     if not EMAIL_CLIENT:
         logging.error("Email client is not initialized.")
         return {'status': 'error', 'message': 'Email client not initialized.'}
@@ -110,6 +122,10 @@ def send_sms(message, recipient_phone):
         logging.info(f"SMS throttled for {recipient_phone} (sampling rate: {SMS_THROTTLE_PERCENTAGE}%)")
         return {'status': 'throttled', 'message': f'SMS throttled - only sending to {SMS_THROTTLE_PERCENTAGE}% of recipients.'}
 
+    if SIMULATE_NOTIFICATIONS:
+        logging.info(f"Sending SMS message to {recipient_phone} based on customer preference.")
+        return {'status': 'succeeded', 'message': 'SMS sent successfully (simulated).'}
+
     if not SMS_CLIENT:
         logging.error("SMS client is not initialized.")
         return {'status': 'error', 'message': 'SMS client not initialized.'}
@@ -154,7 +170,7 @@ def notify_user(req: func.HttpRequest) -> func.HttpResponse:
     """
     logging.info('Azure Function HTTP trigger processed a request.')
 
-    if not clients_initialized:
+    if not SIMULATE_NOTIFICATIONS and not clients_initialized:
         return func.HttpResponse(
             "ACS clients are not configured correctly. Please check environment variables.",
             status_code=500

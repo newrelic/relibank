@@ -163,12 +163,13 @@ if [[ "$ENVIRONMENT" == "remote" ]]; then
     print_success "Configuring remote environment variables..."
     # For remote, all services go through the same base URL
     export BASE_URL="$RELIBANK_URL"
-    export ACCOUNTS_SERVICE="$RELIBANK_URL"
-    export AUTH_SERVICE="$RELIBANK_URL"
-    export BILL_PAY_SERVICE="$RELIBANK_URL"
-    export SUPPORT_SERVICE="$RELIBANK_URL"
-    export TRANSACTION_SERVICE="$RELIBANK_URL"
-    export SCENARIO_SERVICE_URL="$RELIBANK_URL/scenario-runner"
+    export ACCOUNTS_SERVICE_URL="$RELIBANK_URL"
+    export AUTH_SERVICE_URL="$RELIBANK_URL"
+    export BILL_PAY_SERVICE_URL="$RELIBANK_URL"
+    export SUPPORT_SERVICE_URL="$RELIBANK_URL"
+    export TRANSACTION_SERVICE_URL="$RELIBANK_URL"
+    export SCENARIO_SERVICE_URL="$RELIBANK_URL"
+    export FRONTEND_SERVICE_URL="$RELIBANK_URL"
 
 else
     print_success "Using local environment (default localhost URLs)"

@@ -84,6 +84,10 @@ jobs:
             -var="app_name=${{ vars.APP_NAME }}" \
             -var="aks_cluster_name=${{ vars.AKS_CLUSTER_NAME }}" \
             -var="aks_resource_group=${{ vars.AKS_RESOURCE_GROUP }}" \
+            -var="azure_client_id=${{ secrets.AZURE_CLIENT_ID }}" \
+            -var="azure_client_secret=${{ secrets.AZURE_CLIENT_SECRET }}" \
+            -var="azure_tenant_id=${{ secrets.AZURE_TENANT_ID }}" \
+            -var="azure_subscription_id=${{ secrets.AZURE_SUBSCRIPTION_ID }}" \
             --auto-approve
 
   # ---------------------------------------------------------------------------
@@ -191,4 +195,8 @@ jobs:
             -var="app_name=${{ vars.APP_NAME }}" \
             -var="aks_cluster_name=${{ vars.AKS_CLUSTER_NAME }}" \
             -var="aks_resource_group=${{ vars.AKS_RESOURCE_GROUP }}" \
+            -var="azure_client_id=${{ secrets.AZURE_CLIENT_ID }}" \
+            -var="azure_client_secret=${{ secrets.AZURE_CLIENT_SECRET }}" \
+            -var="azure_tenant_id=${{ secrets.AZURE_TENANT_ID }}" \
+            -var="azure_subscription_id=${{ secrets.AZURE_SUBSCRIPTION_ID }}" \
             --auto-approve

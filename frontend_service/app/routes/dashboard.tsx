@@ -200,6 +200,33 @@ const DashboardPage = () => {
   // When transaction-service is under CPU stress, this call slows down, directly causing LCP to increase.
   // Also applies A/B test LCP delay if user is in slow cohort.
   useEffect(() => {
+    const fetchWithRetry = async (url: string, maxRetries = 3): Promise<any> => {
+      for (let attempt = 1; attempt <= maxRetries; attempt++) {
+        try {
+          const res = await fetch(url);
+          if (res.ok) {
+            return await res.json();
+          }
+          if (res.status >= 400 && res.status < 500) {
+            // Client error - don't retry
+            console.warn(`Failed to fetch accounts: ${res.status}`);
+            return null;
+          }
+          // Server error - retry
+          console.warn(`Attempt ${attempt}/${maxRetries} failed with status ${res.status}`);
+        } catch (error) {
+          console.warn(`Attempt ${attempt}/${maxRetries} failed:`, error);
+        }
+
+        if (attempt < maxRetries) {
+          // Exponential backoff: 100ms, 200ms, 400ms
+          await new Promise(resolve => setTimeout(resolve, 100 * Math.pow(2, attempt - 1)));
+        }
+      }
+      console.error('All retry attempts failed - falling back to context data');
+      return null;
+    };
+
     const fetchAndDelay = async () => {
       const email = sessionStorage.getItem('userEmail');
       const lcpDelay = parseInt(sessionStorage.getItem('lcpDelayMs') || '0');
@@ -208,14 +235,12 @@ const DashboardPage = () => {
 
       if (email) {
         promises.push(
-          fetch(`/accounts-service/accounts/${email}`)
-            .then(res => res.ok ? res.json() : null)
+          fetchWithRetry(`/accounts-service/accounts/${email}`)
             .then(data => {
               if (data) {
                 setUserData(data);
               }
             })
-            .catch(() => {}) // fall back to context data already set
         );
       }
 

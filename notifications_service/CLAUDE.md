@@ -31,6 +31,12 @@ interrupts notification delivery downstream of payments.
 
 ---
 
+## Operational note: notifications are currently simulated, not a planted behavior
+
+`notifications_service/azure_function/function_app.py`'s `SIMULATE_NOTIFICATIONS` toggle (default `true`, all environments) makes `notify_user_trigger` log a send and return success instead of calling Azure Communication Services. This is **not** investigation bait — it's a workaround for a real external outage (ACS itself returns `SubscriptionBlocked`/`Unauthorized`; see `notifications_service/README.md` and `ticket-maker/2026-07-15-relibank-notification-delivery-failures`). Don't treat the simulated log lines as a bug to diagnose or a scenario to "solve" — they're intentionally there so the pipeline stays healthy while the ACS issue is out of ReliBank's hands. Flip `SIMULATE_NOTIFICATIONS=false` per-environment once ACS is confirmed fixed there; no other code changes needed.
+
+---
+
 ## Local dev / debug
 
 ```bash

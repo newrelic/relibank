@@ -40,7 +40,7 @@ load_env_from_skaffold()
 
 NEW_RELIC_API_KEY    = os.getenv("NEW_RELIC_USER_API_KEY", "")
 NEW_RELIC_ACCOUNT_ID = os.getenv("NEW_RELIC_ACCOUNT_ID", "")
-TRANSACTION_SERVICE  = os.getenv("TRANSACTION_SERVICE", "http://localhost:5001")
+TRANSACTION_SERVICE_URL  = os.getenv("TRANSACTION_SERVICE_URL", "http://localhost:5001")
 NERDGRAPH_URL        = "https://api.newrelic.com/graphql"
 
 pytestmark = pytest.mark.skipif(
@@ -103,8 +103,8 @@ def generate_mssql_load():
     query_types = ["spending_velocity", "merchant_risk", "transaction_patterns", "account_velocity", "flagged_analysis"]
 
     def _send_requests():
-        adjust_url = f"{TRANSACTION_SERVICE}/transaction-service/adjust-amount/BILL-1701"
-        slow_url   = f"{TRANSACTION_SERVICE}/transaction-service/slow-query"
+        adjust_url = f"{TRANSACTION_SERVICE_URL}/transaction-service/adjust-amount/BILL-1701"
+        slow_url   = f"{TRANSACTION_SERVICE_URL}/transaction-service/slow-query"
         i = 0
         while not stop_event.is_set():
             try:
@@ -129,7 +129,7 @@ def generate_mssql_load():
     def _blocking_session():
         try:
             requests.get(
-                f"{TRANSACTION_SERVICE}/transaction-service/blocking?delay_seconds=300",
+                f"{TRANSACTION_SERVICE_URL}/transaction-service/blocking?delay_seconds=300",
                 timeout=310,
             )
         except Exception:

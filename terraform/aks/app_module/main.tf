@@ -30,7 +30,7 @@ data "azurerm_kubernetes_cluster" "cluster" {
 resource "azurerm_kubernetes_cluster_node_pool" "relibank_color_np" {
   name                  = var.target_color
   kubernetes_cluster_id = data.azurerm_kubernetes_cluster.cluster.id
-  vm_size               = "Standard_D2s_v3"
+  vm_size               = "Standard_D4s_v3"
   node_count            = 3
 
   node_labels = {
@@ -207,6 +207,57 @@ resource "kubernetes_deployment_v1" "service" {
       spec {
         node_selector        = { "node-color" = var.target_color }
         service_account_name = each.value.service_account_name
+
+        # Wait for Kafka to accept TCP connections before starting services that publish messages.
+        # Without this, the AIOKafkaProducer exhausts its retry window on cold deploys (Kafka starts
+        # ~45s after app pods) and silently leaves a broken producer, causing send_and_wait to hang.
+        dynamic "init_container" {
+          for_each = contains(["bill-pay-service", "notifications-service", "risk-assessment-service", "scheduler-service"], each.key) ? [1] : []
+          content {
+            name    = "wait-for-kafka"
+            image   = "busybox"
+            command = ["/bin/sh", "-c", "timeout 300 /bin/sh -c 'until nc -w 1 kafka 29092 </dev/null 2>/dev/null; do echo Waiting for Kafka...; sleep 2; done' && echo 'Kafka is ready.'"]
+          }
+        }
+
+        # Wait for RelibankDB to exist before starting services that connect to MSSQL.
+        # Without this, services start before mssql-init creates the DB (~4 min on fresh PVCs)
+        # and either fail to connect or hold broken connections.
+        dynamic "init_container" {
+          for_each = contains(["transaction-service", "scheduler-service"], each.key) ? [1] : []
+          content {
+            name    = "wait-for-db"
+            image   = "${var.acr_server}/mssql-custom:${var.target_color}"
+            command = ["/bin/sh", "-c", "timeout 600 /bin/sh -c 'until /opt/mssql-tools18/bin/sqlcmd -S mssql,1433 -U \"$DB_USERNAME\" -P \"$DB_PASSWORD\" -C -d \"$DB_DATABASE\" -Q \"SELECT 1\" -b > /dev/null 2>&1; do echo Waiting for RelibankDB...; sleep 5; done' && echo 'RelibankDB is ready.'"]
+            env {
+              name = "DB_USERNAME"
+              value_from {
+                secret_key_ref {
+                  name = kubernetes_secret_v1.database_credentials.metadata[0].name
+                  key  = "MSSQL_SA_USER"
+                }
+              }
+            }
+            env {
+              name = "DB_PASSWORD"
+              value_from {
+                secret_key_ref {
+                  name = kubernetes_secret_v1.database_credentials.metadata[0].name
+                  key  = "MSSQL_SA_PASSWORD"
+                }
+              }
+            }
+            env {
+              name = "DB_DATABASE"
+              value_from {
+                config_map_key_ref {
+                  name = kubernetes_config_map_v1.infrastructure_config.metadata[0].name
+                  key  = "MSSQL_DATABASE_NAME"
+                }
+              }
+            }
+          }
+        }
 
         container {
           name              = each.key

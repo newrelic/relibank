@@ -11,7 +11,7 @@ Operational guide. If you're deploying, switching traffic, or recovering from a 
 | Brand-new environment | `ReliBank Infra` (deploy, stage=all) → `Deploy ReliBank` (deploy, blue) → `Deploy ReliBank` (direct_traffic, blue) → *(once services are reporting)* `ReliBank NR` (deploy) |
 | Rolling release | `Deploy ReliBank` (deploy, inactive color) → optional canary verify → `Deploy ReliBank` (direct_traffic, new color) → `Deploy ReliBank` (destroy, old color). NR entities don't change on rolling release — entity team triggers `ReliBank NR` (deploy) separately when they merge entity changes. |
 | Infra-only refresh | `ReliBank Infra` (deploy, stage=`ai_services` or `notifications`) |
-| NR entities + cluster agent refresh | `ReliBank NR` (deploy) — env-scoped, runs against the same NR account the app reports to. Installs/updates the cluster-side `nri-bundle` + `nr-ebpf-agent` helm charts and refreshes NR entity definitions in one apply. A follow-up `relibank-newrelic-validate` job hard-gates the workflow by NerdGraph-querying each entity and the cluster's K8sClusterSample/K8sPodSample telemetry. Requires at least one color is deployed and services are reporting (entity data sources resolve real APM entities by name). |
+| NR entities + cluster agent refresh | `ReliBank NR` (deploy) — env-scoped, runs against the same NR account the app reports to. Installs/updates the cluster-side `nri-bundle` + `nr-ebpf-agent` helm charts and refreshes NR entity definitions in one apply. Also links the env's Azure subscription to the env's NR account and enables Azure Functions cloud-polling scoped to the env's resource group (`nr_azure_integration.tf`), so the notifications Function App reports without any agent installed in the Function App itself. A follow-up `relibank-newrelic-validate` job hard-gates the workflow by NerdGraph-querying each entity and the cluster's K8sClusterSample/K8sPodSample telemetry. Requires at least one color is deployed and services are reporting (entity data sources resolve real APM entities by name). |
 | Full teardown | `ReliBank NR` (destroy) → `Deploy ReliBank` (destroy) for each color → `ReliBank Infra` (destroy). The NR-first ordering is load-bearing: the NR module's helm releases live on the cluster, so `ReliBank Infra` destroy (which tears down the cluster) would orphan that state. |
 
 ---
@@ -50,6 +50,7 @@ Before any workflow can succeed, the GitHub Environment must exist with the foll
 ### One-time Azure / TF state setup
 
 - The deployer service principal must have `Cognitive Services Contributor` at **subscription scope**, not RG-scoped. RG-scoped won't reach soft-deleted accounts (recycle bin lives at sub scope). Without this, AOAI Stage 3 destroy/redeploy fails the second time around.
+- The deployer SP also needs `Reader` and `Monitoring Reader` at **subscription scope** (plus the `microsoft.insights` resource provider registered on the subscription) — required by New Relic's Azure cloud-polling integration (`terraform/aks/newrelic/nr_azure_integration.tf`) to enumerate resources and read Azure Monitor metrics for the env's Function App. Sub-scoped for the same reason as Cognitive Services Contributor above — NR's polling does subscription-level discovery even though the integration itself filters down to this env's RG. Without this, the NR Terraform still applies cleanly but polling silently 403s and no `AzureFunctionsAppSample` data appears.
 - The deployer SP also needs `User Access Administrator` at the env RG scope so it can create role assignments inside its own RG (e.g. binding the AKS kubelet identity to AcrPull on the ACR). `setup-environment.sh` grants this automatically; if you bootstrap the SP by hand, add it explicitly.
 - Terraform state storage account (e.g. `relibankstate`) and container (`tfstate`) must exist. `setup-environment.sh` creates them if missing.
 
@@ -78,7 +79,7 @@ cd terraform/aks/scripts
 ./setup-environment.sh --environment sandbox
 ```
 
-Creates RG, ACR, deployer SP (with `Contributor`, `User Access Administrator` on the env RG, `Cognitive Services Contributor` at sub scope, `DNS Zone Contributor` on the shared DNS zone, ACR push/pull, storage blob contributor on the shared TF state account), and TF state storage if missing. Prints the GitHub secrets/variables to copy into the GH Environment.
+Creates RG, ACR, deployer SP (with `Contributor`, `User Access Administrator` on the env RG, `Cognitive Services Contributor` at sub scope, `Reader` + `Monitoring Reader` at sub scope, `DNS Zone Contributor` on the shared DNS zone, ACR push/pull, storage blob contributor on the shared TF state account), and TF state storage if missing. Prints the GitHub secrets/variables to copy into the GH Environment.
 
 > **If the SP-creation step hangs or fails silently** — most commonly this is your user identity lacking tenant-level perms to create AAD service principals. As a workaround, run just the `az ad sp create-for-rbac` line manually (or have a tenant admin run it for you), then assign the same roles the script grants:
 >
@@ -89,6 +90,8 @@ Creates RG, ACR, deployer SP (with `Contributor`, `User Access Administrator` on
 >
 > az role assignment create --assignee <appId> --role "User Access Administrator" --scope /subscriptions/<sub>/resourceGroups/ReliBank-<env>
 > az role assignment create --assignee <appId> --role "Cognitive Services Contributor" --scope /subscriptions/<sub>
+> az role assignment create --assignee <appId> --role "Reader" --scope /subscriptions/<sub>
+> az role assignment create --assignee <appId> --role "Monitoring Reader" --scope /subscriptions/<sub>
 > az role assignment create --assignee <appId> --role "DNS Zone Contributor" --scope /subscriptions/<sub>/resourceGroups/relibank/providers/Microsoft.Network/dnszones/relibankdemo.com
 > # plus AcrPush/AcrPull on the ACR and Storage Blob Data Contributor on the state account
 > ```
@@ -139,6 +142,7 @@ Recommended: open a small patch PR off `main` that adds the new value to every l
    - `action_type=deploy`
    - `environment=sandbox`
    - Provisions placeholder NR entities (dashboard, alert policy, SLI, workload, synthetics, etc.) under `${APP_NAME} - Placeholder *`. The entity team replaces these with real definitions over time. **Required before this step:** APM entities must exist in NR — that means at least one color is deployed and services are actively reporting, otherwise the data sources in `terraform/aks/newrelic/nr_entities.tf` fail to resolve at plan time.
+   - Also links the env's Azure subscription (shared across all envs) to this env's NR account and turns on Azure Functions cloud-polling scoped to `${AKS_RESOURCE_GROUP}` — see `terraform/aks/newrelic/nr_azure_integration.tf`. This uses the existing deployer service principal; no separate Azure AD app registration is created. Azure Functions telemetry (`AzureFunctionsAppSample`) starts flowing on NR's ~5-minute polling cycle, independent of the entity-search checks below — give it 5-10 minutes before checking, not the 120s used for those.
    - After apply, `relibank-newrelic-validate` waits 120s then runs [`tests/workflow_validation/validate_nr_workflow.py`](../../tests/workflow_validation/validate_nr_workflow.py) — NerdGraph entity-search per TF-created entity (dashboard/alert policy/NRQL condition/destination/channel/workflow/workload/synthetics monitors) and NRQL for `K8sClusterSample` + `K8sPodSample` on the `newrelic` namespace. Any check failing fails the workflow. If a telemetry check fails, give the agents another minute and re-run the workflow (a clean re-apply is a no-op against state).
 
 ### Rolling release (env on blue, deploying green)
@@ -245,6 +249,38 @@ Soft-deleted Cognitive Services account in 48h recycle bin from a prior destroy.
     --resource-group {AKS_RESOURCE_GROUP} \
     --name relibank-{environment}-openai
   ```
+
+### No `AzureFunctionsAppSample` data after `nr_azure_integration.tf` applies
+
+Symptom: `terraform apply` on `terraform/aks/newrelic` succeeds with no errors, but `SELECT count(*) FROM AzureFunctionsAppSample SINCE 30 minutes ago` in the env's NR account returns nothing, even after 10+ minutes.
+
+Cause: the deployer SP is missing `Reader` + `Monitoring Reader` at **subscription scope** (not RG-scoped). New Relic's Azure polling does subscription-level resource discovery even though `nr_azure_integration.tf` filters results down to the env's RG via `resource_groups`. The Terraform resources (`newrelic_cloud_azure_link_account`/`newrelic_cloud_azure_integrations`) apply cleanly regardless — this is an Azure IAM 403, not a Terraform or NR config error, so there's nothing in the apply output to flag it.
+
+Fix:
+
+- Confirm: `az role assignment list --assignee <deployer SP appId> --all` — look for `Reader` and `Monitoring Reader` at `/subscriptions/<sub>` scope (not a resource-group-scoped entry).
+- If missing, grant both:
+
+  ```bash
+  az role assignment create --assignee <appId> --role "Reader" --scope /subscriptions/<sub>
+  az role assignment create --assignee <appId> --role "Monitoring Reader" --scope /subscriptions/<sub>
+  ```
+
+- `setup-environment.sh` grants both automatically for brand-new environment bootstraps — this only applies to environments bootstrapped before that grant was added.
+
+### Azure Functions `functionExecutionCount`/`http5xx` stay empty (but memory/status metrics work)
+
+Symptom: the Function App entity shows up fine in NR, `memoryWorkingSetBytes` and status fields populate normally, but execution count and HTTP error metrics never appear — even right after a confirmed real invocation.
+
+Cause: confirmed by querying Azure Monitor's metrics API directly (`az monitor metrics list --resource <function app resource ID> --metric FunctionExecutionCount`) — Azure itself has zero data points for these metrics, not an NR polling delay. Consumption-plan Function Apps need **Application Insights** connected to generate invocation-level telemetry (request counts, execution counts, per-invocation errors); the generic Azure Monitor platform-metrics collector that NR polls doesn't produce these without it. Memory/instance metrics don't need App Insights since they come from the host directly, which is why those work while everything invocation-related stays empty.
+
+Fix: `terraform/aks/notifications/main.tf` now provisions an `azurerm_log_analytics_workspace` + workspace-based `azurerm_application_insights`, wired into the Function App via `APPLICATIONINSIGHTS_CONNECTION_STRING`. Both new resources are ordinary RG-scoped resources — no extra deployer SP role grants needed beyond the `Contributor` it already has (unlike the AOAI and NR-Azure-polling gaps, which both needed subscription-scope roles). Rolls out to each environment the next time its Stage 4 (`notifications`) is applied — check whether an environment has these two resources yet before assuming this gap is closed there.
+
+Note: this gap was unaffected by the `SIMULATE_NOTIFICATIONS` toggle (see below) even before this fix — execution-count metrics stayed empty whether the Function was really calling ACS or simulating a send, since the root cause was the missing Application Insights connection either way, not send success/failure.
+
+### `notify_user_trigger` invocations are simulated, not real ACS sends
+
+Not a bug — see `notifications_service/README.md` "New Relic Monitoring" and `notifications_service/CLAUDE.md`. Azure Communication Services is currently blocked subscription-wide (`SubscriptionBlocked` for email, `Unauthorized` for SMS), so `SIMULATE_NOTIFICATIONS` defaults to `true` for every environment — the Function logs a send and returns success without calling ACS. If you're validating that real delivery works again after an ACS fix, set `simulate_notifications=false` for that environment (via the `SIMULATE_NOTIFICATIONS` GH Environment variable, or directly in `terraform/aks/notifications/variables.tf`'s default) and redeploy Stage 4, then re-test with a real recipient.
 
 ### MFE telemetry tests fail (`test_mfe_single`, `test_microfrontend_telemetry`)
 

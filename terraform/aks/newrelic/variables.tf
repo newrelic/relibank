@@ -44,3 +44,24 @@ variable "aks_resource_group" {
   description = "AKS cluster resource group. Pair with aks_cluster_name."
   type        = string
 }
+
+variable "azure_client_id" {
+  description = "Deployer service principal's application (client) ID. Reused (not a dedicated NR app registration) to authorize New Relic's Azure cloud-polling integration. Same value as ARM_CLIENT_ID / secrets.AZURE_CLIENT_ID."
+  type        = string
+}
+
+variable "azure_client_secret" {
+  description = "Deployer service principal's client secret. Same value as ARM_CLIENT_SECRET / secrets.AZURE_CLIENT_SECRET."
+  type        = string
+  sensitive   = true
+}
+
+variable "azure_tenant_id" {
+  description = "Azure AD tenant ID for the deployer service principal. Same value as ARM_TENANT_ID / secrets.AZURE_TENANT_ID."
+  type        = string
+}
+
+variable "azure_subscription_id" {
+  description = "Azure subscription ID (shared across all ReliBank environments). Same value as ARM_SUBSCRIPTION_ID / secrets.AZURE_SUBSCRIPTION_ID."
+  type        = string
+}

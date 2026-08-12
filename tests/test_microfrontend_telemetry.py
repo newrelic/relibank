@@ -23,7 +23,7 @@ import requests
 from generate_mfe_traffic import generate_mfe_traffic_with_selenium
 
 # Configuration
-FRONTEND_URL = os.getenv("RELIBANK_URL", "http://localhost:3000")
+FRONTEND_SERVICE_URL = os.getenv("FRONTEND_SERVICE_URL", "http://localhost:3000")
 NEW_RELIC_API_KEY = os.getenv("NEW_RELIC_USER_API_KEY")
 NEW_RELIC_ACCOUNT_ID = os.getenv("NEW_RELIC_ACCOUNT_ID", "4182956")
 
@@ -58,11 +58,11 @@ def generate_dashboard_traffic():
     print("SETUP: Generating dashboard traffic with Selenium")
     print("="*80)
 
-    print(f"Frontend URL: {FRONTEND_URL}")
+    print(f"Frontend URL: {FRONTEND_SERVICE_URL}")
     print("Using headless Chrome to generate real MFE events...")
 
     # Generate real browser traffic with Selenium
-    generate_mfe_traffic_with_selenium(FRONTEND_URL)
+    generate_mfe_traffic_with_selenium(FRONTEND_SERVICE_URL)
 
     print("\n⏳ Waiting 90 seconds for New Relic ingestion...")
     print("   (MicroFrontEndTiming events may take longer than Transaction events)")
@@ -369,7 +369,7 @@ if __name__ == "__main__":
 
     print("🧪 Running Microfrontend Telemetry Tests")
     print(f"   Account ID: {NEW_RELIC_ACCOUNT_ID}")
-    print(f"   Frontend URL: {FRONTEND_URL}")
+    print(f"   Frontend URL: {FRONTEND_SERVICE_URL}")
     print(f"   Microfrontends: {', '.join(MFE_CONFIGS.keys())}")
 
     # Run tests with pytest

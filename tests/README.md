@@ -178,10 +178,13 @@ All tests support these environment variables for remote testing:
 
 | Variable | Description | Default (Local) |
 |----------|-------------|-----------------|
-| `BASE_URL` | Base URL for frontend application | `http://localhost:3000` |
-| `ACCOUNTS_SERVICE` | Accounts service API URL | `http://localhost:5002` |
-| `BILL_PAY_SERVICE` | Bill pay service API URL | `http://localhost:5000` |
-| `SUPPORT_SERVICE` | Support service API URL | `http://localhost:5003` |
+| `FRONTEND_SERVICE_URL` | Frontend application URL | `http://localhost:3000` |
+| `ACCOUNTS_SERVICE_URL` | Accounts service API URL | `http://localhost:5002` |
+| `BILL_PAY_SERVICE_URL` | Bill pay service API URL | `http://localhost:5000` |
+| `SUPPORT_SERVICE_URL` | Support service API URL | `http://localhost:5003` |
+| `TRANSACTION_SERVICE_URL` | Transaction service API URL | `http://localhost:5001` |
+| `AUTH_SERVICE_URL` | Auth service API URL | `http://localhost:5006` |
+| `SCENARIO_SERVICE_URL` | Scenario service API URL | `http://localhost:8000` |
 | `TARGET_COLOR` | Deployment color to direct the suite at — sends `X-Test-Env`, port-forwards that color's DB, and scopes New Relic queries. Empty = active color. See [Color-aware testing](#-color-aware-testing-bluegreen). | `""` (active / local single-color) |
 
 ### Automatic Environment Variable Loading (Local Development)

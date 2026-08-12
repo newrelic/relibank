@@ -65,6 +65,7 @@ jobs:
       test_db_pool_e2e: ${{ steps.individual-tests.outputs.test_db_pool_e2e }}
       test_db_pool: ${{ steps.individual-tests.outputs.test_db_pool }}
       test_e2e: ${{ steps.individual-tests.outputs.test_e2e }}
+      test_lcp_regression: ${{ steps.individual-tests.outputs.test_lcp_regression }}
       test_mfe_single: ${{ steps.individual-tests.outputs.test_mfe_single }}
       test_microfrontend_telemetry: ${{ steps.individual-tests.outputs.test_microfrontend_telemetry }}
       test_newrelic_instrumentation: ${{ steps.individual-tests.outputs.test_newrelic_instrumentation }}
@@ -156,12 +157,13 @@ jobs:
         env:
           RELIBANK_URL: ${{ vars.BASE_URL }}
           BASE_URL: ${{ vars.BASE_URL }}
-          ACCOUNTS_SERVICE: ${{ vars.BASE_URL }}
-          AUTH_SERVICE: ${{ vars.BASE_URL }}
-          BILL_PAY_SERVICE: ${{ vars.BASE_URL }}
-          SUPPORT_SERVICE: ${{ vars.BASE_URL }}
-          TRANSACTION_SERVICE: ${{ vars.BASE_URL }}
+          ACCOUNTS_SERVICE_URL: ${{ vars.BASE_URL }}
+          AUTH_SERVICE_URL: ${{ vars.BASE_URL }}
+          BILL_PAY_SERVICE_URL: ${{ vars.BASE_URL }}
+          SUPPORT_SERVICE_URL: ${{ vars.BASE_URL }}
+          TRANSACTION_SERVICE_URL: ${{ vars.BASE_URL }}
           SCENARIO_SERVICE_URL: ${{ vars.BASE_URL }}
+          FRONTEND_SERVICE_URL: ${{ vars.BASE_URL }}
           NEW_RELIC_USER_API_KEY: ${{ secrets.NR_USER_API_KEY }}
           NEW_RELIC_ACCOUNT_ID: ${{ vars.NR_ACCOUNT_ID }}
           # Scenario-UI webpage test: direct at a color (X-Test-Env) + expected flag state,
@@ -208,12 +210,13 @@ jobs:
         env:
           RELIBANK_URL: ${{ vars.BASE_URL }}
           BASE_URL: ${{ vars.BASE_URL }}
-          ACCOUNTS_SERVICE: ${{ vars.BASE_URL }}
-          AUTH_SERVICE: ${{ vars.BASE_URL }}
-          BILL_PAY_SERVICE: ${{ vars.BASE_URL }}
-          SUPPORT_SERVICE: ${{ vars.BASE_URL }}
-          TRANSACTION_SERVICE: ${{ vars.BASE_URL }}
+          ACCOUNTS_SERVICE_URL: ${{ vars.BASE_URL }}
+          AUTH_SERVICE_URL: ${{ vars.BASE_URL }}
+          BILL_PAY_SERVICE_URL: ${{ vars.BASE_URL }}
+          SUPPORT_SERVICE_URL: ${{ vars.BASE_URL }}
+          TRANSACTION_SERVICE_URL: ${{ vars.BASE_URL }}
           SCENARIO_SERVICE_URL: ${{ vars.BASE_URL }}
+          FRONTEND_SERVICE_URL: ${{ vars.BASE_URL }}
           NEW_RELIC_USER_API_KEY: ${{ secrets.NR_USER_API_KEY }}
           NEW_RELIC_ACCOUNT_ID: ${{ vars.NR_ACCOUNT_ID }}
         run: |
@@ -239,7 +242,7 @@ jobs:
         env:
           RELIBANK_URL: ${{ vars.BASE_URL }}
           SCENARIO_SERVICE_URL: ${{ vars.BASE_URL }}
-          BILL_PAY_SERVICE: ${{ vars.BASE_URL }}
+          BILL_PAY_SERVICE_URL: ${{ vars.BASE_URL }}
           NEW_RELIC_USER_API_KEY: ${{ secrets.NR_USER_API_KEY }}
           NEW_RELIC_ACCOUNT_ID: ${{ vars.NR_ACCOUNT_ID }}
         run: |
@@ -251,6 +254,7 @@ jobs:
         env:
           RELIBANK_URL: ${{ vars.BASE_URL }}
           BASE_URL: ${{ vars.BASE_URL }}
+          FRONTEND_SERVICE_URL: ${{ vars.BASE_URL }}
           SCENARIO_SERVICE_URL: ${{ vars.BASE_URL }}
           NEW_RELIC_USER_API_KEY: ${{ secrets.NR_USER_API_KEY }}
           NEW_RELIC_ACCOUNT_ID: ${{ vars.NR_ACCOUNT_ID }}
@@ -354,6 +358,7 @@ jobs:
             ["test_apm_tracking"]="APM User Tracking"
             ["test_browser_tracking"]="Browser User Tracking"
             ["test_e2e"]="End to End"
+            ["test_lcp_regression"]="LCP Regression"
             ["test_nr_instrumentation"]="New Relic Instrumentation"
             ["test_payment"]="Payment Scenarios"
             ["test_scenario"]="Scenario Service"

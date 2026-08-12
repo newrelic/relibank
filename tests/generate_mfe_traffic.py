@@ -30,8 +30,16 @@ logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(name)s] %(message
 logger = logging.getLogger("generate_mfe_traffic")
 
 
-def setup_driver():
-    """Configure and return headless Chrome driver."""
+def setup_driver(color=None):
+    """Configure and return headless Chrome driver.
+
+    Args:
+        color: deployment color to route to ('blue'/'green'). When set, attaches
+            X-Test-Env: <color> to every request the browser makes (via CDP) so
+            navigation hits that color's canary route regardless of which color
+            is live on main-ingress. None (default) leaves requests unrouted,
+            preserving prior callers' behavior exactly.
+    """
     options = Options()
     options.add_argument("--headless")
     options.add_argument("--no-sandbox")
@@ -39,7 +47,11 @@ def setup_driver():
     options.add_argument("--disable-gpu")
     # Enable browser console logs
     options.set_capability('goog:loggingPrefs', {'browser': 'ALL'})
-    return webdriver.Chrome(options=options)
+    driver = webdriver.Chrome(options=options)
+    if color:
+        driver.execute_cdp_cmd("Network.enable", {})
+        driver.execute_cdp_cmd("Network.setExtraHTTPHeaders", {"headers": {"X-Test-Env": color}})
+    return driver
 
 
 def generate_mfe_traffic_with_selenium(frontend_url=None):
@@ -53,7 +65,7 @@ def generate_mfe_traffic_with_selenium(frontend_url=None):
         None (generates traffic and MicroFrontEndTiming events in New Relic)
     """
     if frontend_url is None:
-        frontend_url = os.getenv("RELIBANK_URL", "http://localhost:3000")
+        frontend_url = os.getenv("FRONTEND_SERVICE_URL", "http://localhost:3000")
 
     logger.info(f"Starting Selenium traffic generation for {frontend_url}")
     driver = setup_driver()

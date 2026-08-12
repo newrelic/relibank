@@ -127,6 +127,7 @@ Files you should NOT edit (deployer plumbing):
 - [`variables.tf`](variables.tf) — variable declarations. You DO edit this when [adding a new per-env variable](#adding-a-new-per-env-variable).
 - [`backend.tf`](backend.tf), [`outputs.tf`](outputs.tf) — state backend + module outputs.
 - [`nr_infra_agent.tf`](nr_infra_agent.tf) — installs the cluster-side NR observability agents (helm). Owned by the deployer team.
+- [`nr_azure_integration.tf`](nr_azure_integration.tf) — links the env's Azure subscription to the env's NR account and enables Azure Functions cloud-polling scoped to the env's resource group. Uses the deployer service principal's credentials, not `new_relic_user_api_key`-driven entity CRUD. Owned by the deployer team. **Requires the deployer SP to have `Reader` + `Monitoring Reader` at Azure subscription scope** — if this entity shows up with no telemetry, that's almost always why; see [runbook.md → Troubleshooting](../../../docs/deployer/runbook.md#no-azurefunctionsappsample-data-after-nr_azure_integrationtf-applies).
 
 ---
 
