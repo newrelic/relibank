@@ -33,6 +33,7 @@ resource "helm_release" "nri_bundle" {
   namespace  = local.newrelic_namespace
   repository = "https://helm-charts.newrelic.com"
   chart      = "nri-bundle"
+  version    = "5.0.100"
   wait       = true
   timeout    = 800
 
