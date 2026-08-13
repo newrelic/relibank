@@ -43,10 +43,15 @@ NEW_RELIC_ACCOUNT_ID = os.getenv("NEW_RELIC_ACCOUNT_ID", "")
 TRANSACTION_SERVICE_URL  = os.getenv("TRANSACTION_SERVICE_URL", "http://localhost:5001")
 NERDGRAPH_URL        = "https://api.newrelic.com/graphql"
 
-pytestmark = pytest.mark.skipif(
-    not NEW_RELIC_API_KEY,
-    reason="NEW_RELIC_USER_API_KEY environment variable not set",
-)
+pytestmark = [
+    pytest.mark.skipif(
+        not NEW_RELIC_API_KEY,
+        reason="NEW_RELIC_USER_API_KEY environment variable not set",
+    ),
+    # generate_mssql_load's 3 phases sleep 30s+300s+120s = 450s before any assertion runs;
+    # override the workflow's blanket --timeout=300 so pytest-timeout doesn't kill mid-fixture.
+    pytest.mark.timeout(600),
+]
 
 
 def query_nerdgraph(nrql: str) -> list:

@@ -166,6 +166,8 @@ jobs:
           FRONTEND_SERVICE_URL: ${{ vars.BASE_URL }}
           NEW_RELIC_USER_API_KEY: ${{ secrets.NR_USER_API_KEY }}
           NEW_RELIC_ACCOUNT_ID: ${{ vars.NR_ACCOUNT_ID }}
+          APP_NAME: ${{ vars.APP_NAME }}
+          NR_BROWSER_APP_NAME: ${{ vars.NR_BROWSER_APP_NAME }}
           # Scenario-UI webpage test: direct at a color (X-Test-Env) + expected flag state,
           # threaded from the deploy so no manual sync. Empty color = active color.
           TARGET_COLOR: ${{ env.EFFECTIVE_COLOR || inputs.target_color }}

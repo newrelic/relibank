@@ -94,22 +94,23 @@ The Chaos Mesh dashboard is accessible at:
 ## 📊 Managing Experiments
 
 ```bash
-# View active scheduled experiments
-kubectl get schedules -n relibank
+# View active scheduled experiments (substitute the cluster's actual namespace —
+# e.g. relibank-blue / relibank-green on Sandbox, relibank on a single-namespace cluster)
+kubectl get schedules -n <namespace>
 
 # View experiment history
-kubectl get jobs -n relibank
+kubectl get jobs -n <namespace>
 
 # Apply specific experiment manually
 kubectl apply -f chaos_mesh/experiments/relibank-pod-chaos-adhoc.yaml
 kubectl apply -f chaos_mesh/experiments/relibank-stress-scenarios.yaml
 
 # Stop a running experiment
-kubectl delete podchaos <experiment-name> -n relibank
-kubectl delete stresschaos <experiment-name> -n relibank
+kubectl delete podchaos <experiment-name> -n <namespace>
+kubectl delete stresschaos <experiment-name> -n <namespace>
 
 # View experiment details in dashboard or CLI
-kubectl describe schedule relibank-payment-flow-pod-chaos-schedule -n relibank
+kubectl describe schedule relibank-payment-flow-pod-chaos-schedule -n <namespace>
 ```
 
 ## 🔧 Customizing Experiments
@@ -120,7 +121,21 @@ Edit experiment YAML files to customize:
 - **Duration**: Change how long experiments run
 - **Chaos actions**: For pod chaos, choose between pod-kill or pod-failure
 
-All experiments target pods with matching service labels in the `relibank` namespace.
+Each YAML's `namespace` field (and each selector's `namespaces` entry) is hardcoded to `relibank`,
+but the scenario service overrides it at startup with the pod's actual namespace, so experiments
+target the right pods whether the cluster is single-namespace or blue/green
+(`relibank-blue`/`relibank-green`). All experiments target pods with matching service labels in that
+namespace.
+
+Before triggering a new or edited experiment for real, dry-run it via the Scenario Runner API to
+confirm its selector matches at least one live pod:
+
+```bash
+curl -X POST "http://localhost:8000/scenario-runner/api/trigger_chaos/<experiment-name>?dry_run=true"
+```
+
+A `dry_run: true` response with `matched_pods: 0` means the selector doesn't match anything in this
+cluster's namespace — the experiment would silently no-op if triggered for real.
 
 ## 🛡️ Rate Limiting
 

@@ -143,6 +143,7 @@ def test_db_pool_e2e_with_new_relic_validation(reset_scenario):
 
     # Step 3: Generate traffic to both pools
     print("\n📝 Step 3: Generating traffic to both database pools...")
+    traffic_start_ms = int(time.time() * 1000)
     traffic_count = 20
 
     for i in range(traffic_count):
@@ -179,14 +180,18 @@ def test_db_pool_e2e_with_new_relic_validation(reset_scenario):
     # Step 5: Validate custom attributes in New Relic
     print("\n📝 Step 5: Validating custom attributes in New Relic...")
 
-    # Query for db.pool_id (custom attributes don't get custom. prefix when using add_custom_attribute)
+    # Query for db.pool_id (custom attributes don't get custom. prefix when using add_custom_attribute).
+    # Scoped to this test's own requests (Alice/Bob) — pool_id is a hash of user_id, so any
+    # concurrent traffic (e.g. the scenario service's own load generator) lands in the same
+    # pool-a/pool-b buckets and would otherwise dilute the Step 6 performance comparison.
     nrql = f"""
     SELECT count(*), uniques(db.pool_id)
     FROM Transaction
     WHERE appName LIKE '%Accounts Service%'
       AND db.pool_id IS NOT NULL
+      AND (request.uri LIKE '%alice.j@relibank.com%' OR request.uri LIKE '%bob.w@relibank.com%')
       {color_filter('Transaction')}
-    SINCE 10 minutes ago
+    SINCE {traffic_start_ms}
     """
 
     results = query_nerdgraph(nrql)
@@ -214,9 +219,10 @@ def test_db_pool_e2e_with_new_relic_validation(reset_scenario):
     FROM Transaction
     WHERE appName LIKE '%Accounts Service%'
       AND db.pool_id IS NOT NULL
+      AND (request.uri LIKE '%alice.j@relibank.com%' OR request.uri LIKE '%bob.w@relibank.com%')
       {color_filter('Transaction')}
     FACET db.pool_id
-    SINCE 10 minutes ago
+    SINCE {traffic_start_ms}
     """
 
     perf_results = query_nerdgraph(perf_nrql)
