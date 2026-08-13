@@ -150,9 +150,9 @@ def generate_mssql_load():
 def test_lock_contention_metrics():
     """Verifies lock waits, timeouts, and deadlock rate metrics land in NR."""
     results = query_nerdgraph(
-        "SELECT rate(sum(sqlserver.stats.lock_waits_per_sec), 1 minute) AS 'lockWaitsPerMin', "
-        "rate(sum(sqlserver.instance.lock_timeouts_rate), 1 minute) AS 'lockTimeoutsPerMin', "
-        "rate(sum(sqlserver.stats.deadlocks_per_sec), 1 minute) AS 'deadlocksPerMin' "
+        "SELECT rate(sum(sqlserver.lock.wait.rate), 1 minute) AS 'lockWaitsPerMin', "
+        "rate(sum(sqlserver.lock.timeout.rate), 1 minute) AS 'lockTimeoutsPerMin', "
+        "rate(sum(sqlserver.deadlock.rate), 1 minute) AS 'deadlocksPerMin' "
         "FROM Metric "
         "WHERE instrumentation.provider = 'opentelemetry' "
         "SINCE 10 minutes ago"
@@ -165,10 +165,10 @@ def test_lock_contention_metrics():
 
 
 def test_connection_and_throughput_metrics():
-    """Verifies active connections and transactions-per-second metrics land in NR."""
+    """Verifies active connections and batch-request throughput metrics land in NR."""
     results = query_nerdgraph(
-        "SELECT latest(sqlserver.stats.connections) AS 'connections', "
-        "rate(sum(sqlserver.instance.transactions_per_sec), 1 minute) AS 'tpsPerMin' "
+        "SELECT latest(sqlserver.user.connection.count) AS 'connections', "
+        "rate(sum(sqlserver.batch.request.rate), 1 minute) AS 'batchRequestsPerMin' "
         "FROM Metric "
         "WHERE instrumentation.provider = 'opentelemetry' "
         "SINCE 10 minutes ago"
@@ -181,10 +181,10 @@ def test_connection_and_throughput_metrics():
 
 
 def test_buffer_pool_metrics():
-    """Verifies buffer pool hit % and page life expectancy metrics land in NR."""
+    """Verifies buffer pool hit ratio and page life expectancy metrics land in NR."""
     results = query_nerdgraph(
-        "SELECT latest(sqlserver.instance.buffer_pool_hit_percent) AS 'bufferPoolHitPct', "
-        "latest(sqlserver.bufferpool.page_life_expectancy_ms) AS 'pageLifeExpMs' "
+        "SELECT latest(sqlserver.page.buffer_cache.hit_ratio) AS 'bufferPoolHitRatio', "
+        "latest(sqlserver.page.life_expectancy) AS 'pageLifeExpMs' "
         "FROM Metric "
         "WHERE instrumentation.provider = 'opentelemetry' "
         "SINCE 10 minutes ago"
@@ -199,9 +199,9 @@ def test_buffer_pool_metrics():
 def test_sql_compilation_metrics():
     """Verifies SQL compilation and recompilation rate metrics land in NR."""
     results = query_nerdgraph(
-        "SELECT rate(sum(sqlserver.stats.sql_compilations_per_sec), 1 minute) AS 'compilationsPerMin', "
-        "rate(sum(sqlserver.stats.sql_recompilations_per_sec), 1 minute) AS 'recompilationsPerMin', "
-        "rate(sum(sqlserver.instance.forced_parameterizations_per_sec), 1 minute) AS 'forcedParamsPerMin' "
+        "SELECT rate(sum(sqlserver.batch.sql_compilation.rate), 1 minute) AS 'compilationsPerMin', "
+        "rate(sum(sqlserver.batch.sql_recompilation.rate), 1 minute) AS 'recompilationsPerMin', "
+        "rate(sum(sqlserver.parameterization.rate), 1 minute) AS 'forcedParamsPerMin' "
         "FROM Metric "
         "WHERE instrumentation.provider = 'opentelemetry' "
         "SINCE 10 minutes ago"
@@ -216,10 +216,10 @@ def test_sql_compilation_metrics():
 def test_wait_stats_metrics():
     """Verifies sqlserver wait stats metrics land in NR."""
     results = query_nerdgraph(
-        "SELECT rate(sum(sqlserver.wait_stats.wait_time_ms), 1 minute) AS 'totalWaitTimePerMin' "
+        "SELECT average(sqlserver.os.wait.duration) AS 'avgWaitDurationMs' "
         "FROM Metric "
         "WHERE instrumentation.provider = 'opentelemetry' "
-        "AND metricName LIKE 'sqlserver.wait_stats.%' "
+        "AND metricName = 'sqlserver.os.wait.duration' "
         "SINCE 10 minutes ago"
     )
     assert results, "No wait stats metrics found in New Relic"
