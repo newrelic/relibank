@@ -44,5 +44,5 @@ jobs:
         env:
           NEW_RELIC_USER_API_KEY:   ${{ secrets.NR_USER_API_KEY }}
           NEW_RELIC_BROWSER_APP_ID: ${{ vars.NR_BROWSER_APP_ID }}
-          PUBLIC_HOST:              ${{ vars.PUBLIC_HOST }}
+          PUBLIC_HOST:              ${{ vars.BASE_URL }}
         run: python scripts/newrelic/upload_sourcemaps.py

@@ -11,6 +11,14 @@ export default defineConfig(({ mode }: { mode: string }) => ({
     }
   }), tsconfigPaths()],
   build: {
+    // Generate source maps + a build manifest so New Relic can de-obfuscate stack traces
+    // (see scripts/newrelic/upload_sourcemaps.py / .github/workflows/relibank-sourcemaps.yml).
+    // Must be exactly `true` (not a custom path) — @react-router/dev/vite always enables Vite's
+    // manifest internally for SSR-asset detection, then deletes it after build UNLESS the user's
+    // own config also set `manifest: true`; any other value (including a custom filename) is
+    // treated as "not user-enabled" and the file gets removed regardless of what we set here.
+    sourcemap: true,
+    manifest: true,
     // Add timestamps to bust cache on every build
     rollupOptions: {
       output: {
