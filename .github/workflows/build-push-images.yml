@@ -331,32 +331,12 @@ jobs:
           kubectl apply -f scenario_service/chaos_mesh/experiments/relibank-pod-chaos-adhoc.yaml
           kubectl apply -f scenario_service/chaos_mesh/experiments/relibank-stress-scenarios.yaml
 
-      - name: Install New Relic Observability Stack
-        run: |
-          helm repo add newrelic https://helm-charts.newrelic.com
-          helm repo update
-          helm upgrade --install nri-bundle newrelic/nri-bundle \
-            --namespace newrelic \
-            --create-namespace \
-            --version 6.0.45 \
-            -f k8s/newrelic/values.yaml \
-            --set global.licenseKey="${{ secrets.NR_LICENSE_KEY }}" \
-            --set global.cluster="${{ vars.AKS_CLUSTER_NAME || 'relibank-prod' }}" \
-            --set global.lowDataMode=false \
-            --set newrelic-infrastructure.enabled=true \
-            --set newrelic-infrastructure.privileged=true \
-            --set nri-prometheus.enabled=true \
-            --set nri-metadata-injection.enabled=true \
-            --set newrelic-logging.enabled=true \
-            --set ksm.enabled=true \
-            --set controlPlane.enabled=true \
-            --set nri-kube-events.enabled=true \
-            --set nr-ebpf-agent.enabled=true \
-            --set nr-ebpf-agent.apmDataReporting=true \
-            --set nr-ebpf-agent.networkMetricsReporting=true \
-            --set pixie.enabled=false \
-            --set newrelic-pixie.enabled=false \
-            --wait
+      # New Relic agent installation (nri-bundle / nr-ebpf-agent) is intentionally NOT
+      # performed here. It is owned exclusively by terraform/aks/newrelic/nr_infra_agent.tf,
+      # applied via the dedicated, idempotent `relibank-newrelic-deploy` workflow (safe to
+      # re-run anytime). Installing nri-bundle from this job would create a second,
+      # Terraform-untracked release in the same cluster/namespace. See
+      # docs/deployer/deployer_primer.md for details.
 
       - name: Deployment Summary
         run: |

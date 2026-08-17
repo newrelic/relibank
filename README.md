@@ -22,7 +22,7 @@ Relibank simulates a banking system with separate services for accounts, transac
   - Evaluates payment transactions before processing
   - Calls support-service AI agents for intelligent risk analysis
 - **support-service** - Relibank's AI support service (FastAPI)
-  - **LangGraph chat-completions** — Coordinator + Specialist as graph nodes built with `AzureChatOpenAI` / `create_agent`. **Not** the OpenAI Assistants API. Don't wire `ASSISTANT_*_ID` env vars or revive `create_assistants.py`-style scripts; see [docs/primer.md → AI architecture](docs/primer.md#ai-architecture-langgraph-not-assistants-api) and the module docstring at the top of [support_service.py](support_service/support_service.py) for the trap-prevention rationale.
+  - **LangGraph chat-completions** — Coordinator + Specialist as graph nodes built with `AzureChatOpenAI` / `create_agent`. **Not** the OpenAI Assistants API. Don't wire `ASSISTANT_*_ID` env vars or revive `create_assistants.py`-style scripts; see [docs/deployer/deployer_primer.md → AI architecture](docs/deployer/deployer_primer.md#5-ai-architecture-langgraph-not-assistants-api) and the module docstring at the top of [support_service.py](support_service/support_service.py) for the trap-prevention rationale.
   - Payment risk assessment using Azure OpenAI (gpt-4o/gpt-4o-mini)
 - **notifications-service** - Sends notifications via Kafka
 - **scheduler-service** - Schedules events via Kafka
@@ -61,7 +61,7 @@ Add `MSSQL_NEWRELIC_PASSWORD` to your `skaffold.env` (it's already in the New Re
 MSSQL_NEWRELIC_PASSWORD=YourStrong@Password!
 ```
 
-A pre-build hook on the first artifact in `skaffold.yaml` invokes [`scripts/generate-nrdot-env.sh`](scripts/generate-nrdot-env.sh), which sources `skaffold.env` and writes `k8s/base/infrastructure/newrelic/nrdot-mssql.env` (gitignored, contains real credentials) before kustomize render. If the build cache hit causes the hook to skip and you've deleted the env file, run the generator manually or use `skaffold dev --cache-artifacts=false` once. See `nrdot-mssql.env.example` for the full variable mapping.
+A pre-build hook on the first artifact in `skaffold.yaml` invokes [`scripts/generate-nrdot-env.sh`](scripts/generate-nrdot-env.sh), which sources `skaffold.env` and writes `k8s/base/infrastructure/newrelic/nrdot-mssql.env` (gitignored, contains real credentials) before kustomize render. If the build cache hit causes the hook to skip and you've deleted the env file, run the generator manually or use `skaffold dev --cache-artifacts=false` once. See [`nrdot-mssql.env.example`](k8s/base/infrastructure/newrelic/nrdot-mssql.env.example) for the full variable mapping.
 
 For CI/CD (GitHub Actions), add `MSSQL_NEWRELIC_PASSWORD` to the `events` environment secrets — the workflow already includes it in the `skaffold.env` creation step and generates `nrdot-mssql.env` directly via its own step (independent of the build hook).
 
@@ -106,7 +106,7 @@ The project uses Kustomize overlays for different environments:
 
 ## Chaos Engineering
 
-Chaos Mesh gets installed automatically and includes pre-built experiments in `chaos_mesh/experiments/`. 
+Chaos Mesh gets installed automatically and includes pre-built experiments in `scenario_service/chaos_mesh/experiments/`. 
 
 Access the dashboard at http://localhost:2333, or on the scenario page at http://localhost:8000 to:
 - Kill random pods
@@ -116,7 +116,7 @@ Access the dashboard at http://localhost:2333, or on the scenario page at http:/
 
 Or deploy experiments manually:
 ```bash
-kubectl apply -f chaos_mesh/experiments/relibank-pod-chaos-examples.yaml
+kubectl apply -f scenario_service/chaos_mesh/experiments/relibank-pod-chaos-examples.yaml
 ```
 
 ## Development Tips
@@ -202,7 +202,7 @@ This isn't meant to be a real banking application. It's a learning tool for:
 - **NRDOT Collector**: Dedicated `nrdot-collector-mssql` pod running New Relic's NRDOT collector v1.11.1+db-v1.2.0
 - **Wait Stats & Perf Counters**: `sqlserver.wait_stats.*`, lock/deadlock/compilation rates from `sys.dm_os_wait_stats` and `sys.dm_os_performance_counters`
 - **Slow & Blocking Queries**: Captured via `query_monitoring_*` receiver config and routed as logs through the `metricsaslogs` connector
-- **Credentials**: Managed via `k8s/base/infrastructure/newrelic/nrdot-mssql.env` (gitignored); see `nrdot-mssql.env.example`
+- **Credentials**: Managed via `k8s/base/infrastructure/newrelic/nrdot-mssql.env` (gitignored); see [`nrdot-mssql.env.example`](k8s/base/infrastructure/newrelic/nrdot-mssql.env.example)
 - **GitHub Actions**: `MSSQL_NEWRELIC_PASSWORD` and `NR_LICENSE_KEY` secrets are used to generate the credentials file at deploy time
 
 ### Stripe Per-User Credentials
@@ -210,6 +210,7 @@ This isn't meant to be a real banking application. It's a learning tool for:
 - **Dynamic Credential Resolution**: Bill Pay service resolves Stripe credentials dynamically via accounts-service lookup — pass `userId` to `/card-payment` instead of a hardcoded customer ID
 - **Frontend Login Fetch**: Frontend fetches each user's Stripe customer ID from accounts-service at login, eliminating hardcoded IDs
 - **New Endpoint**: `GET /accounts-service/users/by-id/{user_id}` — look up a user and their Stripe credentials by numeric ID
+
 ### AI-Powered Payment Risk Assessment
 - **Risk Assessment Service**: All bill payments (bank and card) go through AI-powered risk assessment before processing
 - **Support Service Integration**: Uses Azure OpenAI (gpt-4o for normal, gpt-4o-mini for rogue scenarios)
@@ -259,22 +260,23 @@ Try breaking things with Chaos Mesh and see how the system responds!
 
 ---
 
-### ⚙️ Test connection to New Relic
+## Development
 
-1. Connect to the service's container, docker example `docker exec -it bill-pay /bin/sh`
+### Test connection to New Relic
 
-2. newrelic-admin validate-config LOCATION_OF_NEWRELIC.INI
+1. Connect to the service's container, e.g. `docker exec -it bill-pay /bin/sh`
+2. Run `newrelic-admin validate-config LOCATION_OF_NEWRELIC.INI`
+3. If needed, add a logfile to `newrelic.ini`:
+   ```ini
+   [newrelic]
+   log_file = /app/newrelic.log
+   log_level = info
+   ```
+4. Validate logs with `docker exec -it bill-pay cat newrelic-agent.log`
 
-3. If needed, add a logfile to newrelic.ini
-```[newrelic]
-log_file = /app/newrelic.log
-log_level = info
+### Formatting
+
+Python is formatted with [ruff](https://docs.astral.sh/ruff/formatter/#ruff-format):
+```bash
+ruff format
 ```
-
-4. Validate logs with ```docker exec -it bill-pay cat newrelic-agent.log```
-
----
-
-### ⚙️ Formatting
-
-1. ```ruff format``` https://docs.astral.sh/ruff/formatter/#ruff-format 

@@ -24,6 +24,7 @@ The service exposes the following API endpoints, which are designed to be consum
 | :--- | :--- | :--- |
 | `/users` | `POST` | Creates a new user account in the database. |
 | `/users/{user_id}` | `GET` | Retrieves a single user's information by their unique ID. |
+| `/users/by-id/{user_id}` | `GET` | Retrieves a user (and their Stripe credentials) by numeric ID. |
 | `/accounts/{user_id}` | `GET` | Retrieves all accounts (checking, savings, and credit) associated with a specific user. |
 | `/accounts/{user_id}` | `POST` | Creates a new account (checking, savings, or credit) and links it to a user. |
 | `/browser-user` | `GET` | Returns a user ID for New Relic Browser tracking (random or header-based). |

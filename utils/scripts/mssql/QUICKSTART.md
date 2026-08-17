@@ -31,7 +31,19 @@ bash scripts/mssql/startup/setup-mssql-complete.sh
 
 ### 3. Deploy New Relic Monitoring
 
-**Option A: Using nri-bundle (Recommended for production)**
+**Option A: Using nri-bundle (standalone / non-deployer-managed clusters only)**
+
+> ⚠️ **Before running this**, check whether this cluster is already managed by the
+> `relibank-newrelic-deploy` Terraform workflow (`terraform/aks/newrelic/nr_infra_agent.tf`),
+> which installs a release named `newrelic-bundle` in the `newrelic` namespace on every
+> deployer-managed sandbox/staging/prod AKS environment: `helm list -n newrelic`. If it's
+> already present, don't use this recipe — add the `nri-mssql` integration block from
+> `scripts/mssql/nri-bundle-values.yaml` to that module's values instead, and re-run the
+> `relibank-newrelic-deploy` workflow (it's idempotent). The commands below install under the
+> release name `nri-bundle-mssql-demo`, deliberately distinct from the Terraform-managed
+> `newrelic-bundle` release, so they can't overwrite it even if run by mistake — though they
+> will still install a second, untracked set of agents if run against a Terraform-managed
+> cluster.
 
 ```bash
 # Add Helm repo (if not already added)
@@ -45,8 +57,8 @@ helm repo update
 export NEW_RELIC_LICENSE_KEY="your_license_key_here"
 export CLUSTER_NAME="your_cluster_name_here"
 
-# Install nri-bundle
-helm upgrade --install newrelic-bundle newrelic/nri-bundle \
+# Install nri-bundle under a name that cannot collide with the Terraform-managed release
+helm upgrade --install nri-bundle-mssql-demo newrelic/nri-bundle \
   --namespace newrelic \
   --create-namespace \
   --set global.licenseKey=$NEW_RELIC_LICENSE_KEY \
@@ -56,7 +68,7 @@ helm upgrade --install newrelic-bundle newrelic/nri-bundle \
 
 **OR install with inline parameters:**
 ```bash
-helm upgrade --install newrelic-bundle newrelic/nri-bundle \
+helm upgrade --install nri-bundle-mssql-demo newrelic/nri-bundle \
   --namespace newrelic \
   --create-namespace \
   --set global.licenseKey=YOUR_LICENSE_KEY \

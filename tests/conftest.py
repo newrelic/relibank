@@ -15,7 +15,6 @@ import os
 
 import pytest
 import requests
-from generate_mfe_traffic import setup_driver
 
 
 @pytest.fixture(scope="session")
@@ -33,7 +32,12 @@ def colored_driver(target_color):
     fixture is the Selenium-side equivalent, for tests that need to load a specific
     color's browser app directly (e.g. LCP checks, where the metric can only be
     measured client-side; see test_lcp_regression.py for why).
+
+    Imported lazily so collecting test modules that never request this fixture
+    (e.g. tests/workflow_validation/) doesn't require selenium to be installed.
     """
+    from generate_mfe_traffic import setup_driver
+
     driver = setup_driver(color=target_color or None)
     try:
         yield driver

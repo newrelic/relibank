@@ -4,7 +4,7 @@ This service is a core component of the **Relibank** FinServ application. Its pr
 
 ---
 
-### =� Key Features
+### 🚀 Key Features
 
 * **AI-Powered Risk Assessment**: Leverages Support Service AI agents to analyze transaction risk using advanced language models.
 
@@ -22,7 +22,7 @@ This service is a core component of the **Relibank** FinServ application. Its pr
 
 ---
 
-### =� API Endpoints
+### 📦 API Endpoints
 
 The service exposes the following API endpoints, designed to be consumed by the Bill Pay service.
 
@@ -40,7 +40,7 @@ The service exposes the following API endpoints, designed to be consumed by the 
 
 ---
 
-### = Architecture Flow
+### 🔄 Architecture Flow
 
 **Payment Risk Assessment Data Flow:**
 1. **Bill Pay Service** → Risk Assessment Service (before DB transaction)
@@ -56,7 +56,7 @@ The service exposes the following API endpoints, designed to be consumed by the 
 
 ---
 
-### =� Risk Assessment Response
+### 📊 Risk Assessment Response
 
 The service returns a comprehensive risk assessment:
 
@@ -73,7 +73,7 @@ The service returns a comprehensive risk assessment:
 
 ---
 
-### =� Kafka Events
+### 📨 Kafka Events
 
 When a payment is declined, the service publishes an event to the `payment-declined` topic:
 
@@ -95,7 +95,7 @@ When a payment is declined, the service publishes an event to the `payment-decli
 
 ---
 
-### > AI Agent Integration
+### 🤖 AI Agent Integration
 
 The service calls the Support Service at `/support-service/assess-payment-risk` to leverage AI models for risk assessment. The Support Service can use different agents (e.g., GPT-4, GPT-3.5) which can be swapped at runtime for demo scenarios showing the impact of model changes.
 
@@ -103,7 +103,7 @@ The service calls the Support Service at `/support-service/assess-payment-risk` 
 
 ---
 
-### =� Observability
+### 📈 Observability
 
 #### eBPF Instrumentation
 This service is monitored via **eBPF** rather than traditional New Relic APM. eBPF provides:
@@ -124,7 +124,7 @@ Extensive structured logging with contextual fields:
 
 ---
 
-### � Configuration
+### ⚙️ Configuration
 
 #### Environment Variables
 
@@ -135,7 +135,7 @@ Extensive structured logging with contextual fields:
 
 ---
 
-### � How to Run
+### ⚙️ How to Run
 
 This service is designed to be run using Skaffold as part of the larger **Relibank** application stack.
 
@@ -153,7 +153,7 @@ This service is designed to be run using Skaffold as part of the larger **Reliba
 
 ---
 
-### >� Testing
+### 🧪 Testing
 
 **Test risk assessment:**
 ```bash

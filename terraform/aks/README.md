@@ -1,6 +1,6 @@
 # ReliBank Blue-Green Deployer
 
-Zero-downtime deployments for ReliBank on Azure AKS. Modeled after the [demogorgon blue-green deployer](../../demogorgon/applications/microservices-demo/terraform/eks/).
+Zero-downtime deployments for ReliBank on Azure AKS. Modeled after the demogorgon blue-green deployer (`demogorgon/applications/microservices-demo/terraform/eks/` in the separate `demogorgon` repo).
 
 ---
 
@@ -58,10 +58,15 @@ Separating ACRs per environment means sandbox image builds never touch productio
 
 ```
 terraform/aks/
+├── cluster/             # Creates the AKS cluster + resource group for one environment (apply first)
+├── infra/               # Installs cluster-wide components onto an existing cluster (NGINX Ingress, shared namespaces)
 ├── app_module/          # Reusable module — creates node pool + all 10 services for one color
 ├── relibank-blue/       # Blue root module (calls app_module + creates blue NGINX proxy)
 ├── relibank-green/      # Green root module (calls app_module + creates green NGINX proxy)
 ├── traffic_management/  # Switches which color receives traffic via NGINX Ingress
+├── ai_services/         # Azure OpenAI (Cognitive Services) account used by support-service
+├── notifications/       # Azure Function App + storage/ACS/email resources for notifications-service
+├── newrelic/            # New Relic entity/dashboard/alert Terraform — see its own README
 └── scripts/
     └── setup-environment.sh   # One-time prerequisite setup for a new environment
 ```

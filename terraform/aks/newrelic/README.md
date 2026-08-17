@@ -113,13 +113,15 @@ One file per entity type. Find the file that matches what you're adding, drop a 
 
 | File | Owns | NR resource types used |
 |---|---|---|
-| [`nr_alerts.tf`](nr_alerts.tf) | Policies, NRQL conditions, destinations, channels, workflows | `newrelic_alert_policy`, `newrelic_nrql_alert_condition`, `newrelic_notification_destination`, `newrelic_notification_channel`, `newrelic_workflow` |
+| [`nr_alerts.tf`](nr_alerts.tf) | Policies, NRQL conditions, destinations, channels, workflows | `newrelic_alert_policy`, `newrelic_nrql_alert_condition`, `newrelic_notification_destination`, `newrelic_notification_channel`, `newrelic_workflow` — some channel payloads live in [`alert_channels/*.json`](alert_channels/) |
 | [`nr_dashboards.tf`](nr_dashboards.tf) | Dashboards (JSON-backed) | `newrelic_one_dashboard_json` — JSON body lives in [`dashboards/*.json.tftpl`](dashboards/) |
 | [`nr_synthetics.tf`](nr_synthetics.tf) | Ping + script monitors | `newrelic_synthetics_monitor`, `newrelic_synthetics_script_monitor` — script body lives in [`scripts/*.tftpl`](scripts/) |
 | [`nr_workloads.tf`](nr_workloads.tf) | Workloads | `newrelic_workload` |
 | [`nr_service_levels.tf`](nr_service_levels.tf) | Service levels (SLIs) | `newrelic_service_level` |
 | [`nr_entity_tags.tf`](nr_entity_tags.tf) | Tag assignments on existing entities | `newrelic_entity_tags` |
 | [`nr_entities.tf`](nr_entities.tf) | Data-source lookups for APM/Browser entities (not entities created here) | `data "newrelic_entity"` blocks |
+| [`nr_log_parsing_rules.tf`](nr_log_parsing_rules.tf) | Log parsing (grok) rules | `newrelic_log_parsing_rule` |
+| [`nr_workflow_automation.tf`](nr_workflow_automation.tf) | Workflow automation definitions | `newrelic_workflow_automation` — definition body lives in [`workflow_automations/*.tftpl`](workflow_automations/) |
 
 Files you should NOT edit (deployer plumbing):
 
@@ -246,7 +248,7 @@ Use a variable when the value is **expected to differ per environment** (thresho
 
 ## Testing new entities
 
-Every new entity should have a post-apply check in [`../../tests/workflow_validation/validate_nr_workflow.py`](../../../tests/workflow_validation/validate_nr_workflow.py). The `relibank-newrelic-validate` job runs this file after every deploy as a hard gate — if your new entity isn't queryable in NR within ~120 seconds of `terraform apply` finishing, the workflow fails.
+Every new entity should have a post-apply check in [`../../../tests/workflow_validation/validate_nr_workflow.py`](../../../tests/workflow_validation/validate_nr_workflow.py). The `relibank-newrelic-validate` job runs this file after every deploy as a hard gate — if your new entity isn't queryable in NR within ~120 seconds of `terraform apply` finishing, the workflow fails.
 
 ### How the validation file is structured
 

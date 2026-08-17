@@ -24,6 +24,10 @@ The scheduler service works with the following data sources:
 
 * **Kafka Topics**: It publishes a `PaymentDueNotificationEvent` to the `payment_due_notifications` topic. The `notifications-service` and `transaction-service` consume this event to trigger a notification and process the payment, respectively.
 
+| Topic | Direction | Description |
+| ----- | ----- | ----- |
+| `payment_due_notifications` | Produces | Published when a recurring payment scheduled in the `Transactions` table is due; consumed by `notifications-service` (to notify the user) and `transaction-service` (to process the payment). |
+
 ---
 
 ### ⚙️ How to Run
