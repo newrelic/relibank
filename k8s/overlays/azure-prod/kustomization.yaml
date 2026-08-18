@@ -27,6 +27,10 @@ patches:
     target:
       kind: ConfigMap
       name: .*
+  - path: nrdot-mssql-environment-patch.yaml
+    target:
+      kind: Deployment
+      name: nrdot-collector-mssql
 
 images:
 - name: frontend-service

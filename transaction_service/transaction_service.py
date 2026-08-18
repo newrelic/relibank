@@ -1060,6 +1060,13 @@ def generate_slow_query(query_type: str = "spending_velocity", delay_seconds: in
     - transaction_patterns: CTE-based time-series pattern analysis
     - account_velocity: Per-account spend velocity with statistical benchmarks
     - flagged_analysis: Multi-join analysis of flagged/declined transactions
+
+    New Relic's execution-plan viewer currently drops any plan XML over 128KB
+    (platform limitation as of 2026-07-29). Measured real (untruncated) plan
+    sizes from live scenario traffic on relibank-prod:
+      - flagged_analysis:  ~32.6KB  (safest — most margin, use this for demos)
+      - spending_velocity: ~45.3KB  (also safe, more margin than the 128KB cap)
+    merchant_risk / transaction_patterns / account_velocity are unmeasured.
     """
     newrelic.agent.ignore_transaction()
     if not db_connection:
