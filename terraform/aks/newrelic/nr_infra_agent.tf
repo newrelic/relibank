@@ -64,7 +64,7 @@ resource "helm_release" "nr_ebpf_agent" {
   namespace  = local.newrelic_namespace
   repository = "https://helm-charts.newrelic.com"
   chart      = "nr-ebpf-agent"
-  version    = "1.1.0"
+  version    = "1.5.0"
 
   values = [
     yamlencode({
@@ -72,6 +72,7 @@ resource "helm_release" "nr_ebpf_agent" {
         licenseKey = var.new_relic_license_key
         cluster    = var.aks_cluster_name
       }
+      reportLogs = "true"
     })
   ]
 
