@@ -21,6 +21,15 @@ locals {
 
   log_analytics_workspace_name = "relibank-${var.demo_environment}-notifications-law"
   appinsights_name             = "relibank-${var.demo_environment}-notifications-ai"
+
+  common_tags = {
+    team           = "ReliBank - Platform"
+    deploymentTier = var.demo_environment
+    heroChannel    = "help-relibank-platform"
+    managedBy      = "terraform"
+    appStack       = "relibank"
+    githubRepo     = "https://github.com/newrelic/relibank"
+  }
 }
 
 # ---------------------------------------------------------------------------
@@ -35,11 +44,9 @@ resource "azurerm_storage_account" "fn" {
   account_kind             = "StorageV2"
   min_tls_version          = "TLS1_2"
 
-  tags = {
-    environment = var.demo_environment
-    managed_by  = "terraform"
-    purpose     = "notifications-function-runtime"
-  }
+  tags = merge(local.common_tags, {
+    purpose = "notifications-function-runtime"
+  })
 }
 
 # ---------------------------------------------------------------------------
@@ -52,10 +59,7 @@ resource "azurerm_service_plan" "fn" {
   os_type             = "Linux"
   sku_name            = var.function_plan_sku
 
-  tags = {
-    environment = var.demo_environment
-    managed_by  = "terraform"
-  }
+  tags = local.common_tags
 }
 
 # ---------------------------------------------------------------------------
@@ -66,10 +70,7 @@ resource "azurerm_communication_service" "acs" {
   resource_group_name = var.aks_resource_group
   data_location       = "United States"
 
-  tags = {
-    environment = var.demo_environment
-    managed_by  = "terraform"
-  }
+  tags = local.common_tags
 }
 
 # ---------------------------------------------------------------------------
@@ -80,10 +81,7 @@ resource "azurerm_email_communication_service" "email" {
   resource_group_name = var.aks_resource_group
   data_location       = "United States"
 
-  tags = {
-    environment = var.demo_environment
-    managed_by  = "terraform"
-  }
+  tags = local.common_tags
 }
 
 resource "azurerm_email_communication_service_domain" "email" {
@@ -116,10 +114,7 @@ resource "azurerm_log_analytics_workspace" "notifications" {
   sku                 = "PerGB2018"
   retention_in_days   = 30
 
-  tags = {
-    environment = var.demo_environment
-    managed_by  = "terraform"
-  }
+  tags = local.common_tags
 }
 
 resource "azurerm_application_insights" "notifications" {
@@ -129,10 +124,7 @@ resource "azurerm_application_insights" "notifications" {
   workspace_id        = azurerm_log_analytics_workspace.notifications.id
   application_type    = "web"
 
-  tags = {
-    environment = var.demo_environment
-    managed_by  = "terraform"
-  }
+  tags = local.common_tags
 }
 
 # ---------------------------------------------------------------------------
@@ -167,10 +159,7 @@ resource "azurerm_linux_function_app" "notifications" {
     ENABLE_ORYX_BUILD              = "true"
   }
 
-  tags = {
-    environment = var.demo_environment
-    managed_by  = "terraform"
-  }
+  tags = local.common_tags
 
   depends_on = [
     azurerm_communication_service_email_domain_association.this,

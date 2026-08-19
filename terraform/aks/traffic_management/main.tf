@@ -37,6 +37,15 @@ data "kubernetes_service_v1" "ingress_nginx" {
 
 locals {
   ingress_lb_ip = data.kubernetes_service_v1.ingress_nginx.status[0].load_balancer[0].ingress[0].ip
+
+  common_tags = {
+    team           = "ReliBank - Platform"
+    deploymentTier = var.demo_environment
+    heroChannel    = "help-relibank-platform"
+    managedBy      = "terraform"
+    appStack       = "relibank"
+    githubRepo     = "https://github.com/newrelic/relibank"
+  }
 }
 
 # A record: relibank-{env}.{dns_zone} → NGINX LB public IP
@@ -46,6 +55,8 @@ resource "azurerm_dns_a_record" "main" {
   resource_group_name = var.dns_resource_group
   ttl                 = 300
   records             = [local.ingress_lb_ip]
+
+  tags = local.common_tags
 }
 
 # --- Main Ingress ---
