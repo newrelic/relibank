@@ -1,0 +1,479 @@
+{
+  "name": "Relibank BillPay Metrics",
+  "description": null,
+  "permissions": "PUBLIC_READ_WRITE",
+  "pages": [
+    {
+      "name": "Relibank Bill Pay Metrics",
+      "description": null,
+      "widgets": [
+        {
+          "title": null,
+          "layout": {
+            "column": 1,
+            "row": 1,
+            "width": 12,
+            "height": 1
+          },
+          "linkedEntityGuids": null,
+          "visualization": {
+            "id": "viz.markdown"
+          },
+          "rawConfiguration": {
+            "text": "# Bill Payment Services: Success/Fail"
+          }
+        },
+        {
+          "title": "Fail Rate, Realtime - Last 5 Minute Snapshot",
+          "layout": {
+            "column": 1,
+            "row": 2,
+            "width": 3,
+            "height": 2
+          },
+          "linkedEntityGuids": null,
+          "visualization": {
+            "id": "viz.billboard"
+          },
+          "rawConfiguration": {
+            "billboardSettings": {
+              "visual": {
+                "alignment": "stacked",
+                "display": "all"
+              }
+            },
+            "chartStyles": {
+              "lineInterpolation": "linear"
+            },
+            "dataFormatters": [
+              {
+                "name": "Failure Rate %",
+                "precision": 2,
+                "type": "decimal"
+              }
+            ],
+            "facet": {
+              "showOtherSeries": false
+            },
+            "nrqlQueries": [
+              {
+                "accountIds": [
+                  ${account_id}
+                ],
+                "query": "FROM Transaction SELECT\n  percentage(count(*), WHERE response.status = '403') AS 'Failure Rate %'\nWHERE entityGuid = '${bill_pay_service}' \nAND response.status IN ('200','402','409','503','403')\nSINCE 5 MINUTES AGO"
+              }
+            ],
+            "platformOptions": {
+              "ignoreTimeRange": true
+            },
+            "refreshRate": {
+              "frequency": 60000
+            },
+            "thresholdsWithSeriesOverrides": {
+              "thresholds": [
+                {
+                  "from": 0,
+                  "severity": "success",
+                  "to": 0.15
+                },
+                {
+                  "from": 0.16,
+                  "severity": "warning",
+                  "to": 0.25
+                },
+                {
+                  "from": 0.26,
+                  "severity": "severe",
+                  "to": 0.4
+                },
+                {
+                  "from": 0.41,
+                  "severity": "critical",
+                  "to": 1
+                }
+              ]
+            }
+          }
+        },
+        {
+          "title": "Max Failure % - Last 30m",
+          "layout": {
+            "column": 4,
+            "row": 2,
+            "width": 3,
+            "height": 2
+          },
+          "linkedEntityGuids": null,
+          "visualization": {
+            "id": "viz.gauge"
+          },
+          "rawConfiguration": {
+            "colors": {
+              "colorPalette": "dynamic"
+            },
+            "dataFormatters": [
+              {
+                "name": "Max failure_rate",
+                "precision": null,
+                "type": "decimal"
+              }
+            ],
+            "facet": {
+              "showOtherSeries": false
+            },
+            "gaugeSettings": {
+              "display": "all",
+              "displayMode": "arc",
+              "max": 100,
+              "min": 0,
+              "showThresholdLabels": false,
+              "showThresholdMarkers": true,
+              "thresholdsColorMode": "gradient"
+            },
+            "nrqlQueries": [
+              {
+                "accountIds": [
+                  ${account_id}
+                ],
+                "query": "SELECT max(failure_rate) \nFROM (\n  SELECT percentage(count(*), WHERE response.status = '403') AS failure_rate\n  FROM Transaction \n  WHERE entityGuid = '${bill_pay_service}' \n  AND response.status IN ('200','402','409','503','403') \n  TIMESERIES 1 MINUTE\n) \nSINCE 30 MINUTES AGO"
+              }
+            ],
+            "platformOptions": {
+              "ignoreTimeRange": true
+            },
+            "refreshRate": {
+              "frequency": 300000
+            },
+            "thresholds": {
+              "thresholds": [
+                {
+                  "from": 0,
+                  "severity": "success"
+                },
+                {
+                  "from": 12.5,
+                  "severity": "warning"
+                },
+                {
+                  "from": 25,
+                  "severity": "severe"
+                },
+                {
+                  "from": 50,
+                  "severity": "critical"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "title": "Failure Rate Over Time",
+          "layout": {
+            "column": 7,
+            "row": 2,
+            "width": 3,
+            "height": 2
+          },
+          "linkedEntityGuids": null,
+          "visualization": {
+            "id": "viz.area"
+          },
+          "rawConfiguration": {
+            "chartStyles": {
+              "gradient": {
+                "enabled": true
+              },
+              "lineInterpolation": "smooth",
+              "stacked": {
+                "enabled": true
+              }
+            },
+            "colors": {
+              "colorPalette": "consistent",
+              "seriesOverrides": [
+                {
+                  "color": "#ff2600",
+                  "seriesName": "Failure Rate %"
+                }
+              ]
+            },
+            "facet": {
+              "showOtherSeries": false
+            },
+            "legend": {
+              "enabled": false
+            },
+            "markers": {
+              "displayedTypes": {
+                "annotations": true,
+                "criticalViolations": true,
+                "deployments": true,
+                "relatedDeployments": true,
+                "warningViolations": false
+              }
+            },
+            "nrqlQueries": [
+              {
+                "accountIds": [
+                  ${account_id}
+                ],
+                "query": "FROM Transaction SELECT\n  percentage(count(*), WHERE response.status = '403') AS 'Failure Rate %'\nWHERE entityGuid = '${bill_pay_service}' \nAND response.status IN ('200','402','409','503','403')\nSINCE 3 HOURS AGO\nTIMESERIES 1 MINUTE"
+              }
+            ],
+            "platformOptions": {
+              "ignoreTimeRange": false
+            },
+            "thresholds": {
+              "isLabelVisible": false
+            },
+            "tooltip": {
+              "mode": "all"
+            },
+            "units": {
+              "unit": "PERCENTAGE"
+            }
+          }
+        },
+        {
+          "title": "Bill Pay Transactions by Status",
+          "layout": {
+            "column": 10,
+            "row": 2,
+            "width": 3,
+            "height": 2
+          },
+          "linkedEntityGuids": null,
+          "visualization": {
+            "id": "viz.area"
+          },
+          "rawConfiguration": {
+            "chartStyles": {
+              "gradient": {
+                "enabled": true
+              },
+              "lineInterpolation": "smooth",
+              "stacked": {
+                "enabled": false
+              }
+            },
+            "colors": {
+              "colorPalette": "consistent",
+              "seriesOverrides": [
+                {
+                  "color": "#ff2600",
+                  "seriesName": "Failure"
+                },
+                {
+                  "color": "#00f900",
+                  "seriesName": "Success"
+                }
+              ]
+            },
+            "facet": {
+              "showOtherSeries": false
+            },
+            "legend": {
+              "enabled": true,
+              "position": "bottom"
+            },
+            "markers": {
+              "displayedTypes": {
+                "annotations": true,
+                "criticalViolations": true,
+                "deployments": true,
+                "relatedDeployments": true,
+                "warningViolations": false
+              }
+            },
+            "nrqlQueries": [
+              {
+                "accountIds": [
+                  ${account_id}
+                ],
+                "query": "FROM Transaction SELECT\n  count(*) \nWHERE entityGuid = '${bill_pay_service}' \nAND response.status IN ('200','402','409','503','403')\nFACET cases(\n  WHERE response.status IN ('200','402','409','503') AS 'Success',\n  WHERE response.status = '403' AS 'Failure'\n) \nSINCE 3 HOURS AGO\nTIMESERIES 1 MINUTE"
+              }
+            ],
+            "platformOptions": {
+              "ignoreTimeRange": false
+            },
+            "thresholds": {
+              "isLabelVisible": false
+            },
+            "tooltip": {
+              "mode": "all"
+            },
+            "units": {
+              "unit": "COUNT"
+            }
+          }
+        },
+        {
+          "title": "Bill Pay - Payments Declined",
+          "layout": {
+            "column": 1,
+            "row": 4,
+            "width": 12,
+            "height": 3
+          },
+          "linkedEntityGuids": null,
+          "visualization": {
+            "id": "viz.table"
+          },
+          "rawConfiguration": {
+            "facet": {
+              "showOtherSeries": false
+            },
+            "initialSorting": {
+              "direction": "desc",
+              "name": "timestamp"
+            },
+            "nrqlQueries": [
+              {
+                "accountIds": [
+                  ${account_id}
+                ],
+                "query": "FROM TransactionError SELECT\n  timestamp,\n  host,\n  appName,\n  error.message\nWHERE entityGuid = '${bill_pay_service}'\nAND error.message LIKE '%declined%'\nSINCE 3 HOURS AGO"
+              }
+            ],
+            "platformOptions": {
+              "ignoreTimeRange": false
+            }
+          }
+        },
+        {
+          "title": null,
+          "layout": {
+            "column": 1,
+            "row": 7,
+            "width": 12,
+            "height": 1
+          },
+          "linkedEntityGuids": null,
+          "visualization": {
+            "id": "viz.markdown"
+          },
+          "rawConfiguration": {
+            "text": "# Decision Logic & Risk Assessment\n## Service Metrics and Logs"
+          }
+        },
+        {
+          "title": "Risk Assessment Result Breakdown",
+          "layout": {
+            "column": 1,
+            "row": 8,
+            "width": 12,
+            "height": 3
+          },
+          "linkedEntityGuids": null,
+          "visualization": {
+            "id": "viz.stacked-bar"
+          },
+          "rawConfiguration": {
+            "chartStyles": {
+              "gradient": {
+                "enabled": true
+              }
+            },
+            "colors": {
+              "colorPalette": "dynamic"
+            },
+            "facet": {
+              "showOtherSeries": false
+            },
+            "legend": {
+              "enabled": true
+            },
+            "markers": {
+              "displayedTypes": {
+                "annotations": true,
+                "criticalViolations": true,
+                "deployments": true,
+                "relatedDeployments": true,
+                "warningViolations": false
+              }
+            },
+            "nrqlQueries": [
+              {
+                "accountIds": [
+                  ${account_id}
+                ],
+                "query": "FROM Log SELECT count(*)\nFACET processor_model, `event`\nWHERE processor_model LIKE '%gpt%'\nAND entity.guid = '${bill_pay_service}'\nSINCE 6 HOURS AGO\nTIMESERIES"
+              }
+            ],
+            "platformOptions": {
+              "ignoreTimeRange": false
+            },
+            "thresholds": {
+              "isLabelVisible": true
+            },
+            "tooltip": {
+              "mode": "all"
+            },
+            "units": {
+              "unit": "COUNT"
+            }
+          }
+        },
+        {
+          "title": "Total Lost from Declined Transactions",
+          "layout": {
+            "column": 1,
+            "row": 11,
+            "width": 12,
+            "height": 3
+          },
+          "linkedEntityGuids": null,
+          "visualization": {
+            "id": "viz.bar"
+          },
+          "rawConfiguration": {
+            "colors": {
+              "colorPalette": "dynamic"
+            },
+            "facet": {
+              "showOtherSeries": false
+            },
+            "nrqlQueries": [
+              {
+                "accountIds": [
+                  ${account_id}
+                ],
+                "query": "FROM Log SELECT\n  sum(amount) AS 'Total Lost ($)'\nFACET reason\nWHERE container_name = 'risk-assessment-service'\nAND decision = 'declined'\nSINCE 12 HOURS AGO"
+              }
+            ],
+            "platformOptions": {
+              "ignoreTimeRange": false
+            }
+          }
+        },
+        {
+          "title": "Service Logs",
+          "layout": {
+            "column": 1,
+            "row": 14,
+            "width": 12,
+            "height": 3
+          },
+          "linkedEntityGuids": null,
+          "visualization": {
+            "id": "logger.log-table-widget"
+          },
+          "rawConfiguration": {
+            "nrqlQueries": [
+              {
+                "accountIds": [
+                  ${account_id}
+                ],
+                "query": "FROM Log SELECT\n  timestamp,\n  processor_model,\n  decision,\n  reason\nWHERE container_name = 'risk-assessment-service'\nAND reason IS NOT NULL\nSINCE 3 HOURS AGO\nLIMIT MAX"
+              }
+            ],
+            "platformOptions": {
+              "ignoreTimeRange": false
+            }
+          }
+        }
+      ]
+    }
+  ],
+  "variables": []
+}

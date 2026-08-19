@@ -1,0 +1,40 @@
+/**
+ * ReliBank Selenium Login Script
+ * Logs in and confirms the app redirects to the dashboard.
+ *
+ * Documentation: https://docs.newrelic.com/docs/synthetics/new-relic-synthetics/scripting-monitors/writing-scripted-browsers
+ */
+
+var assert = require('assert');
+
+(async function () {
+  try {
+    // Navigate to ReliBank login page
+    await $browser.get('${target_url}');
+    console.log('Navigated to ReliBank homepage');
+
+    // Wait for the login page to load and find the Sign In button
+    const submitButton = await $browser.wait(
+      $driver.until.elementLocated($driver.By.css('button[type="submit"]')),
+      10000
+    );
+    console.log('Found submit button on login page');
+
+    // Click Sign In (form has default credential values)
+    await submitButton.click();
+    console.log('Clicked Sign In button');
+
+    // Wait for navigation to complete and verify we're logged in
+    await $browser.wait($driver.until.urlContains('dashboard'), 10000);
+    console.log('Successfully logged in - redirected to dashboard');
+
+    // Verify we're on the dashboard
+    const url = await $browser.getCurrentUrl();
+    assert.ok(url.includes('dashboard'), 'Should be on dashboard page after login');
+    console.log('Login successful! Current URL: ' + url);
+
+  } catch (error) {
+    console.error('Script failed with error:', error);
+    throw error;
+  }
+})();

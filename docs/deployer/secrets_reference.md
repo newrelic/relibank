@@ -2,9 +2,9 @@
 
 Every GitHub Environment variable and secret the deployer reads, what it's for, where to get it, and what breaks if it's wrong. Configure these per environment at *Settings → Environments → `{env}` → Variables / Secrets*.
 
-For workflow flows, see [runbook.md](runbook.md). For why these are split per env, see [primer.md](primer.md).
+For workflow flows, see [runbook.md](runbook.md). For why these are split per env, see [deployer_primer.md](deployer_primer.md).
 
-> **Authoritative source for the Azure portion:** [terraform/aks/scripts/setup-environment.sh](../terraform/aks/scripts/setup-environment.sh). It prints exact values to paste in after running. The NR portion below is what the script can't auto-derive — you have to grab it from the New Relic UI.
+> **Authoritative source for the Azure portion:** [terraform/aks/scripts/setup-environment.sh](../../terraform/aks/scripts/setup-environment.sh). It prints exact values to paste in after running. The NR portion below is what the script can't auto-derive — you have to grab it from the New Relic UI.
 
 ---
 
@@ -89,7 +89,7 @@ After `Deploy ReliBank` finishes:
 
 ## Note: there is no "bootstrap assistants" step
 
-If you arrived here looking for a step to create AOAI Assistants entities (e.g. you saw `ASSISTANT_A_ID` / `ASSISTANT_B_ID` in stale docs or git history), there isn't one. The deployed AI path uses LangGraph chat-completions, not the OpenAI Assistants API. See [primer.md → AI architecture](primer.md#ai-architecture-langgraph-not-assistants-api) for the full explanation and the trap-prevention rationale.
+If you arrived here looking for a step to create AOAI Assistants entities (e.g. you saw `ASSISTANT_A_ID` / `ASSISTANT_B_ID` in stale docs or git history), there isn't one. The deployed AI path uses LangGraph chat-completions, not the OpenAI Assistants API. See [deployer_primer.md → AI architecture](deployer_primer.md#5-ai-architecture-langgraph-not-assistants-api) for the full explanation and the trap-prevention rationale.
 
 The only AOAI runtime config support-service needs is:
 

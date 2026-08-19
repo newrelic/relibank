@@ -1,6 +1,6 @@
 # ReliBank Deployment Runbook
 
-Operational guide. If you're deploying, switching traffic, or recovering from a failed deploy, this is the doc. For *why* the deployer is shaped this way, read [primer.md](primer.md).
+Operational guide. If you're deploying, switching traffic, or recovering from a failed deploy, this is the doc. For *why* the deployer is shaped this way, read [deployer_primer.md](deployer_primer.md).
 
 ---
 
@@ -102,7 +102,7 @@ Creates RG, ACR, deployer SP (with `Contributor`, `User Access Administrator` on
 
 Settings → Environments → New environment, name matches the workflow `environment` input (e.g. `sandbox`). Paste in the secrets/variables from step 1.
 
-> **No assistant-creation step.** The deployed AI path is LangGraph chat-completions — see [primer.md → AI architecture](primer.md#ai-architecture-langgraph-not-assistants-api). There is no `create_assistants.py`, no `Bootstrap Assistants` workflow, and no `ASSISTANT_*_ID` to wire. If you find references to those in stale docs or git history, treat them as historical.
+> **No assistant-creation step.** The deployed AI path is LangGraph chat-completions — see [deployer_primer.md → AI architecture](deployer_primer.md#5-ai-architecture-langgraph-not-assistants-api). There is no `create_assistants.py`, no `Bootstrap Assistants` workflow, and no `ASSISTANT_*_ID` to wire. If you find references to those in stale docs or git history, treat them as historical.
 
 ### 3. Add the new env value to workflow `environment` choice lists
 

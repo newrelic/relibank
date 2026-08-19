@@ -1,0 +1,875 @@
+{
+  "name": "ReliBank Summary",
+  "description": null,
+  "permissions": "PUBLIC_READ_ONLY",
+  "pages": [
+    {
+      "name": "Backend Metrics",
+      "description": null,
+      "widgets": [
+        {
+          "title": "SLA: 99.00%",
+          "layout": {
+            "column": 1,
+            "row": 1,
+            "width": 4,
+            "height": 3
+          },
+          "linkedEntityGuids": null,
+          "visualization": {
+            "id": "viz.billboard"
+          },
+          "rawConfiguration": {
+            "billboardSettings": {
+              "visual": {
+                "alignment": "stacked",
+                "display": "auto"
+              }
+            },
+            "chartStyles": {
+              "lineInterpolation": "smooth"
+            },
+            "dataFormatters": [],
+            "facet": {
+              "showOtherSeries": false
+            },
+            "nrqlQueries": [
+              {
+                "accountIds": [
+                  ${account_id}
+                ],
+                "query": "// Transaction Service - Success - SLO\nFROM ServiceLevelSnapshot SELECT latest(sliCompliance) AS 'SLO Compliance (%)'\nWHERE entity.guid = '${transaction_service_success_sl}'\nSINCE 7 DAYS AGO UNTIL NOW TIMESERIES 1 HOUR"
+              }
+            ],
+            "platformOptions": {
+              "ignoreTimeRange": true
+            },
+            "thresholdsWithSeriesOverrides": {
+              "thresholds": [
+                {
+                  "from": 99,
+                  "severity": "success"
+                },
+                {
+                  "from": 96,
+                  "severity": "severe",
+                  "to": 98.999
+                },
+                {
+                  "severity": "critical",
+                  "to": 95.999
+                }
+              ]
+            }
+          }
+        },
+        {
+          "title": "ReliBank - Transaction Service",
+          "layout": {
+            "column": 5,
+            "row": 1,
+            "width": 4,
+            "height": 3
+          },
+          "linkedEntityGuids": null,
+          "visualization": {
+            "id": "entity-relationship-management.minimap"
+          },
+          "rawConfiguration": {
+            "entityGuid": "${transaction_service}"
+          }
+        },
+        {
+          "title": "Remaining Error Budget",
+          "layout": {
+            "column": 9,
+            "row": 1,
+            "width": 4,
+            "height": 3
+          },
+          "linkedEntityGuids": null,
+          "visualization": {
+            "id": "viz.billboard"
+          },
+          "rawConfiguration": {
+            "billboardSettings": {
+              "visual": {
+                "alignment": "stacked",
+                "display": "auto"
+              }
+            },
+            "chartStyles": {
+              "lineInterpolation": "smooth"
+            },
+            "dataFormatters": [],
+            "facet": {
+              "showOtherSeries": false
+            },
+            "nrqlQueries": [
+              {
+                "accountIds": [
+                  ${account_id}
+                ],
+                "query": "// Transaction Service - Success - Error Budget\nFROM ServiceLevelSnapshot SELECT latest(remainingErrorBudget) AS 'Remaining Error Budget (%)'\nWHERE entity.guid = '${transaction_service_success_sl}'\nSINCE 7 DAYS AGO UNTIL NOW TIMESERIES 1 HOUR"
+              }
+            ],
+            "platformOptions": {
+              "ignoreTimeRange": true
+            },
+            "thresholdsWithSeriesOverrides": {
+              "thresholds": [
+                {
+                  "from": 85,
+                  "severity": "success"
+                },
+                {
+                  "from": 50,
+                  "severity": "warning",
+                  "to": 85
+                },
+                {
+                  "from": 25,
+                  "severity": "severe",
+                  "to": 50
+                },
+                {
+                  "severity": "critical",
+                  "to": 25
+                }
+              ]
+            }
+          }
+        },
+        {
+          "title": "Average Duration per App",
+          "layout": {
+            "column": 1,
+            "row": 4,
+            "width": 4,
+            "height": 3
+          },
+          "linkedEntityGuids": null,
+          "visualization": {
+            "id": "viz.billboard"
+          },
+          "rawConfiguration": {
+            "chartStyles": {
+              "lineInterpolation": "smooth"
+            },
+            "dataFormatters": [
+              {
+                "name": "Avg duration",
+                "precision": 2,
+                "type": "decimal"
+              }
+            ],
+            "facet": {
+              "showOtherSeries": false
+            },
+            "nrqlQueries": [
+              {
+                "accountIds": [
+                  ${account_id}
+                ],
+                "query": "FROM Transaction SELECT\n  average(duration)\nFACET appName\nWHERE clusterName = '${cluster_name}'\nTIMESERIES LIMIT 20"
+              }
+            ],
+            "platformOptions": {
+              "ignoreTimeRange": false
+            },
+            "thresholdsWithSeriesOverrides": {
+              "thresholds": [
+                {
+                  "severity": "success",
+                  "to": 4
+                },
+                {
+                  "from": 4,
+                  "severity": "severe"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "title": "Transaction Process Throughput",
+          "layout": {
+            "column": 5,
+            "row": 4,
+            "width": 4,
+            "height": 3
+          },
+          "linkedEntityGuids": null,
+          "visualization": {
+            "id": "viz.area"
+          },
+          "rawConfiguration": {
+            "chartStyles": {
+              "gradient": {
+                "enabled": true
+              },
+              "lineInterpolation": "smooth",
+              "stacked": {
+                "enabled": false
+              }
+            },
+            "colors": {
+              "colorPalette": "dynamic"
+            },
+            "facet": {
+              "showOtherSeries": false
+            },
+            "legend": {
+              "enabled": true
+            },
+            "markers": {
+              "displayedTypes": {
+                "annotations": false,
+                "criticalViolations": false,
+                "deployments": false,
+                "relatedDeployments": false,
+                "warningViolations": false
+              }
+            },
+            "nrqlQueries": [
+              {
+                "accountIds": [
+                  ${account_id}
+                ],
+                "query": "FROM Transaction SELECT count(*)\nFACET appName\nWHERE entity.guid IN ('${accounts_service}','${bill_pay_service}','${transaction_service}')\nTIMESERIES"
+              }
+            ],
+            "platformOptions": {
+              "ignoreTimeRange": false
+            },
+            "thresholds": {
+              "isLabelVisible": true
+            },
+            "tooltip": {
+              "mode": "all"
+            },
+            "units": {
+              "unit": "COUNT"
+            }
+          }
+        },
+        {
+          "title": "Transaction Process Latency",
+          "layout": {
+            "column": 9,
+            "row": 4,
+            "width": 4,
+            "height": 3
+          },
+          "linkedEntityGuids": null,
+          "visualization": {
+            "id": "viz.line"
+          },
+          "rawConfiguration": {
+            "chartStyles": {
+              "lineInterpolation": "smooth"
+            },
+            "colors": {
+              "colorPalette": "dynamic"
+            },
+            "facet": {
+              "showOtherSeries": false
+            },
+            "legend": {
+              "enabled": true
+            },
+            "markers": {
+              "displayedTypes": {
+                "annotations": false,
+                "criticalViolations": false,
+                "deployments": false,
+                "relatedDeployments": false,
+                "warningViolations": false
+              }
+            },
+            "nrqlQueries": [
+              {
+                "accountIds": [
+                  ${account_id}
+                ],
+                "query": "FROM Transaction SELECT average(duration)\nFACET appName\nWHERE entity.guid IN ('${accounts_service}','${bill_pay_service}','${transaction_service}')\nTIMESERIES PREDICT"
+              }
+            ],
+            "platformOptions": {
+              "ignoreTimeRange": false
+            },
+            "thresholds": {
+              "isLabelVisible": true
+            },
+            "tooltip": {
+              "mode": "all"
+            },
+            "units": {
+              "unit": "MS"
+            },
+            "yAxisLeft": {
+              "zero": true
+            },
+            "yAxisRight": {
+              "zero": true
+            }
+          }
+        },
+        {
+          "title": "CPU Utilization %",
+          "layout": {
+            "column": 1,
+            "row": 7,
+            "width": 6,
+            "height": 3
+          },
+          "linkedEntityGuids": null,
+          "visualization": {
+            "id": "viz.area"
+          },
+          "rawConfiguration": {
+            "chartStyles": {
+              "gradient": {
+                "enabled": true
+              },
+              "lineInterpolation": "smooth",
+              "stacked": {
+                "enabled": true
+              }
+            },
+            "colors": {
+              "colorPalette": "dynamic"
+            },
+            "facet": {
+              "showOtherSeries": false
+            },
+            "legend": {
+              "enabled": true
+            },
+            "markers": {
+              "displayedTypes": {
+                "annotations": true,
+                "criticalViolations": true,
+                "deployments": true,
+                "relatedDeployments": true,
+                "warningViolations": false
+              }
+            },
+            "nrqlQueries": [
+              {
+                "accountIds": [
+                  ${account_id}
+                ],
+                "query": "FROM K8sContainerSample SELECT\n  average(cpuUsedCores)/100 AS 'CPU'\nWHERE namespace LIKE 'relibank-%'\nFACET podName \nTIMESERIES LIMIT 30"
+              }
+            ],
+            "platformOptions": {
+              "ignoreTimeRange": false
+            },
+            "thresholds": {
+              "isLabelVisible": true
+            },
+            "tooltip": {
+              "mode": "all"
+            },
+            "units": {
+              "unit": "PERCENTAGE"
+            }
+          }
+        },
+        {
+          "title": "Transaction Process Error Rate",
+          "layout": {
+            "column": 7,
+            "row": 7,
+            "width": 6,
+            "height": 3
+          },
+          "linkedEntityGuids": null,
+          "visualization": {
+            "id": "viz.area"
+          },
+          "rawConfiguration": {
+            "chartStyles": {
+              "gradient": {
+                "enabled": true
+              },
+              "lineInterpolation": "linear",
+              "stacked": {
+                "enabled": false
+              }
+            },
+            "colors": {
+              "colorPalette": "dynamic"
+            },
+            "facet": {
+              "showOtherSeries": false
+            },
+            "legend": {
+              "enabled": true
+            },
+            "markers": {
+              "displayedTypes": {
+                "criticalViolations": true,
+                "deployments": true,
+                "relatedDeployments": true,
+                "warningViolations": false
+              }
+            },
+            "nrqlQueries": [
+              {
+                "accountIds": [
+                  ${account_id}
+                ],
+                "query": "FROM Transaction SELECT\n  ( filter(count(*), WHERE entity.guid = '${transaction_service}' AND error = true) /\n    filter(count(*), WHERE entity.guid = '${transaction_service}')\n  ) AS 'Relibank - Transaction Service',\n  ( filter(count(*), WHERE entity.guid = '${bill_pay_service}' AND error = true) /\n    filter(count(*), WHERE entity.guid = '${bill_pay_service}')\n  ) AS 'Relibank - Bill Pay Service',\n  ( filter(count(*), WHERE entity.guid = '$accounts_service' AND error = true) /\n    filter(count(*), WHERE entity.guid = '${accounts_service}')\n  ) AS 'Relibank - Accounts Service'\nTIMESERIES"
+              }
+            ],
+            "platformOptions": {
+              "ignoreTimeRange": false
+            },
+            "thresholds": {
+              "isLabelVisible": true
+            },
+            "tooltip": {
+              "mode": "all"
+            },
+            "units": {
+              "unit": "PERCENTAGE"
+            }
+          }
+        },
+        {
+          "title": "Top 5 Requests/min",
+          "layout": {
+            "column": 1,
+            "row": 10,
+            "width": 12,
+            "height": 3
+          },
+          "linkedEntityGuids": null,
+          "visualization": {
+            "id": "viz.area"
+          },
+          "rawConfiguration": {
+            "chartStyles": {
+              "gradient": {
+                "enabled": true
+              },
+              "lineInterpolation": "smooth",
+              "stacked": {
+                "enabled": false
+              }
+            },
+            "colors": {
+              "colorPalette": "dynamic"
+            },
+            "facet": {
+              "showOtherSeries": false
+            },
+            "legend": {
+              "enabled": true
+            },
+            "markers": {
+              "displayedTypes": {
+                "criticalViolations": true,
+                "deployments": true,
+                "relatedDeployments": true,
+                "warningViolations": false
+              }
+            },
+            "nrqlQueries": [
+              {
+                "accountIds": [
+                  ${account_id}
+                ],
+                "query": "FROM Transaction SELECT\n  rate(count(*), 1 MINUTE) AS 'req/min'\nFACET request.uri\nWHERE entity.guid IN ('${accounts_service}','${bill_pay_service}','${transaction_service}')\nTIMESERIES LIMIT 5"
+              }
+            ],
+            "platformOptions": {
+              "ignoreTimeRange": false
+            },
+            "thresholds": {
+              "isLabelVisible": true
+            },
+            "tooltip": {
+              "mode": "all"
+            },
+            "units": {
+              "unit": "REQUESTS_PER_MINUTE"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Frontend Metrics",
+      "description": null,
+      "widgets": [
+        {
+          "title": "Overall Load Times",
+          "layout": {
+            "column": 1,
+            "row": 1,
+            "width": 8,
+            "height": 3
+          },
+          "linkedEntityGuids": null,
+          "visualization": {
+            "id": "viz.area"
+          },
+          "rawConfiguration": {
+            "chartStyles": {
+              "gradient": {
+                "enabled": true
+              },
+              "lineInterpolation": "smooth",
+              "stacked": {
+                "enabled": true
+              }
+            },
+            "colors": {
+              "colorPalette": "dynamic"
+            },
+            "facet": {
+              "showOtherSeries": false
+            },
+            "legend": {
+              "enabled": true
+            },
+            "markers": {
+              "displayedTypes": {
+                "criticalViolations": true,
+                "deployments": true,
+                "relatedDeployments": true,
+                "warningViolations": false
+              }
+            },
+            "nrqlQueries": [
+              {
+                "accountIds": [
+                  ${account_id}
+                ],
+                "query": "FROM PageView SELECT\n  average(backendDuration) AS 'Backend',\n  average(connectionSetupDuration) AS 'Connection Setup',\n  average(dnsLookupDuration) AS 'DNS Lookup',\n  average(domProcessingDuration) AS 'DOM Processing',\n  average(networkDuration) AS 'Network',\n  average(pageRenderingDuration) AS 'Page Rendering',\n  average(queueDuration) AS 'Queue',\n  average(secureHandshakeDuration) AS 'Secure Handshake',\n  average(webAppDuration) AS 'Web'\nWHERE entityGuid = '${customer_portal}'\nTIMESERIES"
+              }
+            ],
+            "platformOptions": {
+              "ignoreTimeRange": false
+            },
+            "thresholds": {
+              "isLabelVisible": true
+            },
+            "tooltip": {
+              "mode": "all"
+            },
+            "units": {
+              "unit": "MS"
+            }
+          }
+        },
+        {
+          "title": "Top 10 Error Messages",
+          "layout": {
+            "column": 9,
+            "row": 1,
+            "width": 4,
+            "height": 3
+          },
+          "linkedEntityGuids": null,
+          "visualization": {
+            "id": "viz.bar"
+          },
+          "rawConfiguration": {
+            "colors": {
+              "colorPalette": "dynamic"
+            },
+            "facet": {
+              "showOtherSeries": false
+            },
+            "nrqlQueries": [
+              {
+                "accountIds": [
+                  ${account_id}
+                ],
+                "query": "FROM JavaScriptError SELECT\n  count(errorMessage)\nFACET errorMessage\nWHERE entityGuid = '${customer_portal}'"
+              }
+            ],
+            "platformOptions": {
+              "ignoreTimeRange": false
+            }
+          }
+        },
+        {
+          "title": "JavaScript Error Rate",
+          "layout": {
+            "column": 1,
+            "row": 4,
+            "width": 4,
+            "height": 3
+          },
+          "linkedEntityGuids": null,
+          "visualization": {
+            "id": "viz.stacked-bar"
+          },
+          "rawConfiguration": {
+            "chartStyles": {
+              "gradient": {
+                "enabled": true
+              }
+            },
+            "colors": {
+              "colorPalette": "dynamic"
+            },
+            "facet": {
+              "showOtherSeries": false
+            },
+            "legend": {
+              "enabled": true
+            },
+            "markers": {
+              "displayedTypes": {
+                "criticalViolations": true,
+                "deployments": true,
+                "relatedDeployments": true,
+                "warningViolations": false
+              }
+            },
+            "nrqlQueries": [
+              {
+                "accountIds": [
+                  ${account_id}
+                ],
+                "query": "FROM Metric SELECT\n  (\n    filter(count(newrelic.timeslice.value), WHERE metricTimesliceName = 'EndUser/errors') /\n    filter(count(newrelic.timeslice.value), WHERE metricTimesliceName = 'Browser')\n  ) AS 'JavaScript Error Rate'\nFACET appName \nWHERE entityGuid = '${customer_portal}'\nTIMESERIES"
+              }
+            ],
+            "platformOptions": {
+              "ignoreTimeRange": false
+            },
+            "thresholds": {
+              "isLabelVisible": true
+            },
+            "tooltip": {
+              "mode": "all"
+            },
+            "units": {
+              "unit": "PERCENTAGE"
+            }
+          }
+        },
+        {
+          "title": "Total Sessions per Geo",
+          "layout": {
+            "column": 5,
+            "row": 4,
+            "width": 4,
+            "height": 3
+          },
+          "linkedEntityGuids": null,
+          "visualization": {
+            "id": "viz.pie"
+          },
+          "rawConfiguration": {
+            "chartStyles": {
+              "gradient": {
+                "enabled": true
+              }
+            },
+            "colors": {
+              "colorPalette": "dynamic"
+            },
+            "facet": {
+              "showOtherSeries": true
+            },
+            "legend": {
+              "enabled": true
+            },
+            "nrqlQueries": [
+              {
+                "accountIds": [
+                  ${account_id}
+                ],
+                "query": "FROM PageView SELECT\n  uniqueCount(session) AS 'Unique Sessions'\nFACET concat(city,' - ',countryCode) AS 'Location'\nWHERE entityGuid = '${customer_portal}'\nLIMIT 25"
+              }
+            ],
+            "platformOptions": {
+              "ignoreTimeRange": false
+            }
+          }
+        },
+        {
+          "title": "Unique Visitors per Geo",
+          "layout": {
+            "column": 9,
+            "row": 4,
+            "width": 4,
+            "height": 3
+          },
+          "linkedEntityGuids": null,
+          "visualization": {
+            "id": "viz.area"
+          },
+          "rawConfiguration": {
+            "chartStyles": {
+              "gradient": {
+                "enabled": true
+              },
+              "lineInterpolation": "smooth",
+              "stacked": {
+                "enabled": true
+              }
+            },
+            "colors": {
+              "colorPalette": "dynamic"
+            },
+            "facet": {
+              "showOtherSeries": false
+            },
+            "legend": {
+              "enabled": true
+            },
+            "markers": {
+              "displayedTypes": {
+                "criticalViolations": true,
+                "deployments": true,
+                "relatedDeployments": true,
+                "warningViolations": false
+              }
+            },
+            "nrqlQueries": [
+              {
+                "accountIds": [
+                  ${account_id}
+                ],
+                "query": "FROM PageView SELECT\n  uniqueCount(enduser.id) AS 'Unique Users'\nFACET concat(city,', ',countryCode) AS 'Location'\nWHERE entityGuid = '${customer_portal}'\nTIMESERIES"
+              }
+            ],
+            "platformOptions": {
+              "ignoreTimeRange": false
+            },
+            "thresholds": {
+              "isLabelVisible": true
+            },
+            "tooltip": {
+              "mode": "all"
+            },
+            "units": {
+              "unit": "COUNT"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Business Metrics",
+      "description": null,
+      "widgets": [
+        {
+          "title": "Page Latency by Success Manager",
+          "layout": {
+            "column": 1,
+            "row": 1,
+            "width": 4,
+            "height": 6
+          },
+          "linkedEntityGuids": null,
+          "visualization": {
+            "id": "viz.bar"
+          },
+          "rawConfiguration": {
+            "colors": {
+              "colorPalette": "consistent"
+            },
+            "sqlQueries": [
+              {
+                "accountIds": [
+                  ${account_id}
+                ],
+                "query": "WITH sf AS (SELECT DISTINCT user_id, assigned_success_manager FROM demogorgon.default.relibank_opportunity_matrix)\nSELECT sf.assigned_success_manager, MAX(nrdb.largestContentfulPaint)\nFROM telemetry.PageViewTiming nrdb\n  LEFT JOIN sf ON nrdb.\"enduser.id\" = sf.user_id\nWHERE nrdb.timingName = 'largestContentfulPaint'\n AND nrdb.entityGuid = '${customer_portal}'\nAND nrdb.timestamp > current_date - interval '1' DAY\nAND sf.assigned_success_manager IS NOT NULL\nGROUP BY sf.assigned_success_manager"
+              }
+            ]
+          }
+        },
+        {
+          "title": "Average Risk Score per CSM",
+          "description": ">60 indicates the CSM's patch is a high churn risk",
+          "layout": {
+            "column": 5,
+            "row": 1,
+            "width": 8,
+            "height": 3
+          },
+          "linkedEntityGuids": null,
+          "visualization": {
+            "id": "viz.billboard"
+          },
+          "rawConfiguration": {
+            "chartStyles": {
+              "lineInterpolation": "linear"
+            },
+            "dataFormatters": [],
+            "sqlQueries": [
+              {
+                "accountIds": [
+                  ${account_id}
+                ],
+                "query": "SELECT\n  assigned_success_manager,\n  AVG(CAST(liquidity_risk_score AS DECIMAL(5, 2))) * 100 AS avg_risk_score\nFROM demogorgon.default.relibank_opportunity_matrix\nGROUP BY assigned_success_manager\nLIMIT 20"
+              }
+            ],
+            "thresholdsWithSeriesOverrides": {
+              "thresholds": [
+                {
+                  "from": 0,
+                  "severity": "success",
+                  "to": 50
+                },
+                {
+                  "from": 51,
+                  "severity": "warning",
+                  "to": 60
+                },
+                {
+                  "from": 60,
+                  "severity": "critical"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "title": "LTV per CSM",
+          "description": "Sum of Long-term Value (LTV) per CSM patch",
+          "layout": {
+            "column": 5,
+            "row": 4,
+            "width": 8,
+            "height": 3
+          },
+          "linkedEntityGuids": null,
+          "visualization": {
+            "id": "viz.table"
+          },
+          "rawConfiguration": {
+            "dataFormatters": [
+              {
+                "name": "sum_LTV",
+                "type": "humanized"
+              }
+            ],
+            "initialSorting": {
+              "direction": "desc",
+              "name": "sum_LTV"
+            },
+            "sqlQueries": [
+              {
+                "accountIds": [
+                  ${account_id}
+                ],
+                "query": "SELECT\n  assigned_success_manager AS CSM_Patch,\n  SUM(CAST(ltv_projection AS INTEGER)) AS sum_LTV\nFROM demogorgon.default.relibank_opportunity_matrix\nGROUP BY assigned_success_manager\nLIMIT 20"
+              }
+            ]
+          }
+        }
+      ]
+    }
+  ],
+  "variables": []
+}

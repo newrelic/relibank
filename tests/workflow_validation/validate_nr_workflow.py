@@ -3,11 +3,17 @@ Post-apply validation for the ReliBank NR workflow.
 
 Confirms two things after `relibank-newrelic.yml` runs `terraform apply`:
 
-  1. The entities created by the `newrelic/newrelic` provider are present in NR
-     (queryable from the API user's perspective). One test per entity type.
+  1. The entities/policies/conditions/destinations/channels/workflows created by the
+     `newrelic/newrelic` provider (terraform/aks/newrelic/*.tf) are present in NR,
+     queryable from the API user's perspective. One test per resource, parametrized
+     by category so new resources can be added to a list rather than hand-written.
   2. The cluster-side helm releases installed by the same apply (`nri-bundle`,
      `nr-ebpf-agent`) are actually reporting telemetry — K8sClusterSample for
      the cluster, K8sPodSample for the `newrelic` namespace.
+
+Group A's resource lists must be kept in sync with terraform/aks/newrelic/*.tf by
+hand — there's no introspection of the .tf files here, just the names/types each
+resource is expected to register under in NR.
 
 Modelled on demogorgon's test-scripts/nrql-data-validation.py: pytest file,
 NerdGraph helper, env-var precondition, hard assertions. The workflow job uses
@@ -53,6 +59,30 @@ def query_nerdgraph(graphql):
     return data
 
 
+def run_nrql(nrql):
+    graphql = f"""
+    {{
+      actor {{
+        account(id: {ACCOUNT_ID}) {{
+          nrql(query: "{nrql}") {{ results }}
+        }}
+      }}
+    }}
+    """
+    data = query_nerdgraph(graphql)
+    return (
+        data.get("data", {})
+        .get("actor", {})
+        .get("account", {})
+        .get("nrql", {})
+        .get("results", [])
+    )
+
+
+# ---------------------------------------------------------------------------
+# Group A: resources created by terraform/aks/newrelic/*.tf
+# ---------------------------------------------------------------------------
+
 def assert_entity_exists(name, entity_type):
     """Query NerdGraph entitySearch for `name` + `type`, assert at least one match."""
     graphql = f"""
@@ -79,53 +109,8 @@ def assert_entity_exists(name, entity_type):
     print(f"  OK {entity_type}: '{name}' (guid={matches[0]['guid']})")
 
 
-def run_nrql(nrql):
-    graphql = f"""
-    {{
-      actor {{
-        account(id: {ACCOUNT_ID}) {{
-          nrql(query: "{nrql}") {{ results }}
-        }}
-      }}
-    }}
-    """
-    data = query_nerdgraph(graphql)
-    return (
-        data.get("data", {})
-        .get("actor", {})
-        .get("account", {})
-        .get("nrql", {})
-        .get("results", [])
-    )
-
-
-# ---------------------------------------------------------------------------
-# Group A: entity existence
-# ---------------------------------------------------------------------------
-
-def test_dashboard_entity_exists():
-    """`newrelic_one_dashboard_json.placeholder` — Dashboard, queried via entitySearch."""
-    assert_entity_exists(f"{APP_NAME} - Placeholder Dashboard", "DASHBOARD")
-
-
-def test_workload_entity_exists():
-    """`newrelic_workload.placeholder` — Workload, queried via entitySearch."""
-    assert_entity_exists(f"{APP_NAME} - Placeholder Workload", "WORKLOAD")
-
-
-def test_synthetics_ping_monitor_exists():
-    """`newrelic_synthetics_monitor.placeholder_ping` — Monitor, queried via entitySearch."""
-    assert_entity_exists(f"{APP_NAME} - Placeholder Ping", "MONITOR")
-
-
-def test_synthetics_script_monitor_exists():
-    """`newrelic_synthetics_script_monitor.placeholder_script` — Monitor, queried via entitySearch."""
-    assert_entity_exists(f"{APP_NAME} - Placeholder Script Monitor", "MONITOR")
-
-
-def test_alert_policy_exists():
-    """`newrelic_alert_policy.placeholder` — queried via alerts.policiesSearch."""
-    name = f"{APP_NAME} - Placeholder Policy"
+def assert_alert_policy_exists(name):
+    """Queried via alerts.policiesSearch (alert policies aren't `entitySearch`-able)."""
     graphql = f"""
     {{
       actor {{
@@ -153,9 +138,8 @@ def test_alert_policy_exists():
     print(f"  OK alert policy: '{name}' (id={matches[0]['id']})")
 
 
-def test_nrql_alert_condition_exists():
-    """`newrelic_nrql_alert_condition.placeholder_support_service_error_rate` — queried via alerts.nrqlConditionsSearch."""
-    name = f"{APP_NAME} - Placeholder Support Service Error Rate"
+def assert_nrql_condition_exists(name):
+    """Queried via alerts.nrqlConditionsSearch."""
     graphql = f"""
     {{
       actor {{
@@ -183,9 +167,8 @@ def test_nrql_alert_condition_exists():
     print(f"  OK NRQL condition: '{name}' (id={matches[0]['id']})")
 
 
-def test_notification_destination_exists():
-    """`newrelic_notification_destination.placeholder_email` — queried via aiNotifications.destinations."""
-    name = f"{APP_NAME} - Placeholder Email Destination"
+def assert_notification_destination_exists(name):
+    """Queried via aiNotifications.destinations."""
     graphql = f"""
     {{
       actor {{
@@ -213,9 +196,8 @@ def test_notification_destination_exists():
     print(f"  OK destination: '{name}' (id={matches[0]['id']})")
 
 
-def test_notification_channel_exists():
-    """`newrelic_notification_channel.placeholder_email_template` — queried via aiNotifications.channels."""
-    name = f"{APP_NAME} - Placeholder Email Template"
+def assert_notification_channel_exists(name):
+    """Queried via aiNotifications.channels."""
     graphql = f"""
     {{
       actor {{
@@ -243,9 +225,8 @@ def test_notification_channel_exists():
     print(f"  OK channel: '{name}' (id={matches[0]['id']})")
 
 
-def test_workflow_exists():
-    """`newrelic_workflow.placeholder_workflow` — queried via aiWorkflows.workflows."""
-    name = f"{APP_NAME} - Placeholder Workflow"
+def assert_workflow_exists(name):
+    """Queried via aiWorkflows.workflows."""
     graphql = f"""
     {{
       actor {{
@@ -271,6 +252,108 @@ def test_workflow_exists():
     matches = [e for e in entities if e.get("name") == name]
     assert matches, f"No workflow found with name '{name}'"
     print(f"  OK workflow: '{name}' (id={matches[0]['id']})")
+
+
+# `newrelic_one_dashboard_json.*` — dashboard's own top-level "name", not a widget title.
+DASHBOARDS = [
+    "ReliBank Summary",
+    "Relibank BillPay Metrics",
+]
+
+# `newrelic_workload.*` — hardcoded names, no app_name prefix.
+WORKLOADS = [
+    "ReliBank - AI & Digital Experience Components",
+    "ReliBank - Core Banking Components",
+    "ReliBank - Payments & Transaction Components",
+    "ReliBank - Platform Components",
+]
+
+# `newrelic_synthetics_script_monitor.*` — the only synthetics monitor this module creates.
+SYNTHETICS_MONITORS = [
+    f"{APP_NAME} - Login Check",
+]
+
+# `newrelic_alert_policy.*` — hardcoded names, no app_name prefix.
+ALERT_POLICIES = [
+    "ReliBank - AI & Digital Experience Policy",
+    "ReliBank - Core Banking Policy",
+    "ReliBank - Payments & Transactions Policy",
+    "ReliBank - Platform Policy",
+    "ReliBank - Before Autopilot Policy",
+    "ReliBank - Autopilot + Workflow Automation Policy",
+]
+
+# `newrelic_nrql_alert_condition.*` — one representative condition per policy above,
+# not an exhaustive list of the ~25 conditions nr_alerts.tf defines.
+NRQL_ALERT_CONDITIONS = [
+    "AIDE - High Response Time",
+    "Core Banking - High Response Time",
+    "Payments & Transactions - High Response Time",
+    "Platform - High Response Time",
+    "Legacy chat_with_model - High Transaction Error Rate",
+    "WA: ReliBank Bill Pay - 403 Error",
+]
+
+# `newrelic_notification_destination.*`
+NOTIFICATION_DESTINATIONS = [
+    "github_scale_relibank_service_destination",
+]
+
+# `newrelic_notification_channel.*`
+NOTIFICATION_CHANNELS = [
+    "autopilot_channel",
+    "staging_slack_channel",
+    "before_autopilot_slack_channel",
+    "github_scale_relibank_service Channel",
+    "autopilot_plus_wa_channel",
+]
+
+# `newrelic_workflow.*`
+WORKFLOWS = [
+    "autopilot_and_slack_workflow",
+    "before_autopilot_workflow",
+    "Autopilot + Workflow Automation Workflow",
+]
+
+
+@pytest.mark.parametrize("name", DASHBOARDS)
+def test_dashboard_exists(name):
+    assert_entity_exists(name, "DASHBOARD")
+
+
+@pytest.mark.parametrize("name", WORKLOADS)
+def test_workload_exists(name):
+    assert_entity_exists(name, "WORKLOAD")
+
+
+@pytest.mark.parametrize("name", SYNTHETICS_MONITORS)
+def test_synthetics_monitor_exists(name):
+    assert_entity_exists(name, "MONITOR")
+
+
+@pytest.mark.parametrize("name", ALERT_POLICIES)
+def test_alert_policy_exists(name):
+    assert_alert_policy_exists(name)
+
+
+@pytest.mark.parametrize("name", NRQL_ALERT_CONDITIONS)
+def test_nrql_alert_condition_exists(name):
+    assert_nrql_condition_exists(name)
+
+
+@pytest.mark.parametrize("name", NOTIFICATION_DESTINATIONS)
+def test_notification_destination_exists(name):
+    assert_notification_destination_exists(name)
+
+
+@pytest.mark.parametrize("name", NOTIFICATION_CHANNELS)
+def test_notification_channel_exists(name):
+    assert_notification_channel_exists(name)
+
+
+@pytest.mark.parametrize("name", WORKFLOWS)
+def test_workflow_exists(name):
+    assert_workflow_exists(name)
 
 
 # ---------------------------------------------------------------------------

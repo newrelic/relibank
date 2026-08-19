@@ -10,12 +10,13 @@ All MSSQL-related scripts and documentation for database initialization, configu
 ## Directory Structure
 
 ```
-scripts/mssql/
+utils/scripts/mssql/
 ├── README.md (this file)
 ├── QUICKSTART.md              - Quick 5-minute setup guide
 ├── setup-mssql-for-newrelic.md - Detailed monitoring setup documentation
 ├── nri-bundle-values.yaml     - Helm values for New Relic nri-bundle
 ├── startup/                    - Database initialization and setup scripts
+├── debug/                      - Troubleshooting scripts (e.g. lock inspection)
 └── loadgen/                    - Load generation and testing scripts
     ├── db-direct/              - Scripts that connect directly to database
     └── api/                    - Scripts that make HTTP requests to API
@@ -35,12 +36,23 @@ These scripts are for initial database setup, configuration, and monitoring setu
 **Usage Example (run from repo root):**
 ```bash
 # Run complete setup after deploying MSSQL
-bash scripts/mssql/startup/setup-mssql-complete.sh
+bash utils/scripts/mssql/startup/setup-mssql-complete.sh
 
 # Or run individual scripts
-bash scripts/mssql/startup/create-newrelic-mssql-user.sh
-bash scripts/mssql/startup/disable-adhoc-optimization.sh
-bash scripts/mssql/startup/enable-query-store.sh
+bash utils/scripts/mssql/startup/create-newrelic-mssql-user.sh
+bash utils/scripts/mssql/startup/disable-adhoc-optimization.sh
+bash utils/scripts/mssql/startup/enable-query-store.sh
+```
+
+## Debug Scripts (`debug/`)
+
+Scripts for troubleshooting live database issues:
+
+- **`check-transaction-locks.sh`** - Inspects current MSSQL locks/blocking on the Transactions table
+
+**Usage Example (run from repo root):**
+```bash
+bash utils/scripts/mssql/debug/check-transaction-locks.sh
 ```
 
 ## LoadGen Scripts (`loadgen/`)
@@ -56,6 +68,7 @@ Scripts that connect directly to the database via kubectl/sqlcmd:
 - **`generate-transaction-slow-queries.sh`** - Generates slow queries against Transactions table
 - **`generate-query-load.sh`** - Generates realistic query load patterns
 - **`create-mssql-blocking.sh`** - Creates blocking scenarios for testing lock detection
+- **`run-banking-load.sh`** - Generates realistic banking transaction load directly against the database
 
 ### API Scripts (`loadgen/api/`)
 Scripts that make HTTP requests to the transaction service API:
@@ -68,16 +81,16 @@ Scripts that make HTTP requests to the transaction service API:
 **Usage Example (run from repo root):**
 ```bash
 # Generate load for testing (db-direct)
-bash scripts/mssql/loadgen/db-direct/generate-slow-queries.sh
+bash utils/scripts/mssql/loadgen/db-direct/generate-slow-queries.sh
 
 # Or keep cache warm continuously (db-direct)
-bash scripts/mssql/loadgen/db-direct/populate-dmv-plan-cache-continuous.sh &
+bash utils/scripts/mssql/loadgen/db-direct/populate-dmv-plan-cache-continuous.sh &
 
 # Create blocking scenario (db-direct)
-bash scripts/mssql/loadgen/db-direct/create-mssql-blocking.sh
+bash utils/scripts/mssql/loadgen/db-direct/create-mssql-blocking.sh
 
 # Test API blocking (api)
-bash scripts/mssql/loadgen/api/test-intense-blocking.sh
+bash utils/scripts/mssql/loadgen/api/test-intense-blocking.sh
 ```
 
 ## Quick Start
@@ -88,24 +101,24 @@ bash scripts/mssql/loadgen/api/test-intense-blocking.sh
 
 1. **Run setup** (one-time):
    ```bash
-   bash scripts/mssql/startup/setup-mssql-complete.sh
+   bash utils/scripts/mssql/startup/setup-mssql-complete.sh
    ```
 
 2. **Generate load** (optional, for testing):
    ```bash
-   bash scripts/mssql/loadgen/db-direct/populate-dmv-plan-cache.sh
+   bash utils/scripts/mssql/loadgen/db-direct/populate-dmv-plan-cache.sh
    ```
 
 ### For Continuous Testing
 
 Keep DMV cache populated for monitoring:
 ```bash
-bash scripts/mssql/loadgen/db-direct/populate-dmv-plan-cache-continuous.sh &
+bash utils/scripts/mssql/loadgen/db-direct/populate-dmv-plan-cache-continuous.sh &
 ```
 
 Generate slow queries for monitoring demos:
 ```bash
-while true; do bash scripts/mssql/loadgen/db-direct/generate-slow-queries.sh; sleep 30; done
+while true; do bash utils/scripts/mssql/loadgen/db-direct/generate-slow-queries.sh; sleep 30; done
 ```
 
 ## Best Practices
