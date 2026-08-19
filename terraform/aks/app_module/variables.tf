@@ -85,6 +85,25 @@ variable "azure_function_url" {
   default     = ""
 }
 
+variable "new_relic_license_key" {
+  description = "New Relic license key for the nrdot-collector-mssql runtime env and the otel-collector-kafka internal-telemetry pipeline."
+  type        = string
+  sensitive   = true
+}
+
+variable "new_relic_otlp_endpoint" {
+  description = "OTLP endpoint the mssql collector exports to. Matches the default every environment already uses via the legacy k8s/base manifests."
+  type        = string
+  default     = "https://otlp.nr-data.net"
+}
+
+variable "mssql_newrelic_password" {
+  description = "Password for the 'newrelic' SQL Server monitoring login created by init.sql (transaction_service/mssql/init.sql). Same fixed demo value baked into that script for every environment."
+  type        = string
+  sensitive   = true
+  default     = "YourStrong@Password!"
+}
+
 variable "services" {
   description = "Per-service deployment config. Map keys are k8s service names."
   type = map(object({

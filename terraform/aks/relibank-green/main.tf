@@ -67,4 +67,5 @@ module "relibank_green" {
   azure_openai_api_key      = data.terraform_remote_state.ai_services.outputs.api_key
   assistant_b_delay_seconds = var.assistant_b_delay_seconds
   azure_function_url        = data.terraform_remote_state.notifications.outputs.function_url
+  new_relic_license_key     = var.new_relic_license_key
 }
