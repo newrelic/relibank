@@ -935,3 +935,351 @@ resource "kubernetes_job_v1" "postgres_init" {
     kubernetes_service_v1.accounts_db,
   ]
 }
+
+# ==========================================
+# New Relic OTel collectors (mssql / kafka) — per-color, mirrors legacy
+# k8s/base/infrastructure/{nrdot-collector-mssql,otel-collector-kafka}-deployment.yaml.
+# ConfigMap content lives in ./templates/ (see templates/README.md for exact
+# provenance per file) — colocated with this module rather than read cross-tree,
+# matching the convention in terraform/aks/newrelic/{scripts,dashboards}/.
+#
+# Standalone resources here, not var.services entries — same reason kafka/mssql/
+# zookeeper/accounts-db above aren't: the services map's for_each only supports a
+# single container with plain env vars (config_map_envs/secret_envs into the shared
+# infrastructure-config/database-credentials) and always creates a matching
+# ClusterIP Service. These collectors need a custom `command`, their own Secret
+# (nrdot-mssql-credentials), and multiple ConfigMap file mounts (subPath YAML
+# configs) — none of which the generic shape supports — and neither one has a
+# client calling it over ClusterIP, so no Service should be generated for them.
+# ==========================================
+
+locals {
+  # Base config is a local copy sourced from db360-new-image-rebased (see templates/README.md)
+  # — not from main's k8s/base, which is still on the older newrelicsqlserver receiver.
+  nrdot_mssql_config_base = yamldecode(file("${path.module}/templates/nrdot-collector-mssql-config.yaml"))
+
+  # The base config already carries a resource/mssql_identity processor that stamps
+  # host.name/host.id to "mssql-0-${env:RELIBANK_ENVIRONMENT}", wired into its own
+  # metrics/mssql and logs/mssql pipelines. Deliberately env-only, not color-aware —
+  # one stable MSSQLINSTANCE entity per environment (e.g. "mssql-0-sandbox"), shared
+  # by whichever color is live, rather than a separate entity per color.
+  nrdot_mssql_environment = var.demo_environment
+
+  nrdot_mssql_config_patched = merge(local.nrdot_mssql_config_base, {
+    receivers = merge(local.nrdot_mssql_config_base.receivers, {
+      nrsqlserver = merge(local.nrdot_mssql_config_base.receivers.nrsqlserver, {
+        # Bare pod name doesn't resolve under k8s headless-service DNS — needs the
+        # governing Service name appended (mssql-0.mssql, not mssql-0). `events` gets
+        # away with the bare name because its legacy mssql-deployment.yaml defines a
+        # SEPARATE Service literally named "mssql-0"; app_module has no such Service.
+        server = "mssql-0.mssql"
+      })
+    })
+  })
+}
+
+resource "kubernetes_config_map_v1" "nrdot_collector_mssql_config" {
+  metadata {
+    name      = "nrdot-collector-mssql-config"
+    namespace = local.ns
+  }
+  data = {
+    "config.yaml" = yamlencode(local.nrdot_mssql_config_patched)
+  }
+  depends_on = [kubernetes_namespace_v1.relibank_color]
+}
+
+resource "kubernetes_config_map_v1" "otel_collector_kafka_config" {
+  metadata {
+    name      = "otel-collector-kafka-config"
+    namespace = local.ns
+  }
+  data = {
+    "config.yaml" = file("${path.module}/templates/otel-collector-kafka-config.yaml")
+  }
+  depends_on = [kubernetes_namespace_v1.relibank_color]
+}
+
+resource "kubernetes_config_map_v1" "kafka_jmx_config" {
+  metadata {
+    name      = "kafka-jmx-config"
+    namespace = local.ns
+  }
+  data = {
+    "kafka-jmx-config.yaml" = file("${path.module}/templates/kafka-jmx-config.yaml")
+  }
+  depends_on = [kubernetes_namespace_v1.relibank_color]
+}
+
+resource "kubernetes_config_map_v1" "internal_telemetry_config" {
+  metadata {
+    name      = "internal-telemetry-config"
+    namespace = local.ns
+  }
+  data = {
+    "internal-telemetry-config.yaml" = file("${path.module}/templates/internal-telemetry-config.yaml")
+  }
+  depends_on = [kubernetes_namespace_v1.relibank_color]
+}
+
+resource "kubernetes_secret_v1" "nrdot_mssql_credentials" {
+  metadata {
+    name      = "nrdot-mssql-credentials"
+    namespace = local.ns
+  }
+
+  data = {
+    MSSQL_NEWRELIC_PASSWORD = var.mssql_newrelic_password
+    NEW_RELIC_LICENSE_KEY   = var.new_relic_license_key
+    NEW_RELIC_OTLP_ENDPOINT = var.new_relic_otlp_endpoint
+  }
+
+  type       = "Opaque"
+  depends_on = [kubernetes_namespace_v1.relibank_color]
+}
+
+# --- nrdot-collector-mssql Deployment ---
+resource "kubernetes_deployment_v1" "nrdot_collector_mssql" {
+  metadata {
+    name      = "nrdot-collector-mssql"
+    namespace = local.ns
+    labels    = { app = "nrdot-collector-mssql" }
+  }
+  spec {
+    replicas = 1
+    selector {
+      match_labels = { app = "nrdot-collector-mssql" }
+    }
+    template {
+      metadata {
+        labels = { app = "nrdot-collector-mssql" }
+      }
+      spec {
+        node_selector = { "node-color" = var.target_color }
+        container {
+          name  = "nrdot-collector-mssql"
+          image = "${var.acr_server}/nrdot-collector-mssql:${var.target_color}"
+          # Always, not IfNotPresent — this tag is mutable and we actively iterate on
+          # this image; IfNotPresent let a node reuse a stale cached layer under the
+          # same tag and crash-loop on a binary that no longer matched the config.
+          image_pull_policy = "Always"
+          command = [
+            "nrdot-collector",
+            "--config=/etc/otelcol/config.yaml",
+            "--config=/etc/otelcol/internal-telemetry-config.yaml",
+          ]
+          env {
+            name  = "RELIBANK_ENVIRONMENT"
+            value = local.nrdot_mssql_environment
+          }
+          env {
+            name = "MSSQL_NEWRELIC_PASSWORD"
+            value_from {
+              secret_key_ref {
+                name = kubernetes_secret_v1.nrdot_mssql_credentials.metadata[0].name
+                key  = "MSSQL_NEWRELIC_PASSWORD"
+              }
+            }
+          }
+          env {
+            name = "NEW_RELIC_LICENSE_KEY"
+            value_from {
+              secret_key_ref {
+                name = kubernetes_secret_v1.nrdot_mssql_credentials.metadata[0].name
+                key  = "NEW_RELIC_LICENSE_KEY"
+              }
+            }
+          }
+          env {
+            name = "NEW_RELIC_OTLP_ENDPOINT"
+            value_from {
+              secret_key_ref {
+                name = kubernetes_secret_v1.nrdot_mssql_credentials.metadata[0].name
+                key  = "NEW_RELIC_OTLP_ENDPOINT"
+              }
+            }
+          }
+          env {
+            name  = "INTERNAL_TELEMETRY_SERVICE_NAME"
+            value = "relibank-mssql-collector"
+          }
+          env {
+            name  = "INTERNAL_TELEMETRY_OTLP_ENDPOINT"
+            value = "https://otlp.nr-data.net"
+          }
+          env {
+            name = "INTERNAL_TELEMETRY_NEW_RELIC_LICENSE_KEY"
+            value_from {
+              secret_key_ref {
+                name = kubernetes_secret_v1.nrdot_mssql_credentials.metadata[0].name
+                key  = "NEW_RELIC_LICENSE_KEY"
+              }
+            }
+          }
+          volume_mount {
+            name       = "nrdot-collector-mssql-config"
+            mount_path = "/etc/otelcol/config.yaml"
+            sub_path   = "config.yaml"
+            read_only  = true
+          }
+          volume_mount {
+            name       = "internal-telemetry-config"
+            mount_path = "/etc/otelcol/internal-telemetry-config.yaml"
+            sub_path   = "internal-telemetry-config.yaml"
+            read_only  = true
+          }
+        }
+        volume {
+          name = "nrdot-collector-mssql-config"
+          config_map {
+            name = kubernetes_config_map_v1.nrdot_collector_mssql_config.metadata[0].name
+            items {
+              key  = "config.yaml"
+              path = "config.yaml"
+            }
+          }
+        }
+        volume {
+          name = "internal-telemetry-config"
+          config_map {
+            name = kubernetes_config_map_v1.internal_telemetry_config.metadata[0].name
+            items {
+              key  = "internal-telemetry-config.yaml"
+              path = "internal-telemetry-config.yaml"
+            }
+          }
+        }
+      }
+    }
+  }
+  depends_on = [
+    kubernetes_stateful_set_v1.mssql,
+    kubernetes_job_v1.mssql_init,
+    kubernetes_secret_v1.nrdot_mssql_credentials,
+    kubernetes_config_map_v1.nrdot_collector_mssql_config,
+    kubernetes_config_map_v1.internal_telemetry_config,
+    azurerm_kubernetes_cluster_node_pool.relibank_color_np,
+  ]
+}
+
+# --- otel-collector-kafka Deployment ---
+resource "kubernetes_deployment_v1" "otel_collector_kafka" {
+  metadata {
+    name      = "otel-collector-kafka"
+    namespace = local.ns
+    labels    = { app = "otel-collector-kafka" }
+  }
+  spec {
+    replicas = 1
+    selector {
+      match_labels = { app = "otel-collector-kafka" }
+    }
+    template {
+      metadata {
+        labels = { app = "otel-collector-kafka" }
+      }
+      spec {
+        node_selector = { "node-color" = var.target_color }
+        container {
+          name  = "otel-collector"
+          image = "${var.acr_server}/otel-collector-kafka:${var.target_color}"
+          # Always, not IfNotPresent — same mutable-tag staleness risk as the mssql
+          # collector above.
+          image_pull_policy = "Always"
+          command = [
+            "/otelcol-contrib",
+            "--config=/conf/otel-agent-config.yaml",
+            "--config=/conf/internal-telemetry-config.yaml",
+          ]
+          # NEW_RELIC_LICENSE_KEY is baked into this image at build time (build-push-images.yml,
+          # per color/env) — the OTel config reads it via ${env:NEW_RELIC_LICENSE_KEY} at runtime,
+          # so no Secret env is needed here (matches the legacy manifest's own comment).
+          env {
+            name  = "KAFKA_CLUSTER_NAME"
+            value = "relibank-kafka"
+          }
+          env {
+            name  = "KAFKA_BROKER_ADDRESS"
+            value = "kafka:29092"
+          }
+          env {
+            name  = "KAFKA_BROKER_JMX_ADDRESS"
+            value = "kafka:9999"
+          }
+          env {
+            name  = "INTERNAL_TELEMETRY_SERVICE_NAME"
+            value = "relibank-kafka-collector"
+          }
+          env {
+            name  = "INTERNAL_TELEMETRY_OTLP_ENDPOINT"
+            value = "https://otlp.nr-data.net"
+          }
+          volume_mount {
+            name       = "config"
+            mount_path = "/conf/otel-agent-config.yaml"
+            sub_path   = "config.yaml"
+            read_only  = true
+          }
+          volume_mount {
+            name       = "internal-telemetry-config"
+            mount_path = "/conf/internal-telemetry-config.yaml"
+            sub_path   = "internal-telemetry-config.yaml"
+            read_only  = true
+          }
+          volume_mount {
+            name       = "kafka-jmx-config"
+            mount_path = "/conf/kafka-jmx-config.yaml"
+            sub_path   = "kafka-jmx-config.yaml"
+            read_only  = true
+          }
+          volume_mount {
+            name       = "tmp"
+            mount_path = "/tmp"
+          }
+        }
+        volume {
+          name = "config"
+          config_map {
+            name = kubernetes_config_map_v1.otel_collector_kafka_config.metadata[0].name
+            items {
+              key  = "config.yaml"
+              path = "config.yaml"
+            }
+          }
+        }
+        volume {
+          name = "internal-telemetry-config"
+          config_map {
+            name = kubernetes_config_map_v1.internal_telemetry_config.metadata[0].name
+            items {
+              key  = "internal-telemetry-config.yaml"
+              path = "internal-telemetry-config.yaml"
+            }
+          }
+        }
+        volume {
+          name = "kafka-jmx-config"
+          config_map {
+            name = kubernetes_config_map_v1.kafka_jmx_config.metadata[0].name
+            items {
+              key  = "kafka-jmx-config.yaml"
+              path = "kafka-jmx-config.yaml"
+            }
+          }
+        }
+        volume {
+          name = "tmp"
+          empty_dir {}
+        }
+      }
+    }
+  }
+  depends_on = [
+    kubernetes_deployment_v1.kafka,
+    kubernetes_service_v1.kafka,
+    kubernetes_config_map_v1.otel_collector_kafka_config,
+    kubernetes_config_map_v1.internal_telemetry_config,
+    kubernetes_config_map_v1.kafka_jmx_config,
+    azurerm_kubernetes_cluster_node_pool.relibank_color_np,
+  ]
+}
