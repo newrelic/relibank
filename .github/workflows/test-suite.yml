@@ -52,6 +52,9 @@ on:
         required: false
         default: ''
 
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: 'true'
+
 jobs:
   python-tests:
     runs-on: ubuntu-latest
@@ -79,7 +82,7 @@ jobs:
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Reset chaos rate limit
         run: |
@@ -87,7 +90,7 @@ jobs:
           curl -X POST "${{ vars.BASE_URL }}/scenario-runner/api/chaos-rate-limit-reset" || echo "Rate limit reset failed (may not be available)"
 
       - name: Set up Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v7
         with:
           python-version: '3.11'
 
@@ -271,12 +274,12 @@ jobs:
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Set up Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v7
         with:
-          node-version: '20.x'
+          node-version: '24'
           cache: 'npm'
           cache-dependency-path: frontend_service/package-lock.json
 
@@ -330,7 +333,7 @@ jobs:
       - name: Configure AWS credentials
         if: always()
         continue-on-error: true
-        uses: aws-actions/configure-aws-credentials@v4
+        uses: aws-actions/configure-aws-credentials@v6
         with:
           aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}

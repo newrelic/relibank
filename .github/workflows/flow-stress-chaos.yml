@@ -20,6 +20,9 @@ on:
           - relibank-high-memory-stress
           - relibank-combined-stress-test
 
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: 'true'
+
 jobs:
   trigger-stress:
     runs-on: ubuntu-latest
@@ -30,10 +33,10 @@ jobs:
         run: echo "timestamp=$(date -u +%Y-%m-%dT%H:%M:%SZ)" >> $GITHUB_OUTPUT
 
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Set up Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v7
         with:
           python-version: '3.11'
 
