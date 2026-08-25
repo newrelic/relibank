@@ -49,12 +49,11 @@ resource "helm_release" "nri_bundle" {
       "nr-ebpf-agent" = {
         enabled              = true
         reportApmData        = "auto"
-        reportNetworkMetrics = "true"
-        reportLogs           = "true"
+        reportNetworkMetrics = "auto"
+        reportLogs           = "auto"
         allDataFilters = {
           dropNewRelicBundle        = true
-          keepPodLabels             = { "app": "risk-assessment-service" }
-          dropApmAgentEnabledEntity = false
+          keepNamespaces            = ["relibank-blue","relibank-green"]
         }
         logDataFilters = {
           applicationLogReporting = {
