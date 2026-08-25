@@ -120,7 +120,7 @@ jobs:
       # are single-namespace (no color) and use their own DB_SERVER secret.
       - name: Azure Login (color-aware DB tunnel)
         if: ${{ vars.AKS_CLUSTER_NAME != '' }}
-        uses: azure/login@v2
+        uses: azure/login@v3
         with:
           creds: ${{ secrets.AZURE_CREDENTIALS }}
 
