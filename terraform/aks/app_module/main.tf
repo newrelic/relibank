@@ -541,6 +541,14 @@ resource "kubernetes_deployment_v1" "accounts_db" {
         container {
           name  = "accounts-db"
           image = "${var.acr_server}/postgres-custom:${var.target_color}"
+          # Always, not IfNotPresent (the prior default) — this tag is mutable and we
+          # actively iterate on this image; IfNotPresent let a node reuse a stale cached
+          # layer under the same tag and crash-loop on a binary that no longer matched the
+          # config (same gotcha documented on nrdot-collector-mssql below).
+          image_pull_policy = "Always"
+          # shared_preload_libraries is postmaster-context — can't be set via SQL, only at
+          # server start. Needed for New Relic's nri-postgresql query/wait-time monitoring.
+          args = ["-c", "shared_preload_libraries=pg_stat_statements,pg_wait_sampling,pg_stat_monitor"]
           port {
             container_port = 5432
             protocol       = "TCP"

@@ -88,6 +88,8 @@ jobs:
             -var="azure_client_secret=${{ secrets.AZURE_CLIENT_SECRET }}" \
             -var="azure_tenant_id=${{ secrets.AZURE_TENANT_ID }}" \
             -var="azure_subscription_id=${{ secrets.AZURE_SUBSCRIPTION_ID }}" \
+            -var="postgres_user=${{ secrets.POSTGRES_USER }}" \
+            -var="postgres_password=${{ secrets.POSTGRES_PASSWORD }}" \
             --auto-approve
 
   # ---------------------------------------------------------------------------
@@ -199,4 +201,6 @@ jobs:
             -var="azure_client_secret=${{ secrets.AZURE_CLIENT_SECRET }}" \
             -var="azure_tenant_id=${{ secrets.AZURE_TENANT_ID }}" \
             -var="azure_subscription_id=${{ secrets.AZURE_SUBSCRIPTION_ID }}" \
+            -var="postgres_user=${{ secrets.POSTGRES_USER }}" \
+            -var="postgres_password=${{ secrets.POSTGRES_PASSWORD }}" \
             --auto-approve
