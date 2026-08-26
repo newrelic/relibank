@@ -35,10 +35,40 @@ resource "helm_release" "nri_bundle" {
         customSecretName       = kubernetes_secret_v1.newrelic_license.metadata[0].name
         customSecretLicenseKey = local.new_relic_license_key_k8s_secret_key_name
         lowDataMode            = true
-        region = var.new_relic_region
+        region                 = var.new_relic_region
       }
       newrelic-infrastructure = {
         privileged = true
+        integrations = {
+          "nri-postgresql" = {
+            discovery = {
+              command = {
+                exec = "/var/db/newrelic-infra/nri-discovery-kubernetes --tls --port 10250"
+                match = {
+                  "label.app" = "accounts-db"
+                }
+              }
+            }
+            integrations = [
+              {
+                name = "nri-postgresql"
+                env = {
+                  HOSTNAME                = "$${discovery.ip}"
+                  PORT                    = 5432
+                  USERNAME                = var.postgres_user
+                  PASSWORD                = var.postgres_password
+                  DATABASE                = "accountsdb"
+                  COLLECTION_LIST         = "ALL"
+                  ENABLE_QUERY_MONITORING = "true"
+                  TIMEOUT                 = 10
+                }
+                interval         = "15s"
+                labels           = { environment = var.demo_environment }
+                inventory_source = "config/postgresql"
+              }
+            ]
+          }
+        }
       }
       ksm        = { enabled = true }
       kubeEvents = { enabled = true }
@@ -52,8 +82,8 @@ resource "helm_release" "nri_bundle" {
         reportNetworkMetrics = "auto"
         reportLogs           = "auto"
         allDataFilters = {
-          dropNewRelicBundle        = true
-          keepNamespaces            = ["relibank-blue","relibank-green"]
+          dropNewRelicBundle = true
+          keepNamespaces     = ["relibank-blue", "relibank-green"]
         }
         logDataFilters = {
           applicationLogReporting = {

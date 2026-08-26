@@ -29,6 +29,9 @@ Relibank simulates a banking system with separate services for accounts, transac
 - **Infrastructure:**
   - Kafka & Zookeeper - Message streaming
   - PostgreSQL - Accounts database
+    - **nri-postgresql** - New Relic classic on-host integration (Terraform-deployed sandbox/staging/prod only, via `nri-bundle`; not wired into the local/skaffold `k8s/base` path)
+      - Discovers `accounts-db` pods cluster-wide (`label.app: accounts-db`)
+      - Query performance + wait-time monitoring via `pg_stat_statements`, `pg_wait_sampling`, `pg_stat_monitor`
   - MSSQL - Transactions database
   - **otel-collector-kafka** - OpenTelemetry collector for Kafka monitoring
     - JMX metrics (Kafka broker + JVM telemetry)
@@ -197,6 +200,12 @@ This isn't meant to be a real banking application. It's a learning tool for:
 - Responsive web application design
 
 ## Recent Updates
+
+### nri-postgresql Query Monitoring
+- **On-host integration**: `nri-postgresql`, installed via the `nri-bundle` helm release Terraform manages for sandbox/staging/prod (`terraform/aks/newrelic/nr_infra_agent.tf`) — discovers `accounts-db` pods via `label.app: accounts-db`, no manual setup needed
+- **Query/wait-time monitoring**: `pg_stat_statements` (slow queries), `pg_wait_sampling` (wait-time analysis), `pg_stat_monitor` (query detail/execution plans) — installed via `accounts_service/postgres/Dockerfile` and `init.sql`
+- **Credentials**: reuses the app tier's `POSTGRES_USER`/`POSTGRES_PASSWORD` secrets, forwarded through `relibank-newrelic.yml`
+- **Scope**: Terraform-deployed environments only — the local/skaffold `k8s/base` path doesn't have this integration or the extension setup yet
 
 ### NRDOT MSSQL Database Monitoring
 - **NRDOT Collector**: Dedicated `nrdot-collector-mssql` pod running New Relic's NRDOT collector v1.11.1+db-v1.2.0

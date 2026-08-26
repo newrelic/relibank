@@ -65,3 +65,15 @@ variable "azure_subscription_id" {
   description = "Azure subscription ID (shared across all ReliBank environments). Same value as ARM_SUBSCRIPTION_ID / secrets.AZURE_SUBSCRIPTION_ID."
   type        = string
 }
+
+variable "postgres_user" {
+  description = "accounts-db Postgres username (same credential the app tier uses). Same value as secrets.POSTGRES_USER."
+  type        = string
+  sensitive   = true
+}
+
+variable "postgres_password" {
+  description = "accounts-db Postgres password (same credential the app tier uses). Same value as secrets.POSTGRES_PASSWORD."
+  type        = string
+  sensitive   = true
+}

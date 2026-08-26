@@ -76,6 +76,7 @@ jobs:
       test_stress: ${{ steps.individual-tests.outputs.test_stress }}
       test_with_interactions: ${{ steps.individual-tests.outputs.test_with_interactions }}
       test_nrdot_mssql_collector: ${{ steps.individual-tests.outputs.test_nrdot_mssql_collector }}
+      test_nri_postgresql: ${{ steps.individual-tests.outputs.test_nri_postgresql }}
 
     steps:
       - name: Checkout code

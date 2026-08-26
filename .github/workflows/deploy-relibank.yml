@@ -101,6 +101,10 @@ jobs:
             --name           ${{ vars.AKS_CLUSTER_NAME }} \
             --overwrite-existing
 
+      - name: Delete existing immutable postgres-init Job
+        run: |
+          kubectl delete job postgres-init -n relibank-${{ github.event.inputs.target_color }} --ignore-not-found=true
+
       - name: "Terraform Init (relibank-${{ github.event.inputs.target_color }})"
         working-directory: terraform/aks/relibank-${{ github.event.inputs.target_color }}
         run: |
