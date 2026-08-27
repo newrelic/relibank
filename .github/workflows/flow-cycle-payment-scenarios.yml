@@ -4,12 +4,45 @@ on:
   schedule:
     # Run every 3 hours
     - cron: '0 */3 * * *'
-  workflow_dispatch:  # Allow manual trigger
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: "Target environment ('all' matches the scheduled sweep)"
+        type: choice
+        required: true
+        default: all
+        options:
+          - all
+          - events
+          - sandbox
+          - staging
+          # - prod   # enable once relibank prod is stood up for GA
+
+permissions: {}
 
 jobs:
-  cycle-scenario:
+  resolve-environments:
     runs-on: ubuntu-latest
-    environment: events
+    outputs:
+      environments: ${{ steps.set.outputs.environments }}
+    steps:
+      - id: set
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ] && [ "${{ inputs.environment }}" != "all" ]; then
+            echo 'environments=["${{ inputs.environment }}"]' >> "$GITHUB_OUTPUT"
+          else
+            echo 'environments=["events","sandbox","staging"]' >> "$GITHUB_OUTPUT"
+            # echo 'environments=["events","sandbox","staging","prod"]' >> "$GITHUB_OUTPUT"  # swap in once prod is enabled
+          fi
+
+  cycle-scenario:
+    needs: resolve-environments
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        environment: ${{ fromJson(needs.resolve-environments.outputs.environments) }}
+    environment: ${{ matrix.environment }}
     steps:
       - name: Record start time
         id: start-time

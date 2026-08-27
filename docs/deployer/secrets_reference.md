@@ -26,6 +26,8 @@ For workflow flows, see [runbook.md](runbook.md). For why these are split per en
 | `SMS_THROTTLE_PERCENTAGE` | manual (default `5`) | Percentage of SMS sends actually delivered through ACS (rest are no-op'd to avoid Azure charges) | Real SMS to real numbers if too high; 0 SMS if too low |
 | `NR_ACCOUNT_ID_ALERTS` | NR UI | Optional — separate NR account for alerting flows. Used only by `flow-stress-chaos.yml` | Alert demo flows fire on wrong account |
 | `NR_REGION` | manual (`US` or `EU`) | Optional — defaults to `US` in the `ReliBank NR` workflow if unset. Override only if the env's NR account lives in the EU region. | `newrelic/newrelic` provider authenticates against the wrong region; entity CRUD silently lands on the wrong NR account or fails. |
+| `BASE_URL` | manual (e.g. `http://sandbox.relibankdemo.com`) | Public app URL the loadgen/scenario-trigger `flow-*.yml` workflows hit (frontend, `support-service/chat`, `scenario-runner`, etc.). Not used by the deployer itself — consumed only by the loadgen flows listed in [runbook.md](runbook.md). | Loadgen flows 404/time out against the wrong host, or (worse) generate real traffic against another environment |
+| `SCENARIO_SERVICE_URL` | manual — `{BASE_URL}/scenario-runner` | Scenario-runner API base, used by `flow-cycle-payment-scenarios.yml` (exclusively) and `flow-stress-chaos.yml` (chaos rate-limit reset/trigger). Must be added explicitly per environment — it does **not** get created automatically alongside `BASE_URL`. | Those two flows curl an empty/malformed URL and fail outright — this bit `sandbox`/`staging`/`prod` until it was added 2026-08-27, since only `events` had it set historically |
 
 ---
 
@@ -113,3 +115,6 @@ If you need to trace where something gets used:
 | [`relibank-newrelic.yml`](../.github/workflows/relibank-newrelic.yml) | All Azure secrets (state backend only), `NR_ACCOUNT_ID`, `NR_USER_API_KEY`, `NR_LICENSE_KEY`, `NR_REGION`, `APP_NAME`, `POSTGRES_USER`, `POSTGRES_PASSWORD`, TF state vars |
 | [`test-suite.yml`](../.github/workflows/test-suite.yml) | `NR_USER_API_KEY`, `NR_ACCOUNT_ID` |
 | [`generate_nrjs_file.sh`](../frontend_service/generate_nrjs_file.sh) | `NR_BROWSER_APP_ID`, `NR_BROWSER_LICENSE_KEY`, `NR_ACCOUNT_ID`, `NR_TRUST_KEY` (passed via Dockerfile build args) |
+| `flow-chatbot-loadgen.yml`, `flow-chatbot-specialist.yml`, `flow-k8s-bill-pay.yml`, `flow-lcp-ab-test.yml`, `flow-memory-leak.yml` | `BASE_URL`, `NR_USER_API_KEY`, `NR_ACCOUNT_ID` |
+| `flow-cycle-payment-scenarios.yml` | `SCENARIO_SERVICE_URL` only |
+| `flow-stress-chaos.yml` | `BASE_URL`, `SCENARIO_SERVICE_URL`, `NR_USER_API_KEY`, `NR_ACCOUNT_ID`, `NR_ACCOUNT_ID_ALERTS`, `NR_LICENSE_KEY_ALERTS` |

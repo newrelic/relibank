@@ -4,6 +4,18 @@ run-name: Support Specialist Delay demo scenario kickoff
 
 on:
   workflow_dispatch:
+    inputs:
+      environment:
+        description: "Target environment ('all' matches the scheduled sweep)"
+        type: choice
+        required: true
+        default: all
+        options:
+          - all
+          - events
+          - sandbox
+          - staging
+          # - prod   # enable once relibank prod is stood up for GA
     # inputs:
     #   duration:
     #     description: "Scenario duration in minutes"
@@ -20,18 +32,33 @@ on:
   # # Run every 6 hours
   # - cron: "0 */6 * * *"
 
-
+permissions:
+  contents: read
 
 jobs:
 
+  resolve-environments:
+    runs-on: ubuntu-latest
+    outputs:
+      environments: ${{ steps.set.outputs.environments }}
+    steps:
+      - id: set
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ] && [ "${{ inputs.environment }}" != "all" ]; then
+            echo 'environments=["${{ inputs.environment }}"]' >> "$GITHUB_OUTPUT"
+          else
+            echo 'environments=["events","sandbox","staging"]' >> "$GITHUB_OUTPUT"
+            # echo 'environments=["events","sandbox","staging","prod"]' >> "$GITHUB_OUTPUT"  # swap in once prod is enabled
+          fi
+
   support-specialist-flow:
+    needs: resolve-environments
     runs-on: ubuntu-latest
     timeout-minutes: 40
     strategy:
       fail-fast: false
       matrix:
-        # environment: [sandbox, staging, prod]
-        environment: [events]
+        environment: ${{ fromJson(needs.resolve-environments.outputs.environments) }}
 
     environment: ${{ matrix.environment }}
 
@@ -67,7 +94,7 @@ jobs:
             --short-description "Coordinator agent update" \
             --description "Deploying updated coordinator agent - optimizing specialist delegation" \
             --group-id SUPPORT-SPEC-2024 \
-            --custom-attribute environment=production
+            --custom-attribute environment=${{ matrix.environment }}
 
       - name: Generate specialist request load for 60 minutes (triggers 8s delay)
         run: |
