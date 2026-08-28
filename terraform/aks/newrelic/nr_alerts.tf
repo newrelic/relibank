@@ -274,6 +274,8 @@ resource "newrelic_nrql_alert_condition" "aide_low_throughput" {
   evaluation_delay   = 120
   title_template     = "Low Throughput | {{ entity_name }}"
 }
+### Browser alerts filter directly on the GUID as none of their
+### telemetry decorates itself with the entity tags
 # Browser INP
 resource "newrelic_nrql_alert_condition" "aide_high_inp" {
   account_id                   = var.new_relic_account_id
@@ -288,7 +290,7 @@ resource "newrelic_nrql_alert_condition" "aide_high_inp" {
     FROM PageViewTiming SELECT
       percentile(interactionToNextPaint, 99) * 1000
     FACET appName AS 'entityName'
-    WHERE tags.team = 'ReliBank - AI & Digital Experience'
+    WHERE entityGuid = '${data.newrelic_entity.customer_portal_browser.guid}'
     EOT
     )
 
@@ -321,7 +323,7 @@ resource "newrelic_nrql_alert_condition" "aide_high_lcp" {
     FROM PageViewTiming SELECT
       percentile(largestContentfulPaint, 99) * 1000
     FACET appName AS 'entityName'
-    WHERE tags.team = 'ReliBank - AI & Digital Experience'
+    WHERE entityGuid = '${data.newrelic_entity.customer_portal_browser.guid}'
     EOT
     )
 
@@ -354,7 +356,7 @@ resource "newrelic_nrql_alert_condition" "high_js_error_rate" {
     FROM JavaScriptError SELECT
       rate(count(*), 1 minute)
     FACET appName AS 'entityName'
-    WHERE tags.team = 'ReliBank - AI & Digital Experience'
+    WHERE entityGuid = '${data.newrelic_entity.customer_portal_browser.guid}'
     EOT
     )
 
@@ -387,7 +389,7 @@ resource "newrelic_nrql_alert_condition" "high_page_load_time" {
     FROM PageView SELECT
       percentile(duration, 99) * 1000
     FACET appName AS 'entityName'
-    WHERE tags.team = 'ReliBank - AI & Digital Experience'
+    WHERE entityGuid = '${data.newrelic_entity.customer_portal_browser.guid}'
     EOT
     )
 
