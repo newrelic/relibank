@@ -47,8 +47,8 @@
 # data.newrelic_entity.recurring_payments_kafka_topic.guid
 # data.newrelic_entity.mssql_ohi_database.guid
 # data.newrelic_entity.mssql_db360_database.guid
-# data.newrelic_entity.relibank_mobile_android  //TODO
-# data.newrelic_entity.relibank_mobile_ios      //TODO
+# data.newrelic_entity.relibank_mobile_android.guid
+# data.newrelic_entity.relibank_mobile_ios.guid
 # data.newrelic_notification_destination.autopilot_destination.id
 ###
 
@@ -381,20 +381,19 @@ data "newrelic_entity" "mssql_db360_database" {
   ignore_not_found = true
 }
 
-//TODO - add mobile entities once they're live
-//### MOBILE APPS ###
-//data "newrelic_entity" "relibank_mobile_android" {
-//  name             = "relibank-mobile-android"
-//  domain           = "MOBILE"
-//  type             = "APPLICATION"
-//  account_id       = var.new_relic_account_id
-//}
-//data "newrelic_entity" "relibank_mobile_ios" {
-//  name             = "relibank-mobile-ios"
-//  domain           = "MOBILE"
-//  type             = "APPLICATION"
-//  account_id       = var.new_relic_account_id
-//}
+### MOBILE APPS ###
+data "newrelic_entity" "relibank_mobile_android" {
+  name       = "relibank-mobile-android"
+  domain     = "MOBILE"
+  type       = "APPLICATION"
+  account_id = var.new_relic_account_id
+}
+data "newrelic_entity" "relibank_mobile_ios" {
+  name       = "relibank-mobile-ios"
+  domain     = "MOBILE"
+  type       = "APPLICATION"
+  account_id = var.new_relic_account_id
+}
 
 ### CROSS-ACCOUNT DESTINATION ###
 data "newrelic_notification_destination" "autopilot_destination" {
