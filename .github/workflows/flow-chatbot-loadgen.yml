@@ -8,6 +8,9 @@ on:
   schedule:
   - cron: "*/30 * * * *"
 
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: 'true'
+
 jobs:
 
   get-metadata:
@@ -17,7 +20,7 @@ jobs:
       latest_tag: ${{ steps.get_latest_tag.outputs.tag }}
     steps:
       - name: Checkout Repo
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           fetch-depth: 0
 
@@ -37,9 +40,9 @@ jobs:
         run: echo "timestamp=$(date -u +%Y-%m-%dT%H:%M:%SZ)" >> $GITHUB_OUTPUT
 
       - name: Checkout repo
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
-      - uses: actions/setup-python@v4
+      - uses: actions/setup-python@v7
         with:
           python-version: '3.10'
 
