@@ -4,12 +4,46 @@ on:
   schedule:
     # Run every 6 hours
     - cron: '0 */6 * * *'
-  workflow_dispatch:  # Allow manual trigger
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: "Target environment ('all' matches the scheduled sweep)"
+        type: choice
+        required: true
+        default: all
+        options:
+          - all
+          - events
+          - sandbox
+          - staging
+          # - prod   # enable once relibank prod is stood up for GA
+
+permissions:
+  contents: read
 
 jobs:
-  lcp-ab-test:
+  resolve-environments:
     runs-on: ubuntu-latest
-    environment: events
+    outputs:
+      environments: ${{ steps.set.outputs.environments }}
+    steps:
+      - id: set
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ] && [ "${{ inputs.environment }}" != "all" ]; then
+            echo 'environments=["${{ inputs.environment }}"]' >> "$GITHUB_OUTPUT"
+          else
+            echo 'environments=["events","sandbox","staging"]' >> "$GITHUB_OUTPUT"
+            # echo 'environments=["events","sandbox","staging","prod"]' >> "$GITHUB_OUTPUT"  # swap in once prod is enabled
+          fi
+
+  lcp-ab-test:
+    needs: resolve-environments
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        environment: ${{ fromJson(needs.resolve-environments.outputs.environments) }}
+    environment: ${{ matrix.environment }}
 
 # --------------- runner setup ---------------
     steps:
@@ -70,7 +104,7 @@ jobs:
             --description "Updating targeted ads for high revenue accounts" \
             --group-id MARKETING-ADS-2026 \
             --custom-attribute ab_testing=true \
-            --custom-attribute environment=production
+            --custom-attribute environment=${{ matrix.environment }}
 
       - name: Wait for data collection (20 minutes)
         run: |
@@ -121,7 +155,7 @@ jobs:
             --description "ROLLBACK - Updating targeted ads for high revenue accounts" \
             --group-id MARKETING-ADS-2026 \
             --custom-attribute ab_testing=true \
-            --custom-attribute environment=production
+            --custom-attribute environment=${{ matrix.environment }}
 
       - name: Test Summary
         if: always()
