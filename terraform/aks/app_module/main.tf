@@ -19,6 +19,17 @@ terraform {
   }
 }
 
+locals {
+  common_tags = {
+    team           = "ReliBank - Platform"
+    deploymentTier = var.demo_environment
+    heroChannel    = "help-relibank-platform"
+    managedBy      = "terraform"
+    appStack       = "relibank"
+    githubRepo     = "https://github.com/newrelic/relibank"
+  }
+}
+
 # --- Look up the AKS cluster to get its ID ---
 data "azurerm_kubernetes_cluster" "cluster" {
   name                = var.aks_cluster_name
@@ -38,6 +49,8 @@ resource "azurerm_kubernetes_cluster_node_pool" "relibank_color_np" {
     "environment" = var.demo_environment
     "app"         = "relibank"
   }
+
+  tags = local.common_tags
 
   lifecycle {
     ignore_changes = [node_count]

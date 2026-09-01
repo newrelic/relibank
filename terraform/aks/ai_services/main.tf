@@ -13,6 +13,15 @@ provider "azurerm" {
 
 locals {
   account_name = "relibank-${var.demo_environment}-openai"
+
+  common_tags = {
+    team           = "ReliBank - Platform"
+    deploymentTier = var.demo_environment
+    heroChannel    = "help-relibank-platform"
+    managedBy      = "terraform"
+    appStack       = "relibank"
+    githubRepo     = "https://github.com/newrelic/relibank"
+  }
 }
 
 # ---------------------------------------------------------------------------
@@ -28,10 +37,7 @@ resource "azurerm_cognitive_account" "openai" {
   sku_name              = "S0"
   custom_subdomain_name = local.account_name
 
-  tags = {
-    environment = var.demo_environment
-    managed_by  = "terraform"
-  }
+  tags = local.common_tags
 }
 
 # ---------------------------------------------------------------------------
