@@ -72,7 +72,41 @@ jobs:
             --backend-config="key=relibank/${{ github.event.inputs.environment }}/newrelic.tfstate" \
             --reconfigure --upgrade
 
-      - name: "Terraform Apply"
+      # Pass 1: install nri-bundle + license secret before the full apply.
+      # Terraform evaluates all data "newrelic_entity" lookups at plan time, before
+      # any resources are created. On a fresh environment nri-bundle isn't running yet,
+      # so K8s / eBPF entity lookups fail and the apply never starts (chicken-and-egg).
+      # Targeting only the Helm release + secret in pass 1 breaks the cycle: nri-bundle
+      # is installed and reporting before pass 2 resolves the entity data sources.
+      - name: "Terraform Apply (pass 1 — nri-bundle bootstrap)"
+        working-directory: terraform/aks/newrelic
+        run: |
+          terraform apply \
+            -target=kubernetes_secret_v1.newrelic_license \
+            -target=helm_release.nri_bundle \
+            -var="new_relic_account_id=${{ vars.NR_ACCOUNT_ID }}" \
+            -var="new_relic_user_api_key=${{ secrets.NR_USER_API_KEY }}" \
+            -var="new_relic_license_key=${{ secrets.NR_LICENSE_KEY }}" \
+            -var="new_relic_region=${{ vars.NR_REGION || 'US' }}" \
+            -var="demo_environment=${{ github.event.inputs.environment }}" \
+            -var="app_name=${{ vars.APP_NAME }}" \
+            -var="aks_cluster_name=${{ vars.AKS_CLUSTER_NAME }}" \
+            -var="aks_resource_group=${{ vars.AKS_RESOURCE_GROUP }}" \
+            -var="azure_client_id=${{ secrets.AZURE_CLIENT_ID }}" \
+            -var="azure_client_secret=${{ secrets.AZURE_CLIENT_SECRET }}" \
+            -var="azure_tenant_id=${{ secrets.AZURE_TENANT_ID }}" \
+            -var="azure_subscription_id=${{ secrets.AZURE_SUBSCRIPTION_ID }}" \
+            -var="postgres_user=${{ secrets.POSTGRES_USER }}" \
+            -var="postgres_password=${{ secrets.POSTGRES_PASSWORD }}" \
+            --auto-approve
+
+      - name: "Wait for NR entity propagation"
+        run: |
+          echo "Waiting 600s for nri-bundle to report and NR to create K8s/eBPF entities..."
+          echo "K8s entities typically appear within 5 min; eBPF (risk-assessment-service) takes ~10 min with active traffic."
+          sleep 600
+
+      - name: "Terraform Apply (pass 2 — full apply)"
         working-directory: terraform/aks/newrelic
         run: |
           terraform apply \
