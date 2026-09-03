@@ -40,20 +40,36 @@ resource "helm_release" "nri_bundle" {
       newrelic-infrastructure = {
         privileged = true
         integrations = {
-          "nri-postgresql" = {
-            discovery = {
-              command = {
-                exec = "/var/db/newrelic-infra/nri-discovery-kubernetes --tls --port 10250"
-                match = {
-                  "label.app" = "accounts-db"
-                }
-              }
-            }
+          # Static hostnames (no nri-discovery-kubernetes) — the discovery-based scheduling
+          # loop does not run in the nri-bundle 8.x agent container; static integrations
+          # use the normal interval scheduler which works reliably. One entry per color so
+          # whichever color is inactive just produces a short connection error and is skipped.
+          "nri-postgresql-green" = {
             integrations = [
               {
                 name = "nri-postgresql"
                 env = {
-                  HOSTNAME                = "$${discovery.ip}"
+                  HOSTNAME                = "accounts-db.relibank-green.svc.cluster.local"
+                  PORT                    = 5432
+                  USERNAME                = var.postgres_user
+                  PASSWORD                = var.postgres_password
+                  DATABASE                = "accountsdb"
+                  COLLECTION_LIST         = "ALL"
+                  ENABLE_QUERY_MONITORING = "true"
+                  TIMEOUT                 = 10
+                }
+                interval         = "15s"
+                labels           = { environment = var.demo_environment }
+                inventory_source = "config/postgresql"
+              }
+            ]
+          }
+          "nri-postgresql-blue" = {
+            integrations = [
+              {
+                name = "nri-postgresql"
+                env = {
+                  HOSTNAME                = "accounts-db.relibank-blue.svc.cluster.local"
                   PORT                    = 5432
                   USERNAME                = var.postgres_user
                   PASSWORD                = var.postgres_password
