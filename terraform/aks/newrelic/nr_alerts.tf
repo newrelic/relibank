@@ -53,6 +53,11 @@
 # newrelic_notification_channel.autopilot_plus_wa_channel.id
 # newrelic_workflow.autopilot_plus_wa_workflow.id
 # newrelic_nrql_alert_condition.wa_bill_pay_errors.entity_guid
+
+# newrelic_notification_channel.staging_slack_relibank_mobile_channel.id
+# newrelic_workflow.mobile_slack_workflow.id
+# newrelic_alert_policy.aide_mobile_policy.id
+# newrelic_nrql_alert_condition.aide_android_excess_transfer_attempts.entity_guid
 ###
 
 locals {
@@ -1163,7 +1168,6 @@ resource "newrelic_nrql_alert_condition" "platform_database_health" {
   title_template     = "Database Health | {{ entity_name }}"
 }
 
-
 ### Before Autopilot ###
 resource "newrelic_alert_policy" "before_autopilot_policy" {
   name                = "ReliBank - Before Autopilot Policy"
@@ -1389,4 +1393,85 @@ resource "newrelic_nrql_alert_condition" "wa_bill_pay_errors" {
   aggregation_method = "event_flow"
   aggregation_delay  = 120
   title_template     = "WARNING - High Bill Payment Rejection Rate"
+}
+
+### Mobile Alerts ###
+# Staging Slack Mobile Notification Channel
+resource "newrelic_notification_channel" "staging_slack_relibank_mobile_channel" {
+  account_id     = var.new_relic_account_id
+  name           = "staging_slack_relibank_mobile_channel"
+  type           = "SLACK"
+  destination_id = local.staging_slack_destination_id
+  product        = "IINT"
+
+  property {
+    key           = "channelId"
+    value         = "C0BQ6VAE9GB"
+    display_value = "help-relibank-ai-and-exp"
+  }
+}
+# Mobile Slack Workflow
+resource "newrelic_workflow" "mobile_slack_workflow" {
+  account_id            = var.new_relic_account_id
+  name                  = "mobile_slack_workflow"
+  enabled               = true
+  muting_rules_handling = "DONT_NOTIFY_FULLY_MUTED_ISSUES"
+
+  issues_filter {
+    name = "policy_filter"
+    type = "FILTER"
+
+    predicate {
+      attribute = "labels.policyIds"
+      operator  = "EXACTLY_MATCHES"
+      values = [
+        newrelic_alert_policy.aide_mobile_policy.id
+      ]
+    }
+  }
+
+  destination {
+    channel_id              = newrelic_notification_channel.staging_slack_relibank_mobile_channel.id
+    notification_triggers   = ["ACKNOWLEDGED", "ACTIVATED", "CLOSED", "INVESTIGATING"]
+    update_original_message = true
+  }
+}
+# AIDE Mobile Policy
+resource "newrelic_alert_policy" "aide_mobile_policy" {
+  name                = "ReliBank Mobile - AI & Digital Experience Policy"
+  incident_preference = "PER_CONDITION_AND_TARGET"
+  account_id          = var.new_relic_account_id
+}
+# ReliBank Mobile Android - Excess Transfer Attempts
+resource "newrelic_nrql_alert_condition" "aide_android_excess_transfer_attempts" {
+  account_id                   = var.new_relic_account_id
+  policy_id                    = newrelic_alert_policy.aide_mobile_policy.id
+  type                         = "static"
+  name                         = "Android Mobile - Excess Transfer Attempts"
+  enabled                      = true
+  violation_time_limit_seconds = 10800
+  nrql {
+
+    query = trimspace(<<-EOT
+    FROM Log SELECT
+      count(*)
+    FACET entity.guid, userEmail
+    WHERE entity.guid = '${data.newrelic_entity.relibank_mobile_android.guid}'
+    AND action = 'transfer_funds_button_pressed'
+    EOT
+    )
+
+  }
+
+  critical {
+    operator              = "above"
+    threshold             = 2
+    threshold_duration    = 300
+    threshold_occurrences = "at_least_once"
+  }
+  fill_option        = "none"
+  aggregation_window = 60
+  aggregation_method = "event_flow"
+  aggregation_delay  = 120
+  title_template     = "Excess Transfer Button Presses | {{ entity_name }}"
 }

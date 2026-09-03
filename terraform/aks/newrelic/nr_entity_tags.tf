@@ -12,13 +12,26 @@ locals {
     [
       data.newrelic_entity.support_service.guid,
       data.newrelic_entity.customer_portal_browser.guid,
-      //TODO add the mobile entities once they're live
-      # data.newrelic_entity.relibank_mobile_android,
-      # data.newrelic_entity.relibank_mobile_ios,
+      data.newrelic_entity.relibank_mobile_android.guid,
+      data.newrelic_entity.relibank_mobile_ios.guid,
       newrelic_service_level.customer_portal_browser_success_sl.sli_guid,
       newrelic_service_level.support_service_success_sl.sli_guid,
       newrelic_synthetics_script_monitor.relibank_login_check.id,
-      newrelic_workload.relibank_aide_workload.guid
+      newrelic_workload.relibank_aide_workload.guid,
+      newrelic_nrql_alert_condition.aide_android_excess_transfer_attempts.entity_guid,
+      newrelic_nrql_alert_condition.aide_chat_with_model.entity_guid,
+      newrelic_nrql_alert_condition.aide_high_response_time.entity_guid,
+      newrelic_nrql_alert_condition.aide_high_error_rate.entity_guid,
+      newrelic_nrql_alert_condition.aide_low_throughput.entity_guid,
+      newrelic_nrql_alert_condition.aide_high_inp.entity_guid,
+      newrelic_nrql_alert_condition.aide_high_lcp.entity_guid,
+      newrelic_nrql_alert_condition.high_js_error_rate.entity_guid,
+      newrelic_nrql_alert_condition.high_page_load_time.entity_guid,
+      newrelic_nrql_alert_condition.aide_ai_agent_health.entity_guid,
+      newrelic_nrql_alert_condition.aide_ai_tool_health.entity_guid,
+      newrelic_nrql_alert_condition.aide_service_level_health.entity_guid,
+      newrelic_nrql_alert_condition.aide_synthetic_failing.entity_guid,
+      newrelic_nrql_alert_condition.legacy_chat_with_model.entity_guid
     ],
     [for guid in [
       data.newrelic_entity.coordinator_ai_agent.guid,
@@ -34,7 +47,11 @@ locals {
       data.newrelic_entity.auth_service.guid,
       newrelic_service_level.accounts_service_success_sl.sli_guid,
       newrelic_service_level.auth_service_success_sl.sli_guid,
-      newrelic_workload.relibank_core_banking_workload.guid
+      newrelic_workload.relibank_core_banking_workload.guid,
+      newrelic_nrql_alert_condition.core_banking_high_response_time.entity_guid,
+      newrelic_nrql_alert_condition.core_banking_high_error_rate.entity_guid,
+      newrelic_nrql_alert_condition.core_banking_low_throughput.entity_guid,
+      newrelic_nrql_alert_condition.core_banking_service_level_health.entity_guid
     ]
   )
   # ReliBank - Payments & Transactions team
@@ -46,7 +63,12 @@ locals {
       newrelic_service_level.bill_pay_service_success_sl.sli_guid,
       newrelic_service_level.notifications_service_success_sl.sli_guid,
       newrelic_service_level.transaction_service_success_sl.sli_guid,
-      newrelic_workload.relibank_pat_workload.guid
+      newrelic_workload.relibank_pat_workload.guid,
+      newrelic_nrql_alert_condition.pat_high_response_time.entity_guid,
+      newrelic_nrql_alert_condition.pat_high_error_rate.entity_guid,
+      newrelic_nrql_alert_condition.pat_low_throughput.entity_guid,
+      newrelic_nrql_alert_condition.pat_service_level_health.entity_guid,
+      newrelic_nrql_alert_condition.wa_bill_pay_errors.entity_guid
     ]
   )
   # ReliBank - Platform team
@@ -79,7 +101,17 @@ locals {
       data.newrelic_entity.transaction_service_k8s_dep.guid,
       data.newrelic_entity.zookeeper_k8s_dep.guid,
       newrelic_service_level.event_scheduler_service_success_sl.sli_guid,
-      newrelic_workload.relibank_platform_workload.guid
+      newrelic_workload.relibank_platform_workload.guid,
+      newrelic_nrql_alert_condition.platform_high_response_time.entity_guid,
+      newrelic_nrql_alert_condition.platform_high_error_rate.entity_guid,
+      newrelic_nrql_alert_condition.platform_low_throughput.entity_guid,
+      newrelic_nrql_alert_condition.platform_service_level_health.entity_guid,
+      newrelic_nrql_alert_condition.platform_k8s_cluster_health.entity_guid,
+      newrelic_nrql_alert_condition.platform_k8s_deployment_health.entity_guid,
+      newrelic_nrql_alert_condition.platform_kafka_broker_health.entity_guid,
+      newrelic_nrql_alert_condition.platform_kafka_cluster_health.entity_guid,
+      newrelic_nrql_alert_condition.platform_kafka_topic_health.entity_guid,
+      newrelic_nrql_alert_condition.platform_database_health.entity_guid
     ],
     [for guid in [
       data.newrelic_entity.relibank_kafka_broker.guid,
