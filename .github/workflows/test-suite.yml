@@ -9,7 +9,7 @@ on:
       target_environment:
         description: 'GitHub environment to target (provides BASE_URL, NR keys, DB creds)'
         required: false
-        default: 'events'
+        default: 'prod'
         type: choice
         options:
           - events
@@ -55,7 +55,7 @@ on:
 jobs:
   python-tests:
     runs-on: ubuntu-latest
-    environment: ${{ inputs.target_environment || 'events' }}
+    environment: ${{ inputs.target_environment || 'prod' }}
     if: ${{ inputs.test_suite == 'all' || inputs.test_suite == 'e2e' || inputs.test_suite == 'scenario' || inputs.test_suite == 'payment' || inputs.test_suite == 'smoke' || inputs.test_suite == '' }}
     outputs:
       test_ab_testing: ${{ steps.individual-tests.outputs.test_ab_testing }}
@@ -267,7 +267,7 @@ jobs:
 
   frontend-tests:
     runs-on: ubuntu-latest
-    environment: ${{ inputs.target_environment || 'events' }}
+    environment: ${{ inputs.target_environment || 'prod' }}
     if: ${{ inputs.test_suite == 'all' || inputs.test_suite == 'frontend' || inputs.test_suite == '' }}
 
     steps:
@@ -293,7 +293,7 @@ jobs:
 
   test-summary:
     runs-on: ubuntu-latest
-    environment: ${{ inputs.target_environment || 'events' }}
+    environment: ${{ inputs.target_environment || 'prod' }}
     needs: [python-tests, frontend-tests]
     if: always()
 
