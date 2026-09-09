@@ -16,4 +16,4 @@ skaffold dev
 
 # send requests
 
-Send requests from Postman with collection
+Send requests with curl or any HTTP client against the service endpoints documented in each service's README.
