@@ -438,7 +438,7 @@
                 "accountIds": [
                   ${account_id}
                 ],
-                "query": "FROM Log SELECT\n  sum(amount) AS 'Total Lost ($)'\nFACET reason\nWHERE container_name = 'risk-assessment-service'\nAND decision = 'declined'\nSINCE 12 HOURS AGO"
+                "query": "FROM Log SELECT\n  sum(amount) AS 'Total Lost ($)'\nFACET reason\nWHERE (`container.name` = 'risk-assessment-service' OR container_name = 'risk-assessment-service')\nAND decision = 'declined'\nSINCE 12 HOURS AGO"
               }
             ],
             "platformOptions": {
@@ -464,7 +464,7 @@
                 "accountIds": [
                   ${account_id}
                 ],
-                "query": "FROM Log SELECT\n  timestamp,\n  processor_model,\n  decision,\n  reason\nWHERE container_name = 'risk-assessment-service'\nAND reason IS NOT NULL\nSINCE 3 HOURS AGO\nLIMIT MAX"
+                "query": "FROM Log SELECT\n  timestamp,\n  processor_model,\n  decision,\n  reason\nWHERE (`container.name` = 'risk-assessment-service' OR container_name = 'risk-assessment-service')\nAND reason IS NOT NULL\nSINCE 3 HOURS AGO\nLIMIT MAX"
               }
             ],
             "platformOptions": {
