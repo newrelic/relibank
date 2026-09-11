@@ -383,18 +383,16 @@ data "newrelic_entity" "mssql_db360_database" {
 
 ### MOBILE APPS ###
 data "newrelic_entity" "relibank_mobile_android" {
-  name             = "relibank-mobile-android"
-  domain           = "MOBILE"
-  type             = "APPLICATION"
-  account_id       = var.new_relic_account_id
-  ignore_not_found = true
+  name       = "relibank-mobile-android"
+  domain     = "MOBILE"
+  type       = "APPLICATION"
+  account_id = var.new_relic_account_id
 }
 data "newrelic_entity" "relibank_mobile_ios" {
-  name             = "relibank-mobile-ios"
-  domain           = "MOBILE"
-  type             = "APPLICATION"
-  account_id       = var.new_relic_account_id
-  ignore_not_found = true
+  name       = "relibank-mobile-ios"
+  domain     = "MOBILE"
+  type       = "APPLICATION"
+  account_id = var.new_relic_account_id
 }
 
 ### CROSS-ACCOUNT DESTINATION ###
