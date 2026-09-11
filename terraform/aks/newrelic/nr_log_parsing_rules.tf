@@ -25,5 +25,5 @@ resource "newrelic_log_parsing_rule" "risk_assessment_parsing" {
     EOT
   )
   lucene = ""
-  nrql   = "SELECT * FROM Log WHERE `container_name` = 'risk-assessment-service' AND message LIKE '%\"message\":%'"
+  nrql   = "SELECT * FROM Log WHERE `container.name` = 'risk-assessment-service' AND message LIKE '%\"message\":%'"
 }

@@ -12,8 +12,6 @@ locals {
     [
       data.newrelic_entity.support_service.guid,
       data.newrelic_entity.customer_portal_browser.guid,
-      data.newrelic_entity.relibank_mobile_android.guid,
-      data.newrelic_entity.relibank_mobile_ios.guid,
       newrelic_service_level.customer_portal_browser_success_sl.sli_guid,
       newrelic_service_level.support_service_success_sl.sli_guid,
       newrelic_synthetics_script_monitor.relibank_login_check.id,
@@ -38,6 +36,8 @@ locals {
       data.newrelic_entity.specialist_ai_agent.guid,
       data.newrelic_entity.synthesizer_ai_agent.guid,
       data.newrelic_entity.delegate_to_specialist_ai_tool.guid,
+      data.newrelic_entity.relibank_mobile_android.guid,
+      data.newrelic_entity.relibank_mobile_ios.guid,
     ] : guid if guid != null]
   )
   # ReliBank - Core Banking team
