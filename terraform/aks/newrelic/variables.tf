@@ -77,3 +77,8 @@ variable "postgres_password" {
   type        = string
   sensitive   = true
 }
+
+variable "browser_application_name" {
+  description = "New Relic Browser application name for the customer portal. Differs per environment (e.g. 'Relibank - Customer Portal' for staging, 'ReliBank (Prod) - Customer Portal' for prod). Same value as vars.BROWSER_APPLICATION_NAME."
+  type        = string
+}
