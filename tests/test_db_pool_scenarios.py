@@ -20,7 +20,7 @@ def assign_user_to_pool(user_id: str) -> str:
     Replicate the pool assignment logic from accounts service.
     This ensures we know which pool each test user belongs to.
     """
-    user_hash = int(hashlib.md5(user_id.encode()).hexdigest(), 16)
+    user_hash = int(hashlib.md5(user_id.encode(), usedforsecurity=False).hexdigest(), 16)
     return "pool-a" if (user_hash % 2) == 0 else "pool-b"
 
 
