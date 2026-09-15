@@ -35,6 +35,33 @@ via a per-overlay kustomize patch not present on `main`). Deliberately env-only,
 one stable MSSQLINSTANCE entity per environment, shared by whichever color is live, not a
 separate entity per color.
 
+#### Why the processor also touches `server.address`/`service.instance.id`/`server.port`
+
+Added 2026-09-15: staging/prod (on `nrsqlserver` `2.4.0`/`2.5.0`, fresher builds than sandbox's
+frozen `2.0.0`) both synthesized as the colliding `mssql-0.mssql:1433` entity despite `host.id`
+being verified correct via NRQL. Those receiver versions emit `server.address` (the literal
+connection endpoint) and a `service.instance.id` auto-populated as `<server>:<port>` — same
+literal value, different keys — and NR's `MSSQLINSTANCE` synthesis prefers either over `host.id`
+when present.
+
+Fixing this took three live-verified attempts in staging, in order, because each one changed
+observed behavior in a different way:
+1. Deleting only `server.address`/`server.port` (keeping `service.instance.id`): entity still
+   collided, now keyed on `service.instance.id` instead.
+2. Also deleting `service.instance.id`: no identifying field was left for synthesis to use at
+   all — the data went **orphaned** (null `entity.guid`, confirmed for 10+ minutes, not just
+   synthesis lag), worse than colliding.
+3. **Overriding** `server.address`/`service.instance.id` to the same value as `host.id` (deleting
+   only the now-unpaired `server.port`) is what actually worked: whichever field synthesis keys
+   on, they all resolve to the same name, and nothing required is left absent.
+
+Sandbox's older receiver doesn't emit `server.address` (it does have `service.instance.id`, but
+its entity predates that and apparently isn't renamed by it — host.id-keyed matching for an
+already-established entity looks more lenient than first-time synthesis). Same "latest"
+moving-target risk as the metrics-key drift below: expect this to need revisiting on the next
+receiver bump that changes emitted resource attributes — verify against the live entity after any
+future change here, the config diff alone is not proof.
+
 Also, `receivers.nrsqlserver.metrics` has 15 keys removed relative to `db360-new-image-rebased`'s
 version of this file: `nrsqlserver` v0.157.2 (bundled in `nrdot-collector-releases` 2.0.0, what
 `otel_collector_mssql/Dockerfile`'s dynamic "latest" fetch resolves to today) dropped them with no

@@ -426,6 +426,17 @@ processors:
       - key: host.id
         value: "mssql-0-${env:RELIBANK_ENVIRONMENT}"
         action: upsert
+      # server.address/service.instance.id also carry mssql identity and must stay
+      # in sync with host.id/host.name below — see templates/README.md for why
+      # (deleting them instead of overriding orphaned the entity).
+      - key: server.address
+        value: "mssql-0-${env:RELIBANK_ENVIRONMENT}"
+        action: upsert
+      - key: service.instance.id
+        value: "mssql-0-${env:RELIBANK_ENVIRONMENT}"
+        action: upsert
+      - key: server.port
+        action: delete
 
 exporters:
   otlphttp:
