@@ -6,18 +6,31 @@ import sys
 import os
 
 QUESTION_FILE = "questions.txt"
+PROBLEM_QUESTION_FILE = "problem_questions.txt"
 
-def get_random_question() -> str:
-    if not os.path.exists(QUESTION_FILE):
-        raise FileNotFoundError(f"Error: The question file '{QUESTION_FILE}' was not found in the current directory.")
+# Odds of drawing from PROBLEM_QUESTION_FILE instead of QUESTION_FILE on any
+# given request. Keeps the problem/adversarial prompts (token-limit-breaking,
+# prompt-injection, PII exfiltration, bias-baiting, etc.) showing up often
+# enough to reliably surface within a demo session, without every request
+# being adversarial.
+PROBLEM_QUESTION_RATE = 0.2
 
-    with open(QUESTION_FILE, 'r') as f:
+def _load_questions(path: str) -> list[str]:
+    if not os.path.exists(path):
+        raise FileNotFoundError(f"Error: The question file '{path}' was not found in the current directory.")
+
+    with open(path, 'r') as f:
         # Read all non-empty, stripped lines into a list
         questions = [line.strip() for line in f if line.strip()]
 
     if not questions:
-        raise ValueError(f"Error: The question file '{QUESTION_FILE}' is empty or contains no valid questions.")
-        
+        raise ValueError(f"Error: The question file '{path}' is empty or contains no valid questions.")
+
+    return questions
+
+def get_random_question() -> str:
+    source_file = PROBLEM_QUESTION_FILE if random.random() < PROBLEM_QUESTION_RATE else QUESTION_FILE
+    questions = _load_questions(source_file)
     return random.choice(questions)
 
 def post_random_question(api_url: str):
