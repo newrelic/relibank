@@ -98,7 +98,7 @@ data "newrelic_entity" "transaction_service" {
 
 ### BROWSER APPLICATION ###
 data "newrelic_entity" "customer_portal_browser" {
-  name       = "Relibank - Customer Portal"
+  name       = var.browser_application_name
   domain     = "BROWSER"
   type       = "APPLICATION"
   account_id = var.new_relic_account_id
