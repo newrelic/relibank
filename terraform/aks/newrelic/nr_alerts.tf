@@ -1456,7 +1456,7 @@ resource "newrelic_nrql_alert_condition" "aide_android_excess_transfer_attempts"
     FROM Log SELECT
       count(*)
     FACET entity.guid, userEmail
-    WHERE entity.guid = '${data.newrelic_entity.relibank_mobile_android.guid}'
+    WHERE entity.guid = '${coalesce(data.newrelic_entity.relibank_mobile_android.guid, "entity-not-found")}'
     AND action = 'transfer_funds_button_pressed'
     EOT
     )
