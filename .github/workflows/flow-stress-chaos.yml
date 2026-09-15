@@ -29,7 +29,7 @@ on:
           - events
           - sandbox
           - staging
-          # - prod   # enable once relibank prod is stood up for GA
+          - prod
 
 permissions:
   contents: read
@@ -45,8 +45,7 @@ jobs:
           if [ "${{ github.event_name }}" = "workflow_dispatch" ] && [ "${{ inputs.environment }}" != "all" ]; then
             echo 'environments=["${{ inputs.environment }}"]' >> "$GITHUB_OUTPUT"
           else
-            echo 'environments=["events","sandbox","staging"]' >> "$GITHUB_OUTPUT"
-            # echo 'environments=["events","sandbox","staging","prod"]' >> "$GITHUB_OUTPUT"  # swap in once prod is enabled
+            echo 'environments=["events","sandbox","staging","prod"]' >> "$GITHUB_OUTPUT"
           fi
 
   trigger-stress:
