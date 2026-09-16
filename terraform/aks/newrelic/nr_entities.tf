@@ -8,6 +8,10 @@
 # data.newrelic_entity.support_service.guid
 # data.newrelic_entity.transaction_service.guid
 # data.newrelic_entity.customer_portal_browser.guid
+# data.newrelic_entity.account_balance_trends_mfe.guid
+# data.newrelic_entity.ad_banner_mfe.guid
+# data.newrelic_entity.spending_categories_mfe.guid
+# data.newrelic_entity.spending_chart_mfe.guid
 # data.newrelic_entity.risk_assessment_service.guid
 # data.newrelic_entity.coordinator_ai_agent.guid
 # data.newrelic_entity.specialist_ai_agent.guid
@@ -103,6 +107,41 @@ data "newrelic_entity" "customer_portal_browser" {
   type       = "APPLICATION"
   account_id = var.new_relic_account_id
 }
+
+### BROWSER MICRO FRONTEND ###
+# Disabled: these MICRO_FRONTEND entity types are still in product preview and the New Relic
+# Terraform provider isn't reliably tagging them yet (newrelic_entity_tags create/replace fails
+# with "not found" even though the guid resolves). Re-enable once that's resolved with the
+# owning product team.
+# data "newrelic_entity" "account_balance_trends_mfe" {
+#   name             = "Account Balance Trends MFE"
+#   domain           = "BROWSER"
+#   type             = "MICRO_FRONTEND"
+#   account_id       = var.new_relic_account_id
+#   ignore_not_found = true
+# }
+# data "newrelic_entity" "ad_banner_mfe" {
+#   name             = "Ad Banner MFE"
+#   domain           = "BROWSER"
+#   type             = "MICRO_FRONTEND"
+#   account_id       = var.new_relic_account_id
+#   ignore_not_found = true
+# }
+# data "newrelic_entity" "spending_categories_mfe" {
+#   name             = "Spending Categories MFE"
+#   domain           = "BROWSER"
+#   type             = "MICRO_FRONTEND"
+#   account_id       = var.new_relic_account_id
+#   ignore_not_found = true
+# }
+# data "newrelic_entity" "spending_chart_mfe" {
+#   name             = "Spending Chart MFE"
+#   domain           = "BROWSER"
+#   type             = "MICRO_FRONTEND"
+#   account_id       = var.new_relic_account_id
+#   ignore_not_found = true
+# }
+
 
 ### eBPF SERVICES ###
 data "newrelic_entity" "risk_assessment_service" {

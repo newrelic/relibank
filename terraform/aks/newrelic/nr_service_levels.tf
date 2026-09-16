@@ -11,6 +11,28 @@
 # newrelic_service_level.customer_portal_browser_success_sl.sli_guid
 ###
 
+# per-team SLI guid lists, used by the *_service_level_health alert conditions in
+# nr_alerts.tf to scope ServiceLevelSnapshot queries (that event type carries no
+# entity tags, so tags.team can't be used there)
+locals {
+  relibank_aide_sli_guids = [
+    newrelic_service_level.support_service_success_sl.sli_guid,
+    newrelic_service_level.customer_portal_browser_success_sl.sli_guid,
+  ]
+  relibank_core_banking_sli_guids = [
+    newrelic_service_level.accounts_service_success_sl.sli_guid,
+    newrelic_service_level.auth_service_success_sl.sli_guid,
+  ]
+  relibank_pat_sli_guids = [
+    newrelic_service_level.bill_pay_service_success_sl.sli_guid,
+    newrelic_service_level.notifications_service_success_sl.sli_guid,
+    newrelic_service_level.transaction_service_success_sl.sli_guid,
+  ]
+  relibank_platform_sli_guids = [
+    newrelic_service_level.event_scheduler_service_success_sl.sli_guid,
+  ]
+}
+
 # apm accounts service success service level
 resource "newrelic_service_level" "accounts_service_success_sl" {
   guid        = data.newrelic_entity.accounts_service.guid
@@ -100,7 +122,7 @@ resource "newrelic_service_level" "bill_pay_service_success_sl" {
   }
 
   objective {
-    target = 95
+    target = 90
 
     time_window {
 
@@ -271,7 +293,7 @@ resource "newrelic_service_level" "customer_portal_browser_success_sl" {
   }
 
   objective {
-    target = 95
+    target = 90
 
     time_window {
 

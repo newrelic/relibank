@@ -1,35 +1,44 @@
 # alert policies, destinations, channels, and workflows
 ###
-# newrelic_notification_channel.autopilot_channel.id
-# newrelic_notification_channel.staging_slack_relibank_channel.id
-# newrelic_workflow.autopilot_and_slack_workflow.id
-
+# newrelic_notification_channel.aide_autopilot_channel.id
+# newrelic_notification_channel.aide_staging_slack_channel.id
+# newrelic_workflow.aide_autopilot_and_slack_workflow.id
 # newrelic_alert_policy.aide_policy.id
 # newrelic_nrql_alert_condition.aide_chat_with_model.entity_guid
 # newrelic_nrql_alert_condition.aide_high_response_time.entity_guid
 # newrelic_nrql_alert_condition.aide_high_error_rate.entity_guid
 # newrelic_nrql_alert_condition.aide_low_throughput.entity_guid
 # newrelic_nrql_alert_condition.aide_high_inp.entity_guid
-# newrelic_nrql_alert_condition.high_lcp.entity_guid
-# newrelic_nrql_alert_condition.high_js_error_rate.entity_guid
-# newrelic_nrql_alert_condition.high_page_load_time.entity_guid
+# newrelic_nrql_alert_condition.aide_high_lcp.entity_guid
+# newrelic_nrql_alert_condition.aide_high_js_error_rate.entity_guid
+# newrelic_nrql_alert_condition.aide_high_page_load_time.entity_guid
+# newrelic_nrql_alert_condition.aide_high_mfe_load_time.entity_guid
 # newrelic_nrql_alert_condition.aide_ai_agent_health.entity_guid
 # newrelic_nrql_alert_condition.aide_ai_tool_health.entity_guid
 # newrelic_nrql_alert_condition.aide_service_level_health.entity_guid
 # newrelic_nrql_alert_condition.aide_synthetic_failing.entity_guid
 
+# newrelic_notification_channel.core_autopilot_channel.id
+# newrelic_notification_channel.core_staging_slack_channel.id
+# newrelic_workflow.core_autopilot_and_slack_workflow.id
 # newrelic_alert_policy.core_banking_policy.id
 # newrelic_nrql_alert_condition.core_banking_high_response_time.entity_guid
 # newrelic_nrql_alert_condition.core_banking_high_error_rate.entity_guid
 # newrelic_nrql_alert_condition.core_banking_low_throughput.entity_guid
 # newrelic_nrql_alert_condition.core_banking_service_level_health.entity_guid
 
+# newrelic_notification_channel.pat_autopilot_channel.id
+# newrelic_notification_channel.pat_staging_slack_channel.id
+# newrelic_workflow.pat_autopilot_and_slack_workflow.id
 # newrelic_alert_policy.pat_policy.id
 # newrelic_nrql_alert_condition.pat_high_response_time.entity_guid
 # newrelic_nrql_alert_condition.pat_high_error_rate.entity_guid
 # newrelic_nrql_alert_condition.pat_low_throughput.entity_guid
 # newrelic_nrql_alert_condition.pat_service_level_health.entity_guid
 
+# newrelic_notification_channel.platform_autopilot_channel.id
+# newrelic_notification_channel.platform_staging_slack_channel.id
+# newrelic_workflow.platform_autopilot_and_slack_workflow.id
 # newrelic_alert_policy.platform_policy.id
 # newrelic_nrql_alert_condition.platform_high_response_time.entity_guid
 # newrelic_nrql_alert_condition.platform_high_error_rate.entity_guid
@@ -45,14 +54,14 @@
 # newrelic_alert_policy.before_autopilot_policy.id
 # newrelic_notification_channel.before_autopilot_slack_channel.id
 # newrelic_workflow.before_autopilot_workflow.id
-# newrelic_nrql_alert_condition.legacy_chat_with_model.entity_guid
+# newrelic_nrql_alert_condition.before_autopilot_chat_with_model.entity_guid
 
-# autopilot_plus_wa_policy.id
-# newrelic_notification_destination.github_scale_relibank_service_destination.id
-# workflow_automation_channel.id
-# newrelic_notification_channel.autopilot_plus_wa_channel.id
-# newrelic_workflow.autopilot_plus_wa_workflow.id
-# newrelic_nrql_alert_condition.wa_bill_pay_errors.entity_guid
+# newrelic_alert_policy.apwa_policy.id
+# newrelic_notification_destination.apwa_destination.id
+# newrelic_notification_channel.apwa_autopilot_channel.id
+# newrelic_notification_channel.apwa_workflow_channel.id
+# newrelic_workflow.apwa_workflow.id
+# newrelic_nrql_alert_condition.apwa_bill_pay_errors.entity_guid
 
 # newrelic_notification_channel.staging_slack_relibank_mobile_channel.id
 # newrelic_workflow.mobile_slack_workflow.id
@@ -60,17 +69,19 @@
 # newrelic_nrql_alert_condition.aide_android_excess_transfer_attempts.entity_guid
 ###
 
+//TODO - move these to repo vars
 locals {
   # IDs for global destinations already configured in New Relic
   autopilot_destination_id     = "c38e93bf-c98c-461b-b278-432d97d61cf6"
   staging_slack_destination_id = "4e9f3925-0289-4ca0-a585-523e112daa56"
 }
 
-### Global Workflows ###
-# Autopilot Notification Channel
-resource "newrelic_notification_channel" "autopilot_channel" {
+### AI & Digital Experience ###
+
+# AIDE Autopilot Channel
+resource "newrelic_notification_channel" "aide_autopilot_channel" {
   account_id     = var.new_relic_account_id
-  name           = "autopilot_channel"
+  name           = "aide_autopilot_channel"
   type           = "WEBHOOK"
   destination_id = local.autopilot_destination_id
   product        = "IINT"
@@ -88,24 +99,24 @@ resource "newrelic_notification_channel" "autopilot_channel" {
     value = file("${path.module}/alert_channels/autopilot_payload.json")
   }
 }
-# Staging Slack Notification Channel
-resource "newrelic_notification_channel" "staging_slack_relibank_channel" {
+# AIDE Staging Slack Channel
+resource "newrelic_notification_channel" "aide_staging_slack_channel" {
   account_id     = var.new_relic_account_id
-  name           = "staging_slack_channel"
+  name           = "aide_staging_slack_channel"
   type           = "SLACK"
   destination_id = local.staging_slack_destination_id
   product        = "IINT"
 
   property {
     key           = "channelId"
-    value         = "C0BQ8HY3ZEZ"
-    display_value = "relibank-demo-alerts"
+    value         = "C0BQ6VAE9GB"
+    display_value = "help-relibank-ai-and-exp"
   }
 }
-# Autopilot Workflow
-resource "newrelic_workflow" "autopilot_and_slack_workflow" {
+# AIDE Workflow
+resource "newrelic_workflow" "aide_autopilot_and_slack_workflow" {
   account_id            = var.new_relic_account_id
-  name                  = "autopilot_and_slack_workflow"
+  name                  = "aide_autopilot_and_slack_workflow"
   enabled               = true
   muting_rules_handling = "DONT_NOTIFY_FULLY_MUTED_ISSUES"
 
@@ -117,28 +128,24 @@ resource "newrelic_workflow" "autopilot_and_slack_workflow" {
       attribute = "labels.policyIds"
       operator  = "EXACTLY_MATCHES"
       values = [
-        newrelic_alert_policy.aide_policy.id,
-        newrelic_alert_policy.core_banking_policy.id,
-        newrelic_alert_policy.pat_policy.id,
-        newrelic_alert_policy.platform_policy.id
+        newrelic_alert_policy.aide_policy.id
       ]
     }
   }
 
   destination {
-    channel_id              = newrelic_notification_channel.autopilot_channel.id
+    channel_id              = newrelic_notification_channel.aide_autopilot_channel.id
     notification_triggers   = ["ACTIVATED"]
     update_original_message = true
   }
 
   destination {
-    channel_id              = newrelic_notification_channel.staging_slack_relibank_channel.id
+    channel_id              = newrelic_notification_channel.aide_staging_slack_channel.id
     notification_triggers   = ["ACKNOWLEDGED", "ACTIVATED", "CLOSED", "INVESTIGATING"]
     update_original_message = true
   }
 }
-
-### AI & Digital Experience ###
+# AIDE Policy
 resource "newrelic_alert_policy" "aide_policy" {
   name                = "ReliBank - AI & Digital Experience Policy"
   incident_preference = "PER_CONDITION_AND_TARGET"
@@ -348,7 +355,7 @@ resource "newrelic_nrql_alert_condition" "aide_high_lcp" {
   title_template     = "High LCP | {{ entity_name }}"
 }
 # Browser JS Error Rate
-resource "newrelic_nrql_alert_condition" "high_js_error_rate" {
+resource "newrelic_nrql_alert_condition" "aide_high_js_error_rate" {
   account_id                   = var.new_relic_account_id
   policy_id                    = newrelic_alert_policy.aide_policy.id
   type                         = "static"
@@ -381,7 +388,7 @@ resource "newrelic_nrql_alert_condition" "high_js_error_rate" {
   title_template     = "High JS Error Rate | {{ entity_name }}"
 }
 # Browser Page Load Time
-resource "newrelic_nrql_alert_condition" "high_page_load_time" {
+resource "newrelic_nrql_alert_condition" "aide_high_page_load_time" {
   account_id                   = var.new_relic_account_id
   policy_id                    = newrelic_alert_policy.aide_policy.id
   type                         = "static"
@@ -412,6 +419,39 @@ resource "newrelic_nrql_alert_condition" "high_page_load_time" {
   aggregation_delay  = 60
   evaluation_delay   = 120
   title_template     = "High Page Load Time | {{ entity_name }}"
+}
+# Micro-Frontend Time to Load
+//TODO - Once MFE is GA we should be creating them with TF and then filtering on tags here
+resource "newrelic_nrql_alert_condition" "aide_high_mfe_load_time" {
+  account_id                   = var.new_relic_account_id
+  policy_id                    = newrelic_alert_policy.aide_policy.id
+  type                         = "static"
+  name                         = "AIDE - High MFE Load Time"
+  enabled                      = true
+  violation_time_limit_seconds = 10800
+  nrql {
+
+    query = trimspace(<<-EOT
+    FROM MicroFrontEndTiming SELECT
+      average(timeToLoad)
+    FACET entity.name
+    EOT
+    )
+
+  }
+
+  critical {
+    operator              = "above"
+    threshold             = 5000
+    threshold_duration    = 600
+    threshold_occurrences = "all"
+  }
+  fill_option        = "none"
+  aggregation_window = 60
+  aggregation_method = "event_flow"
+  aggregation_delay  = 60
+  evaluation_delay   = 120
+  title_template     = "High MFE Load Time | {{ entity_name }}"
 }
 # AI Agent Health
 resource "newrelic_nrql_alert_condition" "aide_ai_agent_health" {
@@ -490,11 +530,10 @@ resource "newrelic_nrql_alert_condition" "aide_service_level_health" {
   nrql {
 
     query = trimspace(<<-EOT
-    FROM Entity SELECT
+    FROM ServiceLevelSnapshot SELECT
       count(*)
-    FACET name AS 'entityName'
-    WHERE type = 'EXT-SERVICE_LEVEL'
-    AND tags.team = 'ReliBank - AI & Digital Experience'
+    FACET entity.name, entity.guid
+    WHERE entity.guid IN (${join(",", [for g in local.relibank_aide_sli_guids : "'${g}'"])})
     EOT
     )
 
@@ -548,6 +587,75 @@ resource "newrelic_nrql_alert_condition" "aide_synthetic_failing" {
 }
 
 ### Core Banking ###
+
+# CORE Autopilot Channel
+resource "newrelic_notification_channel" "core_autopilot_channel" {
+  account_id     = var.new_relic_account_id
+  name           = "core_autopilot_channel"
+  type           = "WEBHOOK"
+  destination_id = local.autopilot_destination_id
+  product        = "IINT"
+
+  property {
+    key = "headers"
+    value = trimspace(<<-EOT
+    {"x-respond-async":"true","x-Account-Id":"{{nrAccountId}}"}
+    EOT
+    )
+  }
+
+  property {
+    key   = "payload"
+    value = file("${path.module}/alert_channels/autopilot_payload.json")
+  }
+}
+# CORE Staging Slack Channel
+resource "newrelic_notification_channel" "core_staging_slack_channel" {
+  account_id     = var.new_relic_account_id
+  name           = "core_staging_slack_channel"
+  type           = "SLACK"
+  destination_id = local.staging_slack_destination_id
+  product        = "IINT"
+
+  property {
+    key           = "channelId"
+    value         = "C0BQ9GMCLER"
+    display_value = "help-relibank-core-banking"
+  }
+}
+# CORE Workflow
+resource "newrelic_workflow" "core_autopilot_and_slack_workflow" {
+  account_id            = var.new_relic_account_id
+  name                  = "core_autopilot_and_slack_workflow"
+  enabled               = true
+  muting_rules_handling = "DONT_NOTIFY_FULLY_MUTED_ISSUES"
+
+  issues_filter {
+    name = "policy_filter"
+    type = "FILTER"
+
+    predicate {
+      attribute = "labels.policyIds"
+      operator  = "EXACTLY_MATCHES"
+      values = [
+        newrelic_alert_policy.core_banking_policy.id
+      ]
+    }
+  }
+
+  destination {
+    channel_id              = newrelic_notification_channel.core_autopilot_channel.id
+    notification_triggers   = ["ACTIVATED"]
+    update_original_message = true
+  }
+
+  destination {
+    channel_id              = newrelic_notification_channel.core_staging_slack_channel.id
+    notification_triggers   = ["ACKNOWLEDGED", "ACTIVATED", "CLOSED", "INVESTIGATING"]
+    update_original_message = true
+  }
+}
+# CORE Policy
 resource "newrelic_alert_policy" "core_banking_policy" {
   name                = "ReliBank - Core Banking Policy"
   incident_preference = "PER_CONDITION_AND_TARGET"
@@ -665,11 +773,10 @@ resource "newrelic_nrql_alert_condition" "core_banking_service_level_health" {
   nrql {
 
     query = trimspace(<<-EOT
-    FROM Entity SELECT
+    FROM ServiceLevelSnapshot SELECT
       count(*)
-    FACET name AS 'entityName'
-    WHERE type = 'EXT-SERVICE_LEVEL'
-    AND tags.team = 'ReliBank - Core Banking'
+    FACET entity.name, entity.guid
+    WHERE entity.guid IN (${join(",", [for g in local.relibank_core_banking_sli_guids : "'${g}'"])})
     EOT
     )
 
@@ -689,6 +796,75 @@ resource "newrelic_nrql_alert_condition" "core_banking_service_level_health" {
 }
 
 ### Payments & Transactions ###
+
+# PAT Autopilot Channel
+resource "newrelic_notification_channel" "pat_autopilot_channel" {
+  account_id     = var.new_relic_account_id
+  name           = "pat_autopilot_channel"
+  type           = "WEBHOOK"
+  destination_id = local.autopilot_destination_id
+  product        = "IINT"
+
+  property {
+    key = "headers"
+    value = trimspace(<<-EOT
+    {"x-respond-async":"true","x-Account-Id":"{{nrAccountId}}"}
+    EOT
+    )
+  }
+
+  property {
+    key   = "payload"
+    value = file("${path.module}/alert_channels/autopilot_payload.json")
+  }
+}
+# PAT Staging Slack Channel
+resource "newrelic_notification_channel" "pat_staging_slack_channel" {
+  account_id     = var.new_relic_account_id
+  name           = "pat_staging_slack_channel"
+  type           = "SLACK"
+  destination_id = local.staging_slack_destination_id
+  product        = "IINT"
+
+  property {
+    key           = "channelId"
+    value         = "C0BQB7ZKLBG"
+    display_value = "help-relibank-transactions"
+  }
+}
+# PAT Workflow
+resource "newrelic_workflow" "pat_autopilot_and_slack_workflow" {
+  account_id            = var.new_relic_account_id
+  name                  = "pat_autopilot_and_slack_workflow"
+  enabled               = true
+  muting_rules_handling = "DONT_NOTIFY_FULLY_MUTED_ISSUES"
+
+  issues_filter {
+    name = "policy_filter"
+    type = "FILTER"
+
+    predicate {
+      attribute = "labels.policyIds"
+      operator  = "EXACTLY_MATCHES"
+      values = [
+        newrelic_alert_policy.pat_policy.id
+      ]
+    }
+  }
+
+  destination {
+    channel_id              = newrelic_notification_channel.pat_autopilot_channel.id
+    notification_triggers   = ["ACTIVATED"]
+    update_original_message = true
+  }
+
+  destination {
+    channel_id              = newrelic_notification_channel.pat_staging_slack_channel.id
+    notification_triggers   = ["ACKNOWLEDGED", "ACTIVATED", "CLOSED", "INVESTIGATING"]
+    update_original_message = true
+  }
+}
+# PAT Policy
 resource "newrelic_alert_policy" "pat_policy" {
   name                = "ReliBank - Payments & Transactions Policy"
   incident_preference = "PER_CONDITION_AND_TARGET"
@@ -806,11 +982,10 @@ resource "newrelic_nrql_alert_condition" "pat_service_level_health" {
   nrql {
 
     query = trimspace(<<-EOT
-    FROM Entity SELECT
+    FROM ServiceLevelSnapshot SELECT
       count(*)
-    FACET name AS 'entityName'
-    WHERE type = 'EXT-SERVICE_LEVEL'
-    AND tags.team = 'ReliBank - Payments & Transactions'
+    FACET entity.name, entity.guid
+    WHERE entity.guid IN (${join(",", [for g in local.relibank_pat_sli_guids : "'${g}'"])})
     EOT
     )
 
@@ -830,6 +1005,75 @@ resource "newrelic_nrql_alert_condition" "pat_service_level_health" {
 }
 
 ### Platform ###
+
+# PLATFORM Autopilot Channel
+resource "newrelic_notification_channel" "platform_autopilot_channel" {
+  account_id     = var.new_relic_account_id
+  name           = "platform_autopilot_channel"
+  type           = "WEBHOOK"
+  destination_id = local.autopilot_destination_id
+  product        = "IINT"
+
+  property {
+    key = "headers"
+    value = trimspace(<<-EOT
+    {"x-respond-async":"true","x-Account-Id":"{{nrAccountId}}"}
+    EOT
+    )
+  }
+
+  property {
+    key   = "payload"
+    value = file("${path.module}/alert_channels/autopilot_payload.json")
+  }
+}
+# PLATFORM Staging Slack Channel
+resource "newrelic_notification_channel" "platform_staging_slack_channel" {
+  account_id     = var.new_relic_account_id
+  name           = "platform_staging_slack_channel"
+  type           = "SLACK"
+  destination_id = local.staging_slack_destination_id
+  product        = "IINT"
+
+  property {
+    key           = "channelId"
+    value         = "C0BR7HBJ916"
+    display_value = "help-relibank-platform"
+  }
+}
+# PLATFORM Workflow
+resource "newrelic_workflow" "platform_autopilot_and_slack_workflow" {
+  account_id            = var.new_relic_account_id
+  name                  = "platform_autopilot_and_slack_workflow"
+  enabled               = true
+  muting_rules_handling = "DONT_NOTIFY_FULLY_MUTED_ISSUES"
+
+  issues_filter {
+    name = "policy_filter"
+    type = "FILTER"
+
+    predicate {
+      attribute = "labels.policyIds"
+      operator  = "EXACTLY_MATCHES"
+      values = [
+        newrelic_alert_policy.platform_policy.id
+      ]
+    }
+  }
+
+  destination {
+    channel_id              = newrelic_notification_channel.platform_autopilot_channel.id
+    notification_triggers   = ["ACTIVATED"]
+    update_original_message = true
+  }
+
+  destination {
+    channel_id              = newrelic_notification_channel.platform_staging_slack_channel.id
+    notification_triggers   = ["ACKNOWLEDGED", "ACTIVATED", "CLOSED", "INVESTIGATING"]
+    update_original_message = true
+  }
+}
+# PLATFORM Policy
 resource "newrelic_alert_policy" "platform_policy" {
   name                = "ReliBank - Platform Policy"
   incident_preference = "PER_CONDITION_AND_TARGET"
@@ -947,11 +1191,10 @@ resource "newrelic_nrql_alert_condition" "platform_service_level_health" {
   nrql {
 
     query = trimspace(<<-EOT
-    FROM Entity SELECT
+    FROM ServiceLevelSnapshot SELECT
       count(*)
-    FACET name AS 'entityName'
-    WHERE type = 'EXT-SERVICE_LEVEL'
-    AND tags.team = 'ReliBank - Platform'
+    FACET entity.name, entity.guid
+    WHERE entity.guid IN (${join(",", [for g in local.relibank_platform_sli_guids : "'${g}'"])})
     EOT
     )
 
@@ -1215,7 +1458,7 @@ resource "newrelic_workflow" "before_autopilot_workflow" {
   }
 }
 # Legacy Support Service - chat_with_model Error Rate
-resource "newrelic_nrql_alert_condition" "legacy_chat_with_model" {
+resource "newrelic_nrql_alert_condition" "before_autopilot_chat_with_model" {
   account_id                   = var.new_relic_account_id
   policy_id                    = newrelic_alert_policy.before_autopilot_policy.id
   type                         = "static"
@@ -1251,15 +1494,15 @@ resource "newrelic_nrql_alert_condition" "legacy_chat_with_model" {
 
 ### Autopilot + Workflow Automation ###
 # Specific policy used to invoke Autopilot + Workflow Automation
-resource "newrelic_alert_policy" "autopilot_plus_wa_policy" {
+resource "newrelic_alert_policy" "apwa_policy" {
   name                = "ReliBank - Autopilot + Workflow Automation Policy"
   incident_preference = "PER_CONDITION_AND_TARGET"
   account_id          = var.new_relic_account_id
 }
 # Workflow Automation Destination
-resource "newrelic_notification_destination" "github_scale_relibank_service_destination" {
+resource "newrelic_notification_destination" "apwa_destination" {
   account_id = var.new_relic_account_id
-  name       = "github_scale_relibank_service_destination"
+  name       = "apwa_destination"
   type       = "WORKFLOW_AUTOMATION"
 
   auth_custom_header {
@@ -1272,11 +1515,10 @@ resource "newrelic_notification_destination" "github_scale_relibank_service_dest
     value = ""
   }
 }
-# Autopilot Notification Channel (dedicated — channels can only be attached to one
-# workflow, so this can't reuse the global `autopilot_channel` from autopilot_and_slack_workflow)
-resource "newrelic_notification_channel" "autopilot_plus_wa_channel" {
+# Autopilot Notification Channel
+resource "newrelic_notification_channel" "apwa_autopilot_channel" {
   account_id     = var.new_relic_account_id
-  name           = "autopilot_plus_wa_channel"
+  name           = "apwa_autopilot_channel"
   type           = "WEBHOOK"
   destination_id = local.autopilot_destination_id
   product        = "IINT"
@@ -1294,12 +1536,12 @@ resource "newrelic_notification_channel" "autopilot_plus_wa_channel" {
     value = file("${path.module}/alert_channels/autopilot_payload.json")
   }
 }
-# Channel for Destination
-resource "newrelic_notification_channel" "workflow_automation_channel" {
+# Workflow Automation Notification Channel
+resource "newrelic_notification_channel" "apwa_workflow_channel" {
   account_id     = var.new_relic_account_id
-  name           = "github_scale_relibank_service Channel"
+  name           = "apwa_workflow_channel"
   type           = "WORKFLOW_AUTOMATION"
-  destination_id = newrelic_notification_destination.github_scale_relibank_service_destination.id
+  destination_id = newrelic_notification_destination.apwa_destination.id
   product        = "IINT"
 
   property {
@@ -1329,9 +1571,9 @@ resource "newrelic_notification_channel" "workflow_automation_channel" {
   }
 }
 # Workflow that invokes Autopilot + Workflow Automation
-resource "newrelic_workflow" "autopilot_plus_wa_workflow" {
+resource "newrelic_workflow" "apwa_workflow" {
   account_id            = var.new_relic_account_id
-  name                  = "Autopilot + Workflow Automation Workflow"
+  name                  = "apwa_workflow"
   enabled               = true
   muting_rules_handling = "DONT_NOTIFY_FULLY_MUTED_ISSUES"
 
@@ -1342,26 +1584,26 @@ resource "newrelic_workflow" "autopilot_plus_wa_workflow" {
     predicate {
       attribute = "labels.policyIds"
       operator  = "EXACTLY_MATCHES"
-      values    = ["${newrelic_alert_policy.autopilot_plus_wa_policy.id}"]
+      values    = ["${newrelic_alert_policy.apwa_policy.id}"]
     }
   }
 
   destination {
-    channel_id              = newrelic_notification_channel.autopilot_plus_wa_channel.id
+    channel_id              = newrelic_notification_channel.apwa_autopilot_channel.id
     notification_triggers   = ["ACTIVATED"]
     update_original_message = true
   }
 
   destination {
-    channel_id              = newrelic_notification_channel.workflow_automation_channel.id
+    channel_id              = newrelic_notification_channel.apwa_workflow_channel.id
     notification_triggers   = ["ACKNOWLEDGED", "ACTIVATED", "CLOSED", "INVESTIGATING", "OTHER_UPDATES", "PRIORITY_CHANGED"]
     update_original_message = true
   }
 }
 # NRQL Alert
-resource "newrelic_nrql_alert_condition" "wa_bill_pay_errors" {
+resource "newrelic_nrql_alert_condition" "apwa_bill_pay_errors" {
   account_id = var.new_relic_account_id
-  policy_id  = newrelic_alert_policy.autopilot_plus_wa_policy.id
+  policy_id  = newrelic_alert_policy.apwa_policy.id
   type       = "static"
   name       = "WA: ReliBank Bill Pay - 403 Error"
   description = trimspace(<<-EOT
@@ -1406,8 +1648,8 @@ resource "newrelic_notification_channel" "staging_slack_relibank_mobile_channel"
 
   property {
     key           = "channelId"
-    value         = "C0BQ6VAE9GB"
-    display_value = "help-relibank-ai-and-exp"
+    value         = "C0C2FHUH07K"
+    display_value = "help-relibank-mobile"
   }
 }
 # Mobile Slack Workflow
