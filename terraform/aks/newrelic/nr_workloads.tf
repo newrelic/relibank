@@ -13,6 +13,8 @@ resource "newrelic_workload" "relibank_aide_workload" {
   entity_search_query {
     query = "tags.nr.team = 'ReliBank - AI & Digital Experience'"
   }
+
+  scope_account_ids = [var.new_relic_account_id]
 }
 
 resource "newrelic_workload" "relibank_core_banking_workload" {
@@ -22,6 +24,8 @@ resource "newrelic_workload" "relibank_core_banking_workload" {
   entity_search_query {
     query = "tags.nr.team = 'ReliBank - Core Banking'"
   }
+
+  scope_account_ids = [var.new_relic_account_id]
 }
 
 resource "newrelic_workload" "relibank_pat_workload" {
@@ -31,6 +35,8 @@ resource "newrelic_workload" "relibank_pat_workload" {
   entity_search_query {
     query = "tags.nr.team = 'ReliBank - Payments & Transactions'"
   }
+
+  scope_account_ids = [var.new_relic_account_id]
 }
 
 resource "newrelic_workload" "relibank_platform_workload" {
@@ -40,4 +46,6 @@ resource "newrelic_workload" "relibank_platform_workload" {
   entity_search_query {
     query = "tags.nr.team = 'ReliBank - Platform'"
   }
+
+  scope_account_ids = [var.new_relic_account_id]
 }

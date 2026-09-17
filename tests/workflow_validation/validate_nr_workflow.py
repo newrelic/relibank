@@ -281,6 +281,7 @@ ALERT_POLICIES = [
     "ReliBank - Platform Policy",
     "ReliBank - Before Autopilot Policy",
     "ReliBank - Autopilot + Workflow Automation Policy",
+    "ReliBank Mobile - AI & Digital Experience Policy",
 ]
 
 # `newrelic_nrql_alert_condition.*` — one representative condition per policy above,
@@ -292,27 +293,39 @@ NRQL_ALERT_CONDITIONS = [
     "Platform - High Response Time",
     "Legacy chat_with_model - High Transaction Error Rate",
     "WA: ReliBank Bill Pay - 403 Error",
+    "Android Mobile - Excess Transfer Attempts",
 ]
 
 # `newrelic_notification_destination.*`
 NOTIFICATION_DESTINATIONS = [
-    "github_scale_relibank_service_destination",
+    "apwa_destination",
 ]
 
 # `newrelic_notification_channel.*`
 NOTIFICATION_CHANNELS = [
-    "autopilot_channel",
-    "staging_slack_channel",
+    "aide_autopilot_channel",
+    "aide_staging_slack_channel",
+    "core_autopilot_channel",
+    "core_staging_slack_channel",
+    "pat_autopilot_channel",
+    "pat_staging_slack_channel",
+    "platform_autopilot_channel",
+    "platform_staging_slack_channel",
     "before_autopilot_slack_channel",
-    "github_scale_relibank_service Channel",
-    "autopilot_plus_wa_channel",
+    "apwa_autopilot_channel",
+    "apwa_workflow_channel",
+    "staging_slack_relibank_mobile_channel",
 ]
 
 # `newrelic_workflow.*`
 WORKFLOWS = [
-    "autopilot_and_slack_workflow",
+    "aide_autopilot_and_slack_workflow",
+    "core_autopilot_and_slack_workflow",
+    "pat_autopilot_and_slack_workflow",
+    "platform_autopilot_and_slack_workflow",
     "before_autopilot_workflow",
-    "Autopilot + Workflow Automation Workflow",
+    "apwa_workflow",
+    "mobile_slack_workflow",
 ]
 
 

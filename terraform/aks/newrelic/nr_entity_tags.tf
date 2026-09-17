@@ -3,10 +3,10 @@
 
 locals {
   # ReliBank - AI & Digital Experience team
-  # AI agent entities use ignore_not_found and can resolve to a concrete null at plan time if
+  # AI agent entities use ignore_not_found and can resolve to an empty string ("") at plan time if
   # New Relic hasn't discovered them yet - filter those out. Everything else here is either a
-  # data source without ignore_not_found (errors loudly if missing, never null) or a resource
-  # attribute that is simply unknown-until-apply on first create (never null) - do not filter
+  # data source without ignore_not_found (errors loudly if missing, never null/empty) or a resource
+  # attribute that is simply unknown-until-apply on first create (never null/empty) - do not filter
   # those, or the whole list's length becomes unknown and breaks count/for_each planning.
   relibank_aide_list = concat(
     [
@@ -23,13 +23,14 @@ locals {
       newrelic_nrql_alert_condition.aide_low_throughput.entity_guid,
       newrelic_nrql_alert_condition.aide_high_inp.entity_guid,
       newrelic_nrql_alert_condition.aide_high_lcp.entity_guid,
-      newrelic_nrql_alert_condition.high_js_error_rate.entity_guid,
-      newrelic_nrql_alert_condition.high_page_load_time.entity_guid,
+      newrelic_nrql_alert_condition.aide_high_js_error_rate.entity_guid,
+      newrelic_nrql_alert_condition.aide_high_page_load_time.entity_guid,
+      newrelic_nrql_alert_condition.aide_high_mfe_load_time.entity_guid,
       newrelic_nrql_alert_condition.aide_ai_agent_health.entity_guid,
       newrelic_nrql_alert_condition.aide_ai_tool_health.entity_guid,
       newrelic_nrql_alert_condition.aide_service_level_health.entity_guid,
       newrelic_nrql_alert_condition.aide_synthetic_failing.entity_guid,
-      newrelic_nrql_alert_condition.legacy_chat_with_model.entity_guid
+      newrelic_nrql_alert_condition.before_autopilot_chat_with_model.entity_guid
     ],
     [for guid in [
       data.newrelic_entity.coordinator_ai_agent.guid,
@@ -38,7 +39,8 @@ locals {
       data.newrelic_entity.delegate_to_specialist_ai_tool.guid,
       data.newrelic_entity.relibank_mobile_android.guid,
       data.newrelic_entity.relibank_mobile_ios.guid,
-    ] : guid if guid != null]
+      # MFE data sources disabled in nr_entities.tf - see comment there.
+    ] : guid if guid != null && guid != ""]
   )
   # ReliBank - Core Banking team
   relibank_core_banking_list = concat(
@@ -68,12 +70,12 @@ locals {
       newrelic_nrql_alert_condition.pat_high_error_rate.entity_guid,
       newrelic_nrql_alert_condition.pat_low_throughput.entity_guid,
       newrelic_nrql_alert_condition.pat_service_level_health.entity_guid,
-      newrelic_nrql_alert_condition.wa_bill_pay_errors.entity_guid
+      newrelic_nrql_alert_condition.apwa_bill_pay_errors.entity_guid
     ]
   )
   # ReliBank - Platform team
   # Same split as relibank_aide_list above: only the ignore_not_found kafka topic / mssql
-  # entities are filtered for null; everything else is left as a plain list.
+  # entities are filtered for null/empty; everything else is left as a plain list.
   relibank_platform_list = concat(
     [
       data.newrelic_entity.event_scheduler_service.guid,
@@ -127,7 +129,7 @@ locals {
       data.newrelic_entity.recurring_payments_kafka_topic.guid,
       data.newrelic_entity.mssql_ohi_database.guid,
       data.newrelic_entity.mssql_db360_database.guid,
-    ] : guid if guid != null]
+    ] : guid if guid != null && guid != ""]
   )
   # All teams
   relibank_all_teams_list = concat(

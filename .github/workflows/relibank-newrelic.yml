@@ -23,6 +23,11 @@ on:
           - staging
           - prod
           - analysts
+      skip_propagation_wait:
+        description: "Skip the 600s wait for NR entity propagation between Terraform passes (safe for sandbox/staging test runs; leave unchecked for a live/prod deploy)"
+        type: boolean
+        required: false
+        default: false
 
 env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: 'true'
@@ -105,6 +110,7 @@ jobs:
             --auto-approve
 
       - name: "Wait for NR entity propagation"
+        if: ${{ github.event.inputs.skip_propagation_wait != 'true' }}
         run: |
           echo "Waiting 600s for nri-bundle to report and NR to create K8s/eBPF entities..."
           echo "K8s entities typically appear within 5 min; eBPF (risk-assessment-service) takes ~10 min with active traffic."
