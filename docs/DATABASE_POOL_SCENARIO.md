@@ -13,7 +13,7 @@ Users are deterministically assigned to either **pool-a** or **pool-b** based on
 ```python
 def assign_user_to_pool(user_id: str) -> str:
     """Uses MD5 hash for consistent pool assignment"""
-    user_hash = int(hashlib.md5(user_id.encode()).hexdigest(), 16)
+    user_hash = int(hashlib.md5(user_id.encode(), usedforsecurity=False).hexdigest(), 16)
     return "pool-a" if (user_hash % 2) == 0 else "pool-b"
 ```
 

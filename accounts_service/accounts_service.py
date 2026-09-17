@@ -105,7 +105,7 @@ def assign_user_to_pool(user_id: str) -> str:
 
     Returns: "pool-a" or "pool-b"
     """
-    user_hash = int(hashlib.md5(user_id.encode()).hexdigest(), 16)
+    user_hash = int(hashlib.md5(user_id.encode(), usedforsecurity=False).hexdigest(), 16)
     return "pool-a" if (user_hash % 2) == 0 else "pool-b"
 
 # Database connection details from environment variables
@@ -893,7 +893,7 @@ async def get_browser_user(request: Request):
                     if ab_config.get("lcp_slowness_percentage_enabled"):
                         percentage = ab_config.get("lcp_slowness_percentage", 0.0)
                         # Deterministically assign cohort based on user_id hash
-                        user_hash = int(hashlib.md5(browser_user_id.encode()).hexdigest(), 16)
+                        user_hash = int(hashlib.md5(browser_user_id.encode(), usedforsecurity=False).hexdigest(), 16)
                         if (user_hash % 100) < percentage:
                             lcp_delay_ms = ab_config.get("lcp_slowness_percentage_delay_ms", 0)
                             logging.info(f"[Browser User] User {browser_user_id} assigned to SLOW LCP cohort via PERCENTAGE ({lcp_delay_ms}ms delay)")
@@ -938,7 +938,7 @@ async def get_browser_user(request: Request):
             if ab_config.get("lcp_slowness_percentage_enabled"):
                 percentage = ab_config.get("lcp_slowness_percentage", 0.0)
                 # Deterministically assign cohort based on user_id hash
-                user_hash = int(hashlib.md5(user_id.encode()).hexdigest(), 16)
+                user_hash = int(hashlib.md5(user_id.encode(), usedforsecurity=False).hexdigest(), 16)
                 if (user_hash % 100) < percentage:
                     lcp_delay_ms = ab_config.get("lcp_slowness_percentage_delay_ms", 0)
                     logging.info(f"[Browser User] User {user_id} assigned to SLOW LCP cohort via PERCENTAGE ({lcp_delay_ms}ms delay)")
