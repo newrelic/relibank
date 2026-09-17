@@ -16,6 +16,11 @@ on:
           - sandbox
           - staging
           - prod
+      force_problem:
+        description: "Force a toxic/adversarial query from problem_questions.txt"
+        type: boolean
+        required: false
+        default: false
 
   schedule:
   - cron: "*/30 * * * *"
@@ -70,9 +75,21 @@ jobs:
 
 # --------------- demo flow ---------------
 
+      - name: Determine force-problem flag
+        id: force-problem
+        run: |
+          # Manual runs can force it explicitly via input. Scheduled runs (and manual runs that
+          # don't force it) guarantee a problem question every 4th run, so adversarial prompts
+          # show up on a predictable cadence rather than relying solely on the random mix.
+          if [ "${{ inputs.force_problem }}" = "true" ] || [ $(( ${{ github.run_number }} % 4 )) -eq 0 ]; then
+            echo "flag=--force-problem" >> "$GITHUB_OUTPUT"
+          else
+            echo "flag=" >> "$GITHUB_OUTPUT"
+          fi
+
       - name: Send chat loadgen
         run: |
-          cd demo_flows/support_loadgen/ && python create_support_loadgen.py ${{ vars.BASE_URL }}/support-service/chat
+          cd demo_flows/support_loadgen/ && python create_support_loadgen.py ${{ vars.BASE_URL }}/support-service/chat ${{ steps.force-problem.outputs.flag }}
 
       - name: Report scenario status to Krenko's Calendar
         if: always()
