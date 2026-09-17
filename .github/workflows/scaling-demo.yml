@@ -3,6 +3,8 @@ name: Scale ReliBank Service
 on:
   workflow_dispatch:
 
+permissions: {}
+
 jobs:
   placeholder:
     runs-on: ubuntu-latest
