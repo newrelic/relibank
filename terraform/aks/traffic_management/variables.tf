@@ -29,5 +29,5 @@ variable "dns_zone" {
 variable "dns_resource_group" {
   description = "Resource group hosting the Azure DNS zone for var.dns_zone"
   type        = string
-  default     = "relibank"
+  default     = "ReliBank-Prod"
 }
