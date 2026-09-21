@@ -1,48 +1,50 @@
 # alert policies, destinations, channels, and workflows
+# "health" alerts are in place to remove 'unknown' entity status
 ###
 # newrelic_notification_channel.aide_autopilot_channel.id
 # newrelic_notification_channel.aide_staging_slack_channel.id
 # newrelic_workflow.aide_autopilot_and_slack_workflow.id
 # newrelic_alert_policy.aide_policy.id
-# newrelic_nrql_alert_condition.aide_chat_with_model.entity_guid
-# newrelic_nrql_alert_condition.aide_high_response_time.entity_guid
-# newrelic_nrql_alert_condition.aide_high_error_rate.entity_guid
-# newrelic_nrql_alert_condition.aide_low_throughput.entity_guid
-# newrelic_nrql_alert_condition.aide_high_inp.entity_guid
-# newrelic_nrql_alert_condition.aide_high_lcp.entity_guid
-# newrelic_nrql_alert_condition.aide_high_js_error_rate.entity_guid
-# newrelic_nrql_alert_condition.aide_high_page_load_time.entity_guid
-# newrelic_nrql_alert_condition.aide_high_mfe_load_time.entity_guid
+# newrelic_nrql_alert_condition.aide_assess_payment_risk.entity_guid
+# newrelic_nrql_alert_condition.aide_high_response_time_health.entity_guid
+# newrelic_nrql_alert_condition.aide_high_error_rate_health.entity_guid
+# newrelic_nrql_alert_condition.aide_low_throughput_health.entity_guid
+# newrelic_nrql_alert_condition.aide_high_inp_health.entity_guid
+# newrelic_nrql_alert_condition.aide_high_lcp_health.entity_guid
+# newrelic_nrql_alert_condition.aide_high_js_error_rate_health.entity_guid
+# newrelic_nrql_alert_condition.aide_high_page_load_time_health.entity_guid
+# newrelic_nrql_alert_condition.aide_high_mfe_load_time_health.entity_guid
 # newrelic_nrql_alert_condition.aide_ai_agent_health.entity_guid
 # newrelic_nrql_alert_condition.aide_ai_tool_health.entity_guid
 # newrelic_nrql_alert_condition.aide_service_level_health.entity_guid
-# newrelic_nrql_alert_condition.aide_synthetic_failing.entity_guid
+# newrelic_nrql_alert_condition.aide_synthetic_failing_health.entity_guid
 
 # newrelic_notification_channel.core_autopilot_channel.id
 # newrelic_notification_channel.core_staging_slack_channel.id
 # newrelic_workflow.core_autopilot_and_slack_workflow.id
 # newrelic_alert_policy.core_banking_policy.id
-# newrelic_nrql_alert_condition.core_banking_high_response_time.entity_guid
-# newrelic_nrql_alert_condition.core_banking_high_error_rate.entity_guid
-# newrelic_nrql_alert_condition.core_banking_low_throughput.entity_guid
+# newrelic_nrql_alert_condition.core_banking_high_response_time_health.entity_guid
+# newrelic_nrql_alert_condition.core_banking_high_error_rate_health.entity_guid
+# newrelic_nrql_alert_condition.core_banking_low_throughput_health.entity_guid
 # newrelic_nrql_alert_condition.core_banking_service_level_health.entity_guid
 
 # newrelic_notification_channel.pat_autopilot_channel.id
 # newrelic_notification_channel.pat_staging_slack_channel.id
 # newrelic_workflow.pat_autopilot_and_slack_workflow.id
 # newrelic_alert_policy.pat_policy.id
-# newrelic_nrql_alert_condition.pat_high_response_time.entity_guid
-# newrelic_nrql_alert_condition.pat_high_error_rate.entity_guid
-# newrelic_nrql_alert_condition.pat_low_throughput.entity_guid
+# newrelic_nrql_alert_condition.pat_transaction_service_high_response_time.entity_guid
+# newrelic_nrql_alert_condition.pat_high_response_time_health.entity_guid
+# newrelic_nrql_alert_condition.pat_high_error_rate_health.entity_guid
+# newrelic_nrql_alert_condition.pat_low_throughput_health.entity_guid
 # newrelic_nrql_alert_condition.pat_service_level_health.entity_guid
 
 # newrelic_notification_channel.platform_autopilot_channel.id
 # newrelic_notification_channel.platform_staging_slack_channel.id
 # newrelic_workflow.platform_autopilot_and_slack_workflow.id
 # newrelic_alert_policy.platform_policy.id
-# newrelic_nrql_alert_condition.platform_high_response_time.entity_guid
-# newrelic_nrql_alert_condition.platform_high_error_rate.entity_guid
-# newrelic_nrql_alert_condition.platform_low_throughput.entity_guid
+# newrelic_nrql_alert_condition.platform_high_response_time_health.entity_guid
+# newrelic_nrql_alert_condition.platform_high_error_rate_health.entity_guid
+# newrelic_nrql_alert_condition.platform_low_throughput_health.entity_guid
 # newrelic_nrql_alert_condition.platform_service_level_health.entity_guid
 # newrelic_nrql_alert_condition.platform_k8s_cluster_health.entity_guid
 # newrelic_nrql_alert_condition.platform_k8s_deployment_health.entity_guid
@@ -54,7 +56,7 @@
 # newrelic_alert_policy.before_autopilot_policy.id
 # newrelic_notification_channel.before_autopilot_slack_channel.id
 # newrelic_workflow.before_autopilot_workflow.id
-# newrelic_nrql_alert_condition.before_autopilot_chat_with_model.entity_guid
+# newrelic_nrql_alert_condition.before_autopilot_assess_payment_risk.entity_guid
 
 # newrelic_alert_policy.apwa_policy.id
 # newrelic_notification_destination.apwa_destination.id
@@ -151,25 +153,26 @@ resource "newrelic_alert_policy" "aide_policy" {
   incident_preference = "PER_CONDITION_AND_TARGET"
   account_id          = var.new_relic_account_id
 }
-# Support Service - chat_with_model Error Rate
-resource "newrelic_nrql_alert_condition" "aide_chat_with_model" {
+# Support Service - assess_payment_risk Error Rate
+resource "newrelic_nrql_alert_condition" "aide_assess_payment_risk" {
   account_id                   = var.new_relic_account_id
   policy_id                    = newrelic_alert_policy.aide_policy.id
   type                         = "static"
-  name                         = "AIDE chat_with_model - High Transaction Error Rate"
+  name                         = "AIDE assess_payment_risk - High Transaction Error Rate"
   enabled                      = true
   violation_time_limit_seconds = 10800
   nrql {
 
     query = trimspace(<<-EOT
     FROM Metric SELECT
-      sum(apm.service.transaction.error.count['count']) / count(apm.service.transaction.duration)
+      latest(apm.service.transaction.error.count['count'])
     FACET entity.name AS 'entityName'
     WHERE tags.team = 'ReliBank - AI & Digital Experience'
-    AND entity.name = '${var.app_name} - Support Service'
-    AND transactionName = 'WebTransaction/Function/support_service:chat_with_model'
+    AND transactionName = 'WebTransaction/Function/support_service:assess_payment_risk'
     EOT
     )
+
+    data_account_id = var.new_relic_account_id
 
   }
 
@@ -183,14 +186,17 @@ resource "newrelic_nrql_alert_condition" "aide_chat_with_model" {
   aggregation_window = 60
   aggregation_method = "event_flow"
   aggregation_delay  = 120
-  title_template     = "High Transaction Error Rate | {{ entity_name }}"
+  title_template     = "Transaction Errors on 'assess_payment_risk'"
 }
+
+## HEALTH ALERTS USED TO CONTROL ENTITY STATUS ##
+
 # APM Response Time
-resource "newrelic_nrql_alert_condition" "aide_high_response_time" {
+resource "newrelic_nrql_alert_condition" "aide_high_response_time_health" {
   account_id                   = var.new_relic_account_id
   policy_id                    = newrelic_alert_policy.aide_policy.id
   type                         = "static"
-  name                         = "AIDE - High Response Time"
+  name                         = "AIDE - High Response Time Health"
   enabled                      = true
   violation_time_limit_seconds = 10800
   nrql {
@@ -200,14 +206,17 @@ resource "newrelic_nrql_alert_condition" "aide_high_response_time" {
       percentile(duration, 99) * 1000
     FACET appName AS 'entityName'
     WHERE tags.team = 'ReliBank - AI & Digital Experience'
+    AND entityGuid != '${data.newrelic_entity.transaction_service.guid}'
     EOT
     )
+
+    data_account_id = var.new_relic_account_id
 
   }
 
   critical {
     operator              = "above"
-    threshold             = 90000
+    threshold             = 20000
     threshold_duration    = 300
     threshold_occurrences = "all"
   }
@@ -219,11 +228,11 @@ resource "newrelic_nrql_alert_condition" "aide_high_response_time" {
   title_template     = "High Response Time | {{ entity_name }}"
 }
 # APM Error Rate
-resource "newrelic_nrql_alert_condition" "aide_high_error_rate" {
+resource "newrelic_nrql_alert_condition" "aide_high_error_rate_health" {
   account_id                   = var.new_relic_account_id
   policy_id                    = newrelic_alert_policy.aide_policy.id
   type                         = "static"
-  name                         = "AIDE - High Error Rate"
+  name                         = "AIDE - High Error Rate Health"
   enabled                      = true
   violation_time_limit_seconds = 10800
   nrql {
@@ -236,6 +245,8 @@ resource "newrelic_nrql_alert_condition" "aide_high_error_rate" {
     AND tags.team = 'ReliBank - AI & Digital Experience'
     EOT
     )
+
+    data_account_id = var.new_relic_account_id
 
   }
 
@@ -253,11 +264,11 @@ resource "newrelic_nrql_alert_condition" "aide_high_error_rate" {
   title_template     = "High Error Rate | {{ entity_name }}"
 }
 # APM Throughput
-resource "newrelic_nrql_alert_condition" "aide_low_throughput" {
+resource "newrelic_nrql_alert_condition" "aide_low_throughput_health" {
   account_id                   = var.new_relic_account_id
   policy_id                    = newrelic_alert_policy.aide_policy.id
   type                         = "static"
-  name                         = "AIDE - Low Throughput"
+  name                         = "AIDE - Low Throughput Health"
   enabled                      = true
   violation_time_limit_seconds = 10800
   nrql {
@@ -270,6 +281,8 @@ resource "newrelic_nrql_alert_condition" "aide_low_throughput" {
     AND tags.team = 'ReliBank - AI & Digital Experience'
     EOT
     )
+
+    data_account_id = var.new_relic_account_id
 
   }
 
@@ -289,11 +302,11 @@ resource "newrelic_nrql_alert_condition" "aide_low_throughput" {
 ### Browser alerts filter directly on the GUID as none of their
 ### telemetry decorates itself with the entity tags
 # Browser INP
-resource "newrelic_nrql_alert_condition" "aide_high_inp" {
+resource "newrelic_nrql_alert_condition" "aide_high_inp_health" {
   account_id                   = var.new_relic_account_id
   policy_id                    = newrelic_alert_policy.aide_policy.id
   type                         = "static"
-  name                         = "AIDE - High INP"
+  name                         = "AIDE - High INP Health"
   enabled                      = true
   violation_time_limit_seconds = 10800
   nrql {
@@ -305,6 +318,8 @@ resource "newrelic_nrql_alert_condition" "aide_high_inp" {
     WHERE entityGuid = '${data.newrelic_entity.customer_portal_browser.guid}'
     EOT
     )
+
+    data_account_id = var.new_relic_account_id
 
   }
 
@@ -322,11 +337,11 @@ resource "newrelic_nrql_alert_condition" "aide_high_inp" {
   title_template     = "High INP | {{ entity_name }}"
 }
 # Browser LCP
-resource "newrelic_nrql_alert_condition" "aide_high_lcp" {
+resource "newrelic_nrql_alert_condition" "aide_high_lcp_health" {
   account_id                   = var.new_relic_account_id
   policy_id                    = newrelic_alert_policy.aide_policy.id
   type                         = "static"
-  name                         = "AIDE - High LCP"
+  name                         = "AIDE - High LCP Health"
   enabled                      = true
   violation_time_limit_seconds = 10800
   nrql {
@@ -338,6 +353,8 @@ resource "newrelic_nrql_alert_condition" "aide_high_lcp" {
     WHERE entityGuid = '${data.newrelic_entity.customer_portal_browser.guid}'
     EOT
     )
+
+    data_account_id = var.new_relic_account_id
 
   }
 
@@ -355,11 +372,11 @@ resource "newrelic_nrql_alert_condition" "aide_high_lcp" {
   title_template     = "High LCP | {{ entity_name }}"
 }
 # Browser JS Error Rate
-resource "newrelic_nrql_alert_condition" "aide_high_js_error_rate" {
+resource "newrelic_nrql_alert_condition" "aide_high_js_error_rate_health" {
   account_id                   = var.new_relic_account_id
   policy_id                    = newrelic_alert_policy.aide_policy.id
   type                         = "static"
-  name                         = "AIDE - High JS Error Rate"
+  name                         = "AIDE - High JS Error Rate Health"
   enabled                      = true
   violation_time_limit_seconds = 10800
   nrql {
@@ -371,6 +388,8 @@ resource "newrelic_nrql_alert_condition" "aide_high_js_error_rate" {
     WHERE entityGuid = '${data.newrelic_entity.customer_portal_browser.guid}'
     EOT
     )
+
+    data_account_id = var.new_relic_account_id
 
   }
 
@@ -388,11 +407,11 @@ resource "newrelic_nrql_alert_condition" "aide_high_js_error_rate" {
   title_template     = "High JS Error Rate | {{ entity_name }}"
 }
 # Browser Page Load Time
-resource "newrelic_nrql_alert_condition" "aide_high_page_load_time" {
+resource "newrelic_nrql_alert_condition" "aide_high_page_load_time_health" {
   account_id                   = var.new_relic_account_id
   policy_id                    = newrelic_alert_policy.aide_policy.id
   type                         = "static"
-  name                         = "AIDE - High Page Load Time"
+  name                         = "AIDE - High Page Load Time Health"
   enabled                      = true
   violation_time_limit_seconds = 10800
   nrql {
@@ -404,6 +423,8 @@ resource "newrelic_nrql_alert_condition" "aide_high_page_load_time" {
     WHERE entityGuid = '${data.newrelic_entity.customer_portal_browser.guid}'
     EOT
     )
+
+    data_account_id = var.new_relic_account_id
 
   }
 
@@ -422,11 +443,11 @@ resource "newrelic_nrql_alert_condition" "aide_high_page_load_time" {
 }
 # Micro-Frontend Time to Load
 //TODO - Once MFE is GA we should be creating them with TF and then filtering on tags here
-resource "newrelic_nrql_alert_condition" "aide_high_mfe_load_time" {
+resource "newrelic_nrql_alert_condition" "aide_high_mfe_load_time_health" {
   account_id                   = var.new_relic_account_id
   policy_id                    = newrelic_alert_policy.aide_policy.id
   type                         = "static"
-  name                         = "AIDE - High MFE Load Time"
+  name                         = "AIDE - High MFE Load Time Health"
   enabled                      = true
   violation_time_limit_seconds = 10800
   nrql {
@@ -437,6 +458,8 @@ resource "newrelic_nrql_alert_condition" "aide_high_mfe_load_time" {
     FACET entity.name
     EOT
     )
+
+    data_account_id = var.new_relic_account_id
 
   }
 
@@ -472,6 +495,8 @@ resource "newrelic_nrql_alert_condition" "aide_ai_agent_health" {
     EOT
     )
 
+    data_account_id = var.new_relic_account_id
+
   }
 
   critical {
@@ -491,7 +516,7 @@ resource "newrelic_nrql_alert_condition" "aide_ai_tool_health" {
   account_id                   = var.new_relic_account_id
   policy_id                    = newrelic_alert_policy.aide_policy.id
   type                         = "static"
-  name                         = "AIDE - High AI Tool Health"
+  name                         = "AIDE - AI Tool Health"
   enabled                      = true
   violation_time_limit_seconds = 10800
   nrql {
@@ -504,6 +529,8 @@ resource "newrelic_nrql_alert_condition" "aide_ai_tool_health" {
     AND tags.team = 'ReliBank - AI & Digital Experience'
     EOT
     )
+
+    data_account_id = var.new_relic_account_id
 
   }
 
@@ -537,6 +564,8 @@ resource "newrelic_nrql_alert_condition" "aide_service_level_health" {
     EOT
     )
 
+    data_account_id = var.new_relic_account_id
+
   }
 
   critical {
@@ -552,11 +581,11 @@ resource "newrelic_nrql_alert_condition" "aide_service_level_health" {
   title_template     = "Service Level Health | {{ entity_name }}"
 }
 # Synthetics Failing
-resource "newrelic_nrql_alert_condition" "aide_synthetic_failing" {
+resource "newrelic_nrql_alert_condition" "aide_synthetic_failing_health" {
   account_id                   = var.new_relic_account_id
   policy_id                    = newrelic_alert_policy.aide_policy.id
   type                         = "static"
-  name                         = "AIDE - Synthetic Check Failing"
+  name                         = "AIDE - Synthetic Check Health"
   enabled                      = true
   violation_time_limit_seconds = 10800
   nrql {
@@ -569,6 +598,8 @@ resource "newrelic_nrql_alert_condition" "aide_synthetic_failing" {
     AND tags.team = 'ReliBank - AI & Digital Experience'
     EOT
     )
+
+    data_account_id = var.new_relic_account_id
 
   }
 
@@ -662,11 +693,11 @@ resource "newrelic_alert_policy" "core_banking_policy" {
   account_id          = var.new_relic_account_id
 }
 # APM Response Time
-resource "newrelic_nrql_alert_condition" "core_banking_high_response_time" {
+resource "newrelic_nrql_alert_condition" "core_banking_high_response_time_health" {
   account_id                   = var.new_relic_account_id
   policy_id                    = newrelic_alert_policy.core_banking_policy.id
   type                         = "static"
-  name                         = "Core Banking - High Response Time"
+  name                         = "Core Banking - High Response Time Health"
   enabled                      = true
   violation_time_limit_seconds = 10800
   nrql {
@@ -678,6 +709,8 @@ resource "newrelic_nrql_alert_condition" "core_banking_high_response_time" {
     WHERE tags.team = 'ReliBank - Core Banking'
     EOT
     )
+
+    data_account_id = var.new_relic_account_id
 
   }
 
@@ -695,11 +728,11 @@ resource "newrelic_nrql_alert_condition" "core_banking_high_response_time" {
   title_template     = "High Response Time | {{ entity_name }}"
 }
 # APM Error Rate
-resource "newrelic_nrql_alert_condition" "core_banking_high_error_rate" {
+resource "newrelic_nrql_alert_condition" "core_banking_high_error_rate_health" {
   account_id                   = var.new_relic_account_id
   policy_id                    = newrelic_alert_policy.core_banking_policy.id
   type                         = "static"
-  name                         = "Core Banking - High Error Rate"
+  name                         = "Core Banking - High Error Rate Health"
   enabled                      = true
   violation_time_limit_seconds = 10800
   nrql {
@@ -712,6 +745,8 @@ resource "newrelic_nrql_alert_condition" "core_banking_high_error_rate" {
     AND tags.team = 'ReliBank - Core Banking'
     EOT
     )
+
+    data_account_id = var.new_relic_account_id
 
   }
 
@@ -729,11 +764,11 @@ resource "newrelic_nrql_alert_condition" "core_banking_high_error_rate" {
   title_template     = "High Error Rate | {{ entity_name }}"
 }
 # APM Throughput
-resource "newrelic_nrql_alert_condition" "core_banking_low_throughput" {
+resource "newrelic_nrql_alert_condition" "core_banking_low_throughput_health" {
   account_id                   = var.new_relic_account_id
   policy_id                    = newrelic_alert_policy.core_banking_policy.id
   type                         = "static"
-  name                         = "Core Banking - Low Throughput"
+  name                         = "Core Banking - Low Throughput Health"
   enabled                      = true
   violation_time_limit_seconds = 10800
   nrql {
@@ -746,6 +781,8 @@ resource "newrelic_nrql_alert_condition" "core_banking_low_throughput" {
     AND tags.team = 'ReliBank - Core Banking'
     EOT
     )
+
+    data_account_id = var.new_relic_account_id
 
   }
 
@@ -779,6 +816,8 @@ resource "newrelic_nrql_alert_condition" "core_banking_service_level_health" {
     WHERE entity.guid IN (${join(",", [for g in local.relibank_core_banking_sli_guids : "'${g}'"])})
     EOT
     )
+
+    data_account_id = var.new_relic_account_id
 
   }
 
@@ -870,12 +909,12 @@ resource "newrelic_alert_policy" "pat_policy" {
   incident_preference = "PER_CONDITION_AND_TARGET"
   account_id          = var.new_relic_account_id
 }
-# APM Response Time
-resource "newrelic_nrql_alert_condition" "pat_high_response_time" {
+# Transaction Service High Response Time
+resource "newrelic_nrql_alert_condition" "pat_transaction_service_high_response_time" {
   account_id                   = var.new_relic_account_id
   policy_id                    = newrelic_alert_policy.pat_policy.id
   type                         = "static"
-  name                         = "Payments & Transactions - High Response Time"
+  name                         = "PAT - Transaction Service High Response Time"
   enabled                      = true
   violation_time_limit_seconds = 10800
   nrql {
@@ -885,8 +924,47 @@ resource "newrelic_nrql_alert_condition" "pat_high_response_time" {
       percentile(duration, 99) * 1000
     FACET appName AS 'entityName'
     WHERE tags.team = 'ReliBank - Payments & Transactions'
+    AND entityGuid = '${data.newrelic_entity.transaction_service.guid}'
     EOT
     )
+
+    data_account_id = var.new_relic_account_id
+
+  }
+
+  critical {
+    operator              = "above"
+    threshold             = 200
+    threshold_duration    = 300
+    threshold_occurrences = "at_least_once"
+  }
+  fill_option        = "none"
+  aggregation_window = 60
+  aggregation_method = "event_flow"
+  aggregation_delay  = 60
+  evaluation_delay   = 120
+  title_template     = "High Response Time | {{ entity_name }}"
+}
+# APM Response Time
+resource "newrelic_nrql_alert_condition" "pat_high_response_time_health" {
+  account_id                   = var.new_relic_account_id
+  policy_id                    = newrelic_alert_policy.pat_policy.id
+  type                         = "static"
+  name                         = "Payments & Transactions - High Response Time Health"
+  enabled                      = true
+  violation_time_limit_seconds = 10800
+  nrql {
+
+    query = trimspace(<<-EOT
+    FROM Transaction SELECT
+      percentile(duration, 99) * 1000
+    FACET appName AS 'entityName'
+    WHERE tags.team = 'ReliBank - Payments & Transactions'
+    AND entityGuid != '${data.newrelic_entity.transaction_service.guid}'
+    EOT
+    )
+
+    data_account_id = var.new_relic_account_id
 
   }
 
@@ -904,11 +982,11 @@ resource "newrelic_nrql_alert_condition" "pat_high_response_time" {
   title_template     = "High Response Time | {{ entity_name }}"
 }
 # APM Error Rate
-resource "newrelic_nrql_alert_condition" "pat_high_error_rate" {
+resource "newrelic_nrql_alert_condition" "pat_high_error_rate_health" {
   account_id                   = var.new_relic_account_id
   policy_id                    = newrelic_alert_policy.pat_policy.id
   type                         = "static"
-  name                         = "Payments & Transactions - High Error Rate"
+  name                         = "Payments & Transactions - High Error Rate Health"
   enabled                      = true
   violation_time_limit_seconds = 10800
   nrql {
@@ -921,6 +999,8 @@ resource "newrelic_nrql_alert_condition" "pat_high_error_rate" {
     AND tags.team = 'ReliBank - Payments & Transactions'
     EOT
     )
+
+    data_account_id = var.new_relic_account_id
 
   }
 
@@ -938,11 +1018,11 @@ resource "newrelic_nrql_alert_condition" "pat_high_error_rate" {
   title_template     = "High Error Rate | {{ entity_name }}"
 }
 # APM Throughput
-resource "newrelic_nrql_alert_condition" "pat_low_throughput" {
+resource "newrelic_nrql_alert_condition" "pat_low_throughput_health" {
   account_id                   = var.new_relic_account_id
   policy_id                    = newrelic_alert_policy.pat_policy.id
   type                         = "static"
-  name                         = "Payments & Transactions - Low Throughput"
+  name                         = "Payments & Transactions - Low Throughput Health"
   enabled                      = true
   violation_time_limit_seconds = 10800
   nrql {
@@ -955,6 +1035,8 @@ resource "newrelic_nrql_alert_condition" "pat_low_throughput" {
     AND tags.team = 'ReliBank - Payments & Transactions'
     EOT
     )
+
+    data_account_id = var.new_relic_account_id
 
   }
 
@@ -988,6 +1070,8 @@ resource "newrelic_nrql_alert_condition" "pat_service_level_health" {
     WHERE entity.guid IN (${join(",", [for g in local.relibank_pat_sli_guids : "'${g}'"])})
     EOT
     )
+
+    data_account_id = var.new_relic_account_id
 
   }
 
@@ -1080,11 +1164,11 @@ resource "newrelic_alert_policy" "platform_policy" {
   account_id          = var.new_relic_account_id
 }
 # APM Response Time
-resource "newrelic_nrql_alert_condition" "platform_high_response_time" {
+resource "newrelic_nrql_alert_condition" "platform_high_response_time_health" {
   account_id                   = var.new_relic_account_id
   policy_id                    = newrelic_alert_policy.platform_policy.id
   type                         = "static"
-  name                         = "Platform - High Response Time"
+  name                         = "Platform - High Response Time Health"
   enabled                      = true
   violation_time_limit_seconds = 10800
   nrql {
@@ -1096,6 +1180,8 @@ resource "newrelic_nrql_alert_condition" "platform_high_response_time" {
     WHERE tags.team = 'ReliBank - Platform'
     EOT
     )
+
+    data_account_id = var.new_relic_account_id
 
   }
 
@@ -1113,11 +1199,11 @@ resource "newrelic_nrql_alert_condition" "platform_high_response_time" {
   title_template     = "High Response Time | {{ entity_name }}"
 }
 # APM Error Rate
-resource "newrelic_nrql_alert_condition" "platform_high_error_rate" {
+resource "newrelic_nrql_alert_condition" "platform_high_error_rate_health" {
   account_id                   = var.new_relic_account_id
   policy_id                    = newrelic_alert_policy.platform_policy.id
   type                         = "static"
-  name                         = "Platform - High Error Rate"
+  name                         = "Platform - High Error Rate Health"
   enabled                      = true
   violation_time_limit_seconds = 10800
   nrql {
@@ -1130,6 +1216,8 @@ resource "newrelic_nrql_alert_condition" "platform_high_error_rate" {
     AND tags.team = 'ReliBank - Platform'
     EOT
     )
+
+    data_account_id = var.new_relic_account_id
 
   }
 
@@ -1147,11 +1235,11 @@ resource "newrelic_nrql_alert_condition" "platform_high_error_rate" {
   title_template     = "High Error Rate | {{ entity_name }}"
 }
 # APM Throughput
-resource "newrelic_nrql_alert_condition" "platform_low_throughput" {
+resource "newrelic_nrql_alert_condition" "platform_low_throughput_health" {
   account_id                   = var.new_relic_account_id
   policy_id                    = newrelic_alert_policy.platform_policy.id
   type                         = "static"
-  name                         = "Platform - Low Throughput"
+  name                         = "Platform - Low Throughput Health"
   enabled                      = true
   violation_time_limit_seconds = 10800
   nrql {
@@ -1164,6 +1252,8 @@ resource "newrelic_nrql_alert_condition" "platform_low_throughput" {
     AND tags.team = 'ReliBank - Platform'
     EOT
     )
+
+    data_account_id = var.new_relic_account_id
 
   }
 
@@ -1198,6 +1288,8 @@ resource "newrelic_nrql_alert_condition" "platform_service_level_health" {
     EOT
     )
 
+    data_account_id = var.new_relic_account_id
+
   }
 
   critical {
@@ -1223,13 +1315,13 @@ resource "newrelic_nrql_alert_condition" "platform_k8s_cluster_health" {
   nrql {
 
     query = trimspace(<<-EOT
-    FROM Entity SELECT
-      count(*)
-    FACET name AS 'entityName'
-    WHERE type = 'INFRA-KUBERNETESCLUSTER'
-    AND tags.team = 'ReliBank - Platform'
+    FROM K8sNodeSample SELECT
+      filter(uniqueCount(nodeName), WHERE condition.Ready = 1) / uniqueCount(nodeName) * 100
+    WHERE entityGuid = '${data.newrelic_entity.relibank_k8s_cluster.guid}'
     EOT
     )
+
+    data_account_id = var.new_relic_account_id
 
   }
 
@@ -1241,8 +1333,8 @@ resource "newrelic_nrql_alert_condition" "platform_k8s_cluster_health" {
   }
   fill_option        = "last_value"
   aggregation_window = 21600
-  aggregation_method = "event_timer"
-  aggregation_timer  = 60
+  aggregation_method = "event_flow"
+  aggregation_delay  = 120
   title_template     = "K8s Cluster Health | {{ entity_name }}"
 }
 # K8s Deployment Health
@@ -1256,26 +1348,29 @@ resource "newrelic_nrql_alert_condition" "platform_k8s_deployment_health" {
   nrql {
 
     query = trimspace(<<-EOT
-    FROM Entity SELECT
-      count(*)
-    FACET name AS 'entityName'
-    WHERE type = 'INFRA-KUBERNETES_DEPLOYMENT'
+    FROM K8sDeploymentSample SELECT
+      latest(podsReady)
+    FACET entityName
+    WHERE NOT (createdAt IS NULL)
     AND tags.team = 'ReliBank - Platform'
     EOT
     )
 
+    data_account_id = var.new_relic_account_id
+
   }
 
   critical {
-    operator              = "below"
+    operator              = "equals"
     threshold             = 0
-    threshold_duration    = 86400
+    threshold_duration    = 21600
     threshold_occurrences = "all"
   }
-  fill_option        = "last_value"
-  aggregation_window = 21600
-  aggregation_method = "event_timer"
-  aggregation_timer  = 60
+  fill_option        = "static"
+  fill_value         = 0
+  aggregation_window = 60
+  aggregation_method = "event_flow"
+  aggregation_delay  = 120
   title_template     = "K8s Deployment Health | {{ entity_name }}"
 }
 # Kafka Broker Health
@@ -1289,24 +1384,25 @@ resource "newrelic_nrql_alert_condition" "platform_kafka_broker_health" {
   nrql {
 
     query = trimspace(<<-EOT
-    FROM Entity SELECT
-      count(*)
-    FACET name AS 'entityName'
-    WHERE type = 'INFRA-KAFKABROKER'
-    AND tags.team = 'ReliBank - Platform'
+    FROM Metric SELECT latest(kafka.broker.uptime)
+      FACET entity.name
+    WHERE entity.type = 'KAFKABROKER'
     EOT
     )
+
+    data_account_id = var.new_relic_account_id
 
   }
 
   critical {
-    operator              = "below"
+    operator              = "equals"
     threshold             = 0
-    threshold_duration    = 86400
+    threshold_duration    = 3600
     threshold_occurrences = "all"
   }
-  fill_option        = "last_value"
-  aggregation_window = 21600
+  fill_option        = "static"
+  fill_value         = 0.0
+  aggregation_window = 60
   aggregation_method = "event_timer"
   aggregation_timer  = 60
   title_template     = "Kafka Broker Health | {{ entity_name }}"
@@ -1322,26 +1418,28 @@ resource "newrelic_nrql_alert_condition" "platform_kafka_cluster_health" {
   nrql {
 
     query = trimspace(<<-EOT
-    FROM Entity SELECT
-      count(*)
-    FACET name AS 'entityName'
-    WHERE type = 'INFRA-KAFKACLUSTER'
-    AND tags.team = 'ReliBank - Platform'
+    FROM Metric SELECT
+      latest(kafka.brokers)
+    FACET entity.name
+    WHERE entity.type = 'KAFKACLUSTER'
     EOT
     )
+
+    data_account_id = var.new_relic_account_id
 
   }
 
   critical {
-    operator              = "below"
+    operator              = "equals"
     threshold             = 0
-    threshold_duration    = 86400
+    threshold_duration    = 3600
     threshold_occurrences = "all"
   }
-  fill_option        = "last_value"
-  aggregation_window = 21600
-  aggregation_method = "event_timer"
-  aggregation_timer  = 60
+  fill_option        = "static"
+  fill_value         = 0.0
+  aggregation_window = 60
+  aggregation_method = "event_flow"
+  aggregation_delay  = 120
   title_template     = "Kafka Cluster Health | {{ entity_name }}"
 }
 # Kafka Topic Health
@@ -1355,26 +1453,28 @@ resource "newrelic_nrql_alert_condition" "platform_kafka_topic_health" {
   nrql {
 
     query = trimspace(<<-EOT
-    FROM Entity SELECT
-      count(*)
-    FACET name AS 'entityName'
-    WHERE type = 'INFRA-KAFKATOPIC'
-    AND tags.team = 'ReliBank - Platform'
+    FROM Metric SELECT
+      max(kafka.prod.msg.count)
+    FACET entity.name
+    WHERE entity.type = 'KAFKATOPIC'
     EOT
     )
+
+    data_account_id = var.new_relic_account_id
 
   }
 
   critical {
-    operator              = "below"
+    operator              = "equals"
     threshold             = 0
-    threshold_duration    = 86400
+    threshold_duration    = 3600
     threshold_occurrences = "all"
   }
-  fill_option        = "last_value"
-  aggregation_window = 21600
-  aggregation_method = "event_timer"
-  aggregation_timer  = 60
+  fill_option        = "static"
+  fill_value         = 0.0
+  aggregation_window = 60
+  aggregation_method = "event_flow"
+  aggregation_delay  = 120
   title_template     = "Kafka Topic Health | {{ entity_name }}"
 }
 # Database Health
@@ -1388,13 +1488,15 @@ resource "newrelic_nrql_alert_condition" "platform_database_health" {
   nrql {
 
     query = trimspace(<<-EOT
-    FROM Entity SELECT
-      count(*)
-    FACET name AS 'entityName'
-    WHERE type = 'INFRA-MSSQLINSTANCE'
-    AND tags.team = 'ReliBank - Platform'
+    FROM Metric SELECT latest(sqlserver.database.count)
+      FACET entity.name
+    WHERE metricName = 'sqlserver.database.count'
+    WHERE database.status = 'online'
+    WHERE entity.guid = '${data.newrelic_entity.mssql_db360_database.guid}'
     EOT
     )
+
+    data_account_id = var.new_relic_account_id
 
   }
 
@@ -1406,8 +1508,8 @@ resource "newrelic_nrql_alert_condition" "platform_database_health" {
   }
   fill_option        = "last_value"
   aggregation_window = 21600
-  aggregation_method = "event_timer"
-  aggregation_timer  = 60
+  aggregation_method = "event_flow"
+  aggregation_delay  = 120
   title_template     = "Database Health | {{ entity_name }}"
 }
 
@@ -1457,39 +1559,41 @@ resource "newrelic_workflow" "before_autopilot_workflow" {
     update_original_message = true
   }
 }
-# Legacy Support Service - chat_with_model Error Rate
-resource "newrelic_nrql_alert_condition" "before_autopilot_chat_with_model" {
+# Legacy Support Service - assess_payment_risk Error Rate
+resource "newrelic_nrql_alert_condition" "before_autopilot_assess_payment_risk" {
   account_id                   = var.new_relic_account_id
   policy_id                    = newrelic_alert_policy.before_autopilot_policy.id
   type                         = "static"
-  name                         = "Legacy chat_with_model - High Transaction Error Rate"
+  name                         = "Legacy assess_payment_risk - High Transaction Error Rate"
   enabled                      = true
   violation_time_limit_seconds = 10800
   nrql {
 
     query = trimspace(<<-EOT
     FROM Metric SELECT
-      sum(apm.service.transaction.error.count['count']) / count(apm.service.transaction.duration)
+      latest(apm.service.transaction.error.count['count'])
     FACET entity.name AS 'entityName'
     WHERE tags.team = 'ReliBank - AI & Digital Experience'
-    AND entity.name = '${var.app_name} - Support Service'
-    AND transactionName = 'WebTransaction/Function/support_service:chat_with_model'
+    AND transactionName = 'WebTransaction/Function/support_service:assess_payment_risk'
     EOT
     )
+
+    data_account_id = var.new_relic_account_id
 
   }
 
   critical {
     operator              = "above"
-    threshold             = 0.95
+    threshold             = 0
     threshold_duration    = 300
-    threshold_occurrences = "all"
+    threshold_occurrences = "at_least_once"
   }
-  fill_option        = "none"
+  fill_option        = "static"
+  fill_value         = 0
   aggregation_window = 60
-  aggregation_method = "event_flow"
-  aggregation_delay  = 120
-  title_template     = "High Transaction Error Rate | {{ entity_name }}"
+  aggregation_method = "event_timer"
+  aggregation_timer  = 60
+  title_template     = "Transaction Errors on 'assess_payment_risk'"
 }
 
 ### Autopilot + Workflow Automation ###
@@ -1621,7 +1725,9 @@ resource "newrelic_nrql_alert_condition" "apwa_bill_pay_errors" {
     AND response.status IN ('200', '402','409', '503', '403')
     EOT
     )
+
     data_account_id = var.new_relic_account_id
+
   }
 
   critical {
@@ -1702,6 +1808,8 @@ resource "newrelic_nrql_alert_condition" "aide_android_excess_transfer_attempts"
     AND action = 'transfer_funds_button_pressed'
     EOT
     )
+
+    data_account_id = var.new_relic_account_id
 
   }
 
