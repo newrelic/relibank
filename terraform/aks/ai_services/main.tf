@@ -60,7 +60,7 @@ resource "azurerm_cognitive_deployment" "model" {
   }
 
   scale {
-    type     = "Standard"
+    type     = each.value.sku_type
     capacity = each.value.capacity
   }
 }
