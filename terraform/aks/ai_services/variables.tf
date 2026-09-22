@@ -31,7 +31,7 @@ variable "model_deployments" {
     "gpt-4-1" = {
       model_name    = "gpt-4.1"
       model_version = "2025-04-14"
-      capacity      = 2.5
+      capacity      = 3
     }
     "gpt-4o" = {
       model_name    = "gpt-4o"
