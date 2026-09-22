@@ -15,7 +15,6 @@ locals {
       newrelic_service_level.customer_portal_browser_success_sl.sli_guid,
       newrelic_service_level.support_service_success_sl.sli_guid,
       newrelic_synthetics_script_monitor.relibank_login_check.id,
-      newrelic_workload.relibank_aide_workload.guid,
       newrelic_nrql_alert_condition.aide_android_excess_transfer_attempts.entity_guid,
       newrelic_nrql_alert_condition.aide_assess_payment_risk.entity_guid,
       newrelic_nrql_alert_condition.aide_high_response_time_health.entity_guid,
@@ -49,7 +48,6 @@ locals {
       data.newrelic_entity.auth_service.guid,
       newrelic_service_level.accounts_service_success_sl.sli_guid,
       newrelic_service_level.auth_service_success_sl.sli_guid,
-      newrelic_workload.relibank_core_banking_workload.guid,
       newrelic_nrql_alert_condition.core_banking_high_response_time_health.entity_guid,
       newrelic_nrql_alert_condition.core_banking_high_error_rate_health.entity_guid,
       newrelic_nrql_alert_condition.core_banking_low_throughput_health.entity_guid,
@@ -65,7 +63,6 @@ locals {
       newrelic_service_level.bill_pay_service_success_sl.sli_guid,
       newrelic_service_level.notifications_service_success_sl.sli_guid,
       newrelic_service_level.transaction_service_success_sl.sli_guid,
-      newrelic_workload.relibank_pat_workload.guid,
       newrelic_nrql_alert_condition.pat_high_response_time_health.entity_guid,
       newrelic_nrql_alert_condition.pat_high_error_rate_health.entity_guid,
       newrelic_nrql_alert_condition.pat_low_throughput_health.entity_guid,
@@ -104,7 +101,6 @@ locals {
       data.newrelic_entity.transaction_service_k8s_dep.guid,
       data.newrelic_entity.zookeeper_k8s_dep.guid,
       newrelic_service_level.event_scheduler_service_success_sl.sli_guid,
-      newrelic_workload.relibank_platform_workload.guid,
       newrelic_nrql_alert_condition.platform_high_response_time_health.entity_guid,
       newrelic_nrql_alert_condition.platform_high_error_rate_health.entity_guid,
       newrelic_nrql_alert_condition.platform_low_throughput_health.entity_guid,
@@ -129,6 +125,8 @@ locals {
       data.newrelic_entity.payment_declined_kafka_topic.guid,
       data.newrelic_entity.recurring_payments_kafka_topic.guid,
       data.newrelic_entity.mssql_db360_database.guid,
+      data.newrelic_entity.kafka_collector.guid,
+      data.newrelic_entity.mssql_collector.guid
     ] : guid if guid != null && guid != ""]
   )
   # All teams

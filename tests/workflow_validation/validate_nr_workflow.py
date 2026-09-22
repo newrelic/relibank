@@ -266,6 +266,10 @@ WORKLOADS = [
     "ReliBank - Core Banking Components",
     "ReliBank - Payments & Transaction Components",
     "ReliBank - Platform Components",
+    "accounts_service:get_accounts",
+    "auth_service:login",
+    "support_service:assess_payment_risk",
+    "support_service:chat_with_model",
 ]
 
 # `newrelic_synthetics_script_monitor.*` — the only synthetics monitor this module creates.
