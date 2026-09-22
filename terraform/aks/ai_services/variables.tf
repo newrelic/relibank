@@ -40,7 +40,7 @@ variable "model_deployments" {
     }
     "gpt-4o-mini" = {
       model_name    = "gpt-4o-mini"
-      model_version = "2025-04-14"
+      model_version = "2024-07-18"
       capacity      = 5
     }
   }
