@@ -26,7 +26,6 @@ variable "model_deployments" {
     model_name    = string
     model_version = string
     capacity      = number
-    sku_type      = optional(string, "Standard")
   }))
   default = {
     "gpt-4-1" = {
@@ -40,12 +39,9 @@ variable "model_deployments" {
       capacity      = 5
     }
     "gpt-4o-mini" = {
-      model_name    = "gpt-4o-mini"
-      model_version = "2024-07-18"
+      model_name    = "gpt-4.1-mini"
+      model_version = "2025-04-14"
       capacity      = 5
-      # Standard SKU for this model+version was deprecated 2026-03-31; GlobalStandard
-      # is still supported (deprecates 2027-04-14).
-      sku_type      = "GlobalStandard"
     }
   }
 }
