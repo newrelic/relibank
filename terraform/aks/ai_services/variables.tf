@@ -31,17 +31,17 @@ variable "model_deployments" {
     "gpt-4-1" = {
       model_name    = "gpt-4.1"
       model_version = "2025-04-14"
-      capacity      = 3
+      capacity      = 5
     }
     "gpt-4o" = {
       model_name    = "gpt-4o"
       model_version = "2024-11-20"
-      capacity      = 5
+      capacity      = 10
     }
     "gpt-4o-mini" = {
       model_name    = "gpt-4.1-mini"
       model_version = "2025-04-14"
-      capacity      = 5
+      capacity      = 10
     }
   }
 }
