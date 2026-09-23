@@ -1,7 +1,12 @@
-name: Flow - Support Loadgen
+name: Flow - Support Loadgen Token Limit
 
-run-name: Create Scheduled Support Loadgen
+run-name: Trigger Support Loadgen Token Limit scenario
 
+# Dispatch-only demo scenario: sends a smoothed but aggressive burst of chat requests
+# per tick, deliberately dense enough to exceed the gpt-4-1 AOAI deployment's TPM/RPM
+# capacity and surface openai:RateLimitError / 429 rate_limit_exceeded. Confirmed live
+# on sandbox on 2026-09-23 (~53% request failure rate at these settings). Not on a
+# schedule -- trigger manually when this scenario is wanted.
 on:
   workflow_dispatch:
     inputs:
@@ -25,20 +30,20 @@ on:
         description: "Minimum seconds between loadgen requests within the tick"
         type: string
         required: false
-        default: "40"
+        default: "20"
       max_delay_seconds:
         description: "Maximum seconds between loadgen requests within the tick"
         type: string
         required: false
-        default: "80"
+        default: "40"
       burst_seconds:
         description: "Seconds of the 10-minute tick to spend sending spaced requests"
         type: string
         required: false
         default: "480"
 
-  schedule:
-  - cron: "*/10 * * * *"
+  # schedule:
+  # - cron: "*/10 * * * *"
 
 permissions:
   contents: read
@@ -70,7 +75,7 @@ jobs:
         environment: ${{ fromJson(needs.resolve-environments.outputs.environments) }}
 
     environment: ${{ matrix.environment }}
-    
+
 # --------------- runner setup ---------------
     steps:
       - name: Record start time
@@ -112,8 +117,8 @@ jobs:
           MAX_DELAY="${{ inputs.max_delay_seconds }}"
           BURST_SECONDS="${{ inputs.burst_seconds }}"
 
-          echo "min_delay=${MIN_DELAY:-40}" >> "$GITHUB_OUTPUT"
-          echo "max_delay=${MAX_DELAY:-80}" >> "$GITHUB_OUTPUT"
+          echo "min_delay=${MIN_DELAY:-20}" >> "$GITHUB_OUTPUT"
+          echo "max_delay=${MAX_DELAY:-40}" >> "$GITHUB_OUTPUT"
           echo "burst_seconds=${BURST_SECONDS:-480}" >> "$GITHUB_OUTPUT"
 
       - name: Send chat loadgen

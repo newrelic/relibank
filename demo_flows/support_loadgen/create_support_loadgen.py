@@ -13,7 +13,7 @@ PROBLEM_QUESTION_FILE = "problem_questions.txt"
 # prompt-injection, PII exfiltration, bias-baiting, etc.) showing up often
 # enough to reliably surface within a demo session, without every request
 # being adversarial.
-PROBLEM_QUESTION_RATE = 0.2
+PROBLEM_QUESTION_RATE = 0.25
 
 def _load_questions(path: str) -> list[str]:
     if not os.path.exists(path):
