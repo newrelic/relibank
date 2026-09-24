@@ -708,6 +708,13 @@ resource "kubernetes_deployment_v1" "zookeeper" {
             name  = "ZOO_MY_ID"
             value = "1"
           }
+          # `ruok` is not in this image's default 4lw allowlist ([mntr, srvr] only) -- without
+          # this, the liveness/readiness probes below get no response to `ruok` and kubelet
+          # crash-loops the container. Confirmed empirically against a live pod's own logs.
+          env {
+            name  = "ZOO_4LW_COMMANDS_WHITELIST"
+            value = "srvr,mntr,ruok"
+          }
           volume_mount {
             name       = "zookeeper-data"
             mount_path = "/bitnami/zookeeper"
