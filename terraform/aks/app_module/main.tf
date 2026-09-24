@@ -787,6 +787,15 @@ resource "kubernetes_deployment_v1" "kafka" {
   }
   spec {
     replicas = 1
+    # KAFKA_BROKER_ID is hardcoded to "1" below (single-identity broker, not derived per-pod),
+    # so a RollingUpdate deadlocks: the new pod can't register broker id 1 in Zookeeper while
+    # the old pod is still alive and holds it, and Kubernetes won't kill the old pod until the
+    # new one is Ready -- which it never becomes. Recreate avoids the two pods ever coexisting.
+    # Confirmed live: a pod-template change under the default RollingUpdate strategy deadlocked
+    # exactly this way.
+    strategy {
+      type = "Recreate"
+    }
     selector {
       match_labels = { app = "kafka" }
     }
@@ -856,7 +865,13 @@ resource "kubernetes_deployment_v1" "kafka" {
           # tests/test_kafka_zookeeper_resilience.py.
           readiness_probe {
             exec {
-              command = ["kafka-broker-api-versions.sh", "--bootstrap-server", "localhost:9092"]
+              # KAFKA_JMX_OPTS is set container-wide (for the monitoring collector) and binds
+              # port 9999 -- every kafka-*.sh script picks it up and tries to open its own JMX
+              # listener on the same port the running broker already holds, so the probe process
+              # itself crashes with "Port already in use: 9999" regardless of actual broker
+              # health. Clear it for this one invocation only; confirmed via manual exec that
+              # the command then runs clean.
+              command = ["/bin/sh", "-c", "KAFKA_JMX_OPTS= kafka-broker-api-versions.sh --bootstrap-server localhost:9092"]
             }
             initial_delay_seconds = 30
             period_seconds        = 15
