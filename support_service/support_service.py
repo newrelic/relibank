@@ -5,7 +5,8 @@ ARCHITECTURE (read before adding AI infrastructure)
 ====================================================
 The deployed AI path is **LangGraph chat-completions**, not the OpenAI
 Assistants API. Coordinator and Specialist are LangGraph graph nodes built
-with `AzureChatOpenAI` / `create_agent` — they call the standard chat
+with `AsyncOpenAIChatModel` (a custom `BaseChatModel` wrapping `AsyncOpenAI`
+for New Relic instrumentation) / `create_agent` — they call the standard chat
 completions endpoint and orchestrate via in-process state. There is **no
 Assistants API code path in production**. See LangGraphSupportService below.
 
@@ -45,7 +46,6 @@ from fastapi.middleware.cors import CORSMiddleware
 from openai import AzureOpenAI, AsyncOpenAI
 from pydantic import BaseModel
 import newrelic.agent
-import tiktoken
 import httpx
 
 newrelic.agent.initialize()
@@ -57,7 +57,6 @@ newrelic.agent.initialize()
 # from openai import AsyncOpenAI, APIConnectionError, AuthenticationError
 
 # LangGraph imports
-from langchain_openai import AzureChatOpenAI
 from langchain_core.messages import HumanMessage, SystemMessage, AIMessage, BaseMessage, ToolCall, ToolMessage
 from langchain_core.language_models.chat_models import BaseChatModel
 from langchain_core.outputs import ChatResult, ChatGeneration
@@ -342,125 +341,6 @@ class AsyncOpenAIChatModel(BaseChatModel):
         raise NotImplementedError("Sync generation not supported, use async")
 
 
-# --- New Relic LangChain Callback Handler ---
-from langchain_core.callbacks import AsyncCallbackHandler
-from langchain_core.outputs import LLMResult
-
-class NewRelicCallbackHandler(AsyncCallbackHandler):
-    """Custom callback handler for New Relic AI Monitoring integration
-
-    This handler captures LLM completions from LangChain agents and records them
-    as New Relic custom events, which populate the AI Monitoring dashboard.
-    """
-
-    def __init__(self):
-        super().__init__()
-        self.logger = logging.getLogger(__name__)
-        self.logger.info("NewRelicCallbackHandler initialized")
-        # Initialize tiktoken for token counting
-        try:
-            self.encoding = tiktoken.get_encoding("cl100k_base")
-            self.logger.info("tiktoken encoding initialized successfully")
-        except Exception as e:
-            self.logger.warning(f"Failed to initialize tiktoken: {e}")
-            self.encoding = None
-
-    def _count_tokens(self, content: str) -> int:
-        """Count tokens in a string using tiktoken"""
-        if self.encoding and isinstance(content, str):
-            try:
-                return len(self.encoding.encode(content))
-            except Exception as e:
-                self.logger.warning(f"Token counting failed: {e}")
-        return 0
-
-    async def on_llm_start(self, serialized: dict, prompts: List[str], **kwargs) -> None:
-        """Called when LLM starts generating"""
-        self.logger.info(f"[NR Callback] on_llm_start called with {len(prompts)} prompts")
-
-        # Record prompt message events with token counts
-        try:
-            # Get the application object for recording events outside transaction context
-            app = newrelic.agent.application()
-            model_name = serialized.get("model", "gpt-4-1")
-
-            for i, prompt in enumerate(prompts):
-                token_count = self._count_tokens(prompt)
-                newrelic.agent.record_custom_event('LlmChatCompletionMessage', {
-                    'id': f"{id(prompt)}_{i}",
-                    'vendor': 'azure_openai',
-                    'ingest_source': 'Python',
-                    'request_model': model_name,
-                    'role': 'user',
-                    'content': prompt[:1000],  # Truncate for safety
-                    'token_count': token_count,
-                    'sequence': i,
-                }, application=app)
-        except Exception as e:
-            self.logger.error(f"Error recording prompt message event: {e}", exc_info=True)
-
-    async def on_llm_end(self, response: LLMResult, **kwargs) -> None:
-        """Called when LLM finishes - capture token usage and record event"""
-        try:
-            # Get the application object for recording events outside transaction context
-            app = newrelic.agent.application()
-
-            # Extract token usage from llm_output
-            if response.llm_output and "token_usage" in response.llm_output:
-                usage = response.llm_output["token_usage"]
-                model_name = response.llm_output.get("model_name", "gpt-4-1")
-
-                # Record completion message events
-                for i, generation in enumerate(response.generations):
-                    for j, gen in enumerate(generation):
-                        completion_text = gen.text if hasattr(gen, 'text') else str(gen.message.content)
-                        token_count = self._count_tokens(completion_text)
-
-                        newrelic.agent.record_custom_event('LlmChatCompletionMessage', {
-                            'id': f"{id(gen)}_{i}_{j}",
-                            'vendor': 'azure_openai',
-                            'ingest_source': 'Python',
-                            'response_model': model_name,
-                            'role': 'assistant',
-                            'content': completion_text[:1000],  # Truncate for safety
-                            'token_count': token_count,
-                            'sequence': i * 10 + j,
-                        }, application=app)
-
-                # Record New Relic custom event for LLM completion summary
-                newrelic.agent.record_custom_event('LlmChatCompletionSummary', {
-                    'vendor': 'azure_openai',
-                    'ingest_source': 'Python',
-                    'request_model': model_name,
-                    'response_model': model_name,
-                    'prompt_tokens': usage.get("prompt_tokens", 0),
-                    'completion_tokens': usage.get("completion_tokens", 0),
-                    'total_tokens': usage.get("total_tokens", 0),
-                    'duration': kwargs.get('duration_ms', 0),
-                }, application=app)
-
-                # Add span attributes for correlation (must be list of tuples, not dict)
-                newrelic.agent.add_custom_attributes([
-                    ('llm.vendor', 'azure_openai'),
-                    ('llm.model', model_name),
-                    ('llm.token_count.prompt', usage.get("prompt_tokens", 0)),
-                    ('llm.token_count.completion', usage.get("completion_tokens", 0)),
-                    ('llm.token_count.total', usage.get("total_tokens", 0)),
-                ])
-
-                self.logger.info(
-                    f"[NR Callback] on_llm_end: New Relic LLM event recorded: model={model_name}, "
-                    f"tokens={usage.get('total_tokens', 0)}"
-                )
-        except Exception as e:
-            self.logger.error(f"Error recording New Relic LLM event: {e}", exc_info=True)
-
-    async def on_llm_error(self, error: Exception, **kwargs) -> None:
-        """Called when LLM errors"""
-        self.logger.error(f"LLM error: {error}")
-        newrelic.agent.notice_error()
-
-
 # --- Request/Response Models ---
 class ChatResponse(BaseModel):
     response: str
@@ -644,9 +524,6 @@ class LangGraphSupportService:
         self.nr_trace_id = nr_trace_id
         self.nr_span_id = nr_span_id
 
-        # Initialize New Relic callback handler
-        self.nr_callback = NewRelicCallbackHandler()
-
         # Initialize AsyncOpenAI client (New Relic auto-instruments this)
         # Strip trailing slash from endpoint to avoid double slashes in URL
         endpoint = azure_endpoint.rstrip('/')
@@ -732,8 +609,7 @@ Be warm, helpful, and ensure the customer understands the key points.""",
 
         # Invoke the specialist agent created with create_agent
         result = await self.specialist_agent.ainvoke(
-            {"messages": [HumanMessage(content=query)]},
-            config={"callbacks": [self.nr_callback]}
+            {"messages": [HumanMessage(content=query)]}
         )
 
         # Extract response
@@ -786,8 +662,7 @@ Be warm, helpful, and ensure the customer understands the key points.""",
 
         # Invoke the coordinator agent created with create_agent
         result = await self.coordinator_agent.ainvoke(
-            {"messages": [HumanMessage(content=state["input_message"])]},
-            config={"callbacks": [self.nr_callback]}
+            {"messages": [HumanMessage(content=state["input_message"])]}
         )
 
         end_time = datetime.utcnow()
@@ -851,8 +726,7 @@ Create a warm, helpful response that highlights the key recommendations."""
 
         # Invoke synthesizer agent (wrapped with create_agent for NR observability)
         result = await self.synthesizer_agent.ainvoke(
-            {"messages": [HumanMessage(content=synthesis_prompt)]},
-            config={"callbacks": [self.nr_callback]}
+            {"messages": [HumanMessage(content=synthesis_prompt)]}
         )
 
         end_time = datetime.utcnow()
@@ -909,10 +783,7 @@ Create a warm, helpful response that highlights the key recommendations."""
             # Run the graph (AsyncOpenAI underneath will be auto-instrumented by New Relic)
             logger.info(f"Starting LangGraph workflow for message: {message[:50]}...")
 
-            final_state = await self.graph.ainvoke(
-                initial_state,
-                config={"callbacks": [self.nr_callback]}
-            )
+            final_state = await self.graph.ainvoke(initial_state)
             total_tokens = final_state.get("coordinator_tokens", 0) + final_state.get("specialist_tokens", 0)
 
             # Calculate metrics
