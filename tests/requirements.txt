@@ -13,3 +13,5 @@ requests>=2.31.0
 pyodbc>=5.0.0
 # Browser automation for microfrontend tests
 selenium>=4.0.0
+# Kubernetes API client (for infra resilience tests, e.g. test_kafka_zookeeper_resilience.py)
+kubernetes>=28.1.0

@@ -29,6 +29,7 @@ on:
           - payment
           - frontend
           - smoke
+          - kafka-zookeeper-resilience
       target_color:
         description: 'Color to direct scenario-UI checks at (sends X-Test-Env). Empty = active color.'
         required: false
@@ -38,6 +39,11 @@ on:
           - ''
           - blue
           - green
+      allow_disruptive_k8s_tests:
+        description: 'kafka-zookeeper-resilience suite only: opt in to the pod-killing tests (deletes the Zookeeper pod for target_color). Per-run only -- never set as a repo variable/secret.'
+        required: false
+        default: false
+        type: boolean
   workflow_call:
     inputs:
       target_environment:
@@ -59,7 +65,7 @@ jobs:
   python-tests:
     runs-on: ubuntu-latest
     environment: ${{ inputs.target_environment || 'prod' }}
-    if: ${{ inputs.test_suite == 'all' || inputs.test_suite == 'e2e' || inputs.test_suite == 'scenario' || inputs.test_suite == 'payment' || inputs.test_suite == 'smoke' || inputs.test_suite == '' }}
+    if: ${{ inputs.test_suite == 'all' || inputs.test_suite == 'e2e' || inputs.test_suite == 'scenario' || inputs.test_suite == 'payment' || inputs.test_suite == 'smoke' || inputs.test_suite == 'kafka-zookeeper-resilience' || inputs.test_suite == '' }}
     outputs:
       test_ab_testing: ${{ steps.individual-tests.outputs.test_ab_testing }}
       test_apm_user_tracking: ${{ steps.individual-tests.outputs.test_apm_user_tracking }}
@@ -254,6 +260,19 @@ jobs:
         run: |
           cd tests
           pytest test_payment_scenarios.py --tb=line
+
+      - name: Run Kafka/Zookeeper resilience tests only
+        if: ${{ inputs.test_suite == 'kafka-zookeeper-resilience' }}
+        timeout-minutes: 20
+        env:
+          # No EFFECTIVE_COLOR fallback here on purpose: the disruptive tests refuse to run
+          # against the active color, so target_color must be set explicitly (the same
+          # requirement the test file itself enforces).
+          TARGET_COLOR: ${{ inputs.target_color }}
+          ALLOW_DISRUPTIVE_K8S_TESTS: ${{ inputs.allow_disruptive_k8s_tests }}
+        run: |
+          cd tests
+          pytest test_kafka_zookeeper_resilience.py --tb=long -v
 
       - name: Run smoke tests only
         if: ${{ inputs.test_suite == 'smoke' }}

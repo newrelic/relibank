@@ -627,6 +627,25 @@ resource "kubernetes_deployment_v1" "accounts_db" {
   ]
 }
 
+# --- Zookeeper PVC ---
+# Without this, Zookeeper's session state does not survive pod rescheduling (e.g. an AKS node
+# image upgrade) -- see docs/PROD_BLUE_KAFKA_ZOOKEEPER_INCIDENT.md Fix 1.
+resource "kubernetes_persistent_volume_claim_v1" "zookeeper_data" {
+  metadata {
+    name      = "zookeeper-data"
+    namespace = local.ns
+    labels    = { app = "zookeeper" }
+  }
+  spec {
+    access_modes = ["ReadWriteOnce"]
+    resources {
+      requests = { storage = "1Gi" }
+    }
+  }
+  wait_until_bound = false
+  depends_on       = [kubernetes_namespace_v1.relibank_color]
+}
+
 # --- Zookeeper Deployment + Service ---
 resource "kubernetes_service_v1" "zookeeper" {
   metadata {
@@ -653,6 +672,12 @@ resource "kubernetes_deployment_v1" "zookeeper" {
   }
   spec {
     replicas = 1
+    # Required once a single-replica Deployment mounts an RWO volume (same reason accounts_db
+    # has it, ~line 542) -- a rolling update would try to start the replacement pod before the
+    # old one releases the PVC.
+    strategy {
+      type = "Recreate"
+    }
     selector {
       match_labels = { app = "zookeeper" }
     }
@@ -663,6 +688,11 @@ resource "kubernetes_deployment_v1" "zookeeper" {
       spec {
         node_selector = { "node-color" = var.target_color }
         hostname      = "zookeeper"
+        # Bitnami's zookeeper image runs as a non-root UID; fs_group makes the mounted
+        # volume writable by it.
+        security_context {
+          fs_group = 1001
+        }
         container {
           name  = "zookeeper"
           image = "bitnamilegacy/zookeeper:3.8"
@@ -678,11 +708,40 @@ resource "kubernetes_deployment_v1" "zookeeper" {
             name  = "ZOO_MY_ID"
             value = "1"
           }
+          volume_mount {
+            name       = "zookeeper-data"
+            mount_path = "/bitnami/zookeeper"
+          }
+          liveness_probe {
+            exec {
+              command = ["/bin/bash", "-c", "echo ruok | timeout 2 nc -w 2 localhost 2181 | grep imok"]
+            }
+            initial_delay_seconds = 15
+            period_seconds        = 10
+            timeout_seconds       = 5
+          }
+          readiness_probe {
+            exec {
+              command = ["/bin/bash", "-c", "echo ruok | timeout 2 nc -w 2 localhost 2181 | grep imok"]
+            }
+            initial_delay_seconds = 10
+            period_seconds        = 10
+            timeout_seconds       = 5
+          }
+        }
+        volume {
+          name = "zookeeper-data"
+          persistent_volume_claim {
+            claim_name = kubernetes_persistent_volume_claim_v1.zookeeper_data.metadata[0].name
+          }
         }
       }
     }
   }
-  depends_on = [azurerm_kubernetes_cluster_node_pool.relibank_color_np]
+  depends_on = [
+    kubernetes_persistent_volume_claim_v1.zookeeper_data,
+    azurerm_kubernetes_cluster_node_pool.relibank_color_np,
+  ]
 }
 
 # --- Kafka Deployment + Service ---
@@ -780,6 +839,22 @@ resource "kubernetes_deployment_v1" "kafka" {
             failure_threshold = 5
             period_seconds    = 10
             timeout_seconds   = 5
+          }
+          # Stage 1 (readiness-only): the bare TCP liveness probe above can't tell a broker
+          # that's up but can't serve requests (broken Zookeeper session) from a healthy one.
+          # This exec probe actually talks the Kafka protocol, so it catches that failure mode
+          # -- but it only gates readiness for now, with a generous failure_threshold, until it's
+          # burned in across environments. Once proven, promote it to also replace the liveness
+          # probe above (Stage 2) -- see docs/PROD_BLUE_KAFKA_ZOOKEEPER_INCIDENT.md Fix 1 and
+          # tests/test_kafka_zookeeper_resilience.py.
+          readiness_probe {
+            exec {
+              command = ["kafka-broker-api-versions.sh", "--bootstrap-server", "localhost:9092"]
+            }
+            initial_delay_seconds = 30
+            period_seconds        = 15
+            timeout_seconds       = 10
+            failure_threshold     = 6
           }
         }
       }
