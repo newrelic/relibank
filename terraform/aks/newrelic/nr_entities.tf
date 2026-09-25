@@ -53,6 +53,8 @@
 # data.newrelic_entity.relibank_mobile_android.guid
 # data.newrelic_entity.relibank_mobile_ios.guid
 # data.newrelic_notification_destination.autopilot_destination.id
+# data.newrelic_entity.kafka_collector.guid
+# data.newrelic_entity.mssql_collector.guid
 ###
 
 ### APM APPLICATIONS ###
@@ -397,7 +399,7 @@ data "newrelic_entity" "recurring_payments_kafka_topic" {
 
 ### DATABASES ###
 data "newrelic_entity" "mssql_db360_database" {
-  name       = "mssql-0.mssql:1433"
+  name       = "mssql-0-${var.demo_environment}"
   domain     = "INFRA"
   type       = "MSSQLINSTANCE"
   account_id = var.new_relic_account_id
@@ -431,4 +433,20 @@ data "newrelic_notification_destination" "autopilot_destination" {
     type = "ORGANIZATION"
     id   = "5e1ae959-709c-48f6-9b54-8863939669b7"
   }
+}
+
+### OTEL COLLECTORS ###
+data "newrelic_entity" "kafka_collector" {
+  name             = "relibank-kafka-collector"
+  domain           = "EXT"
+  type             = "SERVICE"
+  account_id       = var.new_relic_account_id
+  ignore_not_found = true
+}
+data "newrelic_entity" "mssql_collector" {
+  name             = "relibank-mssql-collector"
+  domain           = "EXT"
+  type             = "SERVICE"
+  account_id       = var.new_relic_account_id
+  ignore_not_found = true
 }
