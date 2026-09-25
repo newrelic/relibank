@@ -17,20 +17,20 @@ locals {
       newrelic_synthetics_script_monitor.relibank_login_check.id,
       newrelic_workload.relibank_aide_workload.guid,
       newrelic_nrql_alert_condition.aide_android_excess_transfer_attempts.entity_guid,
-      newrelic_nrql_alert_condition.aide_chat_with_model.entity_guid,
-      newrelic_nrql_alert_condition.aide_high_response_time.entity_guid,
-      newrelic_nrql_alert_condition.aide_high_error_rate.entity_guid,
-      newrelic_nrql_alert_condition.aide_low_throughput.entity_guid,
-      newrelic_nrql_alert_condition.aide_high_inp.entity_guid,
-      newrelic_nrql_alert_condition.aide_high_lcp.entity_guid,
-      newrelic_nrql_alert_condition.aide_high_js_error_rate.entity_guid,
-      newrelic_nrql_alert_condition.aide_high_page_load_time.entity_guid,
-      newrelic_nrql_alert_condition.aide_high_mfe_load_time.entity_guid,
+      newrelic_nrql_alert_condition.aide_assess_payment_risk.entity_guid,
+      newrelic_nrql_alert_condition.aide_high_response_time_health.entity_guid,
+      newrelic_nrql_alert_condition.aide_high_error_rate_health.entity_guid,
+      newrelic_nrql_alert_condition.aide_low_throughput_health.entity_guid,
+      newrelic_nrql_alert_condition.aide_high_inp_health.entity_guid,
+      newrelic_nrql_alert_condition.aide_high_lcp_health.entity_guid,
+      newrelic_nrql_alert_condition.aide_high_js_error_rate_health.entity_guid,
+      newrelic_nrql_alert_condition.aide_high_page_load_time_health.entity_guid,
+      newrelic_nrql_alert_condition.aide_high_mfe_load_time_health.entity_guid,
       newrelic_nrql_alert_condition.aide_ai_agent_health.entity_guid,
       newrelic_nrql_alert_condition.aide_ai_tool_health.entity_guid,
       newrelic_nrql_alert_condition.aide_service_level_health.entity_guid,
-      newrelic_nrql_alert_condition.aide_synthetic_failing.entity_guid,
-      newrelic_nrql_alert_condition.before_autopilot_chat_with_model.entity_guid
+      newrelic_nrql_alert_condition.aide_synthetic_failing_health.entity_guid,
+      newrelic_nrql_alert_condition.before_autopilot_assess_payment_risk.entity_guid
     ],
     [for guid in [
       data.newrelic_entity.coordinator_ai_agent.guid,
@@ -50,9 +50,9 @@ locals {
       newrelic_service_level.accounts_service_success_sl.sli_guid,
       newrelic_service_level.auth_service_success_sl.sli_guid,
       newrelic_workload.relibank_core_banking_workload.guid,
-      newrelic_nrql_alert_condition.core_banking_high_response_time.entity_guid,
-      newrelic_nrql_alert_condition.core_banking_high_error_rate.entity_guid,
-      newrelic_nrql_alert_condition.core_banking_low_throughput.entity_guid,
+      newrelic_nrql_alert_condition.core_banking_high_response_time_health.entity_guid,
+      newrelic_nrql_alert_condition.core_banking_high_error_rate_health.entity_guid,
+      newrelic_nrql_alert_condition.core_banking_low_throughput_health.entity_guid,
       newrelic_nrql_alert_condition.core_banking_service_level_health.entity_guid
     ]
   )
@@ -66,11 +66,12 @@ locals {
       newrelic_service_level.notifications_service_success_sl.sli_guid,
       newrelic_service_level.transaction_service_success_sl.sli_guid,
       newrelic_workload.relibank_pat_workload.guid,
-      newrelic_nrql_alert_condition.pat_high_response_time.entity_guid,
-      newrelic_nrql_alert_condition.pat_high_error_rate.entity_guid,
-      newrelic_nrql_alert_condition.pat_low_throughput.entity_guid,
+      newrelic_nrql_alert_condition.pat_high_response_time_health.entity_guid,
+      newrelic_nrql_alert_condition.pat_high_error_rate_health.entity_guid,
+      newrelic_nrql_alert_condition.pat_low_throughput_health.entity_guid,
       newrelic_nrql_alert_condition.pat_service_level_health.entity_guid,
-      newrelic_nrql_alert_condition.apwa_bill_pay_errors.entity_guid
+      newrelic_nrql_alert_condition.apwa_bill_pay_errors.entity_guid,
+      newrelic_nrql_alert_condition.pat_transaction_service_high_response_time.entity_guid
     ]
   )
   # ReliBank - Platform team
@@ -104,9 +105,9 @@ locals {
       data.newrelic_entity.zookeeper_k8s_dep.guid,
       newrelic_service_level.event_scheduler_service_success_sl.sli_guid,
       newrelic_workload.relibank_platform_workload.guid,
-      newrelic_nrql_alert_condition.platform_high_response_time.entity_guid,
-      newrelic_nrql_alert_condition.platform_high_error_rate.entity_guid,
-      newrelic_nrql_alert_condition.platform_low_throughput.entity_guid,
+      newrelic_nrql_alert_condition.platform_high_response_time_health.entity_guid,
+      newrelic_nrql_alert_condition.platform_high_error_rate_health.entity_guid,
+      newrelic_nrql_alert_condition.platform_low_throughput_health.entity_guid,
       newrelic_nrql_alert_condition.platform_service_level_health.entity_guid,
       newrelic_nrql_alert_condition.platform_k8s_cluster_health.entity_guid,
       newrelic_nrql_alert_condition.platform_k8s_deployment_health.entity_guid,
@@ -127,7 +128,6 @@ locals {
       data.newrelic_entity.payment_due_notifications_kafka_topic.guid,
       data.newrelic_entity.payment_declined_kafka_topic.guid,
       data.newrelic_entity.recurring_payments_kafka_topic.guid,
-      data.newrelic_entity.mssql_ohi_database.guid,
       data.newrelic_entity.mssql_db360_database.guid,
     ] : guid if guid != null && guid != ""]
   )

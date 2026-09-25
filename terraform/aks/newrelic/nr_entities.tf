@@ -49,7 +49,6 @@
 # data.newrelic_entity.payment_due_notifications_kafka_topic.guid
 # data.newrelic_entity.payment_declined_kafka_topic.guid
 # data.newrelic_entity.recurring_payments_kafka_topic.guid
-# data.newrelic_entity.mssql_ohi_database.guid
 # data.newrelic_entity.mssql_db360_database.guid
 # data.newrelic_entity.relibank_mobile_android.guid
 # data.newrelic_entity.relibank_mobile_ios.guid
@@ -397,19 +396,8 @@ data "newrelic_entity" "recurring_payments_kafka_topic" {
 }
 
 ### DATABASES ###
-data "newrelic_entity" "mssql_ohi_database" {
-  name       = "ms-instance:mssql-0"
-  domain     = "INFRA"
-  type       = "MSSQLINSTANCE"
-  account_id = var.new_relic_account_id
-  tag {
-    key   = "integrationName"
-    value = "com.newrelic.mssql"
-  }
-  ignore_not_found = true
-}
 data "newrelic_entity" "mssql_db360_database" {
-  name       = "mssql-0-${var.demo_environment}"
+  name       = "mssql-0.mssql:1433"
   domain     = "INFRA"
   type       = "MSSQLINSTANCE"
   account_id = var.new_relic_account_id
