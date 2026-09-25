@@ -5,9 +5,11 @@ from pathlib import Path
 import pytest
 
 try:
+    import yaml
     from kubernetes import client, config
     from kubernetes.client.rest import ApiException
     from kubernetes.stream import stream
+    from kubernetes.stream.ws_client import ERROR_CHANNEL
     _KUBE_IMPORT_ERROR = None
 except ImportError as exc:  # pragma: no cover - only hit if kubernetes isn't installed
     _KUBE_IMPORT_ERROR = exc
@@ -138,9 +140,18 @@ def _wait_for_ready_pod(label_selector: str, exclude_pod_name: str = None, timeo
     )
 
 
-def _exec_in_pod(pod_name: str, container: str, command: list, timeout: int = 15) -> tuple[str, int]:
+def _exec_in_pod(pod_name: str, container: str, command: list, timeout: int = 15) -> tuple[str, int | None]:
     """Runs `command` inside a pod/container via the exec subresource -- the
-    API-level equivalent of `kubectl exec` -- and returns (combined_output, exit_code)."""
+    API-level equivalent of `kubectl exec` -- and returns (combined_output, exit_code).
+
+    exit_code is None if the websocket closed without ever delivering a status frame on
+    the error channel -- a real race in the kubernetes client's WSClient over
+    higher-latency connections (seen in CI, not reproduced against a local cluster): its own
+    `.returncode` property crashes with `TypeError: 'NoneType' object is not subscriptable`
+    in exactly this case, so we parse the same channel ourselves and treat "no status frame"
+    as "unknown" rather than blowing up. Callers must treat None as inconclusive (retry),
+    not as a specific exit code.
+    """
     ws = stream(
         _core_v1().connect_get_namespaced_pod_exec,
         name=pod_name,
@@ -152,7 +163,14 @@ def _exec_in_pod(pod_name: str, container: str, command: list, timeout: int = 15
     )
     ws.run_forever(timeout=timeout)
     output = ws.read_all()
-    exit_code = ws.returncode
+    err_raw = ws.read_channel(ERROR_CHANNEL)
+    err = yaml.safe_load(err_raw) if err_raw else None
+    if err is None:
+        exit_code = None
+    elif err.get("status") == "Success":
+        exit_code = 0
+    else:
+        exit_code = int(err["details"]["causes"][0]["message"])
     ws.close()
     return output, exit_code
 
@@ -258,7 +276,10 @@ def test_kafka_probe_detects_and_recovers_from_zookeeper_outage():
             ["kafka-broker-api-versions.sh", "--bootstrap-server", "localhost:9092"],
             timeout=10,
         )
-        if exit_code != 0:
+        # None means the exec connection closed without a clear exit status (a client-side
+        # race, not evidence either way) -- treat it as inconclusive and retry rather than
+        # counting it as a confirmed probe failure.
+        if exit_code is not None and exit_code != 0:
             saw_probe_failure = True
             break
         time.sleep(POLL_INTERVAL_SEC)
