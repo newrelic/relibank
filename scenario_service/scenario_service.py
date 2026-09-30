@@ -882,12 +882,12 @@ async def run_locust_test(locustfile_name: str, num_users: int = 1):
             "message": f"Locust test '{locustfile_name}' started successfully.",
             "output": "Locust output is not captured when run this way."
         }
-    except Exception as e:
-        print(f"Error running Locust: {e}")
+    except Exception:
+        logging.exception(f"Error running Locust test '{locustfile_name}'")
         return {
             "status": "error",
-            "message": f"Failed to start Locust test: {e}",
-            "output": str(e)
+            "message": f"Failed to start Locust test '{locustfile_name}'. See server logs for details.",
+            "output": "Locust test failed. See server logs for details."
         }
     finally:
         # Restore sys.argv and sys.exit to their original states
