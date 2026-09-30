@@ -92,7 +92,7 @@ Creates RG, ACR, deployer SP (with `Contributor`, `User Access Administrator` on
 > az role assignment create --assignee <appId> --role "Cognitive Services Contributor" --scope /subscriptions/<sub>
 > az role assignment create --assignee <appId> --role "Reader" --scope /subscriptions/<sub>
 > az role assignment create --assignee <appId> --role "Monitoring Reader" --scope /subscriptions/<sub>
-> az role assignment create --assignee <appId> --role "DNS Zone Contributor" --scope /subscriptions/<sub>/resourceGroups/relibank/providers/Microsoft.Network/dnszones/relibankdemo.com
+> az role assignment create --assignee <appId> --role "DNS Zone Contributor" --scope /subscriptions/<sub>/resourceGroups/ReliBank-Prod/providers/Microsoft.Network/dnszones/relibankdemo.com
 > # plus AcrPush/AcrPull on the ACR and Storage Blob Data Contributor on the state account
 > ```
 >
