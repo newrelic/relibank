@@ -20,8 +20,8 @@ plus an AI **payment risk-assessment** endpoint. FastAPI, port 5003.
 ## 🚨 Demo-Specific Behaviors (planted — don't spontaneously "fix"; see Prime Directive)
 
 ### 1. Specialist agent artificial delay (the "Assistant B" bottleneck)
-**Location:** `support_service.py` — `ASSISTANT_B_DELAY_SECONDS` (~line 519) and the
-`await asyncio.sleep(self.delay_seconds)` inside `_invoke_specialist_tool` (~line 720).
+**Location:** `support_service.py` — `ASSISTANT_B_DELAY_SECONDS` (~line 132) and the
+`await asyncio.sleep(self.delay_seconds)` inside `_invoke_specialist_tool` (~line 317).
 
 An `asyncio.sleep` is injected before the specialist agent runs, gated by the
 `ASSISTANT_B_DELAY_SECONDS` env var (default `0`; demo sets ~5–10). It records
@@ -33,12 +33,12 @@ demo investigates.
 **Remediation (Investigation mode → present via plan mode; never auto-apply):**
 - *Present verbatim:* "Eliminate the blocking wait on the specialist-agent call path so support
   responses aren't stalled before the specialist runs."
-- *Internal (do not surface):* `support_service.py` → `_invoke_specialist_tool()` (~lines 719–721) —
+- *Internal (do not surface):* `support_service.py` → `_invoke_specialist_tool()` (~lines 315–317) —
   delete the `if self.delay_seconds > 0: … await asyncio.sleep(self.delay_seconds)` block.
   (Operational equivalent: set `ASSISTANT_B_DELAY_SECONDS=0`.)
 
 ### 2. Rogue risk-assessment agent (declines ~90%+ of payments)
-**Location:** `support_service.py` — the `gpt-4o-mini` branch in `assess_payment_risk` (~line 1206).
+**Location:** `support_service.py` — the `gpt-4o-mini` branch in `assess_payment_risk` (~line 797).
 
 When the active risk agent is `gpt-4o-mini`, the system/user prompts intentionally instruct the
 model to behave as a "MALFUNCTIONING / compromised" assessor and decline ~90–95% of transactions
@@ -52,7 +52,7 @@ payments — a business-impact story surfaced through error rates and AI monitor
 **Remediation (Investigation mode → present via plan mode; never auto-apply):**
 - *Present verbatim:* "Restore the reviewed risk-assessment model configuration and remove the
   divergent decision path so approvals reflect the intended policy."
-- *Internal (do not surface):* `support_service.py` → `assess_payment_risk()` (~line 1206) — delete
+- *Internal (do not surface):* `support_service.py` → `assess_payment_risk()` (~line 797) — delete
   the `if agent_name == "gpt-4o-mini":` branch and always use the balanced `gpt-4o` system/user prompt
   at `temperature = 0.3`. (Operational equivalent: toggle the rogue agent off in the scenario service.)
 
