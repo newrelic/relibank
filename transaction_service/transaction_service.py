@@ -261,6 +261,26 @@ def get_db_connection():
         raise ConnectionError(f"Failed to connect to {DB_DATABASE} database: {e}")
 
 
+def get_active_db_connection():
+    """
+    Returns the shared MSSQL connection, reconnecting first if the existing one has
+    gone stale. Needed because MSSQL restarting for any reason (OOM, crash, node
+    reschedule, ...) breaks any connection opened before that restart, and the ODBC
+    driver won't recover a broken session on its own ("connection is marked by the
+    client driver as unrecoverable"). Every DB-backed operation should go through
+    this instead of reading the `db_connection` global directly.
+    """
+    global db_connection
+    if db_connection is not None:
+        try:
+            db_connection.cursor().execute("SELECT 1")
+            return db_connection
+        except Exception as e:
+            logging.warning(f"MSSQL connection is stale, reconnecting: {e}")
+    db_connection = get_db_connection()
+    return db_connection
+
+
 async def get_account_type(account_id: int, headers: dict = None):
     """
     Makes an API call to the accounts service to get the account type.
@@ -337,7 +357,6 @@ async def start_kafka_consumer():
         return
 
     try:
-        cursor = db_connection.cursor()
         async for message in consumer:
             message_value = json.loads(message.value.decode("utf-8"))
             event_type = message_value.get("eventType")
@@ -359,6 +378,8 @@ async def start_kafka_consumer():
             ):
                 add_nr_event_attributes(event_model)
                 try:
+                    conn = get_active_db_connection()
+                    cursor = conn.cursor()
                     if event_type == "BillPaymentInitiatedFromAcct":
                         # Log the debit to the ledger
                         cursor.execute(
@@ -372,7 +393,7 @@ async def start_kafka_consumer():
                             event_model.accountId,
                             -event_model.amount,
                         )
-                        db_connection.commit()
+                        conn.commit()
                         logging.info(f"Debited {event_model.amount} from account {event_model.accountId} in Ledger.")
 
                         # Insert into Transactions table
@@ -388,7 +409,7 @@ async def start_kafka_consumer():
                             event_model.accountId,
                             event_model.timestamp,
                         )
-                        db_connection.commit()
+                        conn.commit()
                         logging.info(f"Debit transaction {event_model.billId} recorded in Transactions table.")
                     elif event_type == "BillPaymentInitiatedToAcct":
                         account_type = await get_account_type(event_model.accountId)
@@ -406,7 +427,7 @@ async def start_kafka_consumer():
                                 event_model.accountId,
                                 -event_model.amount,
                             )
-                            db_connection.commit()
+                            conn.commit()
                             logging.info(
                                 f"Debited {event_model.amount} from loan/credit account {event_model.accountId} in Ledger."
                             )
@@ -423,7 +444,7 @@ async def start_kafka_consumer():
                                 event_model.accountId,
                                 event_model.amount,
                             )
-                            db_connection.commit()
+                            conn.commit()
                             logging.info(f"Credited {event_model.amount} to account {event_model.accountId} in Ledger.")
 
                         # Insert into Transactions table
@@ -439,7 +460,7 @@ async def start_kafka_consumer():
                             event_model.accountId,
                             event_model.timestamp,
                         )
-                        db_connection.commit()
+                        conn.commit()
                         logging.info(f"Credit transaction {event_model.billId} recorded in Transactions table.")
                     elif event_type == "BillPaymentDeclined":
                         # Record declined payment in Transactions table (no ledger updates)
@@ -487,7 +508,7 @@ async def start_kafka_consumer():
                             f"{event_model.reason} (Risk Level: {event_model.risk_level}, Score: {event_model.risk_score})"
                         )
 
-                        db_connection.commit()
+                        conn.commit()
                         logging.info(f"Declined payment {event_model.billId} recorded in Transactions table with decline reason.")
                     elif event_type == 'RecurringPaymentScheduled':
                         # This event is a schedule, so insert it into the RecurringSchedules table
@@ -501,7 +522,7 @@ async def start_kafka_consumer():
                             event_model.frequency,
                             event_model.startDate,
                             event_model.timestamp)
-                        db_connection.commit()
+                        conn.commit()
                         logging.info(f"Recurring payment scheduled for bill ID {event_model.billId} and inserted.")
                     elif event_type == "BillPaymentCancelled":
                         # Update the existing transaction record
@@ -515,7 +536,7 @@ async def start_kafka_consumer():
                             event_model.timestamp,
                             event_model.billId,
                         )
-                        db_connection.commit()
+                        conn.commit()
                         logging.info(f"Payment for bill ID {event_model.billId} cancelled and updated.")
                     elif event_type == "CardPaymentProcessed":
                         # Process successful card payment
@@ -535,7 +556,7 @@ async def start_kafka_consumer():
                             event_model.timestamp,
                             event_model.status
                         )
-                        db_connection.commit()
+                        conn.commit()
                         logging.info(f"Card payment {event_model.billId} recorded in Transactions table.")
 
                     elif event_type == "CardPaymentDeclined":
@@ -579,7 +600,7 @@ async def start_kafka_consumer():
                             "declined",
                             decline_details
                         )
-                        db_connection.commit()
+                        conn.commit()
                         logging.info(f"Declined card payment {event_model.billId} recorded in Transactions table with decline reason: {event_model.reason}.")
                     elif event_type == "PaymentDueNotificationEvent":
                         # This event signals that a recurring payment is due
@@ -699,9 +720,6 @@ async def get_transactions(request: Request, limit: int = 50):
     Args:
         limit: Maximum number of transactions to return (default: 50, max: 1000)
     """
-    if not db_connection:
-        raise HTTPException(status_code=503, detail="Database connection failed.")
-
     # Enforce reasonable limits to prevent browser crashes
     if limit < 1:
         limit = 50
@@ -709,7 +727,7 @@ async def get_transactions(request: Request, limit: int = 50):
         limit = 1000
 
     try:
-        cursor = db_connection.cursor()
+        cursor = get_active_db_connection().cursor()
         cursor.execute("SELECT TOP (?) * FROM Transactions ORDER BY TransactionID DESC", (limit,))
         columns = [column[0] for column in cursor.description]
         transactions = [TransactionRecord(**dict(zip(columns, row))) for row in cursor.fetchall()]
@@ -731,11 +749,8 @@ async def get_transaction(bill_id: str, request: Request):
     """
     Retrieves a single transaction by its BillID.
     """
-    if not db_connection:
-        raise HTTPException(status_code=503, detail="Database connection failed.")
-
     try:
-        cursor = db_connection.cursor()
+        cursor = get_active_db_connection().cursor()
         cursor.execute("SELECT TOP 1 * FROM Transactions WHERE BillID = ?", bill_id)
         row = cursor.fetchone()
         if not row:
@@ -768,9 +783,6 @@ async def get_recurring_payments(request: Request, account_id: int = None, limit
         account_id: Filter by AccountID (optional - if not provided, returns all schedules)
         limit: Maximum number of schedules to return (default: 100, max: 1000)
     """
-    if not db_connection:
-        raise HTTPException(status_code=503, detail="Database connection failed.")
-
     # Enforce reasonable limits
     if limit < 1:
         limit = 100
@@ -778,7 +790,7 @@ async def get_recurring_payments(request: Request, account_id: int = None, limit
         limit = 1000
 
     try:
-        cursor = db_connection.cursor()
+        cursor = get_active_db_connection().cursor()
 
         # Filter by account_id if provided
         if account_id is not None:
@@ -819,11 +831,8 @@ async def get_ledger_balance(account_id: int, request: Request):
     """
     Retrieves the current balance for a specific account from the Ledger table.
     """
-    if not db_connection:
-        raise HTTPException(status_code=503, detail="Database connection failed.")
-
     try:
-        cursor = db_connection.cursor()
+        cursor = get_active_db_connection().cursor()
         cursor.execute(
             "SELECT AccountID AS account_id, CurrentBalance AS current_balance FROM Ledger WHERE AccountID = ?",
             account_id,
@@ -1278,6 +1287,17 @@ async def ok():
 
 @app.get("/transaction-service/health")
 async def health_check():
-    """Simple health check endpoint."""
+    """
+    Health check endpoint. Actually exercises the MSSQL connection (via
+    get_active_db_connection(), which reconnects on its own if the existing
+    connection has gone stale) rather than just confirming the process is up —
+    so this self-heals a broken post-restart connection on the first probe, and
+    only fails (triggering a pod restart) if MSSQL itself is truly unreachable.
+    """
     newrelic.agent.ignore_transaction()
+    try:
+        get_active_db_connection().cursor().execute("SELECT 1")
+    except Exception as e:
+        logging.error(f"Health check failed: MSSQL connection is unhealthy: {e}")
+        raise HTTPException(status_code=503, detail="Database connection unhealthy.")
     return {"status": "healthy"}
