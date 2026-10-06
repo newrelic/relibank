@@ -281,6 +281,24 @@ resource "kubernetes_deployment_v1" "service" {
             container_port = each.value.container_port
           }
 
+          # transaction-service holds one MSSQL connection for its whole lifetime and only
+          # reconnects when something actually touches the DB (see get_active_db_connection()
+          # in transaction_service.py). Without this probe, a stale connection left behind by
+          # an MSSQL restart (OOM, crash, node reschedule, ...) silently 500s every ledger call
+          # forever instead of getting kubelet to restart the pod.
+          dynamic "liveness_probe" {
+            for_each = each.key == "transaction-service" ? [1] : []
+            content {
+              exec {
+                command = ["curl", "-f", "http://localhost:${each.value.container_port}/transaction-service/health"]
+              }
+              initial_delay_seconds = 15
+              period_seconds        = 10
+              timeout_seconds       = 5
+              failure_threshold     = 5
+            }
+          }
+
           # Deploy color on every service — stamped onto NR APM transactions (via the shared
           # utils/process_headers) so telemetry is filterable by color. One block, all services.
           env {
@@ -627,6 +645,25 @@ resource "kubernetes_deployment_v1" "accounts_db" {
   ]
 }
 
+# --- Zookeeper PVC ---
+# Without this, Zookeeper's session state does not survive pod rescheduling (e.g. an AKS node
+# image upgrade) -- see docs/PROD_BLUE_KAFKA_ZOOKEEPER_INCIDENT.md Fix 1.
+resource "kubernetes_persistent_volume_claim_v1" "zookeeper_data" {
+  metadata {
+    name      = "zookeeper-data"
+    namespace = local.ns
+    labels    = { app = "zookeeper" }
+  }
+  spec {
+    access_modes = ["ReadWriteOnce"]
+    resources {
+      requests = { storage = "1Gi" }
+    }
+  }
+  wait_until_bound = false
+  depends_on       = [kubernetes_namespace_v1.relibank_color]
+}
+
 # --- Zookeeper Deployment + Service ---
 resource "kubernetes_service_v1" "zookeeper" {
   metadata {
@@ -653,6 +690,12 @@ resource "kubernetes_deployment_v1" "zookeeper" {
   }
   spec {
     replicas = 1
+    # Required once a single-replica Deployment mounts an RWO volume (same reason accounts_db
+    # has it, ~line 542) -- a rolling update would try to start the replacement pod before the
+    # old one releases the PVC.
+    strategy {
+      type = "Recreate"
+    }
     selector {
       match_labels = { app = "zookeeper" }
     }
@@ -663,6 +706,11 @@ resource "kubernetes_deployment_v1" "zookeeper" {
       spec {
         node_selector = { "node-color" = var.target_color }
         hostname      = "zookeeper"
+        # Bitnami's zookeeper image runs as a non-root UID; fs_group makes the mounted
+        # volume writable by it.
+        security_context {
+          fs_group = 1001
+        }
         container {
           name  = "zookeeper"
           image = "bitnamilegacy/zookeeper:3.8"
@@ -678,11 +726,47 @@ resource "kubernetes_deployment_v1" "zookeeper" {
             name  = "ZOO_MY_ID"
             value = "1"
           }
+          # `ruok` is not in this image's default 4lw allowlist ([mntr, srvr] only) -- without
+          # this, the liveness/readiness probes below get no response to `ruok` and kubelet
+          # crash-loops the container.
+          env {
+            name  = "ZOO_4LW_COMMANDS_WHITELIST"
+            value = "srvr,mntr,ruok"
+          }
+          volume_mount {
+            name       = "zookeeper-data"
+            mount_path = "/bitnami/zookeeper"
+          }
+          liveness_probe {
+            exec {
+              command = ["/bin/bash", "-c", "echo ruok | timeout 2 nc -w 2 localhost 2181 | grep imok"]
+            }
+            initial_delay_seconds = 15
+            period_seconds        = 10
+            timeout_seconds       = 5
+          }
+          readiness_probe {
+            exec {
+              command = ["/bin/bash", "-c", "echo ruok | timeout 2 nc -w 2 localhost 2181 | grep imok"]
+            }
+            initial_delay_seconds = 10
+            period_seconds        = 10
+            timeout_seconds       = 5
+          }
+        }
+        volume {
+          name = "zookeeper-data"
+          persistent_volume_claim {
+            claim_name = kubernetes_persistent_volume_claim_v1.zookeeper_data.metadata[0].name
+          }
         }
       }
     }
   }
-  depends_on = [azurerm_kubernetes_cluster_node_pool.relibank_color_np]
+  depends_on = [
+    kubernetes_persistent_volume_claim_v1.zookeeper_data,
+    azurerm_kubernetes_cluster_node_pool.relibank_color_np,
+  ]
 }
 
 # --- Kafka Deployment + Service ---
@@ -721,6 +805,13 @@ resource "kubernetes_deployment_v1" "kafka" {
   }
   spec {
     replicas = 1
+    # KAFKA_BROKER_ID is hardcoded to "1" below (single-identity broker, not derived per-pod),
+    # so a RollingUpdate deadlocks: the new pod can't register broker id 1 in Zookeeper while
+    # the old pod is still alive and holds it, and Kubernetes won't kill the old pod until the
+    # new one is Ready -- which it never becomes. Recreate avoids the two pods ever coexisting.
+    strategy {
+      type = "Recreate"
+    }
     selector {
       match_labels = { app = "kafka" }
     }
@@ -780,6 +871,24 @@ resource "kubernetes_deployment_v1" "kafka" {
             failure_threshold = 5
             period_seconds    = 10
             timeout_seconds   = 5
+          }
+          # Requires the broker to actually answer an admin command -- catches a wedged broker
+          # (hung JVM, thread starvation) that the bare TCP liveness probe above would miss.
+          # Does not detect a broken Zookeeper session; Zookeeper's own ruok probe above is what
+          # covers that. Readiness-only, generous failure_threshold.
+          readiness_probe {
+            exec {
+              # KAFKA_JMX_OPTS is set container-wide (for the monitoring collector) and binds
+              # port 9999 -- every kafka-*.sh script picks it up and tries to open its own JMX
+              # listener on the same port the running broker already holds, so the probe process
+              # itself crashes with "Port already in use: 9999" regardless of actual broker
+              # health. Clear it for this one invocation only.
+              command = ["/bin/sh", "-c", "KAFKA_JMX_OPTS= kafka-broker-api-versions.sh --bootstrap-server localhost:9092"]
+            }
+            initial_delay_seconds = 30
+            period_seconds        = 15
+            timeout_seconds       = 10
+            failure_threshold     = 6
           }
         }
       }
