@@ -45,7 +45,7 @@ Usage: ./run_tests.sh [OPTIONS]
 
 OPTIONS:
     -e, --env ENV           Environment to test (local|remote) [default: local]
-    -t, --test SUITE        Test suite to run (all|e2e|scenario|payment|frontend|smoke) [default: all]
+    -t, --test SUITE        Test suite to run (all|e2e|scenario|payment|frontend|smoke|ai_monitoring) [default: all]
     -v, --verbose           Verbose output (show print statements)
     -h, --help              Show this help message
 
@@ -216,9 +216,12 @@ case $TEST_SUITE in
     smoke)
         TEST_PATH="test_end_to_end.py::test_frontend_loads test_scenario_service.py::test_scenario_service_health"
         ;;
+    ai_monitoring)
+        TEST_PATH="test_newrelic_ai_agents.py test_newrelic_risk_assessment.py"
+        ;;
     *)
         print_error "Invalid test suite: $TEST_SUITE"
-        echo "Valid options: all, e2e, scenario, payment, frontend, smoke"
+        echo "Valid options: all, e2e, scenario, payment, frontend, smoke, ai_monitoring"
         exit 1
         ;;
 esac

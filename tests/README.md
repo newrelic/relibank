@@ -37,6 +37,7 @@ export RELIBANK_URL="http://your-server.example.com"
 | `test_rogue_deployment_scenarios.py` | Rogue AI agent deployment tests | Agent switching (gpt-4o vs gpt-4o-mini), decline rate comparison, runtime configuration |
 | `test_newrelic_risk_assessment.py` | New Relic risk assessment observability | Logs validation, declined payment workflow, agent model tracking, eBPF traces (future) |
 | `test_newrelic_instrumentation.py` | New Relic APM instrumentation | Transaction tracking, user ID propagation, service instrumentation, error notices |
+| `test_newrelic_ai_agents.py` | New Relic AI agent monitoring | `LlmAgent`/`LlmTool` events populate for the support-service Coordinator/Specialist/Synthesizer flow; best-effort color correlation via `Span` |
 | `test_db_pool_e2e.py` | Database pool performance E2E | Custom attributes validation, pool assignment, New Relic NRQL queries |
 | `test_ab_testing_scenarios.py` | A/B testing scenarios | LCP slowness (percentage-based and cohort-based), 11 hardcoded test users, cohort assignment, deterministic distribution |
 | `test_stress_scenarios.py` | Stress chaos experiments | CPU stress, memory stress, combined stress testing with Chaos Mesh |
