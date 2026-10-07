@@ -19,13 +19,13 @@
 set -euo pipefail
 
 # ---- Defaults ----
-ENVIRONMENT=""
+ENVIRONMENT="staging"
 LOCATION="westus2"
 SHARED_RESOURCE_GROUP="ReliBank"
 STORAGE_ACCOUNT="relibankstate"
 CONTAINER_NAME="tfstate"
-SKIP_NGINX=false
-SKIP_ACR=false
+SKIP_NGINX=true
+SKIP_ACR=true
 SKIP_SP=false
 
 # ---- Parse arguments ----
@@ -159,14 +159,14 @@ fi
 if az storage container show \
     --name "$CONTAINER_NAME" \
     --account-name "$STORAGE_ACCOUNT" \
-    --auth-mode login &>/dev/null; then
+    --auth-mode key &>/dev/null; then
   success "Blob container '$CONTAINER_NAME' already exists — skipping"
 else
   info "Creating blob container '$CONTAINER_NAME'..."
   az storage container create \
     --name "$CONTAINER_NAME" \
     --account-name "$STORAGE_ACCOUNT" \
-    --auth-mode login \
+    --auth-mode key \
     --output none
   success "Blob container created"
 fi
@@ -180,22 +180,69 @@ if [[ "$SKIP_SP" == "false" ]]; then
   SHARED_RG_SCOPE="/subscriptions/${SUBSCRIPTION_ID}/resourceGroups/${SHARED_RESOURCE_GROUP}"
   STORAGE_SCOPE="${SHARED_RG_SCOPE}/providers/Microsoft.Storage/storageAccounts/${STORAGE_ACCOUNT}"
 
-  info "Creating service principal '$SP_NAME'..."
-  SP_OUTPUT=$(az ad sp create-for-rbac \
-    --name "$SP_NAME" \
-    --role Contributor \
-    --scopes "$ENV_RG_SCOPE" "$SHARED_RG_SCOPE" \
-    -o json 2>&1)
+  # Entra ID is eventually consistent, and `az ad sp create-for-rbac` creates the application
+  # then immediately references it to create the service principal. That second call can fail
+  # with "does not exist or one of its queried reference-property objects are not present",
+  # leaving an orphaned app whose generated secret was never printed. Display names are not
+  # unique, so a blind re-run would then create duplicates. Hence: separate steps, reuse any
+  # app that already exists, and retry past replication lag.
+  info "Resolving app registration '$SP_NAME'..."
+  APP_OBJECT_ID=$(az ad app list --filter "displayName eq '${SP_NAME}'" --query '[0].id' -o tsv)
 
-  CLIENT_ID=$(echo "$SP_OUTPUT" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d['appId'])")
-  CLIENT_SECRET=$(echo "$SP_OUTPUT" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d['password'])")
+  if [[ -n "$APP_OBJECT_ID" ]]; then
+    CLIENT_ID=$(az ad app show --id "$APP_OBJECT_ID" --query appId -o tsv)
+    warn "App registration already exists ($CLIENT_ID) — reusing it"
+  else
+    CLIENT_ID=$(az ad app create --display-name "$SP_NAME" --query appId -o tsv)
+    APP_OBJECT_ID=$(az ad app list --filter "appId eq '${CLIENT_ID}'" --query '[0].id' -o tsv)
+    success "App registration created: $CLIENT_ID"
+  fi
 
-  success "Service principal created: $CLIENT_ID"
+  if az ad sp show --id "$CLIENT_ID" &>/dev/null; then
+    success "Service principal already exists"
+  else
+    info "Creating service principal object (allowing for directory replication)..."
+    for _ in {1..12}; do
+      az ad sp create --id "$CLIENT_ID" -o none 2>/dev/null && break
+      sleep 5
+    done
+    az ad sp show --id "$CLIENT_ID" &>/dev/null \
+      || error "Service principal for $CLIENT_ID not creatable after 60s — re-run the script"
+  fi
+
+  SP_OBJECT_ID=$(az ad sp show --id "$CLIENT_ID" --query id -o tsv)
+  success "Service principal ready: $SP_OBJECT_ID"
+
+  # An existing app's secret value can never be read back, so always mint a fresh one — the
+  # point of this step is to emit a usable credential in Step 7. Default clears old secrets.
+  info "Generating client secret..."
+  CLIENT_SECRET=$(az ad app credential reset --id "$CLIENT_ID" --years 2 --query password -o tsv)
+  success "Client secret generated"
+
+  # Assign by object id with an explicit principal type: this skips the Graph lookup that
+  # --assignee performs, which is the other place a freshly created principal trips over
+  # replication lag. Existing identical assignments are tolerated so re-runs are safe.
+  grant() {
+    local role="$1" scope="$2" out
+    if out=$(az role assignment create \
+               --assignee-object-id "$SP_OBJECT_ID" \
+               --assignee-principal-type ServicePrincipal \
+               --role "$role" --scope "$scope" --output none 2>&1); then
+      success "assigned: $role"
+    elif grep -qi "already exist" <<<"$out"; then
+      warn "already assigned: $role"
+    else
+      error "Failed to assign '$role' at $scope: $out"
+    fi
+  }
+
+  info "Granting Contributor on env RG + shared state RG..."
+  grant Contributor "$ENV_RG_SCOPE"
+  grant Contributor "$SHARED_RG_SCOPE"
 
   info "Granting AcrPush + AcrPull on $ACR_NAME..."
-  az role assignment create --assignee "$CLIENT_ID" --role AcrPush --scope "$ACR_SCOPE" --output none
-  az role assignment create --assignee "$CLIENT_ID" --role AcrPull --scope "$ACR_SCOPE" --output none
-  success "ACR roles assigned"
+  grant AcrPush "$ACR_SCOPE"
+  grant AcrPull "$ACR_SCOPE"
 
   # User Access Administrator at ENV RG scope — required so the deployer can create
   # role assignments inside its own RG (e.g. azurerm_role_assignment.acr_pull in
@@ -203,12 +250,10 @@ if [[ "$SKIP_SP" == "false" ]]; then
   # Contributor does NOT include Microsoft.Authorization/roleAssignments/write; only
   # Owner and User Access Administrator do. Without this, Stage 1 cluster apply 403s.
   info "Granting User Access Administrator at env RG scope (for azurerm_role_assignment.acr_pull)..."
-  az role assignment create --assignee "$CLIENT_ID" --role "User Access Administrator" --scope "$ENV_RG_SCOPE" --output none
-  success "User Access Administrator assigned at env RG"
+  grant "User Access Administrator" "$ENV_RG_SCOPE"
 
   info "Granting Storage Blob Data Contributor on $STORAGE_ACCOUNT..."
-  az role assignment create --assignee "$CLIENT_ID" --role "Storage Blob Data Contributor" --scope "$STORAGE_SCOPE" --output none
-  success "Storage role assigned"
+  grant "Storage Blob Data Contributor" "$STORAGE_SCOPE"
 
   # Cognitive Services Contributor at SUBSCRIPTION scope (not RG scope) — required so the deployer
   # can purge soft-deleted Cognitive Services accounts (azurerm_cognitive_account destroy step).
@@ -217,13 +262,14 @@ if [[ "$SKIP_SP" == "false" ]]; then
   # Without this, `terraform destroy` of the ai_services module 403s on the purge step and leaves
   # the AOAI account in a soft-delete state.
   info "Granting Cognitive Services Contributor at subscription scope (for AOAI purge on destroy)..."
-  az role assignment create --assignee "$CLIENT_ID" --role "Cognitive Services Contributor" --scope "/subscriptions/${SUBSCRIPTION_ID}" --output none
-  success "Cognitive Services Contributor assigned"
+  grant "Cognitive Services Contributor" "/subscriptions/${SUBSCRIPTION_ID}"
 
+  # The relibankdemo.com zone lives in ReliBank-Prod, not in the shared ReliBank RG or the env's
+  # own RG — every environment writes its A record (traffic_management/main.tf) into that one zone.
+  # Scope is the zone resource itself, not its RG, so this grants nothing else in ReliBank-Prod.
   info "Granting DNS Zone Contributor on relibankdemo.com zone..."
-  DNS_ZONE_SCOPE="/subscriptions/${SUBSCRIPTION_ID}/resourceGroups/relibank/providers/Microsoft.Network/dnszones/relibankdemo.com"
-  az role assignment create --assignee "$CLIENT_ID" --role "DNS Zone Contributor" --scope "$DNS_ZONE_SCOPE" --output none
-  success "DNS Zone Contributor assigned"
+  DNS_ZONE_SCOPE="/subscriptions/${SUBSCRIPTION_ID}/resourceGroups/ReliBank-Prod/providers/Microsoft.Network/dnszones/relibankdemo.com"
+  grant "DNS Zone Contributor" "$DNS_ZONE_SCOPE"
 
   # Reader + Monitoring Reader at SUBSCRIPTION scope — required so New Relic's Azure cloud
   # polling integration (terraform/aks/newrelic/nr_azure_integration.tf) can enumerate resources
@@ -233,9 +279,8 @@ if [[ "$SKIP_SP" == "false" ]]; then
   # Contributor grant above. Without this, the NR link/integration Terraform still applies
   # cleanly, but polling silently 403s and no AzureFunctionsAppSample data ever appears.
   info "Granting Reader + Monitoring Reader at subscription scope (for NR Azure Functions polling)..."
-  az role assignment create --assignee "$CLIENT_ID" --role "Reader" --scope "/subscriptions/${SUBSCRIPTION_ID}" --output none
-  az role assignment create --assignee "$CLIENT_ID" --role "Monitoring Reader" --scope "/subscriptions/${SUBSCRIPTION_ID}" --output none
-  success "Reader + Monitoring Reader assigned at subscription scope"
+  grant "Reader" "/subscriptions/${SUBSCRIPTION_ID}"
+  grant "Monitoring Reader" "/subscriptions/${SUBSCRIPTION_ID}"
 
   info "Ensuring microsoft.insights resource provider is registered (required for NR Azure polling)..."
   az provider register --namespace microsoft.insights
