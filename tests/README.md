@@ -241,9 +241,10 @@ input if provided (a `Deploy ReliBank` post-deploy run passes the just-deployed 
 **Local runs** (`skaffold dev` / `run_tests.sh`) are single-color — leave `TARGET_COLOR` unset and these
 layers are no-ops (no header; `DB_SERVER` defaults to localhost; NR filters render empty).
 
-See the **[Testing Runbook](../docs/deployer/testing-runbook.md)** for how to run the suite against a
-specific environment/color, DB access requirements, and how to interpret results (including the known
-pre-existing failures).
+See catapult-service's **[Testing Runbook](https://github.com/newrelic/catapult-service/blob/main/relibank_deployer/docs/testing-runbook.md)**
+for how the deployer runs this suite against a specific environment/color (it's no longer a
+standalone dispatchable workflow — see that doc), DB access requirements, and how to interpret
+results (including the known pre-existing failures).
 
 ## Troubleshooting
 

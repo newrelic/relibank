@@ -49,7 +49,7 @@ This service is deployed as part of the larger **Relibank** application stack us
 
 ### 📡 New Relic Monitoring
 
-The deployed Azure Function (`azure_function/`, triggered via `AZURE_FUNCTION_URL`) is monitored through New Relic's Azure cloud-polling integration — see `terraform/aks/newrelic/nr_azure_integration.tf` and [`docs/deployer/runbook.md`](../docs/deployer/runbook.md) for setup/troubleshooting. No agent runs inside the Function App; New Relic polls Azure Monitor directly.
+The deployed Azure Function (`azure_function/`, triggered via `AZURE_FUNCTION_URL`) is monitored through New Relic's Azure cloud-polling integration — see catapult-service's `relibank_deployer/terraform/aks/newrelic/nr_azure_integration.tf` and [runbook.md](https://github.com/newrelic/catapult-service/blob/main/relibank_deployer/docs/runbook.md) for setup/troubleshooting. No agent runs inside the Function App; New Relic polls Azure Monitor directly.
 
 **Known gaps as of this writing:**
 - ~~Execution/error metrics (`functionExecutionCount`, `http5xx`) don't populate — the Function App has no Application Insights connected~~ — fixed: `terraform/aks/notifications/main.tf` now provisions a Log Analytics workspace + Application Insights for the Function App. Rolls out to each environment the next time its Stage 4 (`notifications`) is applied.
