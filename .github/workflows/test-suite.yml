@@ -30,6 +30,7 @@ on:
           - frontend
           - smoke
           - kafka-zookeeper-resilience
+          - ai_monitoring
       target_color:
         description: 'Color to direct scenario-UI checks at (sends X-Test-Env). Empty = active color.'
         required: false
@@ -68,7 +69,7 @@ jobs:
   python-tests:
     runs-on: ubuntu-latest
     environment: ${{ inputs.target_environment || 'prod' }}
-    if: ${{ inputs.test_suite == 'all' || inputs.test_suite == 'e2e' || inputs.test_suite == 'scenario' || inputs.test_suite == 'payment' || inputs.test_suite == 'smoke' || inputs.test_suite == 'kafka-zookeeper-resilience' || inputs.test_suite == '' }}
+    if: ${{ inputs.test_suite == 'all' || inputs.test_suite == 'e2e' || inputs.test_suite == 'scenario' || inputs.test_suite == 'payment' || inputs.test_suite == 'smoke' || inputs.test_suite == 'kafka-zookeeper-resilience' || inputs.test_suite == 'ai_monitoring' || inputs.test_suite == '' }}
     outputs:
       test_ab_testing: ${{ steps.individual-tests.outputs.test_ab_testing }}
       test_apm_user_tracking: ${{ steps.individual-tests.outputs.test_apm_user_tracking }}
@@ -80,6 +81,7 @@ jobs:
       test_lcp_regression: ${{ steps.individual-tests.outputs.test_lcp_regression }}
       test_mfe_single: ${{ steps.individual-tests.outputs.test_mfe_single }}
       test_microfrontend_telemetry: ${{ steps.individual-tests.outputs.test_microfrontend_telemetry }}
+      test_newrelic_ai_agents: ${{ steps.individual-tests.outputs.test_newrelic_ai_agents }}
       test_newrelic_instrumentation: ${{ steps.individual-tests.outputs.test_newrelic_instrumentation }}
       test_newrelic_risk_assessment: ${{ steps.individual-tests.outputs.test_newrelic_risk_assessment }}
       test_payment: ${{ steps.individual-tests.outputs.test_payment }}
@@ -290,6 +292,25 @@ jobs:
           cd tests
           pytest test_end_to_end.py::test_frontend_loads test_scenario_service.py::test_scenario_service_health -n auto --tb=line
 
+      - name: Run AI monitoring tests only
+        if: ${{ inputs.test_suite == 'ai_monitoring' }}
+        env:
+          RELIBANK_URL: ${{ vars.BASE_URL }}
+          SCENARIO_SERVICE_URL: ${{ vars.BASE_URL }}
+          BILL_PAY_SERVICE_URL: ${{ vars.BASE_URL }}
+          ACCOUNTS_SERVICE_URL: ${{ vars.BASE_URL }}
+          SUPPORT_SERVICE_URL: ${{ vars.BASE_URL }}
+          NEW_RELIC_USER_API_KEY: ${{ secrets.NR_USER_API_KEY }}
+          NEW_RELIC_ACCOUNT_ID: ${{ vars.NR_ACCOUNT_ID }}
+          APP_NAME: ${{ vars.APP_NAME }}
+          TARGET_COLOR: ${{ env.EFFECTIVE_COLOR || inputs.target_color }}
+          DB_SERVER: ${{ secrets.DB_SERVER || '127.0.0.1' }}
+          DB_USERNAME: ${{ secrets.DB_USERNAME || secrets.MSSQL_SA_USER }}
+          DB_PASSWORD: ${{ secrets.DB_PASSWORD || secrets.MSSQL_SA_PASSWORD }}
+        run: |
+          cd tests
+          pytest test_newrelic_ai_agents.py test_newrelic_risk_assessment.py --tb=line
+
   frontend-tests:
     runs-on: ubuntu-latest
     environment: ${{ inputs.target_environment || 'prod' }}
@@ -391,6 +412,7 @@ jobs:
             ["test_browser_tracking"]="Browser User Tracking"
             ["test_e2e"]="End to End"
             ["test_lcp_regression"]="LCP Regression"
+            ["test_newrelic_ai_agents"]="AI Agents (LlmAgent/LlmTool)"
             ["test_nr_instrumentation"]="New Relic Instrumentation"
             ["test_payment"]="Payment Scenarios"
             ["test_scenario"]="Scenario Service"

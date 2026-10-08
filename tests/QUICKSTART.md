@@ -183,6 +183,7 @@ source .venv-relibank-tests/bin/activate
 | `test_payment_scenarios.py` | Payment behaviors | Timeout, decline, stolen card scenarios |
 | `test_rogue_deployment_scenarios.py` | AI Risk Assessment | Rogue agent behavior, AI agent swapping, decline rates |
 | `test_newrelic_risk_assessment.py` | New Relic Observability | Risk assessment logs, declined payments, agent tracking, eBPF traces |
+| `test_newrelic_ai_agents.py` | New Relic AI Agent Monitoring | `LlmAgent`/`LlmTool` events populate for the multi-agent chat flow |
 
 ## 🔄 Deactivating the Environment
 
