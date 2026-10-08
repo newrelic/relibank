@@ -1,4 +1,6 @@
-# New Relic Kubernetes Integration with eBPF
+# New Relic Kubernetes Integration with eBPF — LOCAL DEV ONLY (consumed by skaffold.yaml's
+# nri-bundle-local-dev release). Not used by the Terraform-managed AKS install path; see
+# terraform/aks/newrelic/nr_infra_agent.tf for deployer-managed environments.
 # Note: licenseKey is set via skaffold setValueTemplates
 global:
   cluster: "relibank-dev"

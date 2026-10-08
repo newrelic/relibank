@@ -185,12 +185,17 @@ deploy:
       - scenario_service/chaos_mesh/values.yaml
       wait: true
       upgradeOnChange: true
-    - name: nri-bundle
+    # Local-dev-only New Relic agent install (Docker Desktop / Minikube). This is NOT the
+    # authoritative install path for any deployer-managed AKS environment — that is owned
+    # exclusively by terraform/aks/newrelic/nr_infra_agent.tf via the `relibank-newrelic-deploy`
+    # workflow. Do not run `skaffold dev`/`skaffold run` against an AKS kubectl context; the
+    # release name below is deliberately distinct from Terraform's `newrelic-bundle` release,
+    # but running this against a real cluster still installs a second, untracked set of agents.
+    - name: nri-bundle-local-dev
       remoteChart: nri-bundle
       namespace: newrelic
       createNamespace: true
       repo: https://helm-charts.newrelic.com
-      version: 5.0.110
       valuesFiles:
       - k8s/newrelic/values.yaml
       setValueTemplates:

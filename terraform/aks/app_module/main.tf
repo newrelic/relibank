@@ -19,6 +19,17 @@ terraform {
   }
 }
 
+locals {
+  common_tags = {
+    team           = "ReliBank - Platform"
+    deploymentTier = var.demo_environment
+    heroChannel    = "help-relibank-platform"
+    managedBy      = "terraform"
+    appStack       = "relibank"
+    githubRepo     = "https://github.com/newrelic/relibank"
+  }
+}
+
 # --- Look up the AKS cluster to get its ID ---
 data "azurerm_kubernetes_cluster" "cluster" {
   name                = var.aks_cluster_name
@@ -38,6 +49,8 @@ resource "azurerm_kubernetes_cluster_node_pool" "relibank_color_np" {
     "environment" = var.demo_environment
     "app"         = "relibank"
   }
+
+  tags = local.common_tags
 
   lifecycle {
     ignore_changes = [node_count]
@@ -208,6 +221,57 @@ resource "kubernetes_deployment_v1" "service" {
         node_selector        = { "node-color" = var.target_color }
         service_account_name = each.value.service_account_name
 
+        # Wait for Kafka to accept TCP connections before starting services that publish messages.
+        # Without this, the AIOKafkaProducer exhausts its retry window on cold deploys (Kafka starts
+        # ~45s after app pods) and silently leaves a broken producer, causing send_and_wait to hang.
+        dynamic "init_container" {
+          for_each = contains(["bill-pay-service", "notifications-service", "risk-assessment-service", "scheduler-service"], each.key) ? [1] : []
+          content {
+            name    = "wait-for-kafka"
+            image   = "busybox"
+            command = ["/bin/sh", "-c", "timeout 300 /bin/sh -c 'until nc -w 1 kafka 29092 </dev/null 2>/dev/null; do echo Waiting for Kafka...; sleep 2; done' && echo 'Kafka is ready.'"]
+          }
+        }
+
+        # Wait for RelibankDB to exist before starting services that connect to MSSQL.
+        # Without this, services start before mssql-init creates the DB (~4 min on fresh PVCs)
+        # and either fail to connect or hold broken connections.
+        dynamic "init_container" {
+          for_each = contains(["transaction-service", "scheduler-service"], each.key) ? [1] : []
+          content {
+            name    = "wait-for-db"
+            image   = "${var.acr_server}/mssql-custom:${var.target_color}"
+            command = ["/bin/sh", "-c", "timeout 600 /bin/sh -c 'until /opt/mssql-tools18/bin/sqlcmd -S mssql,1433 -U \"$DB_USERNAME\" -P \"$DB_PASSWORD\" -C -d \"$DB_DATABASE\" -Q \"SELECT 1\" -b > /dev/null 2>&1; do echo Waiting for RelibankDB...; sleep 5; done' && echo 'RelibankDB is ready.'"]
+            env {
+              name = "DB_USERNAME"
+              value_from {
+                secret_key_ref {
+                  name = kubernetes_secret_v1.database_credentials.metadata[0].name
+                  key  = "MSSQL_SA_USER"
+                }
+              }
+            }
+            env {
+              name = "DB_PASSWORD"
+              value_from {
+                secret_key_ref {
+                  name = kubernetes_secret_v1.database_credentials.metadata[0].name
+                  key  = "MSSQL_SA_PASSWORD"
+                }
+              }
+            }
+            env {
+              name = "DB_DATABASE"
+              value_from {
+                config_map_key_ref {
+                  name = kubernetes_config_map_v1.infrastructure_config.metadata[0].name
+                  key  = "MSSQL_DATABASE_NAME"
+                }
+              }
+            }
+          }
+        }
+
         container {
           name              = each.key
           image             = "${var.acr_server}/${each.value.image}:${var.target_color}"
@@ -215,6 +279,24 @@ resource "kubernetes_deployment_v1" "service" {
 
           port {
             container_port = each.value.container_port
+          }
+
+          # transaction-service holds one MSSQL connection for its whole lifetime and only
+          # reconnects when something actually touches the DB (see get_active_db_connection()
+          # in transaction_service.py). Without this probe, a stale connection left behind by
+          # an MSSQL restart (OOM, crash, node reschedule, ...) silently 500s every ledger call
+          # forever instead of getting kubelet to restart the pod.
+          dynamic "liveness_probe" {
+            for_each = each.key == "transaction-service" ? [1] : []
+            content {
+              exec {
+                command = ["curl", "-f", "http://localhost:${each.value.container_port}/transaction-service/health"]
+              }
+              initial_delay_seconds = 15
+              period_seconds        = 10
+              timeout_seconds       = 5
+              failure_threshold     = 5
+            }
           }
 
           # Deploy color on every service — stamped onto NR APM transactions (via the shared
@@ -490,6 +572,14 @@ resource "kubernetes_deployment_v1" "accounts_db" {
         container {
           name  = "accounts-db"
           image = "${var.acr_server}/postgres-custom:${var.target_color}"
+          # Always, not IfNotPresent (the prior default) — this tag is mutable and we
+          # actively iterate on this image; IfNotPresent let a node reuse a stale cached
+          # layer under the same tag and crash-loop on a binary that no longer matched the
+          # config (same gotcha documented on nrdot-collector-mssql below).
+          image_pull_policy = "Always"
+          # shared_preload_libraries is postmaster-context — can't be set via SQL, only at
+          # server start. Needed for New Relic's nri-postgresql query/wait-time monitoring.
+          args = ["-c", "shared_preload_libraries=pg_stat_statements,pg_wait_sampling,pg_stat_monitor"]
           port {
             container_port = 5432
             protocol       = "TCP"
@@ -555,6 +645,25 @@ resource "kubernetes_deployment_v1" "accounts_db" {
   ]
 }
 
+# --- Zookeeper PVC ---
+# Without this, Zookeeper's session state does not survive pod rescheduling (e.g. an AKS node
+# image upgrade) -- see docs/PROD_BLUE_KAFKA_ZOOKEEPER_INCIDENT.md Fix 1.
+resource "kubernetes_persistent_volume_claim_v1" "zookeeper_data" {
+  metadata {
+    name      = "zookeeper-data"
+    namespace = local.ns
+    labels    = { app = "zookeeper" }
+  }
+  spec {
+    access_modes = ["ReadWriteOnce"]
+    resources {
+      requests = { storage = "1Gi" }
+    }
+  }
+  wait_until_bound = false
+  depends_on       = [kubernetes_namespace_v1.relibank_color]
+}
+
 # --- Zookeeper Deployment + Service ---
 resource "kubernetes_service_v1" "zookeeper" {
   metadata {
@@ -581,6 +690,12 @@ resource "kubernetes_deployment_v1" "zookeeper" {
   }
   spec {
     replicas = 1
+    # Required once a single-replica Deployment mounts an RWO volume (same reason accounts_db
+    # has it, ~line 542) -- a rolling update would try to start the replacement pod before the
+    # old one releases the PVC.
+    strategy {
+      type = "Recreate"
+    }
     selector {
       match_labels = { app = "zookeeper" }
     }
@@ -591,6 +706,11 @@ resource "kubernetes_deployment_v1" "zookeeper" {
       spec {
         node_selector = { "node-color" = var.target_color }
         hostname      = "zookeeper"
+        # Bitnami's zookeeper image runs as a non-root UID; fs_group makes the mounted
+        # volume writable by it.
+        security_context {
+          fs_group = 1001
+        }
         container {
           name  = "zookeeper"
           image = "bitnamilegacy/zookeeper:3.8"
@@ -606,11 +726,47 @@ resource "kubernetes_deployment_v1" "zookeeper" {
             name  = "ZOO_MY_ID"
             value = "1"
           }
+          # `ruok` is not in this image's default 4lw allowlist ([mntr, srvr] only) -- without
+          # this, the liveness/readiness probes below get no response to `ruok` and kubelet
+          # crash-loops the container.
+          env {
+            name  = "ZOO_4LW_COMMANDS_WHITELIST"
+            value = "srvr,mntr,ruok"
+          }
+          volume_mount {
+            name       = "zookeeper-data"
+            mount_path = "/bitnami/zookeeper"
+          }
+          liveness_probe {
+            exec {
+              command = ["/bin/bash", "-c", "echo ruok | timeout 2 nc -w 2 localhost 2181 | grep imok"]
+            }
+            initial_delay_seconds = 15
+            period_seconds        = 10
+            timeout_seconds       = 5
+          }
+          readiness_probe {
+            exec {
+              command = ["/bin/bash", "-c", "echo ruok | timeout 2 nc -w 2 localhost 2181 | grep imok"]
+            }
+            initial_delay_seconds = 10
+            period_seconds        = 10
+            timeout_seconds       = 5
+          }
+        }
+        volume {
+          name = "zookeeper-data"
+          persistent_volume_claim {
+            claim_name = kubernetes_persistent_volume_claim_v1.zookeeper_data.metadata[0].name
+          }
         }
       }
     }
   }
-  depends_on = [azurerm_kubernetes_cluster_node_pool.relibank_color_np]
+  depends_on = [
+    kubernetes_persistent_volume_claim_v1.zookeeper_data,
+    azurerm_kubernetes_cluster_node_pool.relibank_color_np,
+  ]
 }
 
 # --- Kafka Deployment + Service ---
@@ -649,6 +805,13 @@ resource "kubernetes_deployment_v1" "kafka" {
   }
   spec {
     replicas = 1
+    # KAFKA_BROKER_ID is hardcoded to "1" below (single-identity broker, not derived per-pod),
+    # so a RollingUpdate deadlocks: the new pod can't register broker id 1 in Zookeeper while
+    # the old pod is still alive and holds it, and Kubernetes won't kill the old pod until the
+    # new one is Ready -- which it never becomes. Recreate avoids the two pods ever coexisting.
+    strategy {
+      type = "Recreate"
+    }
     selector {
       match_labels = { app = "kafka" }
     }
@@ -708,6 +871,24 @@ resource "kubernetes_deployment_v1" "kafka" {
             failure_threshold = 5
             period_seconds    = 10
             timeout_seconds   = 5
+          }
+          # Requires the broker to actually answer an admin command -- catches a wedged broker
+          # (hung JVM, thread starvation) that the bare TCP liveness probe above would miss.
+          # Does not detect a broken Zookeeper session; Zookeeper's own ruok probe above is what
+          # covers that. Readiness-only, generous failure_threshold.
+          readiness_probe {
+            exec {
+              # KAFKA_JMX_OPTS is set container-wide (for the monitoring collector) and binds
+              # port 9999 -- every kafka-*.sh script picks it up and tries to open its own JMX
+              # listener on the same port the running broker already holds, so the probe process
+              # itself crashes with "Port already in use: 9999" regardless of actual broker
+              # health. Clear it for this one invocation only.
+              command = ["/bin/sh", "-c", "KAFKA_JMX_OPTS= kafka-broker-api-versions.sh --bootstrap-server localhost:9092"]
+            }
+            initial_delay_seconds = 30
+            period_seconds        = 15
+            timeout_seconds       = 10
+            failure_threshold     = 6
           }
         }
       }
@@ -882,5 +1063,353 @@ resource "kubernetes_job_v1" "postgres_init" {
   depends_on = [
     kubernetes_deployment_v1.accounts_db,
     kubernetes_service_v1.accounts_db,
+  ]
+}
+
+# ==========================================
+# New Relic OTel collectors (mssql / kafka) — per-color, mirrors legacy
+# k8s/base/infrastructure/{nrdot-collector-mssql,otel-collector-kafka}-deployment.yaml.
+# ConfigMap content lives in ./templates/ (see templates/README.md for exact
+# provenance per file) — colocated with this module rather than read cross-tree,
+# matching the convention in terraform/aks/newrelic/{scripts,dashboards}/.
+#
+# Standalone resources here, not var.services entries — same reason kafka/mssql/
+# zookeeper/accounts-db above aren't: the services map's for_each only supports a
+# single container with plain env vars (config_map_envs/secret_envs into the shared
+# infrastructure-config/database-credentials) and always creates a matching
+# ClusterIP Service. These collectors need a custom `command`, their own Secret
+# (nrdot-mssql-credentials), and multiple ConfigMap file mounts (subPath YAML
+# configs) — none of which the generic shape supports — and neither one has a
+# client calling it over ClusterIP, so no Service should be generated for them.
+# ==========================================
+
+locals {
+  # Base config is a local copy sourced from db360-new-image-rebased (see templates/README.md)
+  # — not from main's k8s/base, which is still on the older newrelicsqlserver receiver.
+  nrdot_mssql_config_base = yamldecode(file("${path.module}/templates/nrdot-collector-mssql-config.yaml"))
+
+  # The base config already carries a resource/mssql_identity processor that stamps
+  # host.name/host.id to "mssql-0-${env:RELIBANK_ENVIRONMENT}", wired into its own
+  # metrics/mssql and logs/mssql pipelines. Deliberately env-only, not color-aware —
+  # one stable MSSQLINSTANCE entity per environment (e.g. "mssql-0-sandbox"), shared
+  # by whichever color is live, rather than a separate entity per color.
+  nrdot_mssql_environment = var.demo_environment
+
+  nrdot_mssql_config_patched = merge(local.nrdot_mssql_config_base, {
+    receivers = merge(local.nrdot_mssql_config_base.receivers, {
+      nrsqlserver = merge(local.nrdot_mssql_config_base.receivers.nrsqlserver, {
+        # Bare pod name doesn't resolve under k8s headless-service DNS — needs the
+        # governing Service name appended (mssql-0.mssql, not mssql-0). `events` gets
+        # away with the bare name because its legacy mssql-deployment.yaml defines a
+        # SEPARATE Service literally named "mssql-0"; app_module has no such Service.
+        server = "mssql-0.mssql"
+      })
+    })
+  })
+}
+
+resource "kubernetes_config_map_v1" "nrdot_collector_mssql_config" {
+  metadata {
+    name      = "nrdot-collector-mssql-config"
+    namespace = local.ns
+  }
+  data = {
+    "config.yaml" = yamlencode(local.nrdot_mssql_config_patched)
+  }
+  depends_on = [kubernetes_namespace_v1.relibank_color]
+}
+
+resource "kubernetes_config_map_v1" "otel_collector_kafka_config" {
+  metadata {
+    name      = "otel-collector-kafka-config"
+    namespace = local.ns
+  }
+  data = {
+    "config.yaml" = file("${path.module}/templates/otel-collector-kafka-config.yaml")
+  }
+  depends_on = [kubernetes_namespace_v1.relibank_color]
+}
+
+resource "kubernetes_config_map_v1" "kafka_jmx_config" {
+  metadata {
+    name      = "kafka-jmx-config"
+    namespace = local.ns
+  }
+  data = {
+    "kafka-jmx-config.yaml" = file("${path.module}/templates/kafka-jmx-config.yaml")
+  }
+  depends_on = [kubernetes_namespace_v1.relibank_color]
+}
+
+resource "kubernetes_config_map_v1" "internal_telemetry_config" {
+  metadata {
+    name      = "internal-telemetry-config"
+    namespace = local.ns
+  }
+  data = {
+    "internal-telemetry-config.yaml" = file("${path.module}/templates/internal-telemetry-config.yaml")
+  }
+  depends_on = [kubernetes_namespace_v1.relibank_color]
+}
+
+resource "kubernetes_secret_v1" "nrdot_mssql_credentials" {
+  metadata {
+    name      = "nrdot-mssql-credentials"
+    namespace = local.ns
+  }
+
+  data = {
+    MSSQL_NEWRELIC_PASSWORD = var.mssql_newrelic_password
+    NEW_RELIC_LICENSE_KEY   = var.new_relic_license_key
+    NEW_RELIC_OTLP_ENDPOINT = var.new_relic_otlp_endpoint
+  }
+
+  type       = "Opaque"
+  depends_on = [kubernetes_namespace_v1.relibank_color]
+}
+
+# --- nrdot-collector-mssql Deployment ---
+resource "kubernetes_deployment_v1" "nrdot_collector_mssql" {
+  metadata {
+    name      = "nrdot-collector-mssql"
+    namespace = local.ns
+    labels    = { app = "nrdot-collector-mssql" }
+  }
+  spec {
+    replicas = 1
+    selector {
+      match_labels = { app = "nrdot-collector-mssql" }
+    }
+    template {
+      metadata {
+        labels = { app = "nrdot-collector-mssql" }
+      }
+      spec {
+        node_selector = { "node-color" = var.target_color }
+        container {
+          name  = "nrdot-collector-mssql"
+          image = "${var.acr_server}/nrdot-collector-mssql:${var.target_color}"
+          # Always, not IfNotPresent — this tag is mutable and we actively iterate on
+          # this image; IfNotPresent let a node reuse a stale cached layer under the
+          # same tag and crash-loop on a binary that no longer matched the config.
+          image_pull_policy = "Always"
+          command = [
+            "nrdot-collector",
+            "--config=/etc/otelcol/config.yaml",
+            "--config=/etc/otelcol/internal-telemetry-config.yaml",
+          ]
+          env {
+            name  = "RELIBANK_ENVIRONMENT"
+            value = local.nrdot_mssql_environment
+          }
+          env {
+            name = "MSSQL_NEWRELIC_PASSWORD"
+            value_from {
+              secret_key_ref {
+                name = kubernetes_secret_v1.nrdot_mssql_credentials.metadata[0].name
+                key  = "MSSQL_NEWRELIC_PASSWORD"
+              }
+            }
+          }
+          env {
+            name = "NEW_RELIC_LICENSE_KEY"
+            value_from {
+              secret_key_ref {
+                name = kubernetes_secret_v1.nrdot_mssql_credentials.metadata[0].name
+                key  = "NEW_RELIC_LICENSE_KEY"
+              }
+            }
+          }
+          env {
+            name = "NEW_RELIC_OTLP_ENDPOINT"
+            value_from {
+              secret_key_ref {
+                name = kubernetes_secret_v1.nrdot_mssql_credentials.metadata[0].name
+                key  = "NEW_RELIC_OTLP_ENDPOINT"
+              }
+            }
+          }
+          env {
+            name  = "INTERNAL_TELEMETRY_SERVICE_NAME"
+            value = "relibank-mssql-collector"
+          }
+          env {
+            name  = "INTERNAL_TELEMETRY_OTLP_ENDPOINT"
+            value = "https://otlp.nr-data.net"
+          }
+          env {
+            name = "INTERNAL_TELEMETRY_NEW_RELIC_LICENSE_KEY"
+            value_from {
+              secret_key_ref {
+                name = kubernetes_secret_v1.nrdot_mssql_credentials.metadata[0].name
+                key  = "NEW_RELIC_LICENSE_KEY"
+              }
+            }
+          }
+          volume_mount {
+            name       = "nrdot-collector-mssql-config"
+            mount_path = "/etc/otelcol/config.yaml"
+            sub_path   = "config.yaml"
+            read_only  = true
+          }
+          volume_mount {
+            name       = "internal-telemetry-config"
+            mount_path = "/etc/otelcol/internal-telemetry-config.yaml"
+            sub_path   = "internal-telemetry-config.yaml"
+            read_only  = true
+          }
+        }
+        volume {
+          name = "nrdot-collector-mssql-config"
+          config_map {
+            name = kubernetes_config_map_v1.nrdot_collector_mssql_config.metadata[0].name
+            items {
+              key  = "config.yaml"
+              path = "config.yaml"
+            }
+          }
+        }
+        volume {
+          name = "internal-telemetry-config"
+          config_map {
+            name = kubernetes_config_map_v1.internal_telemetry_config.metadata[0].name
+            items {
+              key  = "internal-telemetry-config.yaml"
+              path = "internal-telemetry-config.yaml"
+            }
+          }
+        }
+      }
+    }
+  }
+  depends_on = [
+    kubernetes_stateful_set_v1.mssql,
+    kubernetes_job_v1.mssql_init,
+    kubernetes_secret_v1.nrdot_mssql_credentials,
+    kubernetes_config_map_v1.nrdot_collector_mssql_config,
+    kubernetes_config_map_v1.internal_telemetry_config,
+    azurerm_kubernetes_cluster_node_pool.relibank_color_np,
+  ]
+}
+
+# --- otel-collector-kafka Deployment ---
+resource "kubernetes_deployment_v1" "otel_collector_kafka" {
+  metadata {
+    name      = "otel-collector-kafka"
+    namespace = local.ns
+    labels    = { app = "otel-collector-kafka" }
+  }
+  spec {
+    replicas = 1
+    selector {
+      match_labels = { app = "otel-collector-kafka" }
+    }
+    template {
+      metadata {
+        labels = { app = "otel-collector-kafka" }
+      }
+      spec {
+        node_selector = { "node-color" = var.target_color }
+        container {
+          name  = "otel-collector"
+          image = "${var.acr_server}/otel-collector-kafka:${var.target_color}"
+          # Always, not IfNotPresent — same mutable-tag staleness risk as the mssql
+          # collector above.
+          image_pull_policy = "Always"
+          command = [
+            "/otelcol-contrib",
+            "--config=/conf/otel-agent-config.yaml",
+            "--config=/conf/internal-telemetry-config.yaml",
+          ]
+          # NEW_RELIC_LICENSE_KEY is baked into this image at build time (build-push-images.yml,
+          # per color/env) — the OTel config reads it via ${env:NEW_RELIC_LICENSE_KEY} at runtime,
+          # so no Secret env is needed here (matches the legacy manifest's own comment).
+          env {
+            name  = "KAFKA_CLUSTER_NAME"
+            value = "relibank-kafka"
+          }
+          env {
+            name  = "KAFKA_BROKER_ADDRESS"
+            value = "kafka:29092"
+          }
+          env {
+            name  = "KAFKA_BROKER_JMX_ADDRESS"
+            value = "kafka:9999"
+          }
+          env {
+            name  = "INTERNAL_TELEMETRY_SERVICE_NAME"
+            value = "relibank-kafka-collector"
+          }
+          env {
+            name  = "INTERNAL_TELEMETRY_OTLP_ENDPOINT"
+            value = "https://otlp.nr-data.net"
+          }
+          volume_mount {
+            name       = "config"
+            mount_path = "/conf/otel-agent-config.yaml"
+            sub_path   = "config.yaml"
+            read_only  = true
+          }
+          volume_mount {
+            name       = "internal-telemetry-config"
+            mount_path = "/conf/internal-telemetry-config.yaml"
+            sub_path   = "internal-telemetry-config.yaml"
+            read_only  = true
+          }
+          volume_mount {
+            name       = "kafka-jmx-config"
+            mount_path = "/conf/kafka-jmx-config.yaml"
+            sub_path   = "kafka-jmx-config.yaml"
+            read_only  = true
+          }
+          volume_mount {
+            name       = "tmp"
+            mount_path = "/tmp"
+          }
+        }
+        volume {
+          name = "config"
+          config_map {
+            name = kubernetes_config_map_v1.otel_collector_kafka_config.metadata[0].name
+            items {
+              key  = "config.yaml"
+              path = "config.yaml"
+            }
+          }
+        }
+        volume {
+          name = "internal-telemetry-config"
+          config_map {
+            name = kubernetes_config_map_v1.internal_telemetry_config.metadata[0].name
+            items {
+              key  = "internal-telemetry-config.yaml"
+              path = "internal-telemetry-config.yaml"
+            }
+          }
+        }
+        volume {
+          name = "kafka-jmx-config"
+          config_map {
+            name = kubernetes_config_map_v1.kafka_jmx_config.metadata[0].name
+            items {
+              key  = "kafka-jmx-config.yaml"
+              path = "kafka-jmx-config.yaml"
+            }
+          }
+        }
+        volume {
+          name = "tmp"
+          empty_dir {}
+        }
+      }
+    }
+  }
+  depends_on = [
+    kubernetes_deployment_v1.kafka,
+    kubernetes_service_v1.kafka,
+    kubernetes_config_map_v1.otel_collector_kafka_config,
+    kubernetes_config_map_v1.internal_telemetry_config,
+    kubernetes_config_map_v1.kafka_jmx_config,
+    azurerm_kubernetes_cluster_node_pool.relibank_color_np,
   ]
 }

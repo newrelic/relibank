@@ -47,6 +47,12 @@ on:
         required: false
         default: false
 
+permissions:
+  contents: read
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: 'true'
+
 jobs:
 
   # ---------------------------------------------------------------------------
@@ -82,15 +88,15 @@ jobs:
 
     steps:
       - name: Checkout repo
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Azure Login
-        uses: azure/login@v2
+        uses: azure/login@v3
         with:
           creds: ${{ secrets.AZURE_CREDENTIALS }}
 
       - name: Setup Terraform
-        uses: hashicorp/setup-terraform@v2
+        uses: hashicorp/setup-terraform@v4
         with:
           terraform_version: 1.5
 
@@ -100,6 +106,10 @@ jobs:
             --resource-group ${{ vars.AKS_RESOURCE_GROUP }} \
             --name           ${{ vars.AKS_CLUSTER_NAME }} \
             --overwrite-existing
+
+      - name: Delete existing immutable postgres-init Job
+        run: |
+          kubectl delete job postgres-init -n relibank-${{ github.event.inputs.target_color }} --ignore-not-found=true
 
       - name: "Terraform Init (relibank-${{ github.event.inputs.target_color }})"
         working-directory: terraform/aks/relibank-${{ github.event.inputs.target_color }}
@@ -158,15 +168,15 @@ jobs:
 
     steps:
       - name: Checkout repo
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Azure Login
-        uses: azure/login@v2
+        uses: azure/login@v3
         with:
           creds: ${{ secrets.AZURE_CREDENTIALS }}
 
       - name: Setup Terraform
-        uses: hashicorp/setup-terraform@v2
+        uses: hashicorp/setup-terraform@v4
         with:
           terraform_version: 1.5
 
@@ -223,15 +233,15 @@ jobs:
 
     steps:
       - name: Checkout repo
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Azure Login
-        uses: azure/login@v2
+        uses: azure/login@v3
         with:
           creds: ${{ secrets.AZURE_CREDENTIALS }}
 
       - name: Setup Terraform
-        uses: hashicorp/setup-terraform@v2
+        uses: hashicorp/setup-terraform@v4
         with:
           terraform_version: 1.5
 

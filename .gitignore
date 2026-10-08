@@ -1,5 +1,6 @@
 .idea/*
 **/.terraform
+**/.terraform.lock.hcl
 terraform-initial-setup/terraform.tfstate
 act-secrets.env
 **/.DS_Store

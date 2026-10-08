@@ -1,15 +1,6 @@
-# Cluster-side NR observability stack — installs:
-#   1. nri-bundle helm chart with infrastructure, kube-state-metrics, kubeEvents, logging,
-#      and prometheus integrations enabled.
-#   2. nr-ebpf-agent helm chart for service-level Prometheus-style workload metrics.
-# Mirrors demogorgon's eks_newrelic module. License key is created as a kubernetes_secret
-# and passed to nri-bundle via customSecretName/customSecretLicenseKey to keep the license
-# out of helm release values stored on the cluster.
-#
-# The `newrelic` namespace itself is created by the infra tier
-# (terraform/aks/infra/main.tf, kubernetes_namespace_v1.newrelic). This module just installs
-# into it.
-
+# Cluster-side NR observability stack — a single nri-bundle helm release with infrastructure,
+# kube-state-metrics, kubeEvents, logging, prometheus, and nr-ebpf-agent (nested subchart, for
+# service-level workload metrics/logs, scoped to risk-assessment-service) all enabled.
 locals {
   newrelic_namespace                        = "newrelic"
   new_relic_license_key_k8s_secret_key_name = "license_key"
@@ -20,11 +11,9 @@ resource "kubernetes_secret_v1" "newrelic_license" {
     name      = "newrelic-license"
     namespace = local.newrelic_namespace
   }
-
   data = {
     (local.new_relic_license_key_k8s_secret_key_name) = var.new_relic_license_key
   }
-
   type = "Opaque"
 }
 
@@ -33,8 +22,11 @@ resource "helm_release" "nri_bundle" {
   namespace  = local.newrelic_namespace
   repository = "https://helm-charts.newrelic.com"
   chart      = "nri-bundle"
-  wait       = true
-  timeout    = 800
+  # Caret range (not an exact pin) so terraform always re-resolves against the repo index and
+  # picks up new 8.x releases — pinning an exact version freezes state and stops tracking latest.
+  version = "^8.0.0"
+  wait    = true
+  timeout = 800
 
   values = [
     yamlencode({
@@ -43,37 +35,79 @@ resource "helm_release" "nri_bundle" {
         customSecretName       = kubernetes_secret_v1.newrelic_license.metadata[0].name
         customSecretLicenseKey = local.new_relic_license_key_k8s_secret_key_name
         lowDataMode            = true
+        region                 = var.new_relic_region
       }
       newrelic-infrastructure = {
         privileged = true
+        integrations = {
+          # Static hostnames (no nri-discovery-kubernetes) — the discovery-based scheduling
+          # loop does not run in the nri-bundle 8.x agent container; static integrations
+          # use the normal interval scheduler which works reliably. One entry per color so
+          # whichever color is inactive just produces a short connection error and is skipped.
+          "nri-postgresql-green" = {
+            integrations = [
+              {
+                name = "nri-postgresql"
+                env = {
+                  HOSTNAME                = "accounts-db.relibank-green.svc.cluster.local"
+                  PORT                    = 5432
+                  USERNAME                = var.postgres_user
+                  PASSWORD                = var.postgres_password
+                  DATABASE                = "accountsdb"
+                  COLLECTION_LIST         = "ALL"
+                  ENABLE_QUERY_MONITORING = "true"
+                  TIMEOUT                 = 10
+                }
+                interval         = "15s"
+                labels           = { environment = var.demo_environment }
+                inventory_source = "config/postgresql"
+              }
+            ]
+          }
+          "nri-postgresql-blue" = {
+            integrations = [
+              {
+                name = "nri-postgresql"
+                env = {
+                  HOSTNAME                = "accounts-db.relibank-blue.svc.cluster.local"
+                  PORT                    = 5432
+                  USERNAME                = var.postgres_user
+                  PASSWORD                = var.postgres_password
+                  DATABASE                = "accountsdb"
+                  COLLECTION_LIST         = "ALL"
+                  ENABLE_QUERY_MONITORING = "true"
+                  TIMEOUT                 = 10
+                }
+                interval         = "15s"
+                labels           = { environment = var.demo_environment }
+                inventory_source = "config/postgresql"
+              }
+            ]
+          }
+        }
       }
       ksm        = { enabled = true }
       kubeEvents = { enabled = true }
-      logging    = { enabled = true }
+      logging    = { enabled = false }
       prometheus = { enabled = true }
-    })
-  ]
-}
-
-# Companion: nr-ebpf-agent — service-level Prometheus-style metrics on workloads.
-# Mirror of demogorgon's nr-ebpf-agent helm_release. Demogorgon pins to 1.1.0; we mirror.
-# Installed with chart defaults (no allDataFilters) — demogorgon's filter config drops all
-# services except authservice, which is demogorgon-specific. TMM can tune later if needed.
-resource "helm_release" "nr_ebpf_agent" {
-  name       = "nr-ebpf-agent"
-  namespace  = local.newrelic_namespace
-  repository = "https://helm-charts.newrelic.com"
-  chart      = "nr-ebpf-agent"
-  version    = "1.1.0"
-
-  values = [
-    yamlencode({
-      global = {
-        licenseKey = var.new_relic_license_key
-        cluster    = var.aks_cluster_name
+      # nr-ebpf-agent: scoped to risk-assessment-service
+      # (the one service intentionally left without APM auto-instrumentation)
+      "nr-ebpf-agent" = {
+        enabled              = true
+        reportApmData        = "auto"
+        reportNetworkMetrics = "auto"
+        reportLogs           = "auto"
+        allDataFilters = {
+          dropNewRelicBundle = true
+          keepNamespaces     = ["relibank-blue", "relibank-green"]
+        }
+        logDataFilters = {
+          applicationLogReporting = {
+            enabled                  = true
+            keepStdStreamEntityRegex = "^risk-assessment-.*"
+          }
+        }
       }
     })
   ]
-
-  depends_on = [helm_release.nri_bundle]
 }

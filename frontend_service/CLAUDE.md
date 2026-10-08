@@ -697,20 +697,13 @@ echo "# Rebuild trigger" >> transaction_service/Dockerfile
    - Update integration/endpoint coverage sections
    - Document component usage
 
-4. **Postman Collection** (`postman/Relibank.postman_collection.json`)
-   - Add new request to appropriate service folder
-   - Include sample URL and any query parameters
-   - Add description explaining what the endpoint does
-   - Test the endpoint before committing
-
 **Example Checklist:**
 - [ ] Added endpoint to service README API table
 - [ ] Updated frontend .claude.md (if applicable)
 - [ ] Updated frontend README.md (if applicable)
-- [ ] Added request to Postman collection
-- [ ] Tested endpoint in Postman
+- [ ] Tested endpoint with curl
 
-**Why this matters**: Documentation gets stale quickly. Updating it immediately while the context is fresh ensures accuracy and saves time later. The Postman collection is especially important for API testing and demos.
+**Why this matters**: Documentation gets stale quickly. Updating it immediately while the context is fresh ensures accuracy and saves time later.
 
 ---
 

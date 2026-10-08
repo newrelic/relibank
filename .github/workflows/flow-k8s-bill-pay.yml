@@ -2,8 +2,20 @@ name: Flow - Bill Payment K8s Issue
 
 run-name: Bill Payment K8s Issue demo scenario kickoff
 
-on: 
+on:
   workflow_dispatch:
+    inputs:
+      environment:
+        description: "Target environment ('all' matches the scheduled sweep)"
+        type: choice
+        required: true
+        default: all
+        options:
+          - all
+          - events
+          - sandbox
+          - staging
+          - prod
     # inputs:
     #   duration:
     #     description: "Scenario duration in minutes"
@@ -15,34 +27,40 @@ on:
     #      - "10"
     #      - "15"
     #      - "30"
-  
+
   schedule:
   # Run every 4 hours
   - cron: "0 */4 * * *"
 
+permissions:
+  contents: read
 
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: 'true'
 
 jobs:
 
-  get-metadata:
-    name: Get Metadata
+  resolve-environments:
     runs-on: ubuntu-latest
     outputs:
-      latest_tag: ${{ steps.get_latest_tag.outputs.tag }}
+      environments: ${{ steps.set.outputs.environments }}
     steps:
-      - name: Checkout Repo
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
+      - id: set
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ] && [ "${{ inputs.environment }}" != "all" ]; then
+            echo 'environments=["${{ inputs.environment }}"]' >> "$GITHUB_OUTPUT"
+          else
+            echo 'environments=["events","sandbox","staging","prod"]' >> "$GITHUB_OUTPUT"
+          fi
 
   k8s-bill-pay-flow:
+    needs: resolve-environments
     runs-on: ubuntu-latest
     timeout-minutes: 40
     strategy:
       fail-fast: false
       matrix:
-        # environment: [sandbox, staging, prod]
-        environment: [events]
+        environment: ${{ fromJson(needs.resolve-environments.outputs.environments) }}
 
     environment: ${{ matrix.environment }}
 
@@ -53,9 +71,9 @@ jobs:
         run: echo "timestamp=$(date -u +%Y-%m-%dT%H:%M:%SZ)" >> $GITHUB_OUTPUT
 
       - name: Checkout repo
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
-      - uses: actions/setup-python@v4
+      - uses: actions/setup-python@v7
         with:
           python-version: '3.10'
 
@@ -69,7 +87,7 @@ jobs:
           python utils/scripts/new_relic/send_change_tracking_marker.py \
             --api-key ${{ secrets.NR_USER_API_KEY }} \
             --account-id ${{ vars.NR_ACCOUNT_ID }} \
-            --app-name "Relibank - Bill Pay Service" \
+            --app-name "Bill Pay Service" \
             --entity-domain APM \
             --category DEPLOYMENT \
             --type ROLLING \
@@ -78,7 +96,7 @@ jobs:
             --short-description "Image deployment" \
             --description "Deploying new Bill Payment image" \
             --group-id NRDEMO-101423 \
-            --custom-attribute environment=production
+            --custom-attribute environment=${{ matrix.environment }}
 
       - name: Reset chaos rate limit
         run: |
@@ -103,7 +121,7 @@ jobs:
           python utils/scripts/new_relic/send_change_tracking_marker.py \
             --api-key ${{ secrets.NR_USER_API_KEY }} \
             --account-id ${{ vars.NR_ACCOUNT_ID }} \
-            --app-name "Relibank - Bill Pay Service" \
+            --app-name "Bill Pay Service" \
             --entity-domain APM \
             --category DEPLOYMENT \
             --type BASIC \
@@ -112,7 +130,7 @@ jobs:
             --short-description "Manual rollback deployment" \
             --description "ARGOCD: Reverting previous deployment" \
             --group-id NRDEMO-101423 \
-            --custom-attribute environment=production
+            --custom-attribute environment=${{ matrix.environment }}
 
       - name: Report scenario status to Krenko's Calendar
         if: always()

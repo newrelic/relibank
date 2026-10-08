@@ -25,11 +25,6 @@ variable "new_relic_region" {
   default     = "US"
 }
 
-variable "new_relic_kafka_alert_policy_id" {
-  description = "Policy ID for the Kafka alert conditions (bill_payments topic partitions, bill_payments_declined consumer lag). Prod-specific — same value as NR_KAFKA_ALERT_POLICY_ID in the GH Environment."
-  type        = string
-}
-
 variable "demo_environment" {
   description = "Environment name (sandbox, staging, prod, analysts). Suffixes entity names so per-env entities are disambiguated in the NR UI."
   type        = string
@@ -68,5 +63,22 @@ variable "azure_tenant_id" {
 
 variable "azure_subscription_id" {
   description = "Azure subscription ID (shared across all ReliBank environments). Same value as ARM_SUBSCRIPTION_ID / secrets.AZURE_SUBSCRIPTION_ID."
+  type        = string
+}
+
+variable "postgres_user" {
+  description = "accounts-db Postgres username (same credential the app tier uses). Same value as secrets.POSTGRES_USER."
+  type        = string
+  sensitive   = true
+}
+
+variable "postgres_password" {
+  description = "accounts-db Postgres password (same credential the app tier uses). Same value as secrets.POSTGRES_PASSWORD."
+  type        = string
+  sensitive   = true
+}
+
+variable "browser_application_name" {
+  description = "New Relic Browser application name for the customer portal. Differs per environment (e.g. 'Relibank - Customer Portal' for staging, 'ReliBank (Prod) - Customer Portal' for prod). Same value as vars.BROWSER_APPLICATION_NAME."
   type        = string
 }

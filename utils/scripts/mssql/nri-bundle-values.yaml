@@ -4,6 +4,13 @@
 # IMPORTANT: License key and cluster name must be provided via --set flags:
 #   --set global.licenseKey=$NEW_RELIC_LICENSE_KEY
 #   --set global.cluster=$CLUSTER_NAME
+#
+# SCOPE: for the standalone MSSQL demo-monitoring recipe in QUICKSTART.md only. Not consumed
+# by terraform/aks/newrelic/nr_infra_agent.tf, which is the sole authoritative nri-bundle
+# installer for deployer-managed AKS environments (sandbox/staging/prod). Don't install this
+# against a Terraform-managed cluster under the release name `newrelic-bundle` — see
+# QUICKSTART.md Option A for the non-colliding release name to use, and check
+# `helm list -n newrelic` first.
 
 # Core infrastructure monitoring
 newrelic-infrastructure:

@@ -445,7 +445,7 @@ All payment components include unique `id` attributes following this convention:
 - `recurring-payment-frequency` - Frequency dropdown
 - `payment-method-card-select` - Test card selector
 
-**See `.claude.md` for complete ID naming conventions and patterns.**
+**See `CLAUDE.md` for complete ID naming conventions and patterns.**
 
 ---
 

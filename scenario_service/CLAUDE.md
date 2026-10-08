@@ -26,16 +26,23 @@ endpoints (plus the `index.html` UI):
 - **A/B tests** (`AB_TEST_SCENARIOS`, ~line 70): LCP slowness (percentage + cohort) and DB pool
   stress — consumed by `accounts-service`. See [`accounts_service/CLAUDE.md`](../accounts_service/CLAUDE.md).
 - **Chaos Mesh experiments** (`CHAOS_EXPERIMENTS` / `STRESS_EXPERIMENTS`, loaded from
-  `chaos_mesh/experiments/*.yaml`): pod-kill, pod-failure, CPU/memory/combined stress. Triggered via
-  `POST /scenario-runner/api/trigger_chaos/{name}` and `trigger_stress/{name}`, rate-limited
-  (`CHAOS_RATE_LIMIT`, ~line 97: cooldown + max concurrent).
+  `chaos_mesh/experiments/*.yaml`): pod-kill, pod-failure, CPU/memory/combined stress. Each YAML's
+  `namespace: relibank` is overridden at startup with the pod's actual namespace (`get_current_namespace()`),
+  so experiments still target the right pods on blue/green (`relibank-blue`/`relibank-green`).
+  Triggered via `POST /scenario-runner/api/trigger_chaos/{name}` and `trigger_stress/{name}`,
+  rate-limited (`CHAOS_RATE_LIMIT`, ~line 97: cooldown + max concurrent). Both accept `?dry_run=true`
+  to report `matched_pods` for the experiment's selector without creating a chaos-mesh resource or
+  touching the rate limiter — an opt-in read that doesn't change default trigger behavior, used by
+  `tests/test_scenario_service.py::test_all_chaos_scenarios_have_matching_pods` to catch
+  selector/namespace drift in CI.
 - **db-360 load generation**: sustained MSSQL workers (velocity / blocker / contender) to populate
   Query Plan Manager. `POST /scenario-runner/api/db-360/start|stop|status`.
 
 These are toggled interactively (UI/API) and on schedules by `.github/workflows/flow-*.yml`.
 
 **Don't:** "harden" the injection logic, add safety rails that neuter scenarios, disable the chaos
-triggers, or treat the rate limiter / experiment loading as defects.
+triggers, or treat the rate limiter / experiment loading as defects. `dry_run` is opt-in and only
+reports pod counts — it must never become the default or gate the real trigger path.
 
 ---
 

@@ -105,7 +105,7 @@ def assign_user_to_pool(user_id: str) -> str:
 
     Returns: "pool-a" or "pool-b"
     """
-    user_hash = int(hashlib.md5(user_id.encode()).hexdigest(), 16)
+    user_hash = int(hashlib.md5(user_id.encode(), usedforsecurity=False).hexdigest(), 16)
     return "pool-a" if (user_hash % 2) == 0 else "pool-b"
 
 # Database connection details from environment variables
@@ -463,6 +463,8 @@ async def get_user(email: str, request: Request):
             if not user:
                 raise HTTPException(status_code=404, detail="User not found.")
             return User(**user)
+    except HTTPException:
+        raise
     except Exception as e:
         logging.error(f"Error retrieving user: {e}")
         newrelic.agent.notice_error(attributes={
@@ -627,6 +629,8 @@ async def get_accounts(email: str, request: Request):
                             account["transaction_count"] = 0
 
             return [Account(**account) for account in all_accounts]
+    except HTTPException:
+        raise
     except Exception as e:
         logging.exception(f"Error retrieving accounts: {e}")
         newrelic.agent.notice_error(attributes={
@@ -676,6 +680,8 @@ async def get_account_type(account_id: int, request: Request):
             process_headers(dict(request.headers))
 
             raise HTTPException(status_code=404, detail="Account not found.")
+    except HTTPException:
+        raise
     except Exception as e:
         logging.error(f"Error retrieving account type: {e}")
         newrelic.agent.notice_error(attributes={
@@ -823,6 +829,10 @@ async def create_account(email: str, account: Account, request: Request):
                 'action': 'create_account'
             })
             raise HTTPException(status_code=400, detail="Invalid account data provided.")
+    except HTTPException:
+        if conn:
+            conn.rollback()
+        raise
     except Exception as e:
         if conn:
             conn.rollback()
@@ -883,7 +893,7 @@ async def get_browser_user(request: Request):
                     if ab_config.get("lcp_slowness_percentage_enabled"):
                         percentage = ab_config.get("lcp_slowness_percentage", 0.0)
                         # Deterministically assign cohort based on user_id hash
-                        user_hash = int(hashlib.md5(browser_user_id.encode()).hexdigest(), 16)
+                        user_hash = int(hashlib.md5(browser_user_id.encode(), usedforsecurity=False).hexdigest(), 16)
                         if (user_hash % 100) < percentage:
                             lcp_delay_ms = ab_config.get("lcp_slowness_percentage_delay_ms", 0)
                             logging.info(f"[Browser User] User {browser_user_id} assigned to SLOW LCP cohort via PERCENTAGE ({lcp_delay_ms}ms delay)")
@@ -928,7 +938,7 @@ async def get_browser_user(request: Request):
             if ab_config.get("lcp_slowness_percentage_enabled"):
                 percentage = ab_config.get("lcp_slowness_percentage", 0.0)
                 # Deterministically assign cohort based on user_id hash
-                user_hash = int(hashlib.md5(user_id.encode()).hexdigest(), 16)
+                user_hash = int(hashlib.md5(user_id.encode(), usedforsecurity=False).hexdigest(), 16)
                 if (user_hash % 100) < percentage:
                     lcp_delay_ms = ab_config.get("lcp_slowness_percentage_delay_ms", 0)
                     logging.info(f"[Browser User] User {user_id} assigned to SLOW LCP cohort via PERCENTAGE ({lcp_delay_ms}ms delay)")

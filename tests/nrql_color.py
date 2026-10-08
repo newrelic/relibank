@@ -13,26 +13,31 @@ It renders to ``AND `namespaceName` = 'relibank-blue'`` when a color is directed
 string when ``TARGET_COLOR`` is unset (e.g. the scheduled cron resolving to the active color
 with no directive) — so the query stays env-level.
 
-Not all telemetry carries the namespace: the mssql-collector ``Metric`` stream and browser
-events (``PageView``/``BrowserInteraction``, shared browser app) have no namespace dimension,
-so they remain color-blind by necessity — do not use this helper for them.
+Not all telemetry carries the namespace: the mssql-collector ``Metric`` stream, browser
+events (``PageView``/``BrowserInteraction``, shared browser app), and ``Log`` have no
+namespace dimension, so they remain color-blind by necessity — do not use this helper for
+them (``color_filter('Log')`` etc. is a safe, permanent no-op below, not just "not yet wired
+up").
 """
 import os
 
 # (attribute, value-template) carrying the color, per NR event type. The value template is
-# formatted with the effective color. Two flavors:
+# formatted with the effective color.
 #   - APM Transaction/TransactionError: the ``deploy.color`` custom attribute (value = the bare
 #     color, e.g. "blue"), stamped by utils/process_headers.py. nri-metadata-injection does NOT
 #     put a namespace on APM events, so this custom attribute is how APM is color-scoped.
-#   - Span/Log: the k8s namespace nri-metadata-injection stamps (value = "relibank-<color>"):
-#     Span -> k8s.namespace.name, Log -> namespace_name.
-# Metric (mssql collector) and browser PageView have no color dimension and are intentionally
-# absent -> color_filter() is a no-op for them (they stay env-level).
+#   - Span: the k8s namespace nri-metadata-injection stamps (value = "relibank-<color>") ->
+#     k8s.namespace.name.
+# Log is deliberately absent: relibank services ship logs via the APM agent's own log
+# forwarding (newrelic.source = "logs.APM"), not the nri-metadata-injection/Fluent Bit
+# pipeline, so `namespace_name` is never stamped on Log records — a namespace filter there
+# would silently zero every result. Metric (mssql collector) and browser PageView also have no
+# color dimension. All three are intentionally absent -> color_filter() is a no-op for them
+# (they stay env-level).
 _COLOR_DIM = {
     "Transaction": ("deploy.color", "{color}"),
     "TransactionError": ("deploy.color", "{color}"),
     "Span": ("k8s.namespace.name", "relibank-{color}"),
-    "Log": ("namespace_name", "relibank-{color}"),
 }
 
 

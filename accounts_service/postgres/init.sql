@@ -1,6 +1,12 @@
 -- Create a UUID extension for generating UUIDs
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 
+-- Extensions New Relic's nri-postgresql integration needs for query/wait-time monitoring
+CREATE EXTENSION IF NOT EXISTS pg_stat_statements;
+CREATE EXTENSION IF NOT EXISTS pg_wait_sampling;
+CREATE EXTENSION IF NOT EXISTS pg_stat_monitor;
+GRANT pg_read_all_stats TO CURRENT_USER;
+
 -- Create the user account table
 CREATE TABLE IF NOT EXISTS user_account (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
@@ -269,3 +275,9 @@ INSERT INTO account_user (user_id, account_id) VALUES
 ('6f504030-2010-0102-0304-05060708090a', 30013), -- Gascoigne's credit
 ('01020304-0506-0708-0910-111213141516', 30014), -- Isshin's credit
 ('02030405-0607-0809-1011-121314151617', 30015); -- Genichiro's credit
+
+-- Table-level grant matching New Relic's documented nri-postgresql setup baseline
+-- (docs.newrelic.com/install/postgresql). Placed last so it covers every table above —
+-- redundant under our superuser connection, but keeps this file an honest superset of
+-- what NR documents rather than silently diverging from it.
+GRANT SELECT ON ALL TABLES IN SCHEMA public TO CURRENT_USER;

@@ -4,7 +4,7 @@ These scripts are designed to be copied into **New Relic Synthetics** as Scripte
 
 ## Setup
 
-1. Navigate to **New Relic � Synthetics � Create monitor**
+1. Navigate to **New Relic → Synthetics → Create monitor**
 2. Select **Scripted browser** monitor type
 3. Copy and paste one of the scripts below
 4. Configure monitor settings (frequency, locations, alerts)
@@ -112,6 +112,44 @@ These scripts are designed to be copied into **New Relic Synthetics** as Scripte
 - Demonstrates error grouping and pattern detection capabilities
 
 **Security Note:** This is a controlled synthetic test against your own application. Do not use this script against systems you don't own or have permission to test.
+
+---
+
+### 5. `selenium_chatbot.js`
+**Purpose:** Overdraft transfer flow with support follow-up
+
+**What it does:**
+- Logs in to ReliBank
+- Transfers $10,000 from checking (balance: $8,500.25) — ReliBank allows overdrafts, so this
+  succeeds rather than erroring
+- Navigates to Support and submits a question about the resulting balance
+
+**Errors generated:**
+- None (happy path — validates the overdraft-allowed transfer path, not a failure path)
+
+**Use case:**
+- Exercises the overdraft-allowed transfer branch (as opposed to `selenium_support.js`'s
+  insufficient-funds branch) alongside a support interaction
+
+---
+
+### 6. `selenium_spending_analysis.js`
+**Purpose:** Support chat spending-analysis flow with simulated rage-clicking
+
+**What it does:**
+- Logs in to ReliBank
+- Performs a normal transfer with a randomized $10–$50 amount (desktop only — skipped
+  automatically if the transfer UI isn't available, e.g. on mobile)
+- Navigates to Support, asks a normal question, and waits for a response
+- Asks the assistant to "Analyze my spending" and simulates a frustrated user rage-clicking Send
+  several times while the UI is busy processing
+
+**Errors generated:**
+- None directly — this is a UI-responsiveness scenario rather than an error scenario
+
+**Use case:**
+- Generates realistic frontend interaction/responsiveness telemetry (including rapid repeated
+  clicks) for the support chat flow
 
 ---
 

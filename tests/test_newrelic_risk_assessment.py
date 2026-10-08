@@ -108,6 +108,23 @@ def query_nerdgraph(nrql_query: str) -> List[Dict]:
     return data.get("data", {}).get("actor", {}).get("account", {}).get("nrql", {}).get("results", [])
 
 
+def query_nerdgraph_until(nrql_query: str, count_key: str, max_wait: int = 30, interval: int = 5) -> List[Dict]:
+    """Poll a NRQL count query until count_key is > 0 or max_wait elapses.
+
+    Log/span ingestion lag is usually well under max_wait but occasionally isn't,
+    so polling avoids both flaky early failures and always paying the full wait.
+    """
+    elapsed = 0
+    while True:
+        results = query_nerdgraph(nrql_query)
+        if results and results[0].get(count_key, 0) > 0:
+            return results
+        if elapsed >= max_wait:
+            return results
+        time.sleep(interval)
+        elapsed += interval
+
+
 def get_db_connection():
     """Get database connection"""
     return pyodbc.connect(CONNECTION_STRING)
@@ -234,12 +251,8 @@ def test_risk_assessment_logs_in_newrelic(reset_risk_scenarios):
         print(f"   Payment {i+1}: status={result['status_code']}")
         time.sleep(1)
 
-    # Wait for logs to appear in New Relic
-    print("\n2. Waiting 30 seconds for logs to appear in New Relic...")
-    time.sleep(30)
-
     # Query for risk assessment logs
-    print("\n3. Querying New Relic Logs...")
+    print("\n2. Querying New Relic Logs (polling up to 30s for ingestion)...")
 
     # Query for logs containing risk assessment keywords
     nrql = f"""
@@ -253,12 +266,12 @@ def test_risk_assessment_logs_in_newrelic(reset_risk_scenarios):
     SINCE 2 minutes ago
     """
 
-    results = query_nerdgraph(nrql)
+    results = query_nerdgraph_until(nrql, "log_count")
 
-    print(f"\n4. Results:")
+    print(f"\n3. Results:")
     if results:
         log_count = results[0].get('log_count', 0)
-        sample_message = results[0].get('sample_message', 'N/A')
+        sample_message = results[0].get('sample_message') or 'N/A'
         print(f"   Log entries found: {log_count}")
         print(f"   Sample message: {sample_message[:100]}...")
 
@@ -318,26 +331,22 @@ def test_declined_payment_shows_in_newrelic(reset_risk_scenarios):
     print("\n3. Disabling rogue agent...")
     disable_rogue_agent()
 
-    # Wait for logs and Kafka processing
-    print("\n4. Waiting 30 seconds for logs and database entries...")
-    time.sleep(30)
-
     # Query for declined payment logs
-    print("\n5. Querying New Relic for declined payment logs...")
+    print("\n4. Querying New Relic for declined payment logs (polling up to 30s for ingestion)...")
 
     nrql = f"""
     SELECT count(*) as declined_log_count
     FROM Log
-    WHERE (message LIKE '%declined%' OR message LIKE '%DECLINED%'
+    WHERE ((message LIKE '%declined%' OR message LIKE '%DECLINED%')
       AND entity.name IN ('{APP_NAME_PREFIX} - Bill Pay Service',
                           '{APP_NAME_PREFIX} - Support Service'))
       {color_filter('Log')}
     SINCE 3 minutes ago
     """
 
-    results = query_nerdgraph(nrql)
+    results = query_nerdgraph_until(nrql, "declined_log_count")
 
-    print(f"\n6. Results:")
+    print(f"\n5. Results:")
     if results:
         declined_log_count = results[0].get('declined_log_count', 0)
         print(f"   Declined payment log entries: {declined_log_count}")
@@ -358,7 +367,7 @@ def test_declined_payment_shows_in_newrelic(reset_risk_scenarios):
         pytest.skip("No declined payment logs found in New Relic")
 
     # Validate database entries for declined payments
-    print(f"\n7. Validating database entries for declined payments...")
+    print(f"\n6. Validating database entries for declined payments...")
     if declined_bill_ids:
         db_entries_found = 0
         db_entries_missing = 0
@@ -372,9 +381,12 @@ def test_declined_payment_shows_in_newrelic(reset_risk_scenarios):
                 print(f"     - Status: {transaction['Status']}")
                 print(f"     - DeclineReason: {transaction['DeclineReason'][:80]}...")
 
-                # Validate transaction data
-                assert transaction['EventType'] == 'BillPaymentDeclined', \
-                    f"Expected EventType='BillPaymentDeclined', got '{transaction['EventType']}'"
+                # Validate transaction data. transaction_service writes one row per side of the
+                # transfer (BillPaymentDeclinedFromAcct for the debit, ...ToAcct for the
+                # credit — see transaction_service.py:439-469); fetchone() returns whichever
+                # side sorts first, so accept either.
+                assert transaction['EventType'] in ('BillPaymentDeclinedFromAcct', 'BillPaymentDeclinedToAcct'), \
+                    f"Expected EventType in ('BillPaymentDeclinedFromAcct', 'BillPaymentDeclinedToAcct'), got '{transaction['EventType']}'"
                 assert transaction['Status'] == 'declined', \
                     f"Expected Status='declined', got '{transaction['Status']}'"
                 assert transaction['DeclineReason'] is not None, \
@@ -440,12 +452,8 @@ def test_agent_model_tracking_in_newrelic(reset_risk_scenarios):
     # Cleanup
     disable_rogue_agent()
 
-    # Wait for logs
-    print("\n3. Waiting 30 seconds for logs to appear in New Relic...")
-    time.sleep(30)
-
     # Query for agent model in logs
-    print("\n4. Querying New Relic for agent model tracking...")
+    print("\n3. Querying New Relic for agent model tracking (polling up to 30s for ingestion)...")
 
     nrql = f"""
     SELECT count(*) as log_count
@@ -456,9 +464,9 @@ def test_agent_model_tracking_in_newrelic(reset_risk_scenarios):
     SINCE 3 minutes ago
     """
 
-    results = query_nerdgraph(nrql)
+    results = query_nerdgraph_until(nrql, "log_count")
 
-    print(f"\n5. Results:")
+    print(f"\n4. Results:")
     if results:
         log_count = results[0].get('log_count', 0)
         print(f"   Agent model log entries: {log_count}")
@@ -497,12 +505,8 @@ def test_risk_assessment_ebpf_traces(reset_risk_scenarios):
         print(f"   Payment {i+1}: status={result['status_code']}")
         time.sleep(1)
 
-    # Wait for traces
-    print("\n2. Waiting 30 seconds for traces to appear in New Relic...")
-    time.sleep(30)
-
     # Query for eBPF spans from Risk Assessment Service
-    print("\n3. Querying for eBPF spans from Risk Assessment Service...")
+    print("\n2. Querying for eBPF spans from Risk Assessment Service (polling up to 30s for ingestion)...")
 
     nrql = f"""
     SELECT count(*) as span_count, average(duration) as avg_duration_ms
@@ -514,17 +518,17 @@ def test_risk_assessment_ebpf_traces(reset_risk_scenarios):
     SINCE 3 minutes ago
     """
 
-    results = query_nerdgraph(nrql)
+    results = query_nerdgraph_until(nrql, "span_count")
 
-    print(f"\n4. Results:")
+    print(f"\n3. Results:")
     if results and results[0].get('span_count', 0) > 0:
         span_count = results[0].get('span_count', 0)
-        avg_duration = results[0].get('avg_duration_ms', 0)
+        avg_duration = results[0].get('avg_duration_ms') or 0
         print(f"   eBPF spans found: {span_count}")
         print(f"   Average duration: {avg_duration:.2f}ms")
 
         # Query for span attributes
-        print("\n5. Checking for risk assessment attributes on spans...")
+        print("\n4. Checking for risk assessment attributes on spans...")
         nrql_attrs = f"""
         SELECT count(*) as spans_with_attrs
         FROM Span

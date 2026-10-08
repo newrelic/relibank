@@ -1,31 +1,20 @@
-# TMM: Replace these placeholder ping + script monitors with real coverage (status pages,
-# checkout flow, error scenarios, etc.). Script bodies live under `./scripts/` as `.tftpl`
-# files referenced via `templatefile(...)`. Demogorgon's nr_synthetics.tf is the reference.
+# utilizes template files to load scripts for browser and API checks
+###
+# newrelic_synthetics_script_monitor.relibank_login_check.id
+###
 
-resource "newrelic_synthetics_monitor" "placeholder_ping" {
-  status                    = "ENABLED"
-  name                      = "${var.app_name} - Placeholder Ping"
-  period                    = "EVERY_5_MINUTES"
-  uri                       = "https://${var.demo_environment}.relibankdemo.com/"
-  type                      = "SIMPLE"
-  locations_public          = ["US_WEST_2"]
-  runtime_type              = "NODE_API"
-  runtime_type_version      = "16.10"
-  treat_redirect_as_failure = false
-  bypass_head_request       = true
-  verify_ssl                = true
-}
-
-resource "newrelic_synthetics_script_monitor" "placeholder_script" {
+# scripted check to login and validate the dashboard loads
+resource "newrelic_synthetics_script_monitor" "relibank_login_check" {
   status               = "ENABLED"
-  name                 = "${var.app_name} - Placeholder Script Monitor"
-  type                 = "SCRIPT_API"
-  period               = "EVERY_30_MINUTES"
-  locations_public     = ["US_WEST_2"]
-  runtime_type         = "NODE_API"
-  runtime_type_version = "16.10"
+  name                 = "${var.app_name} - Login Check"
+  type                 = "SCRIPT_BROWSER"
+  period               = "EVERY_10_MINUTES"
+  locations_public     = ["AP_SOUTH_1", "US_WEST_2", "EU_WEST_1"]
+  runtime_type         = "CHROME_BROWSER"
+  runtime_type_version = "LATEST"
+  script_language      = "JAVASCRIPT"
 
-  script = templatefile("${path.module}/scripts/placeholder.tftpl", {
-    demo_environment = var.demo_environment
+  script = templatefile("${path.module}/scripts/relibank_login_check.tftpl", {
+    target_url = "https://${var.demo_environment}.relibankdemo.com/"
   })
 }

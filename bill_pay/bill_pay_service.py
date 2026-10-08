@@ -616,6 +616,7 @@ async def process_card_payment(payment: CardPaymentRequest, request: Request):
 
     try:
         logging.info(f"Processing card payment for bill ID: {payment.billId}, amount: ${payment.amount}")
+        risk_decline_info = None
 
         propagation_headers = get_propagation_headers(request)
 

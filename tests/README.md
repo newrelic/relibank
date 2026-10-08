@@ -169,7 +169,7 @@ pytest tests/test_stress_scenarios.py::test_service_health_during_stress -v -s
 - **test_stress_scenarios.py**: 7 tests - CPU/memory/combined stress chaos (requires containerd, rate limited)
 
 **Frontend Tests (Vitest)**:
-- **4 test files, 20 tests total** - Login, transfers, bill payment (Stripe), support support
+- **4 test files, 20 tests total** - Login, transfers, bill payment (Stripe), support
 - Run with: `cd frontend_service && npm test`
 
 ## Environment Variables
@@ -288,7 +288,7 @@ These tests can be added to GitHub Actions or other CI pipelines:
 - ✅ **Rogue Deployment**: AI agent switching (gpt-4o vs gpt-4o-mini), decline rate comparison, runtime agent configuration via scenario service
 - ✅ **A/B Testing**: LCP slowness percentage-based (affects X% of all users) and cohort-based (affects 11 hardcoded test users), deterministic cohort assignment
 - ✅ **Stress Chaos**: CPU stress, memory stress, combined stress testing with Chaos Mesh, service resilience under load
-- ✅ **Frontend Functional Tests**: Login flow, fund transfers, bill payment with Stripe, support support, form validation, API integration, error handling (Vitest)
+- ✅ **Frontend Functional Tests**: Login flow, fund transfers, bill payment with Stripe, support, form validation, API integration, error handling (Vitest)
 
 ## Parallel Test Execution
 

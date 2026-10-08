@@ -2,31 +2,57 @@ name: Flow - Support Loadgen
 
 run-name: Create Scheduled Support Loadgen
 
-on: 
+on:
   workflow_dispatch:
-  
+    inputs:
+      environment:
+        description: "Target environment ('all' matches the scheduled sweep)"
+        type: choice
+        required: true
+        default: all
+        options:
+          - all
+          - events
+          - sandbox
+          - staging
+          - prod
+      force_problem:
+        description: "Force a toxic/adversarial query from problem_questions.txt"
+        type: boolean
+        required: false
+        default: false
+
   schedule:
-  - cron: "*/30 * * * *"
+  - cron: "*/10 * * * *"
+
+permissions:
+  contents: read
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: 'true'
 
 jobs:
 
-  get-metadata:
-    name: Get Metadata
+  resolve-environments:
     runs-on: ubuntu-latest
     outputs:
-      latest_tag: ${{ steps.get_latest_tag.outputs.tag }}
+      environments: ${{ steps.set.outputs.environments }}
     steps:
-      - name: Checkout Repo
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
+      - id: set
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ] && [ "${{ inputs.environment }}" != "all" ]; then
+            echo 'environments=["${{ inputs.environment }}"]' >> "$GITHUB_OUTPUT"
+          else
+            echo 'environments=["events","sandbox","staging","prod"]' >> "$GITHUB_OUTPUT"
+          fi
 
   support-loadgen:
+    needs: resolve-environments
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
       matrix:
-        environment: [events]
+        environment: ${{ fromJson(needs.resolve-environments.outputs.environments) }}
 
     environment: ${{ matrix.environment }}
     
@@ -37,9 +63,9 @@ jobs:
         run: echo "timestamp=$(date -u +%Y-%m-%dT%H:%M:%SZ)" >> $GITHUB_OUTPUT
 
       - name: Checkout repo
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
-      - uses: actions/setup-python@v4
+      - uses: actions/setup-python@v7
         with:
           python-version: '3.10'
 
@@ -49,9 +75,21 @@ jobs:
 
 # --------------- demo flow ---------------
 
+      - name: Determine force-problem flag
+        id: force-problem
+        run: |
+          # Manual runs can force it explicitly via input. Scheduled runs (and manual runs that
+          # don't force it) guarantee a problem question every 4th run, so adversarial prompts
+          # show up on a predictable cadence rather than relying solely on the random mix.
+          if [ "${{ inputs.force_problem }}" = "true" ] || [ $(( ${{ github.run_number }} % 4 )) -eq 0 ]; then
+            echo "flag=--force-problem" >> "$GITHUB_OUTPUT"
+          else
+            echo "flag=" >> "$GITHUB_OUTPUT"
+          fi
+
       - name: Send chat loadgen
         run: |
-          cd demo_flows/support_loadgen/ && python create_support_loadgen.py ${{ vars.BASE_URL }}/support-service/chat
+          cd demo_flows/support_loadgen/ && python create_support_loadgen.py ${{ vars.BASE_URL }}/support-service/chat ${{ steps.force-problem.outputs.flag }}
 
       - name: Report scenario status to Krenko's Calendar
         if: always()

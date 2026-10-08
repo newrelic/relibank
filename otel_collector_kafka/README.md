@@ -455,7 +455,6 @@ processors:
 - [OpenTelemetry JMX Receiver](https://github.com/open-telemetry/opentelemetry-collector-contrib/tree/main/receiver/jmxreceiver)
 - [OpenTelemetry JMX Scraper](https://github.com/open-telemetry/opentelemetry-java-contrib/tree/main/jmx-scraper)
 - [OTel Collector Internal Telemetry](https://opentelemetry.io/docs/collector/internal-telemetry/)
-- [Implementation History](../notes/otel-so-far.md) - Full evolution across 3 commits
 
 ## Related Files
 

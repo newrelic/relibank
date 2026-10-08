@@ -2,9 +2,9 @@
 
 Every GitHub Environment variable and secret the deployer reads, what it's for, where to get it, and what breaks if it's wrong. Configure these per environment at *Settings → Environments → `{env}` → Variables / Secrets*.
 
-For workflow flows, see [runbook.md](runbook.md). For why these are split per env, see [primer.md](primer.md).
+For workflow flows, see [runbook.md](runbook.md). For why these are split per env, see [deployer_primer.md](deployer_primer.md).
 
-> **Authoritative source for the Azure portion:** [terraform/aks/scripts/setup-environment.sh](../terraform/aks/scripts/setup-environment.sh). It prints exact values to paste in after running. The NR portion below is what the script can't auto-derive — you have to grab it from the New Relic UI.
+> **Authoritative source for the Azure portion:** [terraform/aks/scripts/setup-environment.sh](../../terraform/aks/scripts/setup-environment.sh). It prints exact values to paste in after running. The NR portion below is what the script can't auto-derive — you have to grab it from the New Relic UI.
 
 ---
 
@@ -26,6 +26,8 @@ For workflow flows, see [runbook.md](runbook.md). For why these are split per en
 | `SMS_THROTTLE_PERCENTAGE` | manual (default `5`) | Percentage of SMS sends actually delivered through ACS (rest are no-op'd to avoid Azure charges) | Real SMS to real numbers if too high; 0 SMS if too low |
 | `NR_ACCOUNT_ID_ALERTS` | NR UI | Optional — separate NR account for alerting flows. Used only by `flow-stress-chaos.yml` | Alert demo flows fire on wrong account |
 | `NR_REGION` | manual (`US` or `EU`) | Optional — defaults to `US` in the `ReliBank NR` workflow if unset. Override only if the env's NR account lives in the EU region. | `newrelic/newrelic` provider authenticates against the wrong region; entity CRUD silently lands on the wrong NR account or fails. |
+| `BASE_URL` | manual (e.g. `http://sandbox.relibankdemo.com`) | Public app URL the loadgen/scenario-trigger `flow-*.yml` workflows hit (frontend, `support-service/chat`, `scenario-runner`, etc.). Not used by the deployer itself — consumed only by the loadgen flows listed in [runbook.md](runbook.md). | Loadgen flows 404/time out against the wrong host, or (worse) generate real traffic against another environment |
+| `SCENARIO_SERVICE_URL` | manual — `{BASE_URL}/scenario-runner` | Scenario-runner API base, used by `flow-cycle-payment-scenarios.yml` (exclusively) and `flow-stress-chaos.yml` (chaos rate-limit reset/trigger). Must be added explicitly per environment — it does **not** get created automatically alongside `BASE_URL`. | Those two flows curl an empty/malformed URL and fail outright — this bit `sandbox`/`staging`/`prod` until it was added 2026-08-27, since only `events` had it set historically |
 
 ---
 
@@ -38,14 +40,14 @@ For workflow flows, see [runbook.md](runbook.md). For why these are split per en
 | `AZURE_CLIENT_SECRET` | setup-environment.sh | SP secret — `ARM_CLIENT_SECRET` | Same as above |
 | `AZURE_SUBSCRIPTION_ID` | setup-environment.sh | `ARM_SUBSCRIPTION_ID` | TF apply targets wrong subscription |
 | `AZURE_TENANT_ID` | setup-environment.sh | `ARM_TENANT_ID` | TF auth fails |
-| `NR_LICENSE_KEY` | NR UI → API keys → Ingest – License | **APM** ingest. Server-side agents send traces/metrics with this. Also injected into the cluster-side `nri-bundle` / `nr-ebpf-agent` helm charts installed by `relibank-newrelic.yml`. Format: `<32 hex chars>FFFFNRAL`. | No APM data in NR for any service; no cluster-side infrastructure/Kubernetes/logging/prometheus telemetry either |
+| `NR_LICENSE_KEY` | NR UI → API keys → Ingest – License | **APM** ingest. Server-side agents send traces/metrics with this. Also injected into the cluster-side `nri-bundle` / `nr-ebpf-agent` helm charts installed by `relibank-newrelic.yml` — this same `nri-bundle` release is what runs the `nri-postgresql` classic on-host integration (see `nr_infra_agent.tf`) — and (as of the mssql/kafka collector port) into `app_module`'s `nrdot-collector-mssql` / `otel-collector-kafka` Deployments via `deploy-relibank.yml`'s existing `-var="new_relic_license_key=..."` on `relibank-{color}` → `app_module`. Format: `<32 hex chars>FFFFNRAL`. | No APM data in NR for any service; no cluster-side infrastructure/Kubernetes/logging/prometheus telemetry either (including `nri-postgresql`'s `PostgresqlDatabaseSample`/etc.); mssql/kafka collector exports 401 with a bad key |
 | `NR_BROWSER_LICENSE_KEY` | NR UI → Browser → app → Settings → JS snippet → `licenseKey` | **Browser** ingest. Frontend `nr.js` snippet uses this. Format: `NRJS-<20 hex chars>`. **Different key from `NR_LICENSE_KEY`** — not auto-derivable. | If you wire APM key here: `PageView` events leak to NR account default app, `MicroFrontEndTiming` and `.register()` events silently drop, MFE telemetry tests fail |
 | `NR_USER_API_KEY` | NR UI → API keys → User | NerdGraph queries from tests + scenario flows. **Also drives the `ReliBank NR` workflow's TF module** — the `newrelic/newrelic` provider uses this for entity CRUD (dashboards, alerts, SLIs, workloads, synthetics). Must start with `NRAK-`. | Test suite reports skip/false-pass on NR-querying tests; `ReliBank NR` workflow fails at provider init. |
 | `NR_TRUST_KEY` | NR UI → Browser → app → JS snippet → `trustKey` | Parent account in NR org hierarchy (for cross-app browser linkage) | Browser app can't link to APM, distributed tracing in browser broken |
 | `MSSQL_SA_USER` | manual (typically `SA`) | MSSQL admin username | DB connections fail |
 | `MSSQL_SA_PASSWORD` | manual | MSSQL admin password (must meet MSSQL complexity policy) | DB connections fail; container may refuse to start |
-| `POSTGRES_USER` | manual (typically `postgres`) | Postgres admin username | accounts-service / auth-service connections fail |
-| `POSTGRES_PASSWORD` | manual | Postgres admin password | Same as above |
+| `POSTGRES_USER` | manual (typically `postgres`) | Postgres admin username. Also passed into `relibank-newrelic.yml` → `nr_infra_agent.tf` to authenticate the `nri-postgresql` on-host integration (reuses the app tier's superuser credential, no dedicated monitoring role). | accounts-service / auth-service connections fail; `nri-postgresql` auth fails too, so `PostgresqlDatabaseSample`/`PostgresSlowQueries`/`PostgresIndividualQueries` stop reporting |
+| `POSTGRES_PASSWORD` | manual | Postgres admin password. Same dual use as `POSTGRES_USER` above. | Same as above |
 | `AZURE_ACS_SMS_PHONE_NUMBER` | Azure portal → ACS → Phone numbers | E.164 ACS-purchased number (e.g. `+1XXXXXXXXXX`). Reuse prod's number for non-prod envs to avoid duplicate cost. | SMS sends fail; notifications-service errors |
 | `NR_LICENSE_KEY_ALERTS` | NR UI (the alerts account) | APM license key for the separate alerts NR account, used only by `flow-stress-chaos.yml` | Alert demo flows can't ingest |
 
@@ -89,7 +91,7 @@ After `Deploy ReliBank` finishes:
 
 ## Note: there is no "bootstrap assistants" step
 
-If you arrived here looking for a step to create AOAI Assistants entities (e.g. you saw `ASSISTANT_A_ID` / `ASSISTANT_B_ID` in stale docs or git history), there isn't one. The deployed AI path uses LangGraph chat-completions, not the OpenAI Assistants API. See [primer.md → AI architecture](primer.md#ai-architecture-langgraph-not-assistants-api) for the full explanation and the trap-prevention rationale.
+If you arrived here looking for a step to create AOAI Assistants entities (e.g. you saw `ASSISTANT_A_ID` / `ASSISTANT_B_ID` in stale docs or git history), there isn't one. The deployed AI path uses LangGraph chat-completions, not the OpenAI Assistants API. See [deployer_primer.md → AI architecture](deployer_primer.md#5-ai-architecture-langgraph-not-assistants-api) for the full explanation and the trap-prevention rationale.
 
 The only AOAI runtime config support-service needs is:
 
@@ -109,7 +111,10 @@ If you need to trace where something gets used:
 |---|---|
 | [`build-push-images.yml`](../.github/workflows/build-push-images.yml) | `NR_LICENSE_KEY`, `NR_BROWSER_LICENSE_KEY`, `NR_USER_API_KEY`, `NR_TRUST_KEY`, `NR_ACCOUNT_ID`, `NR_BROWSER_APP_ID`, `APP_NAME`, ACR vars |
 | [`relibank-infra.yml`](../.github/workflows/relibank-infra.yml) | All Azure secrets, `AZURE_LOCATION`, `AZURE_ACS_SMS_PHONE_NUMBER`, `SMS_THROTTLE_PERCENTAGE`, `AKS_CLUSTER_NAME`, `AKS_RESOURCE_GROUP`, TF state vars |
-| [`deploy-relibank.yml`](../.github/workflows/deploy-relibank.yml) | All Azure secrets, MSSQL/Postgres secrets, `DNS_ZONE`, AKS vars, TF state vars |
-| [`relibank-newrelic.yml`](../.github/workflows/relibank-newrelic.yml) | All Azure secrets (state backend only), `NR_ACCOUNT_ID`, `NR_USER_API_KEY`, `NR_LICENSE_KEY`, `NR_REGION`, `APP_NAME`, TF state vars |
+| [`deploy-relibank.yml`](../.github/workflows/deploy-relibank.yml) | All Azure secrets, MSSQL/Postgres secrets, `NR_LICENSE_KEY`, `DNS_ZONE`, AKS vars, TF state vars |
+| [`relibank-newrelic.yml`](../.github/workflows/relibank-newrelic.yml) | All Azure secrets (state backend only), `NR_ACCOUNT_ID`, `NR_USER_API_KEY`, `NR_LICENSE_KEY`, `NR_REGION`, `APP_NAME`, `POSTGRES_USER`, `POSTGRES_PASSWORD`, TF state vars |
 | [`test-suite.yml`](../.github/workflows/test-suite.yml) | `NR_USER_API_KEY`, `NR_ACCOUNT_ID` |
 | [`generate_nrjs_file.sh`](../frontend_service/generate_nrjs_file.sh) | `NR_BROWSER_APP_ID`, `NR_BROWSER_LICENSE_KEY`, `NR_ACCOUNT_ID`, `NR_TRUST_KEY` (passed via Dockerfile build args) |
+| `flow-chatbot-loadgen.yml`, `flow-chatbot-specialist.yml`, `flow-k8s-bill-pay.yml`, `flow-lcp-ab-test.yml`, `flow-memory-leak.yml` | `BASE_URL`, `NR_USER_API_KEY`, `NR_ACCOUNT_ID` |
+| `flow-cycle-payment-scenarios.yml` | `SCENARIO_SERVICE_URL` only |
+| `flow-stress-chaos.yml` | `BASE_URL`, `SCENARIO_SERVICE_URL`, `NR_USER_API_KEY`, `NR_ACCOUNT_ID`, `NR_ACCOUNT_ID_ALERTS`, `NR_LICENSE_KEY_ALERTS` |

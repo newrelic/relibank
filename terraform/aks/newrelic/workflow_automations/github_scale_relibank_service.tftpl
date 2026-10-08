@@ -1,0 +1,377 @@
+name: github_scale_relibank_service
+description: ''
+workflowInputs:
+  issueId:
+    type: String
+    validations: []
+    required: false
+  accountId:
+    type: Int
+    validations: []
+    required: false
+steps:
+  - name: queryGuid
+    type: action
+    action: newrelic.nerdgraph.execute
+    version: 1
+    inputs:
+      graphql: |-
+        {
+          actor {
+            account(id: ${{ .workflowInputs.accountId }}) {
+              aiIssues {
+                issues(filter: {ids: "${{ .workflowInputs.issueId }}"}) {
+                  issues {
+                    conditionName
+                    createdAt
+                    entityNames
+                    entityGuids
+                    issueId
+                  }
+                }
+              }
+            }
+          }
+        }
+      selectors:
+        - name: entityGuid
+          expression: (.data.actor.account.aiIssues.issues.issues // [])[].entityGuids[0]
+      region: US
+  - name: queryEntity
+    type: action
+    action: newrelic.nerdgraph.execute
+    version: 1
+    inputs:
+      graphql: |-
+        {
+          actor {
+            entity(guid: "${{ .steps.queryGuid.outputs.entityGuid }}") {
+              entityType
+              guid
+              name
+              tags {
+                key
+                values
+              }
+            }
+          }
+        }
+      selectors:
+        - name: teamName
+          expression: .data.actor.entity.tags[] | select(.key == "nr.team") | .values[0]
+        - name: departmentName
+          expression: >-
+            .data.actor.entity.tags[] | select(.key ==
+            "nr.hierarchy.level.department") | .values[0]
+        - name: heroChannel
+          expression: >-
+            .data.actor.entity.tags[] | select(.key == "heroChannel") |
+            .values[0]
+        - name: entityType
+          expression: .data.actor.entity.entityType
+        - name: entityName
+          expression: .data.actor.entity.name
+        - name: k8sDeployment
+          expression: >-
+            .data.actor.entity.tags[] | select(.key == "k8s.deploymentName") |
+            .values[0]
+        - name: k8sNamespace
+          expression: >-
+            .data.actor.entity.tags[] | select(.key == "k8s.namespaceName") |
+            .values[0]
+  - name: verifyHero
+    type: switch
+    switch:
+      - condition: ${{ .steps.queryEntity.outputs.heroChannel | length > 0 }}
+        next: slackAnnouncement
+    next: slackNoHero
+  - name: slackAnnouncement
+    type: action
+    action: slack.chat.postMessage
+    version: 1
+    inputs:
+      token: ${{ :secrets:slack:staging-demo-eng-bot-token }}
+      channel: ${{.steps.queryEntity.outputs.heroChannel}}
+      text: >-
+        🚨 AUTOPILOT: CRITICAL CONFIGURATION DRIFT DETECTED 🚨
+
+
+        *Incident Triggered:* ${{ .workflowInputs.title[0] }}
+
+
+        *Affected Entity:* ${{ .steps.queryEntity.outputs.entityName }} (K8s
+        Deployment in cluster ${{ .steps.queryEntity.outputs.k8sDeployment }})
+
+
+        *Triggered At:* ${{ .workflowInputs.priority }} severity issue opened at
+        ${{ .workflowInputs.createdAt }}
+
+
+        *Summary of AI Autopilot Analysis:*
+
+        * Rogue Deployment Identified: An undocumented container image update
+        was made to risk-assessment-service recently with no associated CI/CD
+        change tracking marker.
+
+        * Root Cause (AI Configuration Drift): The service switched active
+        processor models from gpt-4o (approved) to gpt-4o-mini (unapproved),
+        causing an overly restrictive transaction evaluation policy.
+
+        * Customer Impact:
+            * Rapid spike in false-positive payment declines (Error 403: Payment declined due to security concerns).
+            * System log correlation reveals the anomaly: Any transaction of $50 or more is evaluated as "high risk" (Risk Score: 95.0) and declined automatically.
+
+        *Recommended Remediation:*
+
+        Revert risk-assessment-service deployment from gpt-4o-mini back to
+        gpt-4o by rolling back the container image to the last validated stable
+        tag.
+
+
+        *Execution Target:* Jenkins Rollback Webhook
+
+        ([Rollback Workflow on
+        GitHub](https://github.com/newrelic/relibank/blob/main/.github/workflows/rollback.yml))
+
+
+        ‼️ HUMAN-IN-THE-LOOP AUTHORIZATION REQUIRED ‼️
+
+
+        React to this message to execute the automated remediation:
+
+        Approve: 👍 (Triggers Webhook to roll back deployment)
+
+        Reject: 👎 (Acknowledge alert and maintain current state)
+    next: getUserApproval
+  - name: slackNoHero
+    type: action
+    action: slack.chat.postMessage
+    version: 1
+    inputs:
+      token: ${{ :secrets:slack:staging-demo-eng-bot-token }}
+      channel: relibank-no-hero
+      text: >
+        🚨 AUTOPILOT: CRITICAL CONFIGURATION DRIFT DETECTED 🚨
+
+
+        *Incident Triggered:* ${{ .workflowInputs.title[0] }}
+
+
+        *Affected Entity:* ${{ .steps.queryEntity.outputs.entityName }} (K8s
+        Deployment in cluster ${{ .steps.queryEntity.outputs.k8sDeployment }})
+
+
+        *Triggered At:* ${{ .workflowInputs.priority }} severity issue opened at
+        ${{ .workflowInputs.createdAt }}
+
+
+        *Summary of AI Autopilot Analysis:*
+
+        * Rogue Deployment Identified: An undocumented container image update
+        was made to risk-assessment-service recently with no associated CI/CD
+        change tracking marker.
+
+        * Root Cause (AI Configuration Drift): The service switched active
+        processor models from gpt-4o (approved) to gpt-4o-mini (unapproved),
+        causing an overly restrictive transaction evaluation policy.
+
+        * Customer Impact:
+            * Rapid spike in false-positive payment declines (Error 403: Payment declined due to security concerns).
+            * System log correlation reveals the anomaly: Any transaction of $50 or more is evaluated as "high risk" (Risk Score: 95.0) and declined automatically.
+
+        *Recommended Remediation:*
+
+        Revert risk-assessment-service deployment from gpt-4o-mini back to
+        gpt-4o by rolling back the container image to the last validated stable
+        tag.
+
+
+        *Execution Target:* Jenkins Rollback Webhook
+
+        ([Rollback Workflow on
+        GitHub](https://github.com/newrelic/relibank/blob/main/.github/workflows/rollback.yml))
+
+
+        ‼️ *ACTION REQUIRED* ‼️
+
+        This entity is missing a hero channel. You must escalate to the owning
+        team above for manual remediation.
+    next: end
+  - name: getUserApproval
+    type: action
+    action: slack.chat.getReactions
+    version: 1
+    inputs:
+      token: ${{ :secrets:slack:staging-demo-eng-bot-token }}
+      channelID: ${{ .steps.slackAnnouncement.outputs.channelID }}
+      threadTs: ${{ .steps.slackAnnouncement.outputs.threadTs }}
+      timeout: 600
+  - name: verifyApproval
+    type: switch
+    switch:
+      - condition: ${{ .steps.getUserApproval.outputs.reactions | any(.name == "+1") }}
+        next: slackBeginRemediation
+    next: slackAbandonWorkflow
+  - name: slackBeginRemediation
+    type: action
+    action: slack.chat.postMessage
+    version: 1
+    inputs:
+      token: ${{ :secrets:slack:staging-demo-eng-bot-token }}
+      channel: ${{.steps.queryEntity.outputs.heroChannel}}
+      text: |
+        🛠️🛠️🛠️ *REMEDIATION STARTING* 🛠️🛠️🛠️
+        Remediation has been approved. Invoking target GitHub Workflow.
+      threadTs: ${{ .steps.slackAnnouncement.outputs.threadTs }}
+    next: invokeRemediation
+  - name: slackAbandonWorkflow
+    type: action
+    action: slack.chat.postMessage
+    version: 1
+    inputs:
+      token: ${{ :secrets:slack:staging-demo-eng-bot-token }}
+      channel: ${{ .steps.queryEntity.outputs.heroChannel }}
+      text: 🟠 User did not approve; terminating workflow.
+      threadTs: ${{ .steps.slackAnnouncement.outputs.threadTs }}
+    next: end
+  - name: invokeRemediation
+    type: action
+    action: http.post
+    version: 1
+    inputs:
+      url: >-
+        https://api.github.com/repos/newrelic/relibank/actions/workflows/relibank_autopilot.yml/demo
+      body: |-
+        {
+            "ref": "ftr/relibank-workflow",
+            "inputs": {
+              "service": "risk-assessment-service",
+              "target_color": "relibank-blue",
+              "mode": "demo"
+            }
+        }
+      headers:
+        Accept: application/vnd.github+json
+        X-GitHub-Api-Version: '2022-11-28'
+        Authorization: Bearer ${{ :secrets:github:github-pat }}
+    ignoreErrors: true
+  - name: waitForLogs
+    type: wait
+    seconds: 15
+    next: queryResults
+  - name: queryResults
+    type: action
+    action: newrelic.nrdb.query
+    version: 1
+    inputs:
+      query: |-
+        FROM Log SELECT *
+        WHERE logType = 'GitHubActionsStatus'
+        AND workflowName = 'Scale ReliBank Service'
+        SINCE 1 DAY AGO LIMIT 1
+      format: JSON
+      accountIds:
+        - 4706753
+      selectors:
+        - name: environment
+          expression: .[0].results[0].events[0].environment
+        - name: jobName
+          expression: .[0].results[0].events[0].jobName
+        - name: jobStatus
+          expression: .[0].results[0].events[0].jobStatus
+        - name: message
+          expression: .[0].results[0].events[0].message
+        - name: repository
+          expression: .[0].results[0].events[0].repository
+        - name: runUrl
+          expression: .[0].results[0].events[0].runUrl
+        - name: service
+          expression: .[0].results[0].events[0].service
+        - name: targetColor
+          expression: .[0].results[0].events[0].targetColor
+        - name: workflowName
+          expression: .[0].results[0].events[0].workflowName
+        - name: failingStepName
+          expression: .[0].results[0].events[0].failingStepName
+        - name: failureReason
+          expression: .[0].results[0].events[0].failureReason
+    ignoreErrors: true
+  - name: verifyResults
+    type: switch
+    switch:
+      - condition: ${{ true }}
+        next: slackPostSuccess
+    next: slackPostFail
+  - name: slackPostSuccess
+    type: action
+    action: slack.chat.postMessage
+    version: 1
+    inputs:
+      token: ${{ :secrets:slack:staging-demo-eng-bot-token }}
+      channel: ${{.steps.queryEntity.outputs.heroChannel}}
+      text: >
+        ✅✅✅ *REMEDIATION SUCCESSFUL* ✅✅✅
+
+
+        *Executed Action:* Reverted container image on `${{
+        .steps.queryEntity.outputs.entityName }}` (K8s Deployment)
+
+
+        *Completed At:* `${{ .workflowInputs.createdAt }}`
+
+
+        *Status Update:*
+
+        • *Image Revert:* Successfully returned from `gpt-4o-mini` to the
+        authorized `gpt-4o` image.
+
+        • *Verification:* Network telemetry confirms traffic has stabilized.
+        Payment decline rates have normalized back to baseline.
+
+        • *Integration:* Webhook trigger to Jenkins pipeline build reported
+        SUCCESS (Job URL: `${{ .steps.queryResults.outputs.workflowRunUrl }}`).
+
+
+        *System Health:* 🟢 NORMAL
+
+
+        No further manual action required.
+      threadTs: ${{ .steps.slackAnnouncement.outputs.threadTs }}
+    next: end
+  - name: slackPostFail
+    type: action
+    action: slack.chat.postMessage
+    version: 1
+    inputs:
+      token: ${{ :secrets:slack:staging-demo-eng-bot-token }}
+      channel: ${{ .steps.queryEntity.outputs.heroChannel }}
+      text: >-
+        ❌❌❌ \*AUTOPILOT: REMEDIATION FAILED\* ❌❌❌
+
+
+        \*Attempted Action:\* Revert container image on
+        \`risk-assessment-service\` (K8s Deployment)
+
+        \*Failed At:\* {{#if priority}}Just Now{{else}}{{createdAt}}{{/if}}
+
+
+        \*Status Update:\*
+
+        \* \*Error Details:\* Webhook connection to Jenkins timed out (HTTP 504
+        Gateway Timeout) or git-trigger token expired.
+
+        \* \*Current State:\* Revert did not complete.
+        \`risk-assessment-service\` is still running \`gpt-4o-mini\`. Payment
+        decline rates remain CRITICAL (*{{#if
+        aggregations.\[0\].value}}{{aggregations.0.value}}{{else}}48.78%{{/if}}*).
+
+
+        ‼️ \*IMMEDIATE MANUAL INTERVENTION REQUIRED\* ‼️
+
+        Please manually trigger the rollback workflow directly in GitHub or
+        access the AKS platform console.
+
+        (\[Manual Runbook
+        Link\](https://github.com/newrelic/relibank/blob/main/.github/workflows/rollback.yml))
+      threadTs: ${{ .steps.slackAnnouncement.outputs.threadTs }}
+    next: end

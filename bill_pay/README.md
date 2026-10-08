@@ -107,8 +107,6 @@ curl -X POST "http://localhost:8000/scenario-runner/api/payment-scenarios/declin
 curl -X POST http://localhost:8000/scenario-runner/api/payment-scenarios/reset
 ```
 
-These scenarios are also available in the Postman collection under "scenario service".
-
 ---
 
 ### ⚙️ How to Run

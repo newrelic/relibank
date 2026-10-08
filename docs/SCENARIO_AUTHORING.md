@@ -144,10 +144,15 @@ its intentional blocking semantics (don't make it async). All FastAPI services t
 Pod-kill / resource-stress scenarios are Chaos Mesh custom resources under
 `scenario_service/chaos_mesh/experiments/` (`relibank-pod-chaos-adhoc.yaml`,
 `relibank-stress-scenarios.yaml`). Add a `PodChaos`/`StressChaos` YAML with the standard
-`namespace: relibank` + `experiment-type` / `target-flow` labels; the scenario service loads them at
-startup and exposes them via `/scenario-runner/api/scenarios`, triggered by
-`POST /scenario-runner/api/trigger_chaos/{name}` (or `trigger_stress`). `flow-stress-chaos.yml`
-schedules them.
+`namespace: relibank` + `experiment-type` / `target-flow` labels — the scenario service overrides
+that `namespace` (and each selector's `namespaces` entry) at startup with the pod's actual namespace
+(via `get_current_namespace()`, reading the serviceaccount token mount), so it works unchanged
+whether the cluster is single-namespace or blue/green (`relibank-blue`/`relibank-green`). The
+scenario service loads the (overridden) experiments at startup and exposes them via
+`/scenario-runner/api/scenarios`, triggered by `POST /scenario-runner/api/trigger_chaos/{name}` (or
+`trigger_stress`). Both accept `?dry_run=true` to check the selector matches at least one live pod
+without creating any chaos-mesh resource — use it to sanity-check a new experiment's selector before
+scheduling it live. `flow-stress-chaos.yml` schedules them.
 
 ---
 

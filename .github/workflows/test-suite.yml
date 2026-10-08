@@ -9,7 +9,7 @@ on:
       target_environment:
         description: 'GitHub environment to target (provides BASE_URL, NR keys, DB creds)'
         required: false
-        default: 'events'
+        default: 'prod'
         type: choice
         options:
           - events
@@ -29,6 +29,7 @@ on:
           - payment
           - frontend
           - smoke
+          - kafka-zookeeper-resilience
       target_color:
         description: 'Color to direct scenario-UI checks at (sends X-Test-Env). Empty = active color.'
         required: false
@@ -38,6 +39,11 @@ on:
           - ''
           - blue
           - green
+      allow_disruptive_k8s_tests:
+        description: 'kafka-zookeeper-resilience suite only: opt in to the pod-killing tests (deletes the Zookeeper pod for target_color). Per-run only -- never set as a repo variable/secret.'
+        required: false
+        default: false
+        type: boolean
   workflow_call:
     inputs:
       target_environment:
@@ -52,11 +58,17 @@ on:
         required: false
         default: ''
 
+permissions:
+  contents: read
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: 'true'
+
 jobs:
   python-tests:
     runs-on: ubuntu-latest
-    environment: ${{ inputs.target_environment || 'events' }}
-    if: ${{ inputs.test_suite == 'all' || inputs.test_suite == 'e2e' || inputs.test_suite == 'scenario' || inputs.test_suite == 'payment' || inputs.test_suite == 'smoke' || inputs.test_suite == '' }}
+    environment: ${{ inputs.target_environment || 'prod' }}
+    if: ${{ inputs.test_suite == 'all' || inputs.test_suite == 'e2e' || inputs.test_suite == 'scenario' || inputs.test_suite == 'payment' || inputs.test_suite == 'smoke' || inputs.test_suite == 'kafka-zookeeper-resilience' || inputs.test_suite == '' }}
     outputs:
       test_ab_testing: ${{ steps.individual-tests.outputs.test_ab_testing }}
       test_apm_user_tracking: ${{ steps.individual-tests.outputs.test_apm_user_tracking }}
@@ -65,6 +77,7 @@ jobs:
       test_db_pool_e2e: ${{ steps.individual-tests.outputs.test_db_pool_e2e }}
       test_db_pool: ${{ steps.individual-tests.outputs.test_db_pool }}
       test_e2e: ${{ steps.individual-tests.outputs.test_e2e }}
+      test_lcp_regression: ${{ steps.individual-tests.outputs.test_lcp_regression }}
       test_mfe_single: ${{ steps.individual-tests.outputs.test_mfe_single }}
       test_microfrontend_telemetry: ${{ steps.individual-tests.outputs.test_microfrontend_telemetry }}
       test_newrelic_instrumentation: ${{ steps.individual-tests.outputs.test_newrelic_instrumentation }}
@@ -75,10 +88,11 @@ jobs:
       test_stress: ${{ steps.individual-tests.outputs.test_stress }}
       test_with_interactions: ${{ steps.individual-tests.outputs.test_with_interactions }}
       test_nrdot_mssql_collector: ${{ steps.individual-tests.outputs.test_nrdot_mssql_collector }}
+      test_nri_postgresql: ${{ steps.individual-tests.outputs.test_nri_postgresql }}
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Reset chaos rate limit
         run: |
@@ -86,7 +100,7 @@ jobs:
           curl -X POST "${{ vars.BASE_URL }}/scenario-runner/api/chaos-rate-limit-reset" || echo "Rate limit reset failed (may not be available)"
 
       - name: Set up Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v7
         with:
           python-version: '3.11'
 
@@ -116,7 +130,7 @@ jobs:
       # are single-namespace (no color) and use their own DB_SERVER secret.
       - name: Azure Login (color-aware DB tunnel)
         if: ${{ vars.AKS_CLUSTER_NAME != '' }}
-        uses: azure/login@v2
+        uses: azure/login@v3
         with:
           creds: ${{ secrets.AZURE_CREDENTIALS }}
 
@@ -165,6 +179,8 @@ jobs:
           FRONTEND_SERVICE_URL: ${{ vars.BASE_URL }}
           NEW_RELIC_USER_API_KEY: ${{ secrets.NR_USER_API_KEY }}
           NEW_RELIC_ACCOUNT_ID: ${{ vars.NR_ACCOUNT_ID }}
+          APP_NAME: ${{ vars.APP_NAME }}
+          NR_BROWSER_APP_NAME: ${{ vars.NR_BROWSER_APP_NAME }}
           # Scenario-UI webpage test: direct at a color (X-Test-Env) + expected flag state,
           # threaded from the deploy so no manual sync. Empty color = active color.
           TARGET_COLOR: ${{ env.EFFECTIVE_COLOR || inputs.target_color }}
@@ -248,6 +264,19 @@ jobs:
           cd tests
           pytest test_payment_scenarios.py --tb=line
 
+      - name: Run Kafka/Zookeeper resilience tests only
+        if: ${{ inputs.test_suite == 'kafka-zookeeper-resilience' }}
+        timeout-minutes: 20
+        env:
+          # No EFFECTIVE_COLOR fallback here on purpose: the disruptive tests refuse to run
+          # against the active color, so target_color must be set explicitly (the same
+          # requirement the test file itself enforces).
+          TARGET_COLOR: ${{ inputs.target_color }}
+          ALLOW_DISRUPTIVE_K8S_TESTS: ${{ inputs.allow_disruptive_k8s_tests }}
+        run: |
+          cd tests
+          pytest test_kafka_zookeeper_resilience.py --tb=long -v
+
       - name: Run smoke tests only
         if: ${{ inputs.test_suite == 'smoke' }}
         env:
@@ -263,17 +292,17 @@ jobs:
 
   frontend-tests:
     runs-on: ubuntu-latest
-    environment: ${{ inputs.target_environment || 'events' }}
+    environment: ${{ inputs.target_environment || 'prod' }}
     if: ${{ inputs.test_suite == 'all' || inputs.test_suite == 'frontend' || inputs.test_suite == '' }}
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Set up Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v7
         with:
-          node-version: '20.x'
+          node-version: '24'
           cache: 'npm'
           cache-dependency-path: frontend_service/package-lock.json
 
@@ -289,7 +318,7 @@ jobs:
 
   test-summary:
     runs-on: ubuntu-latest
-    environment: ${{ inputs.target_environment || 'events' }}
+    environment: ${{ inputs.target_environment || 'prod' }}
     needs: [python-tests, frontend-tests]
     if: always()
 
@@ -313,7 +342,10 @@ jobs:
           echo "**Environment:** ${{ vars.BASE_URL }}" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
 
-          if [ -z "$FAILURES" ] && [ "$FRONTEND_RESULT" == "success" ]; then
+          # frontend-tests correctly doesn't run at all for test_suite values other than
+          # all/frontend/'' -- its result is "skipped" then, not "success". Only "failure"
+          # should count against it; "skipped" means it was never supposed to run.
+          if [ -z "$FAILURES" ] && [ "$FRONTEND_RESULT" != "failure" ]; then
             echo "✅ All tests passed" >> $GITHUB_STEP_SUMMARY
           else
             echo "### ❌ Failures" >> $GITHUB_STEP_SUMMARY
@@ -321,13 +353,13 @@ jobs:
             while IFS= read -r key; do
               [ -n "$key" ] && echo "- $key" >> $GITHUB_STEP_SUMMARY
             done <<< "$FAILURES"
-            [ "$FRONTEND_RESULT" != "success" ] && echo "- frontend-tests" >> $GITHUB_STEP_SUMMARY
+            [ "$FRONTEND_RESULT" == "failure" ] && echo "- frontend-tests" >> $GITHUB_STEP_SUMMARY
           fi
 
       - name: Configure AWS credentials
         if: always()
         continue-on-error: true
-        uses: aws-actions/configure-aws-credentials@v4
+        uses: aws-actions/configure-aws-credentials@v6
         with:
           aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
@@ -341,8 +373,9 @@ jobs:
           APP_NAME="${GITHUB_REPOSITORY##*/}"
           DATE=$(date -u +%Y-%m-%d)
 
-          # Determine overall status
-          if [ "${{ needs.python-tests.result }}" == "success" ] && [ "${{ needs.frontend-tests.result }}" == "success" ]; then
+          # Determine overall status. frontend-tests is "skipped" (not "success") whenever a
+          # test_suite other than all/frontend/'' is selected -- that's not a failure.
+          if [ "${{ needs.python-tests.result }}" == "success" ] && [ "${{ needs.frontend-tests.result }}" != "failure" ]; then
             STATUS="completed"
           else
             STATUS="failed"
@@ -357,6 +390,7 @@ jobs:
             ["test_apm_tracking"]="APM User Tracking"
             ["test_browser_tracking"]="Browser User Tracking"
             ["test_e2e"]="End to End"
+            ["test_lcp_regression"]="LCP Regression"
             ["test_nr_instrumentation"]="New Relic Instrumentation"
             ["test_payment"]="Payment Scenarios"
             ["test_scenario"]="Scenario Service"
@@ -386,8 +420,8 @@ jobs:
             TEST_RESULTS="${TEST_RESULTS}{\"test_name\": \"$test_name\", \"status\": \"$status\"}"
           done
 
-          # Add frontend tests
-          FRONTEND_STATUS="${{ needs.frontend-tests.result == 'success' && 'passed' || 'failed' }}"
+          # Add frontend tests. "skipped" (test_suite other than all/frontend/'') isn't a failure.
+          FRONTEND_STATUS="${{ needs.frontend-tests.result == 'failure' && 'failed' || 'passed' }}"
           TEST_RESULTS="${TEST_RESULTS},{\"test_name\": \"Frontend Tests\", \"status\": \"$FRONTEND_STATUS\"}"
 
           # Generate final JSON
