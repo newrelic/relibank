@@ -9,3 +9,17 @@ data "newrelic_entity" "support_service" {
   type       = "APPLICATION"
   account_id = var.new_relic_account_id
 }
+
+data "newrelic_entity" "kafka_bill_payments_topic" {
+  name       = "bill_payments"
+  domain     = "INFRA"
+  type       = "KAFKATOPIC"
+  account_id = var.new_relic_account_id
+}
+
+data "newrelic_entity" "kafka_bill_payments_declined_topic" {
+  name       = "bill_payments_declined"
+  domain     = "INFRA"
+  type       = "KAFKATOPIC"
+  account_id = var.new_relic_account_id
+}

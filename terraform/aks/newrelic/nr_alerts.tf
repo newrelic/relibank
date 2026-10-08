@@ -76,16 +76,16 @@ resource "newrelic_workflow" "placeholder_workflow" {
   }
 }
 
-resource "newrelic_nrql_alert_condition" "relibank_prod_kafka_bill_payments" {
+resource "newrelic_nrql_alert_condition" "relibank_kafka_bill_payments" {
   account_id                   = var.new_relic_account_id
-  policy_id                    = 8045272
+  policy_id                    = var.new_relic_kafka_alert_policy_id
   type                         = "static"
-  name                         = "Relibank (Prod) Kafka - Bill Payments"
+  name                         = "${var.app_name} - Kafka - Bill Payments"
   enabled                      = true
   violation_time_limit_seconds = 10800
 
   nrql {
-    query           = "SELECT latest(kafka.topic.partitions) AS `Topic partitions` FROM Metric WHERE metricName = 'kafka.topic.partitions' AND (`nr.entity.guid` = 'NDEyMDgzN3xJTkZSQXxLQUZLQVRPUElDfDU5MzU4NDk1MDUzNzI4MDkzNTc' OR `entity.guid` = 'NDEyMDgzN3xJTkZSQXxLQUZLQVRPUElDfDU5MzU4NDk1MDUzNzI4MDkzNTc' OR `entityGuid` = 'NDEyMDgzN3xJTkZSQXxLQUZLQVRPUElDfDU5MzU4NDk1MDUzNzI4MDkzNTc')"
+    query           = "SELECT latest(kafka.topic.partitions) AS `Topic partitions` FROM Metric WHERE metricName = 'kafka.topic.partitions' AND entityGuid = '${data.newrelic_entity.kafka_bill_payments_topic.guid}'"
     data_account_id = var.new_relic_account_id
   }
 
@@ -106,16 +106,16 @@ resource "newrelic_nrql_alert_condition" "relibank_prod_kafka_bill_payments" {
   ignore_on_expected_termination = false
 }
 
-resource "newrelic_nrql_alert_condition" "relibank_prod_kafka_billpaydecline" {
+resource "newrelic_nrql_alert_condition" "relibank_kafka_billpaydecline" {
   account_id                   = var.new_relic_account_id
-  policy_id                    = 8045272
+  policy_id                    = var.new_relic_kafka_alert_policy_id
   type                         = "static"
-  name                         = "Relibank (Prod) Kafka - bill_pay_decline"
+  name                         = "${var.app_name} - Kafka - bill_pay_decline"
   enabled                      = true
   violation_time_limit_seconds = 259200
 
   nrql {
-    query           = "SELECT max(kafka.consumer_group.lag_sum) AS `Consumer lag` FROM Metric WHERE metricName = 'kafka.consumer_group.lag_sum' AND (`nr.entity.guid` = 'NDEyMDgzN3xJTkZSQXxLQUZLQVRPUElDfDIzMjE0MjU1NDI1Mjg2OTA2NzA' OR `entity.guid` = 'NDEyMDgzN3xJTkZSQXxLQUZLQVRPUElDfDIzMjE0MjU1NDI1Mjg2OTA2NzA' OR `entityGuid` = 'NDEyMDgzN3xJTkZSQXxLQUZLQVRPUElDfDIzMjE0MjU1NDI1Mjg2OTA2NzA') FACET group"
+    query           = "SELECT max(kafka.consumer_group.lag_sum) AS `Consumer lag` FROM Metric WHERE metricName = 'kafka.consumer_group.lag_sum' AND entityGuid = '${data.newrelic_entity.kafka_bill_payments_declined_topic.guid}' FACET group"
     data_account_id = var.new_relic_account_id
   }
 

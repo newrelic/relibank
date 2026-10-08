@@ -25,6 +25,11 @@ variable "new_relic_region" {
   default     = "US"
 }
 
+variable "new_relic_kafka_alert_policy_id" {
+  description = "Policy ID for the Kafka alert conditions (bill_payments topic partitions, bill_payments_declined consumer lag). Prod-specific — same value as NR_KAFKA_ALERT_POLICY_ID in the GH Environment."
+  type        = string
+}
+
 variable "demo_environment" {
   description = "Environment name (sandbox, staging, prod, analysts). Suffixes entity names so per-env entities are disambiguated in the NR UI."
   type        = string
