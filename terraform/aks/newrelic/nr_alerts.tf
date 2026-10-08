@@ -75,3 +75,59 @@ resource "newrelic_workflow" "placeholder_workflow" {
     update_original_message = true
   }
 }
+
+resource "newrelic_nrql_alert_condition" "relibank_prod_kafka_bill_payments" {
+  account_id                   = var.new_relic_account_id
+  policy_id                    = 8045272
+  type                         = "static"
+  name                         = "Relibank (Prod) Kafka - Bill Payments"
+  enabled                      = true
+  violation_time_limit_seconds = 10800
+
+  nrql {
+    query           = "SELECT latest(kafka.topic.partitions) AS `Topic partitions` FROM Metric WHERE metricName = 'kafka.topic.partitions' AND (`nr.entity.guid` = 'NDEyMDgzN3xJTkZSQXxLQUZLQVRPUElDfDU5MzU4NDk1MDUzNzI4MDkzNTc' OR `entity.guid` = 'NDEyMDgzN3xJTkZSQXxLQUZLQVRPUElDfDU5MzU4NDk1MDUzNzI4MDkzNTc' OR `entityGuid` = 'NDEyMDgzN3xJTkZSQXxLQUZLQVRPUElDfDU5MzU4NDk1MDUzNzI4MDkzNTc')"
+    data_account_id = var.new_relic_account_id
+  }
+
+  critical {
+    operator              = "below_or_equals"
+    threshold             = 0
+    threshold_duration    = 600
+    threshold_occurrences = "all"
+  }
+
+  aggregation_window             = 60
+  fill_option                    = "last_value"
+  aggregation_method             = "event_flow"
+  aggregation_delay              = 120
+  expiration_duration            = 1800
+  open_violation_on_expiration   = false
+  close_violations_on_expiration = true
+  ignore_on_expected_termination = false
+}
+
+resource "newrelic_nrql_alert_condition" "relibank_prod_kafka_billpaydecline" {
+  account_id                   = var.new_relic_account_id
+  policy_id                    = 8045272
+  type                         = "static"
+  name                         = "Relibank (Prod) Kafka - bill_pay_decline"
+  enabled                      = true
+  violation_time_limit_seconds = 259200
+
+  nrql {
+    query           = "SELECT max(kafka.consumer_group.lag_sum) AS `Consumer lag` FROM Metric WHERE metricName = 'kafka.consumer_group.lag_sum' AND (`nr.entity.guid` = 'NDEyMDgzN3xJTkZSQXxLQUZLQVRPUElDfDIzMjE0MjU1NDI1Mjg2OTA2NzA' OR `entity.guid` = 'NDEyMDgzN3xJTkZSQXxLQUZLQVRPUElDfDIzMjE0MjU1NDI1Mjg2OTA2NzA' OR `entityGuid` = 'NDEyMDgzN3xJTkZSQXxLQUZLQVRPUElDfDIzMjE0MjU1NDI1Mjg2OTA2NzA') FACET group"
+    data_account_id = var.new_relic_account_id
+  }
+
+  critical {
+    operator              = "above"
+    threshold             = 1
+    threshold_duration    = 600
+    threshold_occurrences = "all"
+  }
+
+  aggregation_window = 60
+  fill_option        = "none"
+  aggregation_method = "event_flow"
+  aggregation_delay  = 120
+}
