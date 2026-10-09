@@ -1,6 +1,6 @@
-locust>=2.46.3
-fastapi>=0.141.1
-uvicorn[standard]>=0.52.1
+locust>=2.46.7
+fastapi>=0.143.0
+uvicorn[standard]>=0.54.0
 kubernetes>=30.1.0
 python-multipart>=0.0.32
 pyyaml>=6.0.3
