@@ -37,7 +37,7 @@ cross-cutting changes, the root `CLAUDE.md`) so Investigation-mode sessions stay
 ## Testing
 
 See [`tests/README.md`](tests/README.md) for the end-to-end test suite (setup, running, and
-what's covered) and [`docs/deployer/testing-runbook.md`](docs/deployer/testing-runbook.md) for
+what's covered) and [catapult-service's testing-runbook.md](https://github.com/newrelic/catapult-service/blob/main/relibank_deployer/docs/testing-runbook.md) for
 deployer-specific validation.
 
 ## Formatting
@@ -46,9 +46,17 @@ Python: `ruff format` before committing.
 
 ## Deployer changes
 
-If your change touches the multi-env blue/green deployer or its Terraform, read
-[`docs/deployer/deployer_primer.md`](docs/deployer/deployer_primer.md) first (the *why*) and
-[`docs/deployer/runbook.md`](docs/deployer/runbook.md) (the *how*).
+The multi-env blue/green deployer and its Terraform no longer live in this repo — they moved to
+`catapult-service` (`relibank_deployer/`). If your change touches the deployer itself, read
+[catapult-service's deployer_primer.md](https://github.com/newrelic/catapult-service/blob/main/relibank_deployer/docs/deployer_primer.md)
+first (the *why*) and [runbook.md](https://github.com/newrelic/catapult-service/blob/main/relibank_deployer/docs/runbook.md)
+(the *how*).
+
+If your change touches deployer-*consumed* code that stays here instead — `tests/`
+(particularly `tests/workflow_validation/validate_nr_workflow.py`, which catapult-service's
+`Deploy ReliBank NR` workflow checks out and runs directly) or the Python/frontend test suites —
+make sure it stays compatible with catapult-service's native `post-deployment-tests` /
+`post-deployment-frontend-tests` jobs, since those are what actually exercise this code now.
 
 ## PR norms
 

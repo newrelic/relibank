@@ -59,7 +59,7 @@ that call `/scenario-runner/api/*` are never affected).
   ConfigMap → the scenario-runner pod. There is no per-run flag to set.
 - When `false`, `GET /scenario-runner/home` returns **404** (behaves as if the page doesn't exist).
 - It takes effect on a normal deploy of the target environment; see
-  [docs/deployer/runbook.md → Scenario Runner UI visibility](../docs/deployer/runbook.md#scenario-runner-ui-visibility).
+  [catapult-service's runbook.md → Scenario Runner UI visibility](https://github.com/newrelic/catapult-service/blob/main/relibank_deployer/docs/runbook.md#scenario-runner-ui-visibility).
 - Locally, set `SCENARIO_UI_ENABLED` in `skaffold.env`.
 
 ---

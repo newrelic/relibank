@@ -22,7 +22,7 @@ Relibank simulates a banking system with separate services for accounts, transac
   - Evaluates payment transactions before processing
   - Calls support-service AI agents for intelligent risk analysis
 - **support-service** - Relibank's AI support service (FastAPI)
-  - **LangGraph chat-completions** — Coordinator + Specialist as graph nodes built with `AzureChatOpenAI` / `create_agent`. **Not** the OpenAI Assistants API. Don't wire `ASSISTANT_*_ID` env vars or revive `create_assistants.py`-style scripts; see [docs/deployer/deployer_primer.md → AI architecture](docs/deployer/deployer_primer.md#5-ai-architecture-langgraph-not-assistants-api) and the module docstring at the top of [support_service.py](support_service/support_service.py) for the trap-prevention rationale.
+  - **LangGraph chat-completions** — Coordinator + Specialist as graph nodes built with `AzureChatOpenAI` / `create_agent`. **Not** the OpenAI Assistants API. Don't wire `ASSISTANT_*_ID` env vars or revive `create_assistants.py`-style scripts; see [catapult-service's deployer_primer.md → AI architecture](https://github.com/newrelic/catapult-service/blob/main/relibank_deployer/docs/deployer_primer.md#5-ai-architecture-langgraph-not-assistants-api) and the module docstring at the top of [support_service.py](support_service/support_service.py) for the trap-prevention rationale.
   - Payment risk assessment using Azure OpenAI (gpt-4o/gpt-4o-mini)
 - **notifications-service** - Sends notifications via Kafka
 - **scheduler-service** - Schedules events via Kafka
@@ -202,9 +202,9 @@ This isn't meant to be a real banking application. It's a learning tool for:
 ## Recent Updates
 
 ### nri-postgresql Query Monitoring
-- **On-host integration**: `nri-postgresql`, installed via the `nri-bundle` helm release Terraform manages for sandbox/staging/prod (`terraform/aks/newrelic/nr_infra_agent.tf`) — discovers `accounts-db` pods via `label.app: accounts-db`, no manual setup needed
+- **On-host integration**: `nri-postgresql`, installed via the `nri-bundle` helm release Terraform manages for sandbox/staging/prod (catapult-service's `relibank_deployer/terraform/aks/newrelic/nr_infra_agent.tf`) — discovers `accounts-db` pods via `label.app: accounts-db`, no manual setup needed
 - **Query/wait-time monitoring**: `pg_stat_statements` (slow queries), `pg_wait_sampling` (wait-time analysis), `pg_stat_monitor` (query detail/execution plans) — installed via `accounts_service/postgres/Dockerfile` and `init.sql`
-- **Credentials**: reuses the app tier's `POSTGRES_USER`/`POSTGRES_PASSWORD` secrets, forwarded through `relibank-newrelic.yml`
+- **Credentials**: reuses the app tier's `POSTGRES_USER`/`POSTGRES_PASSWORD` secrets, forwarded through catapult-service's `deploy-relibank-newrelic.yml`
 - **Scope**: Terraform-deployed environments only — the local/skaffold `k8s/base` path doesn't have this integration or the extension setup yet
 
 ### NRDOT MSSQL Database Monitoring
@@ -262,8 +262,8 @@ This isn't meant to be a real banking application. It's a learning tool for:
   - **Export to New Relic**: All metrics sent to New Relic via OTLP
   - See [`otel_collector_kafka/README.md`](otel_collector_kafka/README.md) for details
 - **Azure Functions Cloud Polling**: New Relic's Azure integration monitors the `notifications` Function App (state, availability, memory) via Azure Monitor polling — no agent runs inside the Function App itself
-  - Per-environment, applied by the `ReliBank NR` deployer workflow — see [`terraform/aks/newrelic/nr_azure_integration.tf`](terraform/aks/newrelic/nr_azure_integration.tf)
-  - Execution-count/error metrics (`functionExecutionCount`, `http5xx`) require Application Insights on the Function App, which isn't wired up yet — see [`docs/deployer/runbook.md`](docs/deployer/runbook.md) troubleshooting
+  - Per-environment, applied by catapult-service's `Deploy ReliBank NR` deployer workflow — see catapult-service's `relibank_deployer/terraform/aks/newrelic/nr_azure_integration.tf`
+  - Execution-count/error metrics (`functionExecutionCount`, `http5xx`) require Application Insights on the Function App, which isn't wired up yet — see [catapult-service's runbook.md](https://github.com/newrelic/catapult-service/blob/main/relibank_deployer/docs/runbook.md) troubleshooting
 
 Try breaking things with Chaos Mesh and see how the system responds!
 
