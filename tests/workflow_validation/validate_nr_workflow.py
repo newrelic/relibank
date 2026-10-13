@@ -324,6 +324,7 @@ NRQL_ALERT_CONDITIONS = [
     "Platform - Database Health",
     "Legacy assess_payment_risk - High Transaction Error Rate",
     "WA: ReliBank Bill Pay - 403 Error",
+    "WA: ReliBank Accounts Service - Memory Leak Prediction",
     "Android Mobile - Excess Transfer Attempts",
 ]
 
