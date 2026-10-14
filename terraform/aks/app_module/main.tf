@@ -706,14 +706,12 @@ resource "kubernetes_deployment_v1" "zookeeper" {
       spec {
         node_selector = { "node-color" = var.target_color }
         hostname      = "zookeeper"
-        # Bitnami's zookeeper image runs as a non-root UID; fs_group makes the mounted
-        # volume writable by it.
         security_context {
           fs_group = 1001
         }
         container {
           name  = "zookeeper"
-          image = "bitnamilegacy/zookeeper:3.8"
+          image = "zookeeper:3.8.7"
           port {
             container_port = 2181
             protocol       = "TCP"
@@ -733,9 +731,19 @@ resource "kubernetes_deployment_v1" "zookeeper" {
             name  = "ZOO_4LW_COMMANDS_WHITELIST"
             value = "srvr,mntr,ruok"
           }
+          # The official image keeps snapshots and the transaction log in two separate
+          # declared volumes (ZOO_DATA_DIR=/data, ZOO_DATA_LOG_DIR=/datalog) rather than
+          # Bitnami's single /bitnami/zookeeper path -- mount both, via sub_path, onto the
+          # one PVC so both survive pod rescheduling (see docs/PROD_BLUE_KAFKA_ZOOKEEPER_INCIDENT.md).
           volume_mount {
             name       = "zookeeper-data"
-            mount_path = "/bitnami/zookeeper"
+            mount_path = "/data"
+            sub_path   = "data"
+          }
+          volume_mount {
+            name       = "zookeeper-data"
+            mount_path = "/datalog"
+            sub_path   = "datalog"
           }
           liveness_probe {
             exec {
