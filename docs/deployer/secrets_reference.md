@@ -115,6 +115,6 @@ If you need to trace where something gets used:
 | [`relibank-newrelic.yml`](../.github/workflows/relibank-newrelic.yml) | All Azure secrets (state backend only), `NR_ACCOUNT_ID`, `NR_USER_API_KEY`, `NR_LICENSE_KEY`, `NR_REGION`, `APP_NAME`, `POSTGRES_USER`, `POSTGRES_PASSWORD`, TF state vars |
 | [`test-suite.yml`](../.github/workflows/test-suite.yml) | `NR_USER_API_KEY`, `NR_ACCOUNT_ID` |
 | [`generate_nrjs_file.sh`](../frontend_service/generate_nrjs_file.sh) | `NR_BROWSER_APP_ID`, `NR_BROWSER_LICENSE_KEY`, `NR_ACCOUNT_ID`, `NR_TRUST_KEY` (passed via Dockerfile build args) |
-| `flow-chatbot-loadgen.yml`, `flow-chatbot-specialist.yml`, `flow-k8s-bill-pay.yml`, `flow-lcp-ab-test.yml`, `flow-memory-leak.yml` | `BASE_URL`, `NR_USER_API_KEY`, `NR_ACCOUNT_ID` |
+| `flow-chatbot-loadgen.yml`, `flow-support-loadgen-token-limit.yml`, `flow-chatbot-specialist.yml`, `flow-k8s-bill-pay.yml`, `flow-lcp-ab-test.yml`, `flow-memory-leak.yml` | `BASE_URL`, `NR_USER_API_KEY`, `NR_ACCOUNT_ID` |
 | `flow-cycle-payment-scenarios.yml` | `SCENARIO_SERVICE_URL` only |
 | `flow-stress-chaos.yml` | `BASE_URL`, `SCENARIO_SERVICE_URL`, `NR_USER_API_KEY`, `NR_ACCOUNT_ID`, `NR_ACCOUNT_ID_ALERTS`, `NR_LICENSE_KEY_ALERTS` |

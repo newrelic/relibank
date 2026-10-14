@@ -1,0 +1,186 @@
+name: Flow - Support Loadgen Token Limit
+
+run-name: Trigger Support Loadgen Token Limit scenario
+
+# Dispatch-only demo scenario: sends a smoothed but aggressive burst of chat requests
+# per tick, deliberately dense enough to exceed the gpt-4-1 AOAI deployment's TPM/RPM
+# capacity and surface openai:RateLimitError / 429 rate_limit_exceeded. Confirmed live
+# on sandbox on 2026-09-23 (~53% request failure rate at these settings). Not on a
+# schedule -- trigger manually when this scenario is wanted.
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: "Target environment ('all' matches the scheduled sweep)"
+        type: choice
+        required: true
+        default: all
+        options:
+          - all
+          - events
+          - sandbox
+          - staging
+          - prod
+      force_problem:
+        description: "Force a toxic/adversarial query from problem_questions.txt"
+        type: boolean
+        required: false
+        default: false
+      min_delay_seconds:
+        description: "Minimum seconds between loadgen requests within the tick"
+        type: string
+        required: false
+        default: "20"
+      max_delay_seconds:
+        description: "Maximum seconds between loadgen requests within the tick"
+        type: string
+        required: false
+        default: "40"
+      burst_seconds:
+        description: "Seconds of the 10-minute tick to spend sending spaced requests"
+        type: string
+        required: false
+        default: "480"
+
+  # schedule:
+  # - cron: "*/10 * * * *"
+
+permissions:
+  contents: read
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: 'true'
+
+jobs:
+
+  resolve-environments:
+    runs-on: ubuntu-latest
+    outputs:
+      environments: ${{ steps.set.outputs.environments }}
+    steps:
+      - id: set
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ] && [ "${{ inputs.environment }}" != "all" ]; then
+            echo 'environments=["${{ inputs.environment }}"]' >> "$GITHUB_OUTPUT"
+          else
+            echo 'environments=["events","sandbox","staging","prod"]' >> "$GITHUB_OUTPUT"
+          fi
+
+  support-loadgen:
+    needs: resolve-environments
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        environment: ${{ fromJson(needs.resolve-environments.outputs.environments) }}
+
+    environment: ${{ matrix.environment }}
+
+# --------------- runner setup ---------------
+    steps:
+      - name: Record start time
+        id: start-time
+        run: echo "timestamp=$(date -u +%Y-%m-%dT%H:%M:%SZ)" >> $GITHUB_OUTPUT
+
+      - name: Checkout repo
+        uses: actions/checkout@v7
+
+      - uses: actions/setup-python@v7
+        with:
+          python-version: '3.10'
+
+      - name: pip installs
+        run: |
+          pip install locust
+
+# --------------- demo flow ---------------
+
+      - name: Determine force-problem flag
+        id: force-problem
+        run: |
+          # Manual runs can force every request in the burst to be adversarial via input.
+          # Otherwise, create_support_loadgen.py's own PROBLEM_QUESTION_RATE (~25%) decides
+          # per request -- with many requests per tick (see below) that reliably surfaces
+          # adversarial prompts every tick without needing a run-level forcing hack.
+          if [ "${{ inputs.force_problem }}" = "true" ]; then
+            echo "flag=--force-problem" >> "$GITHUB_OUTPUT"
+          else
+            echo "flag=" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Determine loadgen parameters
+        id: loadgen-params
+        run: |
+          # workflow_dispatch inputs are empty strings on schedule (cron) triggers -- fall
+          # back to sensible defaults in that case.
+          MIN_DELAY="${{ inputs.min_delay_seconds }}"
+          MAX_DELAY="${{ inputs.max_delay_seconds }}"
+          BURST_SECONDS="${{ inputs.burst_seconds }}"
+
+          echo "min_delay=${MIN_DELAY:-20}" >> "$GITHUB_OUTPUT"
+          echo "max_delay=${MAX_DELAY:-40}" >> "$GITHUB_OUTPUT"
+          echo "burst_seconds=${BURST_SECONDS:-480}" >> "$GITHUB_OUTPUT"
+
+      - name: Send chat loadgen
+        run: |
+          cd demo_flows/support_loadgen/
+          MIN_DELAY=${{ steps.loadgen-params.outputs.min_delay }}
+          MAX_DELAY=${{ steps.loadgen-params.outputs.max_delay }}
+          BURST_SECONDS=${{ steps.loadgen-params.outputs.burst_seconds }}
+          RANGE=$((MAX_DELAY - MIN_DELAY + 1))
+
+          echo "Sending spaced loadgen requests for ${BURST_SECONDS}s (delay ${MIN_DELAY}-${MAX_DELAY}s)..."
+          START_TIME=$(date +%s)
+          END_TIME=$((START_TIME + BURST_SECONDS))
+          REQUEST_COUNT=0
+
+          while [ $(date +%s) -lt $END_TIME ]; do
+            REQUEST_COUNT=$((REQUEST_COUNT + 1))
+            ELAPSED=$(($(date +%s) - START_TIME))
+            echo "[${ELAPSED}s] Sending loadgen request #$REQUEST_COUNT"
+            python create_support_loadgen.py ${{ vars.BASE_URL }}/support-service/chat ${{ steps.force-problem.outputs.flag }} &
+
+            DELAY=$((MIN_DELAY + RANDOM % RANGE))
+            echo "Waiting ${DELAY}s before next request..."
+            sleep $DELAY
+          done
+
+          echo "Burst complete. Sent $REQUEST_COUNT requests over ${BURST_SECONDS}s."
+          echo "Waiting for stragglers..."
+          wait
+
+      - name: Report scenario status to Krenko's Calendar
+        if: always()
+        continue-on-error: true
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+        run: |
+          ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
+          APP_NAME="${GITHUB_REPOSITORY##*/}"
+          SCENARIO_NAME="${GITHUB_WORKFLOW#Flow - }"
+          STARTED_AT="${{ steps.start-time.outputs.timestamp }}"
+          COMPLETED_AT=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+          HOUR=$(date -u +%Y-%m-%d-%H)
+
+          # Determine status based on job outcome
+          if [ "${{ job.status }}" == "success" ]; then
+            STATUS="completed"
+          else
+            STATUS="failed"
+          fi
+
+          cat > status.json <<EOF
+          {
+            "app": "$APP_NAME",
+            "scenario": "$SCENARIO_NAME",
+            "type": "scheduled",
+            "status": "$STATUS",
+            "started_at": "$STARTED_AT",
+            "completed_at": "$COMPLETED_AT",
+            "github_run_id": "${{ github.run_id }}",
+            "github_run_url": "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+          }
+          EOF
+
+          aws s3 cp status.json "s3://goblin-swarm-status-${ACCOUNT_ID}/scenarios/${APP_NAME}/${SCENARIO_NAME}/${HOUR}.json" || true

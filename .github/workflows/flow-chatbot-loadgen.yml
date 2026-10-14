@@ -21,6 +21,21 @@ on:
         type: boolean
         required: false
         default: false
+      min_delay_seconds:
+        description: "Minimum seconds between loadgen requests within the tick"
+        type: string
+        required: false
+        default: "40"
+      max_delay_seconds:
+        description: "Maximum seconds between loadgen requests within the tick"
+        type: string
+        required: false
+        default: "80"
+      burst_seconds:
+        description: "Seconds of the 10-minute tick to spend sending spaced requests"
+        type: string
+        required: false
+        default: "480"
 
   schedule:
   - cron: "*/10 * * * *"
@@ -78,18 +93,56 @@ jobs:
       - name: Determine force-problem flag
         id: force-problem
         run: |
-          # Manual runs can force it explicitly via input. Scheduled runs (and manual runs that
-          # don't force it) guarantee a problem question every 4th run, so adversarial prompts
-          # show up on a predictable cadence rather than relying solely on the random mix.
-          if [ "${{ inputs.force_problem }}" = "true" ] || [ $(( ${{ github.run_number }} % 4 )) -eq 0 ]; then
+          # Manual runs can force every request in the burst to be adversarial via input.
+          # Otherwise, create_support_loadgen.py's own PROBLEM_QUESTION_RATE (~25%) decides
+          # per request -- with many requests per tick (see below) that reliably surfaces
+          # adversarial prompts every tick without needing a run-level forcing hack.
+          if [ "${{ inputs.force_problem }}" = "true" ]; then
             echo "flag=--force-problem" >> "$GITHUB_OUTPUT"
           else
             echo "flag=" >> "$GITHUB_OUTPUT"
           fi
 
+      - name: Determine loadgen parameters
+        id: loadgen-params
+        run: |
+          # workflow_dispatch inputs are empty strings on schedule (cron) triggers -- fall
+          # back to sensible defaults in that case.
+          MIN_DELAY="${{ inputs.min_delay_seconds }}"
+          MAX_DELAY="${{ inputs.max_delay_seconds }}"
+          BURST_SECONDS="${{ inputs.burst_seconds }}"
+
+          echo "min_delay=${MIN_DELAY:-40}" >> "$GITHUB_OUTPUT"
+          echo "max_delay=${MAX_DELAY:-80}" >> "$GITHUB_OUTPUT"
+          echo "burst_seconds=${BURST_SECONDS:-480}" >> "$GITHUB_OUTPUT"
+
       - name: Send chat loadgen
         run: |
-          cd demo_flows/support_loadgen/ && python create_support_loadgen.py ${{ vars.BASE_URL }}/support-service/chat ${{ steps.force-problem.outputs.flag }}
+          cd demo_flows/support_loadgen/
+          MIN_DELAY=${{ steps.loadgen-params.outputs.min_delay }}
+          MAX_DELAY=${{ steps.loadgen-params.outputs.max_delay }}
+          BURST_SECONDS=${{ steps.loadgen-params.outputs.burst_seconds }}
+          RANGE=$((MAX_DELAY - MIN_DELAY + 1))
+
+          echo "Sending spaced loadgen requests for ${BURST_SECONDS}s (delay ${MIN_DELAY}-${MAX_DELAY}s)..."
+          START_TIME=$(date +%s)
+          END_TIME=$((START_TIME + BURST_SECONDS))
+          REQUEST_COUNT=0
+
+          while [ $(date +%s) -lt $END_TIME ]; do
+            REQUEST_COUNT=$((REQUEST_COUNT + 1))
+            ELAPSED=$(($(date +%s) - START_TIME))
+            echo "[${ELAPSED}s] Sending loadgen request #$REQUEST_COUNT"
+            python create_support_loadgen.py ${{ vars.BASE_URL }}/support-service/chat ${{ steps.force-problem.outputs.flag }} &
+
+            DELAY=$((MIN_DELAY + RANDOM % RANGE))
+            echo "Waiting ${DELAY}s before next request..."
+            sleep $DELAY
+          done
+
+          echo "Burst complete. Sent $REQUEST_COUNT requests over ${BURST_SECONDS}s."
+          echo "Waiting for stragglers..."
+          wait
 
       - name: Report scenario status to Krenko's Calendar
         if: always()
