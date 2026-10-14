@@ -8,6 +8,9 @@ export default defineConfig({
     'process.env.NODE_ENV': JSON.stringify('production')
   },
   build: {
+    // See scripts/newrelic/upload_sourcemaps.py — this MFE's fixed (non-hashed) output
+    // filename is hardcoded there since it never changes across builds.
+    sourcemap: true,
     lib: {
       entry: resolve(__dirname, 'src/index.tsx'),
       name: 'RelibankAdBanner',
