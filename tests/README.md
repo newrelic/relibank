@@ -41,6 +41,7 @@ export RELIBANK_URL="http://your-server.example.com"
 | `test_db_pool_e2e.py` | Database pool performance E2E | Custom attributes validation, pool assignment, New Relic NRQL queries |
 | `test_ab_testing_scenarios.py` | A/B testing scenarios | LCP slowness (percentage-based and cohort-based), 11 hardcoded test users, cohort assignment, deterministic distribution |
 | `test_stress_scenarios.py` | Stress chaos experiments | CPU stress, memory stress, combined stress testing with Chaos Mesh |
+| `test_kafka_broker_monitoring.py` | Kafka broker/cluster/topic telemetry freshness | Post-deploy checks that `kafka.broker.uptime`, `kafka.brokers`, `kafka.prod.msg.count` are flowing within the last few minutes, not just present historically |
 | `../frontend_service/app/**/*.test.tsx` | Frontend functional tests (Vitest) | Login, transfers, bill payment (Stripe), support, form validation, API integration |
 
 ## Prerequisites
@@ -196,6 +197,7 @@ Some tests automatically load environment variables from `skaffold.env` when run
 - `test_newrelic_instrumentation.py` - Loads `NEW_RELIC_USER_API_KEY`, `NEW_RELIC_ACCOUNT_ID`
 - `test_newrelic_risk_assessment.py` - Loads `NEW_RELIC_USER_API_KEY`, `NEW_RELIC_ACCOUNT_ID`
 - `test_db_pool_e2e.py` - Loads `NEW_RELIC_USER_API_KEY`, `NEW_RELIC_ACCOUNT_ID`
+- `test_kafka_broker_monitoring.py` - Loads `NEW_RELIC_USER_API_KEY`, `NEW_RELIC_ACCOUNT_ID`
 
 **How it works:**
 1. Tests check if `../skaffold.env` exists
