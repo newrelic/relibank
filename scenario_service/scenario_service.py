@@ -1937,11 +1937,31 @@ def _dbmatrix_worker(name: str) -> None:
 
         elif name == "plan-regression":
             try:
-                with _dbmatrix_connect(autocommit=True) as conn:
-                    conn.timeout = 120
-                    conn.execute("SET LOCK_TIMEOUT 15000;")
-                    conn.execute(DBMATRIX_DROP_INDEX_SQL)
-                while not _dbmatrix_should_stop(name):
+                # Other queries may be scanning BankTransactions (they hold shared schema locks), so the
+                # exclusive lock DROP INDEX needs may not be free. Retry with a short lock timeout inside the
+                # scenario window instead of one long wait: each attempt blocks the table only briefly.
+                dropped = False
+                while not dropped and not _dbmatrix_should_stop(name):
+                    st["stats"]["drop_attempts"] = st["stats"].get("drop_attempts", 0) + 1
+                    try:
+                        with _dbmatrix_connect(autocommit=True) as conn:
+                            st["conn"] = conn
+                            conn.timeout = 30
+                            conn.execute("SET LOCK_TIMEOUT 5000;")
+                            conn.execute(DBMATRIX_DROP_INDEX_SQL)
+                        dropped = True
+                    except Exception as exc:
+                        if _dbmatrix_should_stop(name):
+                            break
+                        if "1222" in str(exc):
+                            st["stats"]["drop_lock_timeouts"] = st["stats"].get("drop_lock_timeouts", 0) + 1
+                        else:
+                            _dbmatrix_record_error(name, exc)
+                        st["stop_event"].wait(timeout=3)
+                    finally:
+                        st["conn"] = None
+                st["stats"]["index_dropped"] = dropped
+                while dropped and not _dbmatrix_should_stop(name):
                     try:
                         with _dbmatrix_connect(autocommit=True) as conn:
                             st["conn"] = conn
@@ -2060,6 +2080,8 @@ async def start_db_matrix(scenario: str, duration: Optional[int] = None):
         st["duration"] = duration
         st["deadline"] = time.monotonic() + duration
         st["stats"] = {"iterations": 0, "errors": 0, "last_error": None}
+        if scenario == "plan-regression":
+            st["stats"].update({"drop_attempts": 0, "drop_lock_timeouts": 0, "index_dropped": False})
         st["restore_error"] = None
         st["running"] = True
         st["thread"] = threading.Thread(target=_dbmatrix_worker, args=(scenario,),
