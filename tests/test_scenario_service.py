@@ -491,6 +491,16 @@ def test_locust_start_stop():
 _SCENARIOS_WITHOUT_DRY_RUN_SUPPORT = {"dem-memory-leak-45min", "dem-memory-leak-10min"}
 
 
+def test_network_chaos_scenarios_listed():
+    """The NetworkChaos/DNSChaos scenarios (DB resource starvation latency, DNS black hole)
+    are registered with their Chaos Mesh kind. Read-only: lists scenarios, triggers nothing."""
+    scenarios = requests.get(f"{SCENARIO_SERVICE_URL}/scenario-runner/api/scenarios", timeout=10).json()
+    network = {s["name"]: s for s in scenarios if s["type"] == "network-chaos"}
+    assert network.get("relibank-dns-black-hole", {}).get("kind") == "DNSChaos", network
+    assert network.get("relibank-mssql-network-delay", {}).get("kind") == "NetworkChaos", network
+    print(f"✓ network chaos scenarios registered: {sorted(network)}")
+
+
 def test_all_chaos_scenarios_have_matching_pods():
     """Dry-run every registered chaos/stress scenario and assert its selector
     actually matches at least one live pod. Catches selector/namespace drift
@@ -500,11 +510,12 @@ def test_all_chaos_scenarios_have_matching_pods():
     scenarios = requests.get(f"{SCENARIO_SERVICE_URL}/scenario-runner/api/scenarios", timeout=10).json()
     checked = []
     for s in scenarios:
-        if s["type"] not in ("chaos-mesh", "stress-chaos"):
+        if s["type"] not in ("chaos-mesh", "stress-chaos", "network-chaos"):
             continue  # payment/ab_test/feature_flag scenarios aren't selector-based
         if s["name"] in _SCENARIOS_WITHOUT_DRY_RUN_SUPPORT:
             continue
-        endpoint = "trigger_chaos" if s["type"] == "chaos-mesh" else "trigger_stress"
+        endpoint = {"chaos-mesh": "trigger_chaos", "stress-chaos": "trigger_stress",
+                    "network-chaos": "trigger_network"}[s["type"]]
         resp = requests.post(
             f"{SCENARIO_SERVICE_URL}/scenario-runner/api/{endpoint}/{s['name']}",
             params={"dry_run": "true"},

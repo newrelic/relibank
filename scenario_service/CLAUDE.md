@@ -35,6 +35,11 @@ endpoints (plus the `index.html` UI):
   touching the rate limiter — an opt-in read that doesn't change default trigger behavior, used by
   `tests/test_scenario_service.py::test_all_chaos_scenarios_have_matching_pods` to catch
   selector/namespace drift in CI.
+- **Network / DNS chaos** (`NETWORK_EXPERIMENTS`, loaded from `chaos_mesh/experiments/relibank-network-scenarios.yaml`):
+  `NetworkChaos` (MSSQL latency) and `DNSChaos` (DNS black hole on accounts-service lookups). Duration-bound, no stop call.
+  Triggered via `POST /scenario-runner/api/trigger_network/{name}` (same rate limit and `?dry_run=true` as the other kinds).
+  `DNSChaos` needs the Chaos Mesh DNS server (`dnsServer.create=true`). The mssql CPU/memory half of DB Performance Matrix act 1
+  is `relibank-mssql-resource-starvation` in the stress file, triggered with `trigger_stress`; run both for the full scenario.
 - **db-360 load generation**: sustained MSSQL workers (velocity / blocker / contender) to populate
   Query Plan Manager. `POST /scenario-runner/api/db-360/start|stop|status`.
 

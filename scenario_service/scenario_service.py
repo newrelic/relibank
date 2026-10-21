@@ -6,6 +6,7 @@
 # import to that callsite so gevent never patches this process for the
 # common case where Locust isn't being used.
 import os
+import copy
 import uuid
 import yaml
 from pathlib import Path
@@ -50,6 +51,9 @@ SCENARIO_UI_ENABLED = os.getenv("SCENARIO_UI_ENABLED", "true").lower() == "true"
 # Dictionary to store parsed Chaos Mesh experiments
 CHAOS_EXPERIMENTS: Dict[str, Dict[str, Any]] = {}
 STRESS_EXPERIMENTS: Dict[str, Dict[str, Any]] = {}
+# NetworkChaos / DNSChaos experiments (loaded from relibank-network-scenarios.yaml)
+NETWORK_EXPERIMENTS: Dict[str, Dict[str, Any]] = {}
+NETWORK_CHAOS_PLURALS = {"NetworkChaos": "networkchaos", "DNSChaos": "dnschaos"}
 
 # Kubernetes API clients for custom resources
 api_client = None
@@ -195,6 +199,7 @@ async def lifespan(app: FastAPI):
     base_dir = Path(__file__).parent.absolute()
     pod_chaos_file = base_dir / "chaos_mesh" / "experiments" / "relibank-pod-chaos-adhoc.yaml"
     stress_chaos_file = base_dir / "chaos_mesh" / "experiments" / "relibank-stress-scenarios.yaml"
+    network_chaos_file = base_dir / "chaos_mesh" / "experiments" / "relibank-network-scenarios.yaml"
 
     loaded_count = 0 # Initialize counter for successful loads
 
@@ -262,6 +267,8 @@ async def lifespan(app: FastAPI):
                             "selector": {**doc["spec"]["selector"], "namespaces": [current_namespace]},
                             "duration": doc["spec"]["duration"],
                             "stressors": doc["spec"]["stressors"],
+                            # Optional: limits the stressors to specific containers (e.g. mssql)
+                            "containerNames": doc["spec"].get("containerNames"),
                             "description": description
                         }
                         loaded_count += 1
@@ -275,6 +282,47 @@ async def lifespan(app: FastAPI):
     except yaml.YAMLError as e:
         print(f"Error parsing stress YAML file: {e}. Check YAML format.")
 
+    # Load and parse the network chaos experiment YAML file (NetworkChaos / DNSChaos)
+    try:
+        print(f"INFO: Attempting to read network chaos YAML from: {network_chaos_file}")
+
+        with open(network_chaos_file, 'r') as file:
+            for i, doc in enumerate(yaml.safe_load_all(file)):
+                if not doc:
+                    print(f"DEBUG: Skipping empty network document {i}.")
+                    continue
+                current_kind = doc.get('kind', 'N/A')
+                if current_kind not in NETWORK_CHAOS_PLURALS:
+                    print(f"DEBUG: Skipping network document {i}. Kind '{current_kind}' is not NetworkChaos/DNSChaos.")
+                    continue
+
+                name = doc["metadata"]["name"]
+                description = doc["metadata"].get("labels", {}).get("target-flow", "No description available.")
+
+                # Same namespace handling as the other kinds: target whichever namespace this
+                # pod runs in, so selectors match real pods on blue/green clusters.
+                spec = copy.deepcopy(doc["spec"])
+                spec["selector"] = {**spec["selector"], "namespaces": [current_namespace]}
+                if "patterns" in spec:
+                    # DNSChaos patterns embed the namespace in the service FQDN
+                    # (e.g. accounts-service.relibank.svc.cluster.local.)
+                    spec["patterns"] = [p.replace(".relibank.", f".{current_namespace}.") for p in spec["patterns"]]
+
+                NETWORK_EXPERIMENTS[name] = {
+                    "kind": current_kind,
+                    "namespace": current_namespace,
+                    "selector": spec["selector"],
+                    "duration": spec["duration"],
+                    "spec": spec,
+                    "description": description
+                }
+                loaded_count += 1
+
+    except FileNotFoundError:
+        print(f"Error: The network chaos YAML file was not found at '{network_chaos_file}'.")
+    except yaml.YAMLError as e:
+        print(f"Error parsing network chaos YAML file: {e}. Check YAML format.")
+
     # Initialize Kubernetes client from within the pod
     try:
         config.load_incluster_config()
@@ -284,7 +332,7 @@ async def lifespan(app: FastAPI):
     
     api_client = client.CustomObjectsApi()
 
-    print(f"Chaos experiments loaded successfully on startup. Total: {loaded_count} experiments ({len(CHAOS_EXPERIMENTS)} pod chaos, {len(STRESS_EXPERIMENTS)} stress chaos)")
+    print(f"Chaos experiments loaded successfully on startup. Total: {loaded_count} experiments ({len(CHAOS_EXPERIMENTS)} pod chaos, {len(STRESS_EXPERIMENTS)} stress chaos, {len(NETWORK_EXPERIMENTS)} network/dns chaos)")
     yield
     # Cancel any in-flight db-360 workers and rollback open transactions before the
     # process exits — otherwise SIGTERM leaves UPDLOCK-holding sessions on MSSQL.
@@ -396,6 +444,15 @@ async def get_scenarios():
             "affected_pool": AB_TEST_SCENARIOS["db_pool_stress_affected_pool"]
         }
     })
+    # Network / DNS chaos scenarios
+    for name, details in NETWORK_EXPERIMENTS.items():
+        scenarios_list.append({
+            "name": name,
+            "description": details["description"],
+            "type": "network-chaos",
+            "target_service": details["selector"].get("labelSelectors", {}).get("app", "unknown"),
+            "kind": details["kind"]
+        })
     # Memory Leak scenarios
     scenarios_list.append({
         "name": "dem-memory-leak-45min",
@@ -724,6 +781,9 @@ async def trigger_stress_experiment(scenario_name: str, dry_run: bool = False):
         }
     }
 
+    if scenario.get("containerNames"):
+        stress_chaos_manifest["spec"]["containerNames"] = scenario["containerNames"]
+
     try:
         print(f"DEBUG K8S API CALL: Group+Version={api_version}, Namespace={namespace}, Plural={stress_plural}, Name={experiment_name}")
 
@@ -798,6 +858,126 @@ async def trigger_stress_experiment(scenario_name: str, dry_run: bool = False):
     except ApiException as e:
         print(f"Error creating StressChaos object: {e}")
         return {"status": "error", "message": f"Failed to trigger stress experiment: {e.reason}"}
+
+
+@app.post("/scenario-runner/api/trigger_network/{scenario_name}")
+async def trigger_network_experiment(scenario_name: str, dry_run: bool = False):
+    """Triggers a one-time NetworkChaos / DNSChaos experiment with rate limiting.
+
+    Same contract as trigger_stress: the experiment is duration-bound and expires on its own
+    (there is no stop call), shares the chaos rate limit, and supports dry_run=true to check
+    the selector against live pods without creating anything.
+    """
+    if scenario_name not in NETWORK_EXPERIMENTS:
+        return {"error": f"Network scenario '{scenario_name}' not found."}
+
+    scenario = NETWORK_EXPERIMENTS[scenario_name]
+
+    if dry_run:
+        matched = _selector_pod_count(scenario["selector"])
+        return {
+            "status": "success" if matched > 0 else "warning",
+            "dry_run": True,
+            "message": (
+                f"Dry run: selector would match {matched} pod(s)." if matched > 0
+                else "Dry run: selector matched 0 pods — triggering this for real would silently no-op."
+            ),
+            "matched_pods": matched
+        }
+
+    now = datetime.now()
+    last_trigger = CHAOS_RATE_LIMIT["last_trigger_time"]
+    cooldown_minutes = CHAOS_RATE_LIMIT["cooldown_minutes"]
+    if last_trigger:
+        time_since_last = now - last_trigger
+        if time_since_last < timedelta(minutes=cooldown_minutes):
+            remaining_seconds = int((timedelta(minutes=cooldown_minutes) - time_since_last).total_seconds())
+            return {
+                "status": "error",
+                "message": f"Rate limit exceeded. Please wait {remaining_seconds} seconds before triggering another chaos scenario.",
+                "cooldown_remaining_seconds": remaining_seconds
+            }
+    if CHAOS_RATE_LIMIT["active_experiments"] >= CHAOS_RATE_LIMIT["max_concurrent"]:
+        return {
+            "status": "error",
+            "message": f"Maximum concurrent chaos experiments ({CHAOS_RATE_LIMIT['max_concurrent']}) reached. Please wait for active experiments to complete.",
+            "active_experiments": CHAOS_RATE_LIMIT["active_experiments"]
+        }
+
+    namespace = scenario.get("namespace", "default")
+    kind = scenario["kind"]
+    network_plural = NETWORK_CHAOS_PLURALS[kind]
+    experiment_name = f"{scenario_name}-{uuid.uuid4().hex[:6]}"
+
+    manifest = {
+        "apiVersion": api_version,
+        "kind": kind,
+        "metadata": {
+            "name": experiment_name,
+            "namespace": namespace,
+            "labels": {
+                "triggered-by": "scenario-runner",
+                "original-scenario": scenario_name
+            }
+        },
+        "spec": scenario["spec"]
+    }
+
+    try:
+        print(f"DEBUG K8S API CALL: Group+Version={api_version}, Namespace={namespace}, Plural={network_plural}, Name={experiment_name}")
+        api_client.create_namespaced_custom_object(
+            group="chaos-mesh.org",
+            version="v1alpha1",
+            namespace=namespace,
+            plural=network_plural,
+            body=manifest,
+        )
+
+        CHAOS_RATE_LIMIT["last_trigger_time"] = now
+        CHAOS_RATE_LIMIT["active_experiments"] += 1
+
+        import time
+        time.sleep(3)  # Give Chaos Mesh time to process
+        try:
+            experiment = api_client.get_namespaced_custom_object(
+                group="chaos-mesh.org",
+                version="v1alpha1",
+                namespace=namespace,
+                plural=network_plural,
+                name=experiment_name
+            )
+            status = experiment.get("status", {})
+            conditions = status.get("conditions", [])
+            if not status:
+                return {
+                    "status": "warning",
+                    "message": f"{kind} '{experiment_name}' created but not processed. Check if Chaos Mesh is running"
+                               + (" with the DNS server enabled (dnsServer.create=true)." if kind == "DNSChaos" else ".")
+                }
+            selected = next((c for c in conditions if c.get("type") == "Selected"), None)
+            if selected and selected.get("status") == "False":
+                return {
+                    "status": "warning",
+                    "message": f"{kind} '{experiment_name}' created but no pods matched selector."
+                }
+            return {
+                "status": "success",
+                "message": f"Successfully triggered '{experiment_name}' and verified execution.",
+                "duration": scenario["duration"],
+                "cooldown_minutes": cooldown_minutes
+            }
+        except ApiException as status_error:
+            print(f"WARNING: Could not verify {kind} status: {status_error}")
+            return {
+                "status": "success",
+                "message": f"{kind} '{experiment_name}' created but status verification failed. It may still be running.",
+                "duration": scenario["duration"],
+                "cooldown_minutes": cooldown_minutes
+            }
+
+    except ApiException as e:
+        print(f"Error creating {kind} object: {e}")
+        return {"status": "error", "message": f"Failed to trigger network experiment: {e.reason}"}
 
 
 @app.get("/scenario-runner/api/chaos-rate-limit-status")

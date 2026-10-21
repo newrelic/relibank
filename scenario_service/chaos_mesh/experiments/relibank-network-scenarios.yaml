@@ -1,0 +1,61 @@
+---
+# NetworkChaos / DNSChaos experiments loaded by scenario_service (see NETWORK_EXPERIMENTS).
+# Triggered with: POST /scenario-runner/api/trigger_network/{metadata.name}
+# Like the other chaos files, `namespace: relibank` here is a placeholder: the loader
+# retargets selectors (and DNS patterns) at the namespace the scenario-runner pod runs in
+# (relibank-blue / relibank-green on Terraform-managed environments).
+#
+# The Pair, Act 2: DNS Black Hole.
+# transaction-service can no longer resolve accounts-service, so payment validation fails
+# with connection errors. Needs the Chaos Mesh DNS server (dnsServer.create=true).
+apiVersion: chaos-mesh.org/v1alpha1
+kind: DNSChaos
+metadata:
+  name: relibank-dns-black-hole
+  namespace: relibank
+  labels:
+    app: relibank
+    experiment-type: dns-chaos
+    target-flow: dns-black-hole
+spec:
+  action: error
+  mode: all
+  selector:
+    namespaces:
+    - relibank
+    labelSelectors:
+      app: transaction-service
+  patterns:
+  - "accounts-service.relibank.svc.cluster.local."
+  - "accounts-service.relibank."
+  - "accounts-service."
+  duration: 8m
+
+---
+# Database Performance Matrix, Act 1: Resource Starvation (network half).
+# Adds latency to MSSQL responses, simulating the send-queue backup that happens when the
+# DB process is starved of CPU. Pair with relibank-mssql-resource-starvation (StressChaos,
+# in relibank-stress-scenarios.yaml); both use the same duration so they expire together.
+apiVersion: chaos-mesh.org/v1alpha1
+kind: NetworkChaos
+metadata:
+  name: relibank-mssql-network-delay
+  namespace: relibank
+  labels:
+    app: relibank
+    experiment-type: network-chaos
+    target-flow: mssql-network-delay
+spec:
+  action: delay
+  mode: one
+  selector:
+    namespaces:
+    - relibank
+    labelSelectors:
+      app: mssql
+  delay:
+    latency: "3000ms"
+    jitter: "500ms"
+    correlation: "100"
+  direction: to
+  duration: 20m

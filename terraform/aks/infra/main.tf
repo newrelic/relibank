@@ -102,6 +102,12 @@ resource "helm_release" "chaos_mesh" {
     name  = "chaosDaemon.socketPath"
     value = "/run/containerd/containerd.sock"
   }
+
+  # DNSChaos (the DNS black hole scenario) needs Chaos Mesh's DNS server; the chart leaves it off by default.
+  set {
+    name  = "dnsServer.create"
+    value = "true"
+  }
 }
 
 # ---------------------------------------------------------------------------

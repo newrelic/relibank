@@ -115,3 +115,34 @@ spec:
     memory:
       workers: 4
       size: 768MB
+
+---
+# Database Performance Matrix, Act 1: Resource Starvation (CPU/memory half).
+# Pegs the mssql container CPU and holds memory. Pair with relibank-mssql-network-delay
+# (NetworkChaos, in relibank-network-scenarios.yaml); same duration so they expire together.
+apiVersion: chaos-mesh.org/v1alpha1
+kind: StressChaos
+metadata:
+  name: relibank-mssql-resource-starvation
+  namespace: relibank
+  labels:
+    app: relibank
+    experiment-type: stress-chaos
+    target-flow: mssql-resource-starvation
+spec:
+  mode: one
+  selector:
+    namespaces:
+    - relibank
+    labelSelectors:
+      app: mssql
+  containerNames:
+  - mssql
+  duration: 20m
+  stressors:
+    cpu:
+      workers: 4
+      load: 95
+    memory:
+      workers: 4
+      size: "400MB"
