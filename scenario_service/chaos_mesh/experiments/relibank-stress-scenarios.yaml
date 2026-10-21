@@ -117,9 +117,12 @@ spec:
       size: 768MB
 
 ---
-# Database Performance Matrix, Act 1: Resource Starvation (CPU/memory half).
-# Pegs the mssql container CPU and holds memory. Pair with relibank-mssql-network-delay
-# (NetworkChaos, in relibank-network-scenarios.yaml); same duration so they expire together.
+# Database Performance Matrix, Act 1: Resource Starvation (CPU half).
+# Pegs the mssql container CPU (it is limited to 1 CPU, so it saturates and throttles).
+# CPU only on purpose: the original also held 4 x 400MB of memory, but this container is limited
+# to 2Gi while SQL Server may grow well past that, so memory stress risks an OOM kill of the DB.
+# Pair with relibank-mssql-network-delay (NetworkChaos, in relibank-network-scenarios.yaml);
+# same duration so they expire together.
 apiVersion: chaos-mesh.org/v1alpha1
 kind: StressChaos
 metadata:
@@ -143,6 +146,3 @@ spec:
     cpu:
       workers: 4
       load: 95
-    memory:
-      workers: 4
-      size: "400MB"

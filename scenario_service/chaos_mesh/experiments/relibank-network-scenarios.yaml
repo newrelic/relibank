@@ -36,6 +36,9 @@ spec:
 # Adds latency to MSSQL responses, simulating the send-queue backup that happens when the
 # DB process is starved of CPU. Pair with relibank-mssql-resource-starvation (StressChaos,
 # in relibank-stress-scenarios.yaml); both use the same duration so they expire together.
+# The delay applies only to responses sent to transaction-service (the payment path) via `target`,
+# so other MSSQL clients (scheduler, the scenario runner's db-360, collectors, test tunnels)
+# are not slowed.
 apiVersion: chaos-mesh.org/v1alpha1
 kind: NetworkChaos
 metadata:
@@ -53,6 +56,13 @@ spec:
     - relibank
     labelSelectors:
       app: mssql
+  target:
+    mode: all
+    selector:
+      namespaces:
+      - relibank
+      labelSelectors:
+        app: transaction-service
   delay:
     latency: "3000ms"
     jitter: "500ms"

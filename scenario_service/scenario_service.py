@@ -303,6 +303,10 @@ async def lifespan(app: FastAPI):
                 # pod runs in, so selectors match real pods on blue/green clusters.
                 spec = copy.deepcopy(doc["spec"])
                 spec["selector"] = {**spec["selector"], "namespaces": [current_namespace]}
+                if isinstance(spec.get("target"), dict) and "selector" in spec["target"]:
+                    # NetworkChaos `target` peers are selected by namespace too
+                    spec["target"] = {**spec["target"],
+                                      "selector": {**spec["target"]["selector"], "namespaces": [current_namespace]}}
                 if "patterns" in spec:
                     # DNSChaos patterns embed the namespace in the service FQDN
                     # (e.g. accounts-service.relibank.svc.cluster.local.)

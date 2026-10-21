@@ -38,8 +38,8 @@ endpoints (plus the `index.html` UI):
 - **Network / DNS chaos** (`NETWORK_EXPERIMENTS`, loaded from `chaos_mesh/experiments/relibank-network-scenarios.yaml`):
   `NetworkChaos` (MSSQL latency) and `DNSChaos` (DNS black hole on accounts-service lookups). Duration-bound, no stop call.
   Triggered via `POST /scenario-runner/api/trigger_network/{name}` (same rate limit and `?dry_run=true` as the other kinds).
-  `DNSChaos` needs the Chaos Mesh DNS server (`dnsServer.create=true`). The mssql CPU/memory half of DB Performance Matrix act 1
-  is `relibank-mssql-resource-starvation` in the stress file, triggered with `trigger_stress`; run both for the full scenario.
+  `DNSChaos` needs the Chaos Mesh DNS server (`dnsServer.create=true`). The mssql CPU half of DB Performance Matrix act 1
+  is `relibank-mssql-resource-starvation` in the stress file (CPU only: memory stress risks OOM-killing the 2Gi mssql container), triggered with `trigger_stress`; run both for the full scenario.
 - **DB Performance Matrix acts 2-4** (`/scenario-runner/api/db-matrix/{lock-contention|competing-query|plan-regression}/start|stop|status`,
   plus `GET /db-matrix/status` and `POST /db-matrix/reset`). Time-boxed runner-side SQL against MSSQL: an exclusive lock on `Ledger`
   (max 10 min), an unindexed analytics scan (max 5 min), and `IX_BankTxn_Account` dropped with an account-lookup driver (max 5 min).
