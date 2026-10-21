@@ -1842,6 +1842,8 @@ DBMATRIX_INDEX_PRESENT_SQL = (
 )
 
 # min/default/max are seconds. Caps are deliberate; do not raise without thinking about blast radius.
+DBMATRIX_BASELINE_SECONDS = 45   # plan-regression: seconds of lookups with the index in place before the drop
+
 DBMATRIX_SCENARIOS: Dict[str, Dict[str, Any]] = {
     "lock-contention": {"min": 10, "default": 600, "max": 600,
                         "description": "Exclusive lock on Ledger held so payments queue behind it"},
@@ -1937,6 +1939,28 @@ def _dbmatrix_worker(name: str) -> None:
 
         elif name == "plan-regression":
             try:
+                # Baseline phase: run the lookup once a second WITH the index so monitoring records the
+                # index-seek plan before the drop; the later scan then shows up as a plan-hash change.
+                baseline_secs = min(DBMATRIX_BASELINE_SECONDS, int(st["duration"] // 4))
+                st["stats"]["phase"] = "baseline"
+                if baseline_secs > 0:
+                    if not _dbmatrix_index_present():
+                        _dbmatrix_restore_index()   # a missing index would make the "baseline" a scan too
+                    baseline_end = time.monotonic() + baseline_secs
+                    try:
+                        with _dbmatrix_connect(autocommit=True) as conn:
+                            st["conn"] = conn
+                            conn.timeout = 30
+                            while time.monotonic() < baseline_end and not _dbmatrix_should_stop(name):
+                                conn.execute(DBMATRIX_LOOKUP_SQL).fetchall()
+                                st["stats"]["baseline_iterations"] += 1
+                                st["stop_event"].wait(timeout=1)
+                    except Exception as exc:
+                        if not _dbmatrix_should_stop(name):
+                            _dbmatrix_record_error(name, exc)
+                    finally:
+                        st["conn"] = None
+                st["stats"]["phase"] = "dropping"
                 # Other queries may be scanning BankTransactions (they hold shared schema locks), so the
                 # exclusive lock DROP INDEX needs may not be free. Retry with a short lock timeout inside the
                 # scenario window instead of one long wait: each attempt blocks the table only briefly.
@@ -1961,6 +1985,8 @@ def _dbmatrix_worker(name: str) -> None:
                     finally:
                         st["conn"] = None
                 st["stats"]["index_dropped"] = dropped
+                if dropped:
+                    st["stats"]["phase"] = "regression"
                 while dropped and not _dbmatrix_should_stop(name):
                     try:
                         with _dbmatrix_connect(autocommit=True) as conn:
@@ -2081,7 +2107,8 @@ async def start_db_matrix(scenario: str, duration: Optional[int] = None):
         st["deadline"] = time.monotonic() + duration
         st["stats"] = {"iterations": 0, "errors": 0, "last_error": None}
         if scenario == "plan-regression":
-            st["stats"].update({"drop_attempts": 0, "drop_lock_timeouts": 0, "index_dropped": False})
+            st["stats"].update({"phase": "starting", "baseline_iterations": 0, "drop_attempts": 0,
+                                "drop_lock_timeouts": 0, "index_dropped": False})
         st["restore_error"] = None
         st["running"] = True
         st["thread"] = threading.Thread(target=_dbmatrix_worker, args=(scenario,),

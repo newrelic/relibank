@@ -45,7 +45,7 @@ endpoints (plus the `index.html` UI):
   (max 10 min), an unindexed analytics scan (max 5 min), and `IX_BankTxn_Account` dropped with an account-lookup driver (max 5 min).
   One at a time, never alongside db-360. The index is always recreated on stop, expiry, and shutdown; `reset` recreates it even when
   nothing is running (recovery if the pod was killed mid-run). `plan-regression` retries the `DROP INDEX` (5 s lock timeout per attempt, every ~3 s) until its window ends, because other queries scanning
-  `BankTransactions` can hold the schema lock; check `stats.index_dropped`, `drop_attempts`, `drop_lock_timeouts` in status (never dropped = nothing ran). Act 5 (pool degradation) is the existing accounts-service pool stress.
+  `BankTransactions` can hold the schema lock; check `stats.index_dropped`, `drop_attempts`, `drop_lock_timeouts` in status (never dropped = nothing ran). It first runs the lookup once a second for up to 45 s (a quarter of the window at most) with the index in place, so monitoring records the index-seek plan before the drop and shows the later scan as a plan-hash change (`stats.phase`: baseline, dropping, regression; `baseline_iterations`). Act 5 (pool degradation) is the existing accounts-service pool stress.
   Two chaos calls back to back (DB act 1: `trigger_stress` + `trigger_network`) hit the shared chaos cooldown, so call
   `POST /chaos-rate-limit-reset` between them.
 - **db-360 load generation**: sustained MSSQL workers (velocity / blocker / contender) to populate
