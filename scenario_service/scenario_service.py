@@ -337,6 +337,7 @@ async def lifespan(app: FastAPI):
     # Cancel any in-flight db-360 workers and rollback open transactions before the
     # process exits — otherwise SIGTERM leaves UPDLOCK-holding sessions on MSSQL.
     _shutdown_db360()
+    _shutdown_dbmatrix()
     print("Application is shutting down.")
 
 # Initialize FastAPI app with the lifespan
@@ -1672,6 +1673,13 @@ async def start_db_360(
     if not (60 <= max_duration <= 3600):
         raise HTTPException(status_code=400, detail="max_duration must be between 60 and 3600 seconds")
 
+    matrix_running = _dbmatrix_any_running()
+    if matrix_running:
+        raise HTTPException(
+            status_code=409,
+            detail={"message": f"db-matrix scenario '{matrix_running}' is running; stop it before starting db-360"},
+        )
+
     with DB360_LIFECYCLE_LOCK:
         if DB360_STATE["running"]:
             raise HTTPException(
@@ -1769,3 +1777,306 @@ async def reset_db_360():
         "message": "db-360 load stopped and reset",
         **_db360_status_snapshot(),
     }
+
+
+# ============================================================================
+# Database Performance Matrix, acts 2-4 (platform-eng demo scenarios)
+#
+#   lock-contention  Act 2: hold an exclusive lock on the Ledger table that transaction-service
+#                    writes to, so payments stall (K8s 360 stays quiet; only DB 360 sees it).
+#   competing-query  Act 3: sustained unindexed analytics scan competing for CPU/IO.
+#   plan-regression  Act 4: drop IX_BankTxn_Account and drive an account lookup so the plan flips
+#                    from index seek to scan; the index is ALWAYS recreated on stop/expiry/shutdown.
+#
+# Safety rules (these run against the live demo database):
+#   - Every scenario is time-boxed (hard caps below) and cleans up in a `finally`.
+#   - One matrix scenario at a time, and none while db-360 is running (db-360's DDL-sensitive
+#     scans and blocker would collide with the index drop). db-360/start refuses while one runs.
+#   - SET LOCK_TIMEOUT so a collision fails fast with a recorded error instead of hanging.
+#   - /db-matrix/reset stops everything and recreates the index even if nothing is running,
+#     which is the recovery path if the pod was killed mid plan-regression.
+# ============================================================================
+
+DBMATRIX_INDEX_NAME = "IX_BankTxn_Account"
+
+DBMATRIX_LEDGER_LOCK_SQL = "UPDATE Ledger SET CurrentBalance = CurrentBalance WHERE AccountID > 0;"
+
+DBMATRIX_SCAN_SQL = """
+SELECT
+    m.Category,
+    m.Region,
+    COUNT(*) AS TxnCount,
+    SUM(bt.Amount) AS TotalAmount,
+    AVG(bt.Amount) AS AvgAmount,
+    CHECKSUM_AGG(CHECKSUM(bt.TxnID, bt.AccountID, bt.Amount)) AS ChkAgg
+FROM BankTransactions bt
+INNER JOIN Merchants m ON m.MerchantID = bt.MerchantID
+WHERE DATEADD(SECOND, 0, bt.TxnDate) >= '2000-01-01'
+GROUP BY m.Category, m.Region
+ORDER BY TotalAmount DESC;
+"""
+
+# One statement per execute() so DB 360's top-query collection sees it as its own batch.
+DBMATRIX_LOOKUP_SQL = (
+    "SELECT TxnID, AccountID, MerchantID, Amount, TxnDate, TxnType, Status, Channel "
+    "FROM BankTransactions WHERE AccountID = 12345 ORDER BY TxnDate DESC;"
+)
+
+DBMATRIX_DROP_INDEX_SQL = (
+    f"IF EXISTS (SELECT 1 FROM sys.indexes WHERE name = '{DBMATRIX_INDEX_NAME}' "
+    f"AND object_id = OBJECT_ID('dbo.BankTransactions')) "
+    f"DROP INDEX {DBMATRIX_INDEX_NAME} ON dbo.BankTransactions;"
+)
+DBMATRIX_CREATE_INDEX_SQL = (
+    f"IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = '{DBMATRIX_INDEX_NAME}' "
+    f"AND object_id = OBJECT_ID('dbo.BankTransactions')) "
+    f"CREATE INDEX {DBMATRIX_INDEX_NAME} ON dbo.BankTransactions (AccountID);"
+)
+DBMATRIX_INDEX_PRESENT_SQL = (
+    f"SELECT COUNT(*) FROM sys.indexes WHERE name = '{DBMATRIX_INDEX_NAME}' "
+    f"AND object_id = OBJECT_ID('dbo.BankTransactions');"
+)
+
+# min/default/max are seconds. Caps are deliberate; do not raise without thinking about blast radius.
+DBMATRIX_SCENARIOS: Dict[str, Dict[str, Any]] = {
+    "lock-contention": {"min": 10, "default": 600, "max": 600,
+                        "description": "Exclusive lock on Ledger held so payments queue behind it"},
+    "competing-query": {"min": 10, "default": 300, "max": 300,
+                        "description": "Sustained unindexed analytics scan competing for CPU/IO"},
+    "plan-regression": {"min": 10, "default": 300, "max": 300,
+                        "description": "Drops IX_BankTxn_Account and drives an account lookup; index restored on stop"},
+}
+
+DBMATRIX_LOCK = threading.Lock()
+DBMATRIX_STATE: Dict[str, Dict[str, Any]] = {
+    name: {
+        "running": False, "started_at": None, "deadline": None, "duration": None,
+        "stop_event": threading.Event(), "thread": None, "conn": None,
+        "stats": {"iterations": 0, "errors": 0, "last_error": None},
+        "restore_error": None,
+    }
+    for name in DBMATRIX_SCENARIOS
+}
+
+
+def _dbmatrix_connect(autocommit: bool):
+    return pyodbc.connect(DB360_CONNECTION_STRING, autocommit=autocommit, timeout=10)
+
+
+def _dbmatrix_record_error(name: str, exc: Exception) -> None:
+    st = DBMATRIX_STATE[name]
+    st["stats"]["errors"] += 1
+    st["stats"]["last_error"] = f"{type(exc).__name__}: {exc}"[:300]
+
+
+def _dbmatrix_should_stop(name: str) -> bool:
+    st = DBMATRIX_STATE[name]
+    return st["stop_event"].is_set() or (st["deadline"] is not None and time.monotonic() >= st["deadline"])
+
+
+def _dbmatrix_index_present() -> Optional[bool]:
+    """True/False from the live catalog, or None if the database can't be reached."""
+    try:
+        with _dbmatrix_connect(autocommit=True) as conn:
+            return bool(conn.execute(DBMATRIX_INDEX_PRESENT_SQL).fetchone()[0])
+    except Exception:
+        return None
+
+
+def _dbmatrix_restore_index() -> Optional[str]:
+    """Idempotently recreate the index. Returns an error string on failure, else None."""
+    try:
+        with _dbmatrix_connect(autocommit=True) as conn:
+            conn.timeout = 300
+            conn.execute("SET LOCK_TIMEOUT 60000;")
+            conn.execute(DBMATRIX_CREATE_INDEX_SQL)
+        return None
+    except Exception as exc:
+        return f"{type(exc).__name__}: {exc}"[:300]
+
+
+def _dbmatrix_worker(name: str) -> None:
+    st = DBMATRIX_STATE[name]
+    try:
+        if name == "lock-contention":
+            conn = _dbmatrix_connect(autocommit=False)
+            st["conn"] = conn
+            try:
+                conn.execute("SET LOCK_TIMEOUT 15000;")
+                conn.execute(DBMATRIX_LEDGER_LOCK_SQL)       # X locks held until rollback
+                st["stats"]["iterations"] = 1
+                remaining = max(0.0, st["deadline"] - time.monotonic())
+                st["stop_event"].wait(timeout=remaining)
+            finally:
+                try:
+                    conn.rollback()                           # releases the lock; data unchanged
+                finally:
+                    st["conn"] = None
+                    conn.close()
+
+        elif name == "competing-query":
+            while not _dbmatrix_should_stop(name):
+                try:
+                    with _dbmatrix_connect(autocommit=True) as conn:
+                        st["conn"] = conn
+                        conn.timeout = 60
+                        conn.execute("SET LOCK_TIMEOUT 15000;")
+                        while not _dbmatrix_should_stop(name):
+                            conn.execute(DBMATRIX_SCAN_SQL).fetchall()
+                            st["stats"]["iterations"] += 1
+                except Exception as exc:
+                    if not _dbmatrix_should_stop(name):
+                        _dbmatrix_record_error(name, exc)
+                        st["stop_event"].wait(timeout=2)
+                finally:
+                    st["conn"] = None
+
+        elif name == "plan-regression":
+            try:
+                with _dbmatrix_connect(autocommit=True) as conn:
+                    conn.timeout = 120
+                    conn.execute("SET LOCK_TIMEOUT 15000;")
+                    conn.execute(DBMATRIX_DROP_INDEX_SQL)
+                while not _dbmatrix_should_stop(name):
+                    try:
+                        with _dbmatrix_connect(autocommit=True) as conn:
+                            st["conn"] = conn
+                            conn.timeout = 60
+                            while not _dbmatrix_should_stop(name):
+                                conn.execute(DBMATRIX_LOOKUP_SQL).fetchall()
+                                st["stats"]["iterations"] += 1
+                    except Exception as exc:
+                        if not _dbmatrix_should_stop(name):
+                            _dbmatrix_record_error(name, exc)
+                            st["stop_event"].wait(timeout=2)
+                    finally:
+                        st["conn"] = None
+            finally:
+                # Always put the index back, whatever happened above.
+                st["restore_error"] = _dbmatrix_restore_index()
+    except Exception as exc:
+        _dbmatrix_record_error(name, exc)
+    finally:
+        st["running"] = False
+
+
+def _dbmatrix_any_running() -> Optional[str]:
+    for name, st in DBMATRIX_STATE.items():
+        if st["running"]:
+            return name
+    return None
+
+
+def _dbmatrix_stop(name: str) -> bool:
+    """Idempotent. Signals the worker, cancels any in-flight query, waits for cleanup (incl. index restore)."""
+    st = DBMATRIX_STATE[name]
+    was_running = st["running"]
+    st["stop_event"].set()
+    conn = st["conn"]
+    if conn is not None and name != "lock-contention":
+        try:
+            conn.cancel()
+        except Exception:
+            pass
+    thread = st["thread"]
+    if thread is not None:
+        thread.join(timeout=330 if name == "plan-regression" else 15)
+    return was_running
+
+
+def _shutdown_dbmatrix() -> None:
+    for name in DBMATRIX_SCENARIOS:
+        _dbmatrix_stop(name)
+    # If the pod is going away mid plan-regression, the worker's finally already restored the index.
+
+
+def _dbmatrix_snapshot(name: str) -> Dict[str, Any]:
+    st = DBMATRIX_STATE[name]
+    deadline = st["deadline"]
+    out = {
+        "scenario": name,
+        "running": st["running"],
+        "started_at": st["started_at"],
+        "duration_seconds": st["duration"],
+        "seconds_remaining": max(0, int(deadline - time.monotonic())) if (st["running"] and deadline) else 0,
+        "stats": dict(st["stats"]),
+    }
+    if name == "plan-regression":
+        out["index_present"] = _dbmatrix_index_present()
+        out["index_restore_error"] = st["restore_error"]
+    return out
+
+
+@app.post("/scenario-runner/api/db-matrix/reset")
+async def reset_db_matrix():
+    """Stop every matrix scenario and make sure IX_BankTxn_Account exists (recovery path)."""
+    with DBMATRIX_LOCK:
+        for name in DBMATRIX_SCENARIOS:
+            _dbmatrix_stop(name)
+        restore_error = _dbmatrix_restore_index()
+    return {
+        "status": "success" if restore_error is None else "error",
+        "message": "db-matrix scenarios stopped; index ensured" if restore_error is None
+                   else f"stopped, but index restore failed: {restore_error}",
+        "index_present": _dbmatrix_index_present(),
+    }
+
+
+@app.get("/scenario-runner/api/db-matrix/status")
+async def status_db_matrix():
+    return {name: _dbmatrix_snapshot(name) for name in DBMATRIX_SCENARIOS}
+
+
+@app.post("/scenario-runner/api/db-matrix/{scenario}/start")
+async def start_db_matrix(scenario: str, duration: Optional[int] = None):
+    cfg = DBMATRIX_SCENARIOS.get(scenario)
+    if cfg is None:
+        raise HTTPException(status_code=404, detail=f"Unknown db-matrix scenario '{scenario}'")
+    duration = cfg["default"] if duration is None else duration
+    if not (cfg["min"] <= duration <= cfg["max"]):
+        raise HTTPException(status_code=400,
+                            detail=f"duration must be between {cfg['min']} and {cfg['max']} seconds")
+
+    with DBMATRIX_LOCK:
+        running = _dbmatrix_any_running()
+        if running:
+            raise HTTPException(status_code=409, detail={
+                "message": f"db-matrix scenario '{running}' is already running; call its /stop first",
+                "running": running})
+        if DB360_STATE["running"]:
+            raise HTTPException(status_code=409, detail={
+                "message": "db-360 load is running; stop it (POST /db-360/stop) before starting a db-matrix scenario"})
+        if scenario == "plan-regression" and _dbmatrix_index_present() is False:
+            raise HTTPException(status_code=409, detail={
+                "message": f"{DBMATRIX_INDEX_NAME} is already missing; call /db-matrix/reset to restore it first"})
+
+        st = DBMATRIX_STATE[scenario]
+        st["stop_event"] = threading.Event()
+        st["started_at"] = datetime.utcnow().isoformat() + "Z"
+        st["duration"] = duration
+        st["deadline"] = time.monotonic() + duration
+        st["stats"] = {"iterations": 0, "errors": 0, "last_error": None}
+        st["restore_error"] = None
+        st["running"] = True
+        st["thread"] = threading.Thread(target=_dbmatrix_worker, args=(scenario,),
+                                        name=f"dbmatrix-{scenario}", daemon=True)
+        st["thread"].start()
+
+    return {"status": "success", "message": f"db-matrix '{scenario}' started; auto-stops in {duration}s",
+            **_dbmatrix_snapshot(scenario)}
+
+
+@app.post("/scenario-runner/api/db-matrix/{scenario}/stop")
+async def stop_db_matrix(scenario: str):
+    if scenario not in DBMATRIX_SCENARIOS:
+        raise HTTPException(status_code=404, detail=f"Unknown db-matrix scenario '{scenario}'")
+    with DBMATRIX_LOCK:
+        was_running = _dbmatrix_stop(scenario)
+    return {"status": "stopped", "was_running": was_running, **_dbmatrix_snapshot(scenario)}
+
+
+@app.get("/scenario-runner/api/db-matrix/{scenario}/status")
+async def status_db_matrix_scenario(scenario: str):
+    if scenario not in DBMATRIX_SCENARIOS:
+        raise HTTPException(status_code=404, detail=f"Unknown db-matrix scenario '{scenario}'")
+    return _dbmatrix_snapshot(scenario)

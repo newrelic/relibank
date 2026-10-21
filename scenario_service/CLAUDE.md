@@ -40,6 +40,13 @@ endpoints (plus the `index.html` UI):
   Triggered via `POST /scenario-runner/api/trigger_network/{name}` (same rate limit and `?dry_run=true` as the other kinds).
   `DNSChaos` needs the Chaos Mesh DNS server (`dnsServer.create=true`). The mssql CPU/memory half of DB Performance Matrix act 1
   is `relibank-mssql-resource-starvation` in the stress file, triggered with `trigger_stress`; run both for the full scenario.
+- **DB Performance Matrix acts 2-4** (`/scenario-runner/api/db-matrix/{lock-contention|competing-query|plan-regression}/start|stop|status`,
+  plus `GET /db-matrix/status` and `POST /db-matrix/reset`). Time-boxed runner-side SQL against MSSQL: an exclusive lock on `Ledger`
+  (max 10 min), an unindexed analytics scan (max 5 min), and `IX_BankTxn_Account` dropped with an account-lookup driver (max 5 min).
+  One at a time, never alongside db-360. The index is always recreated on stop, expiry, and shutdown; `reset` recreates it even when
+  nothing is running (recovery if the pod was killed mid-run). Act 5 (pool degradation) is the existing accounts-service pool stress.
+  Two chaos calls back to back (DB act 1: `trigger_stress` + `trigger_network`) hit the shared chaos cooldown, so call
+  `POST /chaos-rate-limit-reset` between them.
 - **db-360 load generation**: sustained MSSQL workers (velocity / blocker / contender) to populate
   Query Plan Manager. `POST /scenario-runner/api/db-360/start|stop|status`.
 
