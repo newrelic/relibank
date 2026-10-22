@@ -1803,7 +1803,12 @@ async def reset_db_360():
 
 DBMATRIX_INDEX_NAME = "IX_BankTxn_Account"
 
-DBMATRIX_LEDGER_LOCK_SQL = "UPDATE Ledger SET CurrentBalance = CurrentBalance WHERE AccountID > 0;"
+# Locking every Ledger row blocked every payment thread in transaction-service; its health endpoint then
+# stopped answering and the kubelet restarted the container ~5 times in 10 min (sandbox, 2026-10-22).
+# Payment traffic concentrates on AccountID 1 and 2 (measured), so lock only AccountID 1 and use a short
+# default window: about half the payments block, but not enough to exhaust the thread pool.
+DBMATRIX_LEDGER_LOCK_ACCOUNT = 1
+DBMATRIX_LEDGER_LOCK_SQL = f"UPDATE Ledger SET CurrentBalance = CurrentBalance WHERE AccountID = {DBMATRIX_LEDGER_LOCK_ACCOUNT};"
 
 DBMATRIX_SCAN_SQL = """
 SELECT
@@ -1845,7 +1850,7 @@ DBMATRIX_INDEX_PRESENT_SQL = (
 DBMATRIX_BASELINE_SECONDS = 45   # plan-regression: seconds of lookups with the index in place before the drop
 
 DBMATRIX_SCENARIOS: Dict[str, Dict[str, Any]] = {
-    "lock-contention": {"min": 10, "default": 600, "max": 600,
+    "lock-contention": {"min": 10, "default": 120, "max": 600,
                         "description": "Exclusive lock on Ledger held so payments queue behind it"},
     "competing-query": {"min": 10, "default": 300, "max": 300,
                         "description": "Sustained unindexed analytics scan competing for CPU/IO"},
