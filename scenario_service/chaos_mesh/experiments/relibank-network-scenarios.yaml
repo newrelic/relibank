@@ -64,8 +64,11 @@ spec:
       labelSelectors:
         app: transaction-service
   delay:
-    latency: "3000ms"
-    jitter: "500ms"
+    # 3000ms/500ms froze transaction-service in sandbox (2026-10-22): its blocking pyodbc calls run on the
+    # asyncio loop that also serves /health, so every call took seconds, liveness failed and the container
+    # restarted 4 times in 5 min. 200ms keeps the slowdown visible without saturating the 4 workers.
+    latency: "200ms"
+    jitter: "50ms"
     correlation: "100"
   direction: to
   duration: 20m
