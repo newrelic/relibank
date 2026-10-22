@@ -47,6 +47,14 @@ endpoints (plus the `index.html` UI):
   `BankTransactions` can hold the schema lock; check `stats.index_dropped`, `drop_attempts`, `drop_lock_timeouts` in status (never dropped = nothing ran). It first runs the lookup once a second for up to 150 s (a third of the window at most; New Relic's top-query collector reports 60 s deltas, so the plan needs two scrapes) with the index in place, so monitoring records the index-seek plan before the drop and shows the later scan as a plan-hash change (`stats.phase`: baseline, dropping, regression; `baseline_iterations`). Act 5 (pool degradation) is the existing accounts-service pool stress.
   Two chaos calls back to back (DB act 1: `trigger_stress` + `trigger_network`) hit the shared chaos cooldown, so call
   `POST /chaos-rate-limit-reset` between them.
+- **Noisy Neighbour** (`/scenario-runner/api/noisy-neighbor/start|stop|reset|status`). Creates a throwaway Deployment + HPA named `noisy-neighbor`
+  (1-3 replicas, 600m request / 1500m limit each, scaling on its own CPU) pinned by required pod affinity to the node running `bill-pay-service`, using
+  the scenario-runner's own image, so the node saturates and the payment services wait for CPU without any real service being modified. Pre-flight refuses
+  to start unless the node has room for two replicas; refuses while a db-matrix scenario or db-360 runs. Default 10 min (60 s - 30 min); the runner removes both
+  objects at expiry, on `/stop`, on `/reset` and on shutdown, and the burner goes idle at its own deadline if the runner dies, so an orphan is harmless
+  (`/reset` removes it). `?dry_run=true` plans without creating. Needs the Terraform role `scenario-runner-noisy-neighbor` (create Deployments/HPAs in the
+  color namespace; get/patch/delete only for the name `noisy-neighbor`) and read access to nodes. Measured with a manual Job of the same shape in sandbox:
+  node CPU ~26% -> ~100%, transaction-service average latency 3-4x (p95 flat), errors < 1%, no restarts. Do not run it alongside other scenarios.
 - **db-360 load generation**: sustained MSSQL workers (velocity / blocker / contender) to populate
   Query Plan Manager. `POST /scenario-runner/api/db-360/start|stop|status`.
 

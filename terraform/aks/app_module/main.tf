@@ -172,6 +172,13 @@ resource "kubernetes_cluster_role_v1" "scenario_runner_chaos" {
     resources  = ["pods", "namespaces", "services", "events"]
     verbs      = ["get", "list", "watch"]
   }
+
+  # Read-only on nodes: the noisy-neighbor scenario checks CPU headroom on the victim's node before starting.
+  rule {
+    api_groups = [""]
+    resources  = ["nodes"]
+    verbs      = ["get", "list"]
+  }
 }
 
 resource "kubernetes_cluster_role_binding_v1" "scenario_runner_chaos" {
@@ -183,6 +190,63 @@ resource "kubernetes_cluster_role_binding_v1" "scenario_runner_chaos" {
     api_group = "rbac.authorization.k8s.io"
     kind      = "ClusterRole"
     name      = kubernetes_cluster_role_v1.scenario_runner_chaos.metadata[0].name
+  }
+
+  subject {
+    kind      = "ServiceAccount"
+    name      = kubernetes_service_account_v1.scenario_runner.metadata[0].name
+    namespace = local.ns
+  }
+}
+
+# Noisy Neighbour scenario (scenario_service /noisy-neighbor/*): creates one throwaway Deployment and
+# HPA named "noisy-neighbor" in the color namespace. RBAC cannot limit "create" by name, but every other
+# verb (read, patch, delete) is limited to that one name, so the runner cannot touch any real Deployment.
+resource "kubernetes_role_v1" "scenario_runner_noisy_neighbor" {
+  metadata {
+    name      = "scenario-runner-noisy-neighbor"
+    namespace = local.ns
+  }
+
+  rule {
+    api_groups = ["apps"]
+    resources  = ["deployments"]
+    verbs      = ["create"]
+  }
+
+  rule {
+    api_groups     = ["apps"]
+    resources      = ["deployments"]
+    resource_names = ["noisy-neighbor"]
+    verbs          = ["get", "patch", "delete"]
+  }
+
+  rule {
+    api_groups = ["autoscaling"]
+    resources  = ["horizontalpodautoscalers"]
+    verbs      = ["create"]
+  }
+
+  rule {
+    api_groups     = ["autoscaling"]
+    resources      = ["horizontalpodautoscalers"]
+    resource_names = ["noisy-neighbor"]
+    verbs          = ["get", "patch", "delete"]
+  }
+
+  depends_on = [kubernetes_namespace_v1.relibank_color]
+}
+
+resource "kubernetes_role_binding_v1" "scenario_runner_noisy_neighbor" {
+  metadata {
+    name      = "scenario-runner-noisy-neighbor"
+    namespace = local.ns
+  }
+
+  role_ref {
+    api_group = "rbac.authorization.k8s.io"
+    kind      = "Role"
+    name      = kubernetes_role_v1.scenario_runner_noisy_neighbor.metadata[0].name
   }
 
   subject {

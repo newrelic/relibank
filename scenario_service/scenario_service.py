@@ -342,6 +342,7 @@ async def lifespan(app: FastAPI):
     # process exits — otherwise SIGTERM leaves UPDLOCK-holding sessions on MSSQL.
     _shutdown_db360()
     _shutdown_dbmatrix()
+    _shutdown_noisy_neighbor()
     print("Application is shutting down.")
 
 # Initialize FastAPI app with the lifespan
@@ -2140,3 +2141,305 @@ async def status_db_matrix_scenario(scenario: str):
     if scenario not in DBMATRIX_SCENARIOS:
         raise HTTPException(status_code=404, detail=f"Unknown db-matrix scenario '{scenario}'")
     return _dbmatrix_snapshot(scenario)
+
+
+# ============================================================================
+# Noisy Neighbour (platform-eng demo scenario)
+#
+# A throwaway, autoscaled CPU burner is placed on the same node as bill-pay-service so the node
+# saturates and the payment services wait for CPU, without modifying any real service. It is a
+# Deployment plus a HorizontalPodAutoscaler (1 -> 3 replicas, scaling on its own CPU), so New
+# Relic shows a pod scaling up and the node going to ~100%.
+#
+# Safety:
+#   - Nothing existing is modified: the burner is new, named `noisy-neighbor`, and removed on stop.
+#   - Pre-flight: refuses to start unless the victim node has room for two replicas' CPU requests.
+#   - Duration-bound (default 10 min, max 30 min). The runner holds the timer and removes both
+#     objects at expiry, on /stop, on /reset and on shutdown. If the runner dies mid-run, the
+#     burner also stops burning at its own deadline (it goes idle), so an orphan is harmless;
+#     POST /noisy-neighbor/reset removes it.
+#   - Refuses to start while a db-matrix scenario or db-360 is running.
+# Measured (sandbox, 2026-10-22, manual Job with the same shape): node CPU 26% -> ~100%, transaction-
+# service average latency 3-4x, errors < 1%, no restarts, no CPU throttling.
+# ============================================================================
+
+NN_NAME = "noisy-neighbor"
+NN_VICTIM_APP_LABEL = "bill-pay-service"      # the burner is scheduled onto this pod's node
+NN_CPU_REQUEST_M = 600
+NN_CPU_LIMIT_M = 1500
+NN_MIN_REPLICAS = 1
+NN_MAX_REPLICAS = 3
+NN_HPA_TARGET_UTILIZATION = 60
+NN_DURATION = {"min": 60, "default": 600, "max": 1800}
+
+NN_LOCK = threading.Lock()
+NN_STATE: Dict[str, Any] = {
+    "running": False, "started_at": None, "deadline": None, "duration": None,
+    "node": None, "stop_event": threading.Event(), "thread": None, "image": None,
+}
+
+# Burn with two busy processes (the container limit caps total CPU), then sit idle after the deadline
+# so an orphaned pod costs nothing.
+NN_BURN_SCRIPT = (
+    "import multiprocessing as m, os, time\n"
+    "deadline = float(os.environ['NN_DEADLINE_EPOCH'])\n"
+    "def burn():\n"
+    "    while time.time() < deadline:\n"
+    "        pass\n"
+    "ps = [m.Process(target=burn) for _ in range(2)]\n"
+    "[p.start() for p in ps]\n"
+    "[p.join() for p in ps]\n"
+    "while True:\n"
+    "    time.sleep(3600)\n"
+)
+
+
+def _cpu_to_millicores(quantity: Optional[str]) -> int:
+    """Kubernetes CPU quantity ('600m', '2', '0.5') to millicores."""
+    if not quantity:
+        return 0
+    q = str(quantity).strip()
+    if q.endswith("m"):
+        return int(float(q[:-1]))
+    return int(float(q) * 1000)
+
+
+def _nn_own_image(namespace: str) -> str:
+    """The image this scenario-runner pod runs, so the burner needs no new image."""
+    override = os.getenv("NOISY_NEIGHBOR_IMAGE")
+    if override:
+        return override
+    pod_name = os.getenv("HOSTNAME")
+    pod = client.CoreV1Api().read_namespaced_pod(name=pod_name, namespace=namespace)
+    return pod.spec.containers[0].image
+
+
+def _nn_victim_node(namespace: str) -> str:
+    pods = client.CoreV1Api().list_namespaced_pod(
+        namespace=namespace, label_selector=f"app={NN_VICTIM_APP_LABEL}", field_selector="status.phase=Running")
+    for pod in pods.items:
+        if pod.spec.node_name:
+            return pod.spec.node_name
+    raise HTTPException(status_code=409, detail=f"No running {NN_VICTIM_APP_LABEL} pod found in {namespace}")
+
+
+def _nn_node_headroom(node_name: str) -> Dict[str, int]:
+    """Allocatable vs requested CPU (millicores) on a node."""
+    core_v1 = client.CoreV1Api()
+    try:
+        node = core_v1.read_node(name=node_name)
+        pods = core_v1.list_pod_for_all_namespaces(field_selector=f"spec.nodeName={node_name}")
+    except ApiException as exc:
+        raise HTTPException(status_code=503,
+                            detail=f"Cannot verify node headroom (need read access to nodes and pods): {exc.reason}")
+    allocatable = _cpu_to_millicores(node.status.allocatable.get("cpu"))
+    requested = 0
+    for pod in pods.items:
+        if pod.status.phase in ("Succeeded", "Failed"):
+            continue
+        for container in pod.spec.containers:
+            requests = (container.resources.requests or {}) if container.resources else {}
+            requested += _cpu_to_millicores(requests.get("cpu"))
+    return {"allocatable_m": allocatable, "requested_m": requested, "free_m": allocatable - requested}
+
+
+def _nn_manifests(namespace: str, image: str, deadline_epoch: float) -> Dict[str, Any]:
+    labels = {"app": NN_NAME, "triggered-by": "scenario-runner", "original-scenario": NN_NAME}
+    deployment = client.V1Deployment(
+        metadata=client.V1ObjectMeta(name=NN_NAME, namespace=namespace, labels=labels),
+        spec=client.V1DeploymentSpec(
+            replicas=NN_MIN_REPLICAS,
+            selector=client.V1LabelSelector(match_labels={"app": NN_NAME}),
+            template=client.V1PodTemplateSpec(
+                metadata=client.V1ObjectMeta(labels=labels),
+                spec=client.V1PodSpec(
+                    termination_grace_period_seconds=0,
+                    affinity=client.V1Affinity(pod_affinity=client.V1PodAffinity(
+                        required_during_scheduling_ignored_during_execution=[client.V1PodAffinityTerm(
+                            label_selector=client.V1LabelSelector(match_labels={"app": NN_VICTIM_APP_LABEL}),
+                            topology_key="kubernetes.io/hostname")])),
+                    containers=[client.V1Container(
+                        name="burn", image=image, image_pull_policy="IfNotPresent",
+                        command=["python", "-c", NN_BURN_SCRIPT],
+                        env=[client.V1EnvVar(name="NN_DEADLINE_EPOCH", value=str(deadline_epoch))],
+                        resources=client.V1ResourceRequirements(
+                            requests={"cpu": f"{NN_CPU_REQUEST_M}m", "memory": "128Mi"},
+                            limits={"cpu": f"{NN_CPU_LIMIT_M}m", "memory": "256Mi"}))]))))
+    hpa = client.V2HorizontalPodAutoscaler(
+        metadata=client.V1ObjectMeta(name=NN_NAME, namespace=namespace, labels=labels),
+        spec=client.V2HorizontalPodAutoscalerSpec(
+            scale_target_ref=client.V2CrossVersionObjectReference(api_version="apps/v1", kind="Deployment", name=NN_NAME),
+            min_replicas=NN_MIN_REPLICAS, max_replicas=NN_MAX_REPLICAS,
+            metrics=[client.V2MetricSpec(type="Resource", resource=client.V2ResourceMetricSource(
+                name="cpu", target=client.V2MetricTarget(type="Utilization", average_utilization=NN_HPA_TARGET_UTILIZATION)))]))
+    return {"deployment": deployment, "hpa": hpa}
+
+
+def _nn_teardown(namespace: str) -> Dict[str, bool]:
+    """Idempotent: removes the HPA first (so it cannot scale the Deployment back), then the Deployment."""
+    removed = {"hpa": False, "deployment": False}
+    try:
+        client.AutoscalingV2Api().delete_namespaced_horizontal_pod_autoscaler(name=NN_NAME, namespace=namespace)
+        removed["hpa"] = True
+    except ApiException as exc:
+        if exc.status != 404:
+            raise
+    try:
+        client.AppsV1Api().delete_namespaced_deployment(
+            name=NN_NAME, namespace=namespace, propagation_policy="Background")
+        removed["deployment"] = True
+    except ApiException as exc:
+        if exc.status != 404:
+            raise
+    return removed
+
+
+def _nn_exists(namespace: str) -> bool:
+    try:
+        client.AppsV1Api().read_namespaced_deployment(name=NN_NAME, namespace=namespace)
+        return True
+    except ApiException as exc:
+        if exc.status == 404:
+            return False
+        raise
+
+
+def _nn_timer(namespace: str, stop_event: threading.Event, deadline_mono: float) -> None:
+    """Waits for expiry or /stop, then removes the burner."""
+    stop_event.wait(timeout=max(0.0, deadline_mono - time.monotonic()))
+    try:
+        NN_STATE["last_removed"] = _nn_teardown(namespace)
+    except Exception as exc:  # pragma: no cover - logged, reset endpoint is the recovery path
+        logging.error(f"[noisy-neighbor] teardown failed: {exc}")
+    finally:
+        NN_STATE["running"] = False
+
+
+def _nn_snapshot(namespace: str) -> Dict[str, Any]:
+    out: Dict[str, Any] = {
+        "scenario": NN_NAME,
+        "running": NN_STATE["running"],
+        "started_at": NN_STATE["started_at"],
+        "duration_seconds": NN_STATE["duration"],
+        "seconds_remaining": (max(0, int(NN_STATE["deadline"] - time.monotonic()))
+                              if NN_STATE["running"] and NN_STATE["deadline"] else 0),
+        "node": NN_STATE["node"],
+    }
+    try:
+        out["exists"] = _nn_exists(namespace)
+        if out["exists"]:
+            dep = client.AppsV1Api().read_namespaced_deployment(name=NN_NAME, namespace=namespace)
+            out["replicas"] = {"desired": dep.spec.replicas, "ready": dep.status.ready_replicas or 0}
+            try:
+                hpa = client.AutoscalingV2Api().read_namespaced_horizontal_pod_autoscaler(name=NN_NAME, namespace=namespace)
+                out["hpa"] = {"current_replicas": hpa.status.current_replicas, "desired_replicas": hpa.status.desired_replicas}
+            except ApiException:
+                out["hpa"] = None
+    except ApiException as exc:
+        out["exists"] = None
+        out["error"] = f"cannot read cluster state: {exc.reason}"
+    return out
+
+
+def _shutdown_noisy_neighbor() -> None:
+    """Called on process shutdown: do not leave the burner behind."""
+    NN_STATE["stop_event"].set()
+    if NN_STATE["running"]:
+        try:
+            _nn_teardown(get_current_namespace())
+        except Exception as exc:  # pragma: no cover
+            logging.error(f"[noisy-neighbor] shutdown teardown failed: {exc}")
+
+
+@app.post("/scenario-runner/api/noisy-neighbor/start")
+async def start_noisy_neighbor(duration: Optional[int] = None, dry_run: bool = False):
+    duration = NN_DURATION["default"] if duration is None else duration
+    if duration < NN_DURATION["min"] or duration > NN_DURATION["max"]:
+        raise HTTPException(status_code=400,
+                            detail=f"duration must be between {NN_DURATION['min']} and {NN_DURATION['max']} seconds")
+    other = _dbmatrix_any_running()
+    if other or DB360_STATE.get("running"):
+        raise HTTPException(status_code=409,
+                            detail=f"'{other or 'db-360'}' is running; stop it before starting noisy-neighbor")
+    namespace = get_current_namespace()
+
+    def _prepare():
+        node = _nn_victim_node(namespace)
+        headroom = _nn_node_headroom(node)
+        return node, headroom
+
+    node, headroom = await asyncio.to_thread(_prepare)
+    needed = 2 * NN_CPU_REQUEST_M
+    plan = {"node": node, "cpu_request_m": NN_CPU_REQUEST_M, "cpu_limit_m": NN_CPU_LIMIT_M,
+            "replicas": f"{NN_MIN_REPLICAS}-{NN_MAX_REPLICAS}", "headroom": headroom, "duration_seconds": duration}
+    if headroom["free_m"] < needed:
+        raise HTTPException(status_code=409,
+                            detail=f"Not enough CPU headroom on {node}: {headroom['free_m']}m free, need {needed}m "
+                                   f"for two replicas")
+    if dry_run:
+        return {"status": "success", "dry_run": True, "message": "Dry run: nothing created.", "plan": plan}
+
+    with NN_LOCK:
+        if NN_STATE["running"]:
+            raise HTTPException(status_code=409, detail="noisy-neighbor is already running")
+        if await asyncio.to_thread(_nn_exists, namespace):
+            raise HTTPException(status_code=409,
+                                detail="A noisy-neighbor Deployment already exists (orphan?); POST /noisy-neighbor/reset first")
+        image = await asyncio.to_thread(_nn_own_image, namespace)
+        deadline_epoch = time.time() + duration
+        manifests = _nn_manifests(namespace, image, deadline_epoch)
+
+        def _create():
+            client.AppsV1Api().create_namespaced_deployment(namespace=namespace, body=manifests["deployment"])
+            try:
+                client.AutoscalingV2Api().create_namespaced_horizontal_pod_autoscaler(namespace=namespace, body=manifests["hpa"])
+            except Exception:
+                _nn_teardown(namespace)
+                raise
+        try:
+            await asyncio.to_thread(_create)
+        except ApiException as exc:
+            raise HTTPException(status_code=500,
+                                detail=f"Could not create the noisy-neighbor objects ({exc.status} {exc.reason}); "
+                                       f"if this is a permissions error, the Terraform role has not been applied")
+
+        NN_STATE.update({"running": True, "started_at": datetime.utcnow().isoformat() + "Z", "duration": duration,
+                         "deadline": time.monotonic() + duration, "node": node, "image": image,
+                         "stop_event": threading.Event()})
+        NN_STATE["thread"] = threading.Thread(
+            target=_nn_timer, args=(namespace, NN_STATE["stop_event"], NN_STATE["deadline"]),
+            name="noisy-neighbor-timer", daemon=True)
+        NN_STATE["thread"].start()
+
+    return {"status": "success", "message": f"noisy-neighbor started on {node}; auto-stops in {duration}s",
+            "plan": plan, **_nn_snapshot(namespace)}
+
+
+@app.post("/scenario-runner/api/noisy-neighbor/stop")
+async def stop_noisy_neighbor():
+    namespace = get_current_namespace()
+    was_running = NN_STATE["running"]
+    NN_STATE["stop_event"].set()
+    thread = NN_STATE["thread"]
+    if thread is not None:
+        await asyncio.to_thread(thread.join, 30)
+    removed = await asyncio.to_thread(_nn_teardown, namespace)
+    earlier = NN_STATE.pop("last_removed", None) or {}   # the timer thread may have removed them first
+    removed = {k: bool(removed.get(k) or earlier.get(k)) for k in ("hpa", "deployment")}
+    NN_STATE["running"] = False
+    return {"status": "stopped", "was_running": was_running, "removed": removed, **_nn_snapshot(namespace)}
+
+
+@app.post("/scenario-runner/api/noisy-neighbor/reset")
+async def reset_noisy_neighbor():
+    """Recovery: removes the burner even if this runner lost track of it (for example after a restart)."""
+    namespace = get_current_namespace()
+    NN_STATE["stop_event"].set()
+    removed = await asyncio.to_thread(_nn_teardown, namespace)
+    NN_STATE["running"] = False
+    return {"status": "reset", "removed": removed, **_nn_snapshot(namespace)}
+
+
+@app.get("/scenario-runner/api/noisy-neighbor/status")
+async def status_noisy_neighbor():
+    return await asyncio.to_thread(_nn_snapshot, get_current_namespace())
