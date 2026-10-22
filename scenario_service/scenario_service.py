@@ -1847,14 +1847,16 @@ DBMATRIX_INDEX_PRESENT_SQL = (
 )
 
 # min/default/max are seconds. Caps are deliberate; do not raise without thinking about blast radius.
-DBMATRIX_BASELINE_SECONDS = 45   # plan-regression: seconds of lookups with the index in place before the drop
+DBMATRIX_BASELINE_SECONDS = 150  # plan-regression: seconds of lookups with the index in place before the drop.
+# The NRDOT top-query collector reports per-scrape deltas (60 s interval), so a plan must survive at least two
+# scrapes before New Relic shows it; 45 s was too short (sandbox 2026-10-22), 150 s covers two with margin.
 
 DBMATRIX_SCENARIOS: Dict[str, Dict[str, Any]] = {
     "lock-contention": {"min": 10, "default": 120, "max": 600,
                         "description": "Exclusive lock on Ledger held so payments queue behind it"},
     "competing-query": {"min": 10, "default": 300, "max": 300,
                         "description": "Sustained unindexed analytics scan competing for CPU/IO"},
-    "plan-regression": {"min": 10, "default": 300, "max": 300,
+    "plan-regression": {"min": 10, "default": 420, "max": 600,
                         "description": "Drops IX_BankTxn_Account and drives an account lookup; index restored on stop"},
 }
 
@@ -1946,7 +1948,7 @@ def _dbmatrix_worker(name: str) -> None:
             try:
                 # Baseline phase: run the lookup once a second WITH the index so monitoring records the
                 # index-seek plan before the drop; the later scan then shows up as a plan-hash change.
-                baseline_secs = min(DBMATRIX_BASELINE_SECONDS, int(st["duration"] // 4))
+                baseline_secs = min(DBMATRIX_BASELINE_SECONDS, int(st["duration"] // 3))
                 st["stats"]["phase"] = "baseline"
                 if baseline_secs > 0:
                     if not _dbmatrix_index_present():
@@ -2035,7 +2037,7 @@ def _dbmatrix_stop(name: str) -> bool:
             pass
     thread = st["thread"]
     if thread is not None:
-        thread.join(timeout=330 if name == "plan-regression" else 15)
+        thread.join(timeout=630 if name == "plan-regression" else 15)
     return was_running
 
 

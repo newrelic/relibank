@@ -44,7 +44,7 @@ def test_db_matrix_rejects_unknown_scenario():
 
 
 @pytest.mark.parametrize("name,duration", [("lock-contention", 5), ("lock-contention", 601),
-                                           ("competing-query", 301), ("plan-regression", 301)])
+                                           ("competing-query", 301), ("plan-regression", 601)])
 def test_db_matrix_rejects_out_of_range_duration(name, duration):
     """Out-of-range durations are refused before anything starts."""
     resp = requests.post(f"{API}/{name}/start", params={"duration": duration}, timeout=10)
