@@ -243,9 +243,13 @@ resource "newrelic_entity_tags" "relibank_platform_tags" {
   count = length(local.relibank_platform_list)
   guid  = local.relibank_platform_list[count.index]
 
-  tag {
-    key    = "team"
-    values = ["ReliBank - Platform"]
+  # risk-assessment-service is a rogue service and intentionally has no team tag
+  dynamic "tag" {
+    for_each = local.relibank_platform_list[count.index] == data.newrelic_entity.risk_assessment_service.guid ? [] : [1]
+    content {
+      key    = "team"
+      values = ["ReliBank - Platform"]
+    }
   }
   tag {
     key    = "deploymentTier"
