@@ -173,7 +173,7 @@ resource "kubernetes_cluster_role_v1" "scenario_runner_chaos" {
     verbs      = ["get", "list", "watch"]
   }
 
-  # Read-only on nodes: the noisy-neighbor scenario checks CPU headroom on the victim's node before starting.
+  # Read-only on nodes so it can check CPU headroom before placing load.
   rule {
     api_groups = [""]
     resources  = ["nodes"]
@@ -199,9 +199,8 @@ resource "kubernetes_cluster_role_binding_v1" "scenario_runner_chaos" {
   }
 }
 
-# Noisy Neighbour scenario (scenario_service /noisy-neighbor/*): creates one throwaway Deployment and
-# HPA named "noisy-neighbor" in the color namespace. RBAC cannot limit "create" by name, but every other
-# verb (read, patch, delete) is limited to that one name, so the runner cannot touch any real Deployment.
+# Throwaway noisy-neighbor Deployment and HPA in the color namespace. "create" cannot be limited
+# by name, so read/patch/delete are limited to noisy-neighbor.
 resource "kubernetes_role_v1" "scenario_runner_noisy_neighbor" {
   metadata {
     name      = "scenario-runner-noisy-neighbor"
