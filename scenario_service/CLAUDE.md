@@ -53,8 +53,7 @@ endpoints (plus the `index.html` UI):
   to start unless the node has room for two replicas; refuses while a db-matrix scenario or db-360 runs. Default 10 min (60 s - 30 min); the runner removes both
   objects at expiry, on `/stop`, on `/reset` and on shutdown, and the burner goes idle at its own deadline if the runner dies, so an orphan is harmless
   (`/reset` removes it). `?dry_run=true` plans without creating. Needs the Terraform role `scenario-runner-noisy-neighbor` (create Deployments/HPAs in the
-  color namespace; get/patch/delete only for the name `noisy-neighbor`) and read access to nodes. Measured with a manual Job of the same shape in sandbox:
-  node CPU ~26% -> ~100%, transaction-service average latency 3-4x (p95 flat), errors < 1%, no restarts. Do not run it alongside other scenarios.
+  color namespace; get/patch/delete only for the name `noisy-neighbor`) and read access to nodes. Do not run it alongside other scenarios.
 - **db-360 load generation**: sustained MSSQL workers (velocity / blocker / contender) to populate
   Query Plan Manager. `POST /scenario-runner/api/db-360/start|stop|status`.
 

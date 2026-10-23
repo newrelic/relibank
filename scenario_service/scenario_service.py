@@ -2146,25 +2146,19 @@ async def status_db_matrix_scenario(scenario: str):
 # ============================================================================
 # Noisy Neighbour (platform-eng demo scenario)
 #
-# A throwaway, autoscaled CPU burner is placed on the same node as bill-pay-service so the node
-# saturates and the payment services wait for CPU, without modifying any real service. It is a
-# Deployment plus a HorizontalPodAutoscaler (1 -> 3 replicas, scaling on its own CPU), so New
-# Relic shows a pod scaling up and the node going to ~100%.
+#   noisy-neighbor  A throwaway Deployment + HPA (1-3 replicas, scales on its own CPU) is placed on
+#                   bill-pay-service's node so the node saturates and the payment services wait for CPU.
 #
-# Safety:
-#   - Nothing existing is modified: the burner is new, named `noisy-neighbor`, and removed on stop.
-#   - Pre-flight: refuses to start unless the victim node has room for two replicas' CPU requests.
-#   - Duration-bound (default 10 min, max 30 min). The runner holds the timer and removes both
-#     objects at expiry, on /stop, on /reset and on shutdown. If the runner dies mid-run, the
-#     burner also stops burning at its own deadline (it goes idle), so an orphan is harmless;
-#     POST /noisy-neighbor/reset removes it.
-#   - Refuses to start while a db-matrix scenario or db-360 is running.
-# Measured (sandbox, 2026-10-22, manual Job with the same shape): node CPU 26% -> ~100%, transaction-
-# service average latency 3-4x, errors < 1%, no restarts, no CPU throttling.
+# Safety rules (this runs on the node that serves live payments):
+#   - Nothing existing is modified; only the object named `noisy-neighbor` is created and removed.
+#   - Time-boxed. The runner removes both objects at expiry, /stop, /reset and shutdown; if the runner
+#     dies, the burner goes idle at its own deadline and /noisy-neighbor/reset removes it.
+#   - Refuses to start without CPU headroom for two replicas, or while a db-matrix scenario or
+#     db-360 is running.
 # ============================================================================
 
 NN_NAME = "noisy-neighbor"
-NN_VICTIM_APP_LABEL = "bill-pay-service"      # the burner is scheduled onto this pod's node
+NN_VICTIM_APP_LABEL = "bill-pay-service"      # burner is placed on this pod's node
 NN_CPU_REQUEST_M = 600
 NN_CPU_LIMIT_M = 1500
 NN_MIN_REPLICAS = 1
@@ -2178,8 +2172,7 @@ NN_STATE: Dict[str, Any] = {
     "node": None, "stop_event": threading.Event(), "thread": None, "image": None,
 }
 
-# Burn with two busy processes (the container limit caps total CPU), then sit idle after the deadline
-# so an orphaned pod costs nothing.
+# Two busy processes (the CPU limit caps them), then idle after the deadline.
 NN_BURN_SCRIPT = (
     "import multiprocessing as m, os, time\n"
     "deadline = float(os.environ['NN_DEADLINE_EPOCH'])\n"
@@ -2309,7 +2302,7 @@ def _nn_timer(namespace: str, stop_event: threading.Event, deadline_mono: float)
     stop_event.wait(timeout=max(0.0, deadline_mono - time.monotonic()))
     try:
         NN_STATE["last_removed"] = _nn_teardown(namespace)
-    except Exception as exc:  # pragma: no cover - logged, reset endpoint is the recovery path
+    except Exception as exc:  # logged; /noisy-neighbor/reset is the recovery path
         logging.error(f"[noisy-neighbor] teardown failed: {exc}")
     finally:
         NN_STATE["running"] = False
@@ -2347,7 +2340,7 @@ def _shutdown_noisy_neighbor() -> None:
     if NN_STATE["running"]:
         try:
             _nn_teardown(get_current_namespace())
-        except Exception as exc:  # pragma: no cover
+        except Exception as exc:
             logging.error(f"[noisy-neighbor] shutdown teardown failed: {exc}")
 
 
