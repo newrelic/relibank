@@ -30,6 +30,7 @@ on:
           - frontend
           - smoke
           - kafka-zookeeper-resilience
+          - kafka-broker-monitoring
           - ai_monitoring
       target_color:
         description: 'Color to direct scenario-UI checks at (sends X-Test-Env). Empty = active color.'
@@ -69,7 +70,7 @@ jobs:
   python-tests:
     runs-on: ubuntu-latest
     environment: ${{ inputs.target_environment || 'prod' }}
-    if: ${{ inputs.test_suite == 'all' || inputs.test_suite == 'e2e' || inputs.test_suite == 'scenario' || inputs.test_suite == 'payment' || inputs.test_suite == 'smoke' || inputs.test_suite == 'kafka-zookeeper-resilience' || inputs.test_suite == 'ai_monitoring' || inputs.test_suite == '' }}
+    if: ${{ inputs.test_suite == 'all' || inputs.test_suite == 'e2e' || inputs.test_suite == 'scenario' || inputs.test_suite == 'payment' || inputs.test_suite == 'smoke' || inputs.test_suite == 'kafka-zookeeper-resilience' || inputs.test_suite == 'kafka-broker-monitoring' || inputs.test_suite == 'ai_monitoring' || inputs.test_suite == '' }}
     outputs:
       test_ab_testing: ${{ steps.individual-tests.outputs.test_ab_testing }}
       test_apm_user_tracking: ${{ steps.individual-tests.outputs.test_apm_user_tracking }}
@@ -91,6 +92,7 @@ jobs:
       test_with_interactions: ${{ steps.individual-tests.outputs.test_with_interactions }}
       test_nrdot_mssql_collector: ${{ steps.individual-tests.outputs.test_nrdot_mssql_collector }}
       test_nri_postgresql: ${{ steps.individual-tests.outputs.test_nri_postgresql }}
+      test_kafka_broker_monitoring: ${{ steps.individual-tests.outputs.test_kafka_broker_monitoring }}
 
     steps:
       - name: Checkout code
@@ -278,6 +280,17 @@ jobs:
         run: |
           cd tests
           pytest test_kafka_zookeeper_resilience.py --tb=long -v
+
+      - name: Run Kafka broker monitoring tests only
+        if: ${{ inputs.test_suite == 'kafka-broker-monitoring' }}
+        env:
+          BILL_PAY_SERVICE_URL: ${{ vars.BASE_URL }}
+          NEW_RELIC_USER_API_KEY: ${{ secrets.NR_USER_API_KEY }}
+          NEW_RELIC_ACCOUNT_ID: ${{ vars.NR_ACCOUNT_ID }}
+          TARGET_COLOR: ${{ env.EFFECTIVE_COLOR || inputs.target_color }}
+        run: |
+          cd tests
+          pytest test_kafka_broker_monitoring.py --tb=long -v
 
       - name: Run smoke tests only
         if: ${{ inputs.test_suite == 'smoke' }}
