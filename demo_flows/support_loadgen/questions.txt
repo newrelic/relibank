@@ -31,3 +31,7 @@ What is the difference between bear and bull markets? Answer in two separate, sh
 Create a short, two-paragraph explanation of blockchain technology specifically tailored for a bank's senior management.
 
 What is the current status of Cloudflare?
+
+I entered my password wrong three times and now my Relibank account is locked. I have a mortgage payment due in two hours. What exactly should I do, and what information do you need from me to unlock it?
+
+I think someone else got into my account: my balance is lower than yesterday and I received a password reset email I did not request. Walk me through your tier-1 triage steps in order, and tell me whether you can freeze my cards right now.
