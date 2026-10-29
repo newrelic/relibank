@@ -102,17 +102,18 @@ async def check_for_due_payments():
             db_connection = get_db_connection()
             
         cursor = db_connection.cursor()
-        
+
         today_date = date.today().strftime('%Y-%m-%d')
         logging.info(f"Checking for recurring payments due today: {today_date}")
-        
-        cursor.execute("""
-            SELECT BillID, AccountID, Amount, Currency
-            FROM RecurringSchedules
-            WHERE StartDate = ?
-        """, today_date)
-        
+
+        # sp_ProcessDueRecurringPayments posts a Transactions/Ledger entry for each due
+        # schedule and marks it processed, so it only ever returns rows that were
+        # actually posted *this call* — the scheduler's 1-minute poll loop would
+        # otherwise re-notify (and, before this procedure existed, never actually
+        # paid) the same due schedule every minute all day.
+        cursor.execute("{CALL dbo.sp_ProcessDueRecurringPayments (?)}", today_date)
         due_payments = cursor.fetchall()
+        db_connection.commit()
         newrelic.agent.add_custom_attribute("due_payments_count", len(due_payments))
 
         if not due_payments:
@@ -120,7 +121,7 @@ async def check_for_due_payments():
             return
 
         for payment in due_payments:
-            bill_id, account_id, amount, currency = payment
+            _schedule_id, bill_id, account_id, amount, currency = payment
             logging.info(f"Payment for bill {bill_id} is due. Triggering event.")
 
             event_model = PaymentDueNotificationEvent(
@@ -134,7 +135,6 @@ async def check_for_due_payments():
             add_nr_event_attributes(event_model)
             await send_event("payment_due_notifications", event_model.model_dump())
 
-        db_connection.commit()
     except Exception as e:
         logging.error(f"Error checking for due payments: {e}")
         

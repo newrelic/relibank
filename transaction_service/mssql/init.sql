@@ -331,6 +331,18 @@ BEGIN
 END;
 GO
 
+-- Add Direction column to Transactions table if it doesn't exist.
+-- 'D' = debit (decreases Ledger.CurrentBalance), 'C' = credit (increases it), NULL = not
+-- a ledger-affecting event (declined payments, AccountID=0 card payments). Set by the
+-- Kafka consumer at write time so sp_RebuildAccountLedgerBalance can recompute balances
+-- without re-deriving account type from accounts_service.
+IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID('Transactions') AND name = 'Direction')
+BEGIN
+    ALTER TABLE Transactions ADD Direction CHAR(1) NULL;
+    PRINT 'Added Direction column to Transactions table';
+END;
+GO
+
 -- Create a new table to store recurring payment schedules
 IF NOT EXISTS (SELECT * FROM sysobjects WHERE name='RecurringSchedules' and xtype='U')
 BEGIN
@@ -345,6 +357,16 @@ BEGIN
         Timestamp FLOAT NOT NULL
     );
     PRINT 'Created RecurringSchedules table';
+END;
+GO
+
+-- Add LastProcessedDate column to RecurringSchedules if it doesn't exist. Tracks the
+-- most recent StartDate sp_ProcessDueRecurringPayments has already posted, so the
+-- scheduler's 1-minute poll loop doesn't repost the same due payment every cycle.
+IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID('RecurringSchedules') AND name = 'LastProcessedDate')
+BEGIN
+    ALTER TABLE RecurringSchedules ADD LastProcessedDate DATE NULL;
+    PRINT 'Added LastProcessedDate column to RecurringSchedules table';
 END;
 GO
 
@@ -463,6 +485,194 @@ IF EXISTS (SELECT * FROM sys.tables WHERE name = 'Merchants')
     UPDATE STATISTICS Merchants WITH FULLSCAN;
 IF EXISTS (SELECT * FROM sys.tables WHERE name = 'BankTransactions')
     UPDATE STATISTICS BankTransactions WITH FULLSCAN;
+GO
+
+-- ==============================================================================
+-- STORED PROCEDURES (NR-635348)
+-- init.sql re-runs idempotently on every pod start, so each procedure is
+-- dropped and recreated rather than guarded with IF NOT EXISTS.
+-- ==============================================================================
+
+DROP PROCEDURE IF EXISTS dbo.sp_CalculateSpendingVelocity;
+GO
+
+-- Named version of the spending-velocity window-function query, previously
+-- duplicated ad-hoc in transaction_service.py, run-banking-load.sh, and
+-- scenario_service.py's DB360_VELOCITY_SQL. Gives NR's QPM exec-plan panel a
+-- stable object to key off instead of unnamed SQL text.
+CREATE PROCEDURE dbo.sp_CalculateSpendingVelocity
+    @Months INT
+AS
+BEGIN
+    SET NOCOUNT ON;
+
+    SELECT
+        t.TxnID,
+        t.AccountID,
+        t.MerchantID,
+        m.Category,
+        m.Region,
+        m.RiskTier,
+        t.Amount,
+        t.TxnDate,
+        t.TxnType,
+        t.Channel,
+        ROW_NUMBER()  OVER (PARTITION BY t.AccountID ORDER BY t.TxnDate)
+                                                        AS TxnSeq,
+        SUM(t.Amount) OVER (PARTITION BY t.AccountID ORDER BY t.TxnDate
+                            ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW)
+                                                        AS CumulativeSpend,
+        AVG(t.Amount) OVER (PARTITION BY t.AccountID ORDER BY t.TxnDate
+                            ROWS BETWEEN 99 PRECEDING AND CURRENT ROW)
+                                                        AS MovingAvg100,
+        RANK()        OVER (PARTITION BY m.Category ORDER BY t.Amount DESC)
+                                                        AS GlobalAmountRank
+    FROM BankTransactions t WITH (INDEX(0))
+    INNER JOIN Merchants m WITH (INDEX(0)) ON m.MerchantID = t.MerchantID
+    WHERE t.TxnDate >= DATEADD(MONTH, -@Months, GETDATE())
+    ORDER BY t.AccountID, t.TxnDate
+    OPTION (MAXDOP 1);
+END;
+GO
+
+DROP PROCEDURE IF EXISTS dbo.sp_ProcessDueRecurringPayments;
+GO
+
+-- Posts due RecurringSchedules rows: one Transactions insert + one Ledger
+-- upsert per schedule, in a single transaction. Fills the gap where
+-- scheduler_service.py previously only sent a Kafka notification and never
+-- actually moved money. LastProcessedDate makes this idempotent against the
+-- scheduler's 1-minute poll loop re-running against the same due date.
+CREATE PROCEDURE dbo.sp_ProcessDueRecurringPayments
+    @ProcessDate DATE
+AS
+BEGIN
+    SET NOCOUNT ON;
+
+    DECLARE @Processed TABLE (
+        ScheduleID INT,
+        BillID     VARCHAR(50),
+        AccountID  INT,
+        Amount     DECIMAL(19, 4),
+        Currency   VARCHAR(10)
+    );
+
+    DECLARE @ScheduleID INT, @BillID VARCHAR(50), @AccountID INT,
+            @Amount DECIMAL(19, 4), @Currency VARCHAR(10);
+
+    DECLARE due_cursor CURSOR LOCAL FAST_FORWARD FOR
+        SELECT ScheduleID, BillID, AccountID, Amount, Currency
+        FROM RecurringSchedules
+        WHERE StartDate = @ProcessDate
+          AND (LastProcessedDate IS NULL OR LastProcessedDate <> @ProcessDate);
+
+    OPEN due_cursor;
+    FETCH NEXT FROM due_cursor INTO @ScheduleID, @BillID, @AccountID, @Amount, @Currency;
+
+    WHILE @@FETCH_STATUS = 0
+    BEGIN
+        BEGIN TRY
+            BEGIN TRANSACTION;
+
+            INSERT INTO Transactions (EventType, BillID, Amount, Currency, AccountID, Timestamp, Direction)
+            VALUES ('RecurringPaymentProcessed', @BillID, @Amount, @Currency, @AccountID,
+                    DATEDIFF(SECOND, '1970-01-01', SYSUTCDATETIME()), 'D');
+
+            UPDATE Ledger SET CurrentBalance = CurrentBalance - @Amount WHERE AccountID = @AccountID;
+            IF @@ROWCOUNT = 0
+                INSERT INTO Ledger (AccountID, CurrentBalance) VALUES (@AccountID, -@Amount);
+
+            UPDATE RecurringSchedules SET LastProcessedDate = @ProcessDate WHERE ScheduleID = @ScheduleID;
+
+            INSERT INTO @Processed (ScheduleID, BillID, AccountID, Amount, Currency)
+            VALUES (@ScheduleID, @BillID, @AccountID, @Amount, @Currency);
+
+            COMMIT TRANSACTION;
+        END TRY
+        BEGIN CATCH
+            IF XACT_STATE() <> 0
+                ROLLBACK TRANSACTION;
+        END CATCH;
+
+        FETCH NEXT FROM due_cursor INTO @ScheduleID, @BillID, @AccountID, @Amount, @Currency;
+    END;
+
+    CLOSE due_cursor;
+    DEALLOCATE due_cursor;
+
+    SELECT ScheduleID, BillID, AccountID, Amount, Currency FROM @Processed;
+END;
+GO
+
+DROP PROCEDURE IF EXISTS dbo.sp_RebuildAccountLedgerBalance;
+GO
+
+-- Recomputes Ledger.CurrentBalance from the signed Transactions.Direction
+-- history (set by the Kafka consumer at write time) for one account, or all
+-- accounts when @AccountID is NULL. Only Transactions is a source of truth
+-- for a given account's balance; BankTransactions is unrelated bulk load-gen
+-- data whose AccountID range barely overlaps the seeded Ledger accounts.
+CREATE PROCEDURE dbo.sp_RebuildAccountLedgerBalance
+    @AccountID INT = NULL
+AS
+BEGIN
+    SET NOCOUNT ON;
+
+    DECLARE @Recalculated TABLE (
+        AccountID            INT PRIMARY KEY,
+        RecalculatedBalance  DECIMAL(19, 4)
+    );
+
+    INSERT INTO @Recalculated (AccountID, RecalculatedBalance)
+    SELECT
+        AccountID,
+        SUM(CASE WHEN Direction = 'C' THEN Amount
+                 WHEN Direction = 'D' THEN -Amount
+                 ELSE 0 END)
+    FROM Transactions
+    WHERE Direction IS NOT NULL
+      AND (@AccountID IS NULL OR AccountID = @AccountID)
+    GROUP BY AccountID;
+
+    DECLARE @Results TABLE (
+        AccountID   INT,
+        OldBalance  DECIMAL(19, 4),
+        NewBalance  DECIMAL(19, 4),
+        Delta       DECIMAL(19, 4)
+    );
+
+    INSERT INTO @Results (AccountID, OldBalance, NewBalance, Delta)
+    SELECT
+        r.AccountID,
+        ISNULL(l.CurrentBalance, 0),
+        r.RecalculatedBalance,
+        r.RecalculatedBalance - ISNULL(l.CurrentBalance, 0)
+    FROM @Recalculated r
+    LEFT JOIN Ledger l ON l.AccountID = r.AccountID;
+
+    BEGIN TRY
+        BEGIN TRANSACTION;
+
+        UPDATE l
+        SET l.CurrentBalance = r.RecalculatedBalance
+        FROM Ledger l
+        INNER JOIN @Recalculated r ON r.AccountID = l.AccountID;
+
+        INSERT INTO Ledger (AccountID, CurrentBalance)
+        SELECT r.AccountID, r.RecalculatedBalance
+        FROM @Recalculated r
+        WHERE NOT EXISTS (SELECT 1 FROM Ledger l WHERE l.AccountID = r.AccountID);
+
+        COMMIT TRANSACTION;
+    END TRY
+    BEGIN CATCH
+        IF XACT_STATE() <> 0
+            ROLLBACK TRANSACTION;
+        THROW;
+    END CATCH;
+
+    SELECT AccountID, OldBalance, NewBalance, Delta FROM @Results ORDER BY AccountID;
+END;
 GO
 
 -- ==============================================================================

@@ -179,34 +179,13 @@ echo "  Tables ready."
 # ── 3. write SQL files into pod ──────────────────────────────────────────────
 banner "Step 3: Writing SQL and worker scripts to pod"
 
-# Spending velocity slow query (~25s on 6 months / ~500K rows)
+# Spending velocity slow query (~25s on 6 months / ~500K rows).
+# Calls dbo.sp_CalculateSpendingVelocity (see transaction_service/mssql/init.sql),
+# the named procedure that replaced this query's old ad-hoc SQL text (NR-635348) —
+# also used by scenario_service.py's DB360_VELOCITY_SQL and transaction_service.py's
+# /transaction-service/slow-query endpoint.
 kubectl exec -n "$NAMESPACE" "$POD" -- bash -c "cat > /tmp/banking_slow.sql << 'EOF'
-SELECT
-    t.TxnID,
-    t.AccountID,
-    t.MerchantID,
-    m.Category,
-    m.Region,
-    m.RiskTier,
-    t.Amount,
-    t.TxnDate,
-    t.TxnType,
-    t.Channel,
-    ROW_NUMBER()  OVER (PARTITION BY t.AccountID ORDER BY t.TxnDate)
-                                                    AS TxnSeq,
-    SUM(t.Amount) OVER (PARTITION BY t.AccountID ORDER BY t.TxnDate
-                        ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW)
-                                                    AS CumulativeSpend,
-    AVG(t.Amount) OVER (PARTITION BY t.AccountID ORDER BY t.TxnDate
-                        ROWS BETWEEN 99 PRECEDING AND CURRENT ROW)
-                                                    AS MovingAvg100,
-    RANK()        OVER (PARTITION BY m.Category ORDER BY t.Amount DESC)
-                                                    AS GlobalAmountRank
-FROM BankTransactions t WITH (INDEX(0))
-INNER JOIN Merchants m WITH (INDEX(0)) ON m.MerchantID = t.MerchantID
-WHERE t.TxnDate >= DATEADD(MONTH, -6, GETDATE())
-ORDER BY t.AccountID, t.TxnDate
-OPTION (MAXDOP 1);
+EXEC dbo.sp_CalculateSpendingVelocity @Months = 6;
 EOF
 echo 'banking_slow.sql written'"
 
