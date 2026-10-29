@@ -343,6 +343,28 @@ BEGIN
 END;
 GO
 
+-- Backfill an InitialSeedBalance Transactions row for every Ledger account that
+-- predates the Direction column, so sp_RebuildAccountLedgerBalance can reconstruct
+-- each account's opening balance instead of just activity recorded since. Without
+-- this, rebuilding any of the hand-seeded accounts above would wipe their opening
+-- balance, since that money was inserted directly into Ledger and was never itself
+-- a Transactions row. Guarded on EventType so it only ever runs once.
+IF NOT EXISTS (SELECT 1 FROM Transactions WHERE EventType = 'InitialSeedBalance')
+BEGIN
+    INSERT INTO Transactions (EventType, BillID, Amount, Currency, AccountID, Timestamp, Direction)
+    SELECT
+        'InitialSeedBalance',
+        'SEED-' + CAST(AccountID AS VARCHAR(20)),
+        ABS(CurrentBalance),
+        'USD',
+        AccountID,
+        0,
+        CASE WHEN CurrentBalance >= 0 THEN 'C' ELSE 'D' END
+    FROM Ledger;
+    PRINT 'Backfilled InitialSeedBalance Transactions for existing Ledger accounts';
+END;
+GO
+
 -- Create a new table to store recurring payment schedules
 IF NOT EXISTS (SELECT * FROM sysobjects WHERE name='RecurringSchedules' and xtype='U')
 BEGIN
