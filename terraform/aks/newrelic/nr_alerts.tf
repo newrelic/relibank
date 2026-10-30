@@ -51,9 +51,6 @@
 # newrelic_nrql_alert_condition.platform_kafka_broker_health.entity_guid
 # newrelic_nrql_alert_condition.platform_kafka_cluster_health.entity_guid
 # newrelic_nrql_alert_condition.platform_kafka_topic_health.entity_guid
-# newrelic_nrql_alert_condition.platform_dns_unexpected_errors.entity_guid
-# newrelic_nrql_alert_condition.platform_dns_nxdomain_regression.entity_guid
-# newrelic_nrql_alert_condition.platform_network_agent_freshness.entity_guid
 # newrelic_nrql_alert_condition.platform_database_health.entity_guid
 
 # newrelic_alert_policy.before_autopilot_policy.id
@@ -1479,109 +1476,6 @@ resource "newrelic_nrql_alert_condition" "platform_kafka_topic_health" {
   aggregation_method = "event_flow"
   aggregation_delay  = 120
   title_template     = "Kafka Topic Health | {{ entity_name }}"
-}
-# DNS Unexpected Errors
-resource "newrelic_nrql_alert_condition" "platform_dns_unexpected_errors" {
-  account_id                   = var.new_relic_account_id
-  policy_id                    = newrelic_alert_policy.platform_policy.id
-  type                         = "static"
-  name                         = "Platform - DNS Unexpected Errors"
-  enabled                      = true
-  violation_time_limit_seconds = 10800
-  nrql {
-
-    query = trimspace(<<-EOT
-    FROM Metric SELECT count(dns.lookup.duration)
-    WHERE k8s.cluster.name = 'relibank-${var.demo_environment}'
-    AND error.type IS NOT NULL
-    AND error.type != 'NXDOMAIN'
-    EOT
-    )
-
-    data_account_id = var.new_relic_account_id
-
-  }
-
-  critical {
-    operator              = "above"
-    threshold             = 0
-    threshold_duration    = 600
-    threshold_occurrences = "all"
-  }
-  fill_option        = "static"
-  fill_value         = 0
-  aggregation_window = 60
-  aggregation_method = "event_flow"
-  aggregation_delay  = 120
-  title_template     = "DNS Unexpected Errors | relibank-${var.demo_environment}"
-}
-# DNS NXDOMAIN Regression
-resource "newrelic_nrql_alert_condition" "platform_dns_nxdomain_regression" {
-  account_id                   = var.new_relic_account_id
-  policy_id                    = newrelic_alert_policy.platform_policy.id
-  type                         = "static"
-  name                         = "Platform - DNS NXDOMAIN Regression"
-  enabled                      = true
-  violation_time_limit_seconds = 10800
-  nrql {
-
-    query = trimspace(<<-EOT
-    FROM Metric SELECT count(dns.lookup.duration)
-    WHERE k8s.cluster.name = 'relibank-${var.demo_environment}'
-    AND error.type = 'NXDOMAIN'
-    EOT
-    )
-
-    data_account_id = var.new_relic_account_id
-
-  }
-
-  # 500 per 30-minute window = 1,000/hour. Pre-ndots baseline was ~5,650/hour per cluster.
-  critical {
-    operator              = "above"
-    threshold             = 500
-    threshold_duration    = 1800
-    threshold_occurrences = "all"
-  }
-  fill_option        = "static"
-  fill_value         = 0
-  aggregation_window = 1800
-  aggregation_method = "event_flow"
-  aggregation_delay  = 120
-  title_template     = "DNS NXDOMAIN Regression | relibank-${var.demo_environment}"
-}
-# Network Agent Freshness
-resource "newrelic_nrql_alert_condition" "platform_network_agent_freshness" {
-  account_id                   = var.new_relic_account_id
-  policy_id                    = newrelic_alert_policy.platform_policy.id
-  type                         = "static"
-  name                         = "Platform - Network Agent Freshness"
-  enabled                      = true
-  violation_time_limit_seconds = 10800
-  nrql {
-
-    query = trimspace(<<-EOT
-    FROM Metric SELECT count(ebpf.tcp.connection.open)
-    WHERE k8s.cluster.name = 'relibank-${var.demo_environment}'
-    EOT
-    )
-
-    data_account_id = var.new_relic_account_id
-
-  }
-
-  critical {
-    operator              = "equals"
-    threshold             = 0
-    threshold_duration    = 900
-    threshold_occurrences = "all"
-  }
-  fill_option        = "static"
-  fill_value         = 0
-  aggregation_window = 60
-  aggregation_method = "event_flow"
-  aggregation_delay  = 120
-  title_template     = "Network Agent Freshness | relibank-${var.demo_environment}"
 }
 # Database Health
 resource "newrelic_nrql_alert_condition" "platform_database_health" {
