@@ -110,6 +110,9 @@ locals {
       newrelic_nrql_alert_condition.platform_kafka_broker_health.entity_guid,
       newrelic_nrql_alert_condition.platform_kafka_cluster_health.entity_guid,
       newrelic_nrql_alert_condition.platform_kafka_topic_health.entity_guid,
+      newrelic_nrql_alert_condition.platform_dns_unexpected_errors.entity_guid,
+      newrelic_nrql_alert_condition.platform_dns_nxdomain_regression.entity_guid,
+      newrelic_nrql_alert_condition.platform_network_agent_freshness.entity_guid,
       newrelic_nrql_alert_condition.platform_database_health.entity_guid
     ],
     [for guid in [

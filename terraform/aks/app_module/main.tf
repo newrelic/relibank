@@ -221,6 +221,17 @@ resource "kubernetes_deployment_v1" "service" {
         node_selector        = { "node-color" = var.target_color }
         service_account_name = each.value.service_account_name
 
+        # Default ndots:5 makes every external name (collector.newrelic.com, *.openai.azure.com)
+        # try each cluster search suffix first, producing a NXDOMAIN per attempt. With 2, names
+        # that have two or more dots are resolved as-is; short names (kafka, mssql) still use the
+        # search path.
+        dns_config {
+          option {
+            name  = "ndots"
+            value = "2"
+          }
+        }
+
         # Wait for Kafka to accept TCP connections before starting services that publish messages.
         # Without this, the AIOKafkaProducer exhausts its retry window on cold deploys (Kafka starts
         # ~45s after app pods) and silently leaves a broken producer, causing send_and_wait to hang.
