@@ -42,6 +42,7 @@ export RELIBANK_URL="http://your-server.example.com"
 | `test_ab_testing_scenarios.py` | A/B testing scenarios | LCP slowness (percentage-based and cohort-based), 11 hardcoded test users, cohort assignment, deterministic distribution |
 | `test_stress_scenarios.py` | Stress chaos experiments | CPU stress, memory stress, combined stress testing with Chaos Mesh |
 | `test_kafka_broker_monitoring.py` | Kafka broker/cluster/topic telemetry freshness | Post-deploy checks that `kafka.broker.uptime`, `kafka.brokers`, `kafka.prod.msg.count` are flowing within the last few minutes, not just present historically |
+| `test_ebpf_dns_errors.py` | eBPF agent freshness and DNS error regression guard | Post-deploy checks that the eBPF agent is reporting, there are no non-NXDOMAIN DNS errors, and `collector.newrelic.com` NXDOMAIN answers stay under the `ndots` alert threshold (only meaningful once `ndots: 2` is live in that environment) |
 | `../frontend_service/app/**/*.test.tsx` | Frontend functional tests (Vitest) | Login, transfers, bill payment (Stripe), support, form validation, API integration |
 
 ## Prerequisites
@@ -188,6 +189,7 @@ All tests support these environment variables for remote testing:
 | `AUTH_SERVICE_URL` | Auth service API URL | `http://localhost:5006` |
 | `SCENARIO_SERVICE_URL` | Scenario service API URL | `http://localhost:8000` |
 | `TARGET_COLOR` | Deployment color to direct the suite at — sends `X-Test-Env`, port-forwards that color's DB, and scopes New Relic queries. Empty = active color. See [Color-aware testing](#-color-aware-testing-bluegreen). | `""` (active / local single-color) |
+| `K8S_CLUSTER_NAME` | Optional. Scopes `test_ebpf_dns_errors.py` queries to one `k8s.cluster.name` (e.g. `relibank-sandbox`). Empty = whole New Relic account. | `""` (no cluster filter) |
 
 ### Automatic Environment Variable Loading (Local Development)
 
@@ -198,6 +200,7 @@ Some tests automatically load environment variables from `skaffold.env` when run
 - `test_newrelic_risk_assessment.py` - Loads `NEW_RELIC_USER_API_KEY`, `NEW_RELIC_ACCOUNT_ID`
 - `test_db_pool_e2e.py` - Loads `NEW_RELIC_USER_API_KEY`, `NEW_RELIC_ACCOUNT_ID`
 - `test_kafka_broker_monitoring.py` - Loads `NEW_RELIC_USER_API_KEY`, `NEW_RELIC_ACCOUNT_ID`
+- `test_ebpf_dns_errors.py` - Loads `NEW_RELIC_USER_API_KEY`, `NEW_RELIC_ACCOUNT_ID`, `K8S_CLUSTER_NAME`
 
 **How it works:**
 1. Tests check if `../skaffold.env` exists
