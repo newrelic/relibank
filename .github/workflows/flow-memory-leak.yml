@@ -16,9 +16,9 @@ on:
           - prod
           - analysts
 
-  # schedule:
-  # # Run once a day at 9am UTC
-  # - cron: '0 9 * * *'
+  schedule:
+  # Run once a day at 9am UTC
+  - cron: '0 9 * * *'
 
 permissions: {}
 
