@@ -357,6 +357,9 @@ jobs:
     if: always()
 
     steps:
+      - name: Checkout code
+        uses: actions/checkout@v7
+
       - name: Test Results Summary
         run: |
           # Build summary from test outputs JSON
@@ -389,6 +392,26 @@ jobs:
             done <<< "$FAILURES"
             [ "$FRONTEND_RESULT" == "failure" ] && echo "- frontend-tests" >> $GITHUB_STEP_SUMMARY
           fi
+
+      - name: Export test status to New Relic
+        if: always()
+        continue-on-error: true
+        # Reports python-tests/frontend-tests' own conclusion, not test-summary's — this job's
+        # own status can fail from the Krenko's Calendar S3-reporting step below even when the
+        # actual tests passed, and that's a separate known bug, not what this signal is for.
+        env:
+          JOB_STATUS: ${{ (needs.python-tests.result == 'success' && needs.frontend-tests.result != 'failure') && 'success' || 'failure' }}
+          JOB_NAME: ${{ github.job }}
+          RUN_ID: ${{ github.run_id }}
+          REPOSITORY: ${{ github.repository }}
+          SERVER_URL: ${{ github.server_url }}
+          WORKFLOW: ${{ github.workflow }}
+          NR_LICENSE_KEY: ${{ secrets.NR_LICENSE_KEY_ALERTS }}
+          NR_ACCOUNT_ID: ${{ vars.NR_ACCOUNT_ID_ALERTS }}
+          ENVIRONMENT: ${{ inputs.target_environment || 'prod' }}
+          NR_ENDPOINT_BASE: "https://log-api.newrelic.com/log/v1"
+        run: |
+          cd utils/github_action_monitoring && python export_to_newrelic.py
 
       - name: Configure AWS credentials
         if: always()
