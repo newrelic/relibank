@@ -51,6 +51,8 @@
 # newrelic_nrql_alert_condition.platform_kafka_broker_health.entity_guid
 # newrelic_nrql_alert_condition.platform_kafka_cluster_health.entity_guid
 # newrelic_nrql_alert_condition.platform_kafka_topic_health.entity_guid
+# newrelic_nrql_alert_condition.platform_kafka_bill_payments_partitions.entity_guid
+# newrelic_nrql_alert_condition.platform_kafka_bill_pay_decline_lag.entity_guid
 # newrelic_nrql_alert_condition.platform_database_health.entity_guid
 
 # newrelic_alert_policy.before_autopilot_policy.id
@@ -1476,6 +1478,77 @@ resource "newrelic_nrql_alert_condition" "platform_kafka_topic_health" {
   aggregation_method = "event_flow"
   aggregation_delay  = 120
   title_template     = "Kafka Topic Health | {{ entity_name }}"
+}
+# Kafka Bill Payments Topic Partitions
+resource "newrelic_nrql_alert_condition" "platform_kafka_bill_payments_partitions" {
+  account_id                   = var.new_relic_account_id
+  policy_id                    = newrelic_alert_policy.platform_policy.id
+  type                         = "static"
+  name                         = "${var.app_name} - Kafka - Bill Payments"
+  enabled                      = true
+  violation_time_limit_seconds = 10800
+  nrql {
+
+    query = trimspace(<<-EOT
+    FROM Metric SELECT
+      latest(kafka.topic.partitions) AS 'Topic partitions'
+    WHERE entityGuid = '${data.newrelic_entity.bill_payments_kafka_topic.guid}'
+    EOT
+    )
+
+    data_account_id = var.new_relic_account_id
+
+  }
+
+  critical {
+    operator              = "below_or_equals"
+    threshold             = 0
+    threshold_duration    = 600
+    threshold_occurrences = "all"
+  }
+  fill_option                    = "last_value"
+  aggregation_window             = 60
+  aggregation_method             = "event_flow"
+  aggregation_delay              = 120
+  expiration_duration            = 1800
+  open_violation_on_expiration   = false
+  close_violations_on_expiration = true
+  ignore_on_expected_termination = false
+  title_template                 = "Kafka Bill Payments Topic | {{ entity_name }}"
+}
+# Kafka Bill Pay Decline Consumer Lag
+resource "newrelic_nrql_alert_condition" "platform_kafka_bill_pay_decline_lag" {
+  account_id                   = var.new_relic_account_id
+  policy_id                    = newrelic_alert_policy.platform_policy.id
+  type                         = "static"
+  name                         = "${var.app_name} - Kafka - bill_pay_decline"
+  enabled                      = true
+  violation_time_limit_seconds = 259200
+  nrql {
+
+    query = trimspace(<<-EOT
+    FROM Metric SELECT
+      max(kafka.consumer_group.lag_sum) AS 'Consumer lag'
+    WHERE entityGuid = '${data.newrelic_entity.bill_payments_declined_kafka_topic.guid}'
+    FACET group
+    EOT
+    )
+
+    data_account_id = var.new_relic_account_id
+
+  }
+
+  critical {
+    operator              = "above"
+    threshold             = 1
+    threshold_duration    = 600
+    threshold_occurrences = "all"
+  }
+  fill_option        = "none"
+  aggregation_window = 60
+  aggregation_method = "event_flow"
+  aggregation_delay  = 120
+  title_template     = "Kafka Bill Pay Decline Lag | {{ entity_name }}"
 }
 # Database Health
 resource "newrelic_nrql_alert_condition" "platform_database_health" {
