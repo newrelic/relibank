@@ -96,7 +96,7 @@ jobs:
           python utils/scripts/new_relic/send_change_tracking_marker.py \
             --api-key ${{ secrets.NR_USER_API_KEY }} \
             --account-id ${{ vars.NR_ACCOUNT_ID }} \
-            --app-name "Customer Portal" \
+            --app-name "${{ vars.BROWSER_APPLICATION_NAME || vars.NR_BROWSER_APP_NAME }}" \
             --entity-domain BROWSER \
             --category FEATURE_FLAG \
             --type BASIC \
@@ -147,7 +147,7 @@ jobs:
           python utils/scripts/new_relic/send_change_tracking_marker.py \
             --api-key ${{ secrets.NR_USER_API_KEY }} \
             --account-id ${{ vars.NR_ACCOUNT_ID }} \
-            --app-name "Customer Portal" \
+            --app-name "${{ vars.BROWSER_APPLICATION_NAME || vars.NR_BROWSER_APP_NAME }}" \
             --entity-domain BROWSER \
             --category FEATURE_FLAG \
             --type BASIC \
