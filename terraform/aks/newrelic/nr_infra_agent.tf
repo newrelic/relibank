@@ -22,9 +22,9 @@ resource "helm_release" "nri_bundle" {
   namespace  = local.newrelic_namespace
   repository = "https://helm-charts.newrelic.com"
   chart      = "nri-bundle"
-  # Caret range (not an exact pin) so terraform always re-resolves against the repo index and
-  # picks up new 8.x releases — pinning an exact version freezes state and stops tracking latest.
-  version = "^8.0.0"
+  # No version constraint — terraform always re-resolves against the repo index and installs the
+  # latest release (including nr-ebpf-agent, bundled as a nested subchart with no version of its
+  # own here). Pinning, or capping to one major, freezes state and stops tracking latest.
   wait    = true
   timeout = 800
 
