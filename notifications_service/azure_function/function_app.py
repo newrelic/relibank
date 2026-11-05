@@ -1,8 +1,12 @@
+import newrelic.agent
 
-import logging
-import json
-import os
+newrelic.agent.initialize()
+
 import hashlib
+import json
+import logging
+import os
+
 import azure.functions as func
 
 # The following imports are based on your existing code
@@ -11,6 +15,9 @@ from azure.communication.sms import SmsClient
 from azure.core.exceptions import HttpResponseError
 
 app = func.FunctionApp(http_auth_level=func.AuthLevel.FUNCTION)
+
+app_name = os.environ.get("NEW_RELIC_APP_NAME", os.environ.get("WEBSITE_SITE_NAME", None))
+newrelic.agent.register_application(app_name)
 
 # --- Configuration for ACS Clients ---
 # Retrieve environment variables configured in the Azure Function App settings
