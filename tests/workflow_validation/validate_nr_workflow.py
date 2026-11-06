@@ -270,6 +270,10 @@ WORKLOADS = [
     "auth_service:login",
     "support_service:assess_payment_risk",
     "support_service:chat_with_model",
+    "bill_pay_service:process_bill_payment",
+    "bill_pay_service:process_recurring_payment",
+    "mobile_backend:get_transaction",
+    "mobile_backend:process_recurring_payment",
 ]
 
 # `newrelic_synthetics_script_monitor.*` — the only synthetics monitor this module creates.
@@ -312,6 +316,7 @@ NRQL_ALERT_CONDITIONS = [
     "Payments & Transactions - High Error Rate Health",
     "Payments & Transactions - Low Throughput Health",
     "Payments & Transactions - Service Level Health",
+    "Payments & Transactions - Notifications Function Health",
     "Platform - High Response Time Health",
     "Platform - High Error Rate Health",
     "Platform - Low Throughput Health",
