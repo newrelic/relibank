@@ -261,9 +261,9 @@ This isn't meant to be a real banking application. It's a learning tool for:
   - **Internal Telemetry**: Collector self-monitoring with detailed metrics
   - **Export to New Relic**: All metrics sent to New Relic via OTLP
   - See [`otel_collector_kafka/README.md`](otel_collector_kafka/README.md) for details
-- **Azure Functions Cloud Polling**: New Relic's Azure integration monitors the `notifications` Function App (state, availability, memory) via Azure Monitor polling — no agent runs inside the Function App itself
+- **Azure Functions monitoring, two entities**: the `notifications` Function App reports both an infra entity (state, availability, memory via Azure Monitor polling) and, via the NR Python agent, its own APM entity with distributed traces
   - Per-environment, applied by the `ReliBank NR` deployer workflow — see [`terraform/aks/newrelic/nr_azure_integration.tf`](terraform/aks/newrelic/nr_azure_integration.tf)
-  - Execution-count/error metrics (`functionExecutionCount`, `http5xx`) require Application Insights on the Function App, which isn't wired up yet — see [`docs/deployer/runbook.md`](docs/deployer/runbook.md) troubleshooting
+  - Execution-count/error metrics (`functionExecutionCount`, `http5xx`) require Application Insights on the Function App — see [`docs/deployer/runbook.md`](docs/deployer/runbook.md) troubleshooting
 
 Try breaking things with Chaos Mesh and see how the system responds!
 
