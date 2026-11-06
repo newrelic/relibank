@@ -32,6 +32,7 @@ on:
           - kafka-zookeeper-resilience
           - kafka-broker-monitoring
           - ai_monitoring
+          - mssql_stored_procedures
       target_color:
         description: 'Color to direct scenario-UI checks at (sends X-Test-Env). Empty = active color.'
         required: false
@@ -70,7 +71,7 @@ jobs:
   python-tests:
     runs-on: ubuntu-latest
     environment: ${{ inputs.target_environment || 'prod' }}
-    if: ${{ inputs.test_suite == 'all' || inputs.test_suite == 'e2e' || inputs.test_suite == 'scenario' || inputs.test_suite == 'payment' || inputs.test_suite == 'smoke' || inputs.test_suite == 'kafka-zookeeper-resilience' || inputs.test_suite == 'kafka-broker-monitoring' || inputs.test_suite == 'ai_monitoring' || inputs.test_suite == '' }}
+    if: ${{ inputs.test_suite == 'all' || inputs.test_suite == 'e2e' || inputs.test_suite == 'scenario' || inputs.test_suite == 'payment' || inputs.test_suite == 'smoke' || inputs.test_suite == 'kafka-zookeeper-resilience' || inputs.test_suite == 'kafka-broker-monitoring' || inputs.test_suite == 'ai_monitoring' || inputs.test_suite == 'mssql_stored_procedures' || inputs.test_suite == '' }}
     outputs:
       test_ab_testing: ${{ steps.individual-tests.outputs.test_ab_testing }}
       test_apm_user_tracking: ${{ steps.individual-tests.outputs.test_apm_user_tracking }}
@@ -323,6 +324,15 @@ jobs:
         run: |
           cd tests
           pytest test_newrelic_ai_agents.py test_newrelic_risk_assessment.py --tb=line
+
+      - name: Run MSSQL stored procedure tests only
+        if: ${{ inputs.test_suite == 'mssql_stored_procedures' }}
+        env:
+          NEW_RELIC_USER_API_KEY: ${{ secrets.NR_USER_API_KEY }}
+          NEW_RELIC_ACCOUNT_ID: ${{ vars.NR_ACCOUNT_ID }}
+        run: |
+          cd tests
+          pytest test_mssql_stored_procedures.py --tb=line
 
   frontend-tests:
     runs-on: ubuntu-latest

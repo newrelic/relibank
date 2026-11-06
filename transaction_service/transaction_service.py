@@ -399,8 +399,8 @@ async def start_kafka_consumer():
                         # Insert into Transactions table
                         cursor.execute(
                             """
-                            INSERT INTO Transactions (EventType, BillID, Amount, Currency, AccountID, Timestamp)
-                            VALUES (?, ?, ?, ?, ?, ?)
+                            INSERT INTO Transactions (EventType, BillID, Amount, Currency, AccountID, Timestamp, Direction)
+                            VALUES (?, ?, ?, ?, ?, ?, 'D')
                         """,
                             event_model.eventType,
                             event_model.billId,
@@ -414,6 +414,10 @@ async def start_kafka_consumer():
                     elif event_type == "BillPaymentInitiatedToAcct":
                         account_type = await get_account_type(event_model.accountId)
                         newrelic.agent.add_custom_attribute("account_type", account_type)
+                        # Direction persists which balance-sheet side this payment landed on,
+                        # so sp_RebuildAccountLedgerBalance can recompute the Ledger from
+                        # Transactions alone without re-querying accounts_service.
+                        direction = "D" if account_type in ["loan", "credit"] else "C"
                         if account_type in ["loan", "credit"]:
                             # Payment to a loan/credit account is a debit to the balance
                             cursor.execute(
@@ -450,8 +454,8 @@ async def start_kafka_consumer():
                         # Insert into Transactions table
                         cursor.execute(
                             """
-                            INSERT INTO Transactions (EventType, BillID, Amount, Currency, AccountID, Timestamp)
-                            VALUES (?, ?, ?, ?, ?, ?)
+                            INSERT INTO Transactions (EventType, BillID, Amount, Currency, AccountID, Timestamp, Direction)
+                            VALUES (?, ?, ?, ?, ?, ?, ?)
                         """,
                             event_model.eventType,
                             event_model.billId,
@@ -459,6 +463,7 @@ async def start_kafka_consumer():
                             event_model.currency,
                             event_model.accountId,
                             event_model.timestamp,
+                            direction,
                         )
                         conn.commit()
                         logging.info(f"Credit transaction {event_model.billId} recorded in Transactions table.")
@@ -860,6 +865,63 @@ async def get_ledger_balance(account_id: int, request: Request):
     finally:
         pass
 
+@app.post("/transaction-service/ledger/{account_id}/rebuild")
+def rebuild_ledger_balance(account_id: int, request: Request = None):
+    """
+    Recomputes Ledger.CurrentBalance for one account from its signed
+    Transactions.Direction history via sp_RebuildAccountLedgerBalance, instead
+    of trusting the incremental per-event upserts the Kafka consumer applies
+    below. Pass account_id=0 to rebuild every account.
+    """
+    if not db_connection:
+        raise HTTPException(status_code=503, detail="Database connection failed.")
+
+    rebuild_connection = None
+    try:
+        rebuild_connection = pyodbc.connect(CONNECTION_STRING, autocommit=False)
+        cursor = rebuild_connection.cursor()
+
+        cursor.execute(
+            "{CALL dbo.sp_RebuildAccountLedgerBalance (?)}",
+            None if account_id == 0 else account_id,
+        )
+        columns = [column[0] for column in cursor.description]
+        results = [dict(zip(columns, row)) for row in cursor.fetchall()]
+
+        rebuild_connection.commit()
+
+        if account_id != 0 and not results:
+            raise HTTPException(status_code=404, detail=f"No transactions found for account {account_id}.")
+
+        logging.info(f"Rebuilt ledger balance for account_id={account_id}: {results}")
+
+        if request:
+            process_headers(dict(request.headers))
+
+        return {"status": "success", "rebuilt_accounts": results}
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logging.error(f"Error rebuilding ledger balance: {e}")
+        newrelic.agent.notice_error(attributes={
+            'service': 'transaction',
+            'endpoint': '/transaction-service/ledger/{account_id}/rebuild',
+            'action': 'rebuild_ledger_balance'
+        })
+        if rebuild_connection:
+            try:
+                rebuild_connection.rollback()
+            except:
+                pass
+        raise HTTPException(status_code=500, detail=f"Error rebuilding ledger balance: {str(e)}")
+    finally:
+        if rebuild_connection:
+            try:
+                rebuild_connection.close()
+            except:
+                pass
+
 @app.get("/transaction-service/blocking")
 def create_blocking_scenario(delay_seconds: int = 30, request: Request = None):
     """
@@ -1094,34 +1156,9 @@ def generate_slow_query(query_type: str = "spending_velocity", delay_seconds: in
             # transactions joined to merchants.
             # Plan nodes: Clustered Index Scan × 2 → Hash Match (join) → Sort
             #             → Window Spool × 3 → Segment → Sequence Project
-            cursor.execute("""
-                SELECT
-                    t.TxnID,
-                    t.AccountID,
-                    t.MerchantID,
-                    m.Category,
-                    m.Region,
-                    m.RiskTier,
-                    t.Amount,
-                    t.TxnDate,
-                    t.TxnType,
-                    t.Channel,
-                    ROW_NUMBER()  OVER (PARTITION BY t.AccountID ORDER BY t.TxnDate)
-                                                                    AS TxnSeq,
-                    SUM(t.Amount) OVER (PARTITION BY t.AccountID ORDER BY t.TxnDate
-                                        ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW)
-                                                                    AS CumulativeSpend,
-                    AVG(t.Amount) OVER (PARTITION BY t.AccountID ORDER BY t.TxnDate
-                                        ROWS BETWEEN 99 PRECEDING AND CURRENT ROW)
-                                                                    AS MovingAvg100,
-                    RANK()        OVER (PARTITION BY m.Category ORDER BY t.Amount DESC)
-                                                                    AS GlobalAmountRank
-                FROM BankTransactions t WITH (INDEX(0))
-                INNER JOIN Merchants m WITH (INDEX(0)) ON m.MerchantID = t.MerchantID
-                WHERE t.TxnDate >= DATEADD(MONTH, -?, GETDATE())
-                ORDER BY t.AccountID, t.TxnDate
-                OPTION (MAXDOP 1)
-            """, months)
+            # Named procedure (see transaction_service/mssql/init.sql) so the
+            # NR QPM exec-plan panel keys off a stable object, not ad-hoc SQL text.
+            cursor.execute("{CALL dbo.sp_CalculateSpendingVelocity (?)}", months)
             rows_affected = cursor.rowcount
 
         elif query_type == "merchant_risk":
