@@ -28,6 +28,11 @@ breaks scheduled/recurring payment dispatch.
 > (`delay *= 1.5`) are legitimate operational code, **not** planted demo delays — leave them, but
 > don't cite them as "the bug." This service does **not** use `utils/process_headers.py`.
 
+> `run_spending_velocity_sample()` and `run_ledger_rebuild_sample()` (every 5 minutes, alongside
+> `check_for_due_payments()`'s every-1-minute poll) exist purely to keep
+> `sp_CalculateSpendingVelocity`/`sp_RebuildAccountLedgerBalance` showing continuous activity in
+> New Relic's QPM panels — real operational code, not a planted behavior.
+
 ---
 
 ## Local dev / debug

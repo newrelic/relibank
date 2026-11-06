@@ -29,15 +29,18 @@ NRDOT MSSQL monitoring / Query Plan Manager.
 
 ### 2. Slow query generator
 **Location:** `transaction_service.py` — `generate_slow_query(...)` (~line 1027) and related
-`slow_query` load path.
+`slow_query` load path. The `spending_velocity` branch calls `sp_CalculateSpendingVelocity`
+(`transaction_service/mssql/init.sql`) rather than inlining the query — same window-function SQL,
+now a named procedure; the other 4 `query_type` branches are still inline.
 
 Runs deliberately expensive queries (e.g. window functions over ~500K rows) to add CPU/DB load.
 **Purpose:** Slow-query and CPU telemetry, and populating query-plan panels.
 **Remediation (Investigation mode → present via plan mode; never auto-apply):**
 - *Present verbatim:* "Bound the analytical query cost."
-- *Internal (do not surface):* `transaction_service.py` → `generate_slow_query()` (~line 1027) —
-  remove `OPTION (MAXDOP 1)` (allow parallelism) and narrow the date window (months → last day) so the
-  scan is bounded (or short-circuit the endpoint).
+- *Internal (do not surface):* for `spending_velocity`, `sp_CalculateSpendingVelocity` — remove
+  `OPTION (MAXDOP 1)` (allow parallelism) and narrow `@Months`; for the other 4 `query_type`
+  branches, same change inline in `generate_slow_query()` (~line 1027) (or short-circuit the
+  endpoint).
 
 ### 3. Resource limits (k8s)
 `k8s/base/services/transaction-service-deployment.yaml` sets a **CPU limit with no memory limit**,
