@@ -73,8 +73,9 @@ receivers:
         enabled: true
       sqlserver.database.operations:
         enabled: true
-      sqlserver.database.page_file.size:
-        enabled: true
+      # sqlserver.database.page_file.size removed in nrsqlserverreceiver v0.162.1
+      # (nrdot-collector-releases 2.7.x) with no replacement — same pattern as the
+      # principals/role metrics below, dropped rather than left in to crash on startup.
       sqlserver.database.transactions.active:
         enabled: true
       sqlserver.database.backup_or_restore.rate:
@@ -269,11 +270,14 @@ receivers:
       max_query_sample_count: 1000
       top_query_count: 250
       collection_interval: 60s
-    collect_full_query_text: true
-    allowed_comment_keys:
-      - nr_service_guid
+      collect_full_query_text: true
+      allowed_comment_keys:
+        - nr_service_guid
     query_sample_collection:
       max_rows_per_query: 100
+      collect_full_query_text: true
+      allowed_comment_keys:
+        - nr_service_guid
 
 processors:
   metricstransform:
