@@ -1,9 +1,9 @@
-fastapi>=0.141.1
-uvicorn[standard]>=0.52.1
+fastapi>=0.162.2
+uvicorn[standard]>=0.54.0
 httpx>=0.28.1
-pydantic>=2.13.4
-newrelic==13.4.0
-python-multipart>=0.0.32
-aiokafka>=0.14.0
+pydantic>=2.14.3
+newrelic==14.2.0
+python-multipart>=0.0.33
+aiokafka>=0.15.0
 azure-communication-email>=1.1.0
 azure-communication-sms>=1.1.0
