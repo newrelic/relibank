@@ -51,6 +51,26 @@ jobs:
         id: start-time
         run: echo "timestamp=$(date -u +%Y-%m-%dT%H:%M:%SZ)" >> $GITHUB_OUTPUT
 
+      - name: Checkout repo
+        uses: actions/checkout@v7
+
+      - uses: actions/setup-python@v7
+        with:
+          python-version: '3.x'
+
+      - name: Install Python dependencies
+        run: pip install requests
+
+      # Close issues left open by earlier runs so this run's issues open fresh
+      - name: Close open issues from previous runs
+        env:
+          NEW_RELIC_USER_KEY: ${{ secrets.NR_USER_API_KEY }}
+          NEW_RELIC_ACCOUNT_ID: ${{ vars.NR_ACCOUNT_ID }}
+        run: |
+          python utils/scripts/new_relic/close_issues.py \
+            --condition-name "WA: ReliBank Accounts Service - Memory Leak Prediction"
+        continue-on-error: true
+
 # --------------- demo flow ---------------
       - name: Reset DEM memory leak scenarios
         run: |
