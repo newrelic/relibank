@@ -45,7 +45,7 @@ Usage: ./run_tests.sh [OPTIONS]
 
 OPTIONS:
     -e, --env ENV           Environment to test (local|remote) [default: local]
-    -t, --test SUITE        Test suite to run (all|e2e|scenario|payment|frontend|smoke|ai_monitoring|azure_function) [default: all]
+    -t, --test SUITE        Test suite to run (all|e2e|scenario|payment|frontend|smoke|ai_monitoring|azure_function|mssql_stored_procedures) [default: all]
     -v, --verbose           Verbose output (show print statements)
     -h, --help              Show this help message
 
@@ -222,9 +222,12 @@ case $TEST_SUITE in
     azure_function)
         TEST_PATH="test_notifications_function.py"
         ;;
+    mssql_stored_procedures)
+        TEST_PATH="test_mssql_stored_procedures.py"
+        ;;
     *)
         print_error "Invalid test suite: $TEST_SUITE"
-        echo "Valid options: all, e2e, scenario, payment, frontend, smoke, ai_monitoring, azure_function"
+        echo "Valid options: all, e2e, scenario, payment, frontend, smoke, ai_monitoring, azure_function, mssql_stored_procedures"
         exit 1
         ;;
 esac

@@ -102,17 +102,18 @@ async def check_for_due_payments():
             db_connection = get_db_connection()
             
         cursor = db_connection.cursor()
-        
+
         today_date = date.today().strftime('%Y-%m-%d')
         logging.info(f"Checking for recurring payments due today: {today_date}")
-        
-        cursor.execute("""
-            SELECT BillID, AccountID, Amount, Currency
-            FROM RecurringSchedules
-            WHERE StartDate = ?
-        """, today_date)
-        
+
+        # sp_ProcessDueRecurringPayments posts a Transactions/Ledger entry for each due
+        # schedule and marks it processed, so it only ever returns rows that were
+        # actually posted *this call* — the scheduler's 1-minute poll loop would
+        # otherwise re-notify (and, before this procedure existed, never actually
+        # paid) the same due schedule every minute all day.
+        cursor.execute("{CALL dbo.sp_ProcessDueRecurringPayments (?)}", today_date)
         due_payments = cursor.fetchall()
+        db_connection.commit()
         newrelic.agent.add_custom_attribute("due_payments_count", len(due_payments))
 
         if not due_payments:
@@ -120,7 +121,7 @@ async def check_for_due_payments():
             return
 
         for payment in due_payments:
-            bill_id, account_id, amount, currency = payment
+            _schedule_id, bill_id, account_id, amount, currency = payment
             logging.info(f"Payment for bill {bill_id} is due. Triggering event.")
 
             event_model = PaymentDueNotificationEvent(
@@ -134,10 +135,46 @@ async def check_for_due_payments():
             add_nr_event_attributes(event_model)
             await send_event("payment_due_notifications", event_model.model_dump())
 
-        db_connection.commit()
     except Exception as e:
         logging.error(f"Error checking for due payments: {e}")
-        
+
+@newrelic.agent.background_task()
+async def run_spending_velocity_sample():
+    """
+    Periodically exercises sp_CalculateSpendingVelocity so it keeps showing recent
+    activity in New Relic's QPM/Stored Procedures panels, the same way the due-payments
+    poll above already does for sp_ProcessDueRecurringPayments.
+    """
+    global db_connection
+    try:
+        if not db_connection:
+            db_connection = get_db_connection()
+
+        cursor = db_connection.cursor()
+        cursor.execute("{CALL dbo.sp_CalculateSpendingVelocity (?)}", 3)
+        cursor.fetchall()
+        db_connection.commit()
+        logging.info("Ran sp_CalculateSpendingVelocity sample.")
+    except Exception as e:
+        logging.error(f"Error running spending velocity sample: {e}")
+
+@newrelic.agent.background_task()
+async def run_ledger_rebuild_sample():
+    """Periodically exercises sp_RebuildAccountLedgerBalance across all accounts, same
+    rationale as run_spending_velocity_sample above."""
+    global db_connection
+    try:
+        if not db_connection:
+            db_connection = get_db_connection()
+
+        cursor = db_connection.cursor()
+        cursor.execute("{CALL dbo.sp_RebuildAccountLedgerBalance (?)}", None)
+        cursor.fetchall()
+        db_connection.commit()
+        logging.info("Ran sp_RebuildAccountLedgerBalance sample.")
+    except Exception as e:
+        logging.error(f"Error running ledger rebuild sample: {e}")
+
 async def scheduler_loop():
     while True:
         schedule.run_pending()
@@ -170,6 +207,8 @@ async def main():
 
     # Schedule the job to run every minute for the demo
     schedule.every(1).minutes.do(lambda: asyncio.create_task(check_for_due_payments()))
+    schedule.every(5).minutes.do(lambda: asyncio.create_task(run_spending_velocity_sample()))
+    schedule.every(5).minutes.do(lambda: asyncio.create_task(run_ledger_rebuild_sample()))
 
     logging.info("Scheduler started. Waiting for jobs...")
     try:

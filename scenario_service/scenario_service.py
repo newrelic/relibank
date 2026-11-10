@@ -1263,37 +1263,13 @@ DB360_CONNECTION_STRING = (
     f"TrustServerCertificate=yes"
 )
 
-# Spending-velocity SELECT — window functions over ~500K rows of
-# BankTransactions joined to Merchants. Produces Sort + Window Aggregate plan.
-# Verbatim from utils/scripts/mssql/loadgen/db-direct/run-banking-load.sh:184.
-DB360_VELOCITY_SQL = """
-SELECT
-    t.TxnID,
-    t.AccountID,
-    t.MerchantID,
-    m.Category,
-    m.Region,
-    m.RiskTier,
-    t.Amount,
-    t.TxnDate,
-    t.TxnType,
-    t.Channel,
-    ROW_NUMBER()  OVER (PARTITION BY t.AccountID ORDER BY t.TxnDate)
-                                                    AS TxnSeq,
-    SUM(t.Amount) OVER (PARTITION BY t.AccountID ORDER BY t.TxnDate
-                        ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW)
-                                                    AS CumulativeSpend,
-    AVG(t.Amount) OVER (PARTITION BY t.AccountID ORDER BY t.TxnDate
-                        ROWS BETWEEN 99 PRECEDING AND CURRENT ROW)
-                                                    AS MovingAvg100,
-    RANK()        OVER (PARTITION BY m.Category ORDER BY t.Amount DESC)
-                                                    AS GlobalAmountRank
-FROM BankTransactions t WITH (INDEX(0))
-INNER JOIN Merchants m WITH (INDEX(0)) ON m.MerchantID = t.MerchantID
-WHERE t.TxnDate >= DATEADD(MONTH, -6, GETDATE())
-ORDER BY t.AccountID, t.TxnDate
-OPTION (MAXDOP 1);
-"""
+# Spending-velocity call — window functions over ~500K rows of BankTransactions
+# joined to Merchants. Produces Sort + Window Aggregate plan.
+# Calls dbo.sp_CalculateSpendingVelocity (see transaction_service/mssql/init.sql),
+# the named procedure that replaced this query's old ad-hoc SQL text (NR-635348) —
+# also used by utils/scripts/mssql/loadgen/db-direct/run-banking-load.sh and
+# transaction_service.py's /transaction-service/slow-query endpoint.
+DB360_VELOCITY_SQL = "EXEC dbo.sp_CalculateSpendingVelocity @Months = 6;"
 
 # Blocker — holds UPDLOCK on flagged high-risk rows for hold_seconds, then
 # commits and repeats. WAITFOR DELAY interval is built per-cycle.
