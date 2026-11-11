@@ -1,14 +1,14 @@
-fastapi>=0.116.1
-uvicorn[standard]>=0.35.0
+fastapi>=0.162.2
+uvicorn[standard]>=0.54.0
 httpx>=0.28.1
-pydantic>=2.12.0a1
+pydantic>=2.14.3
 # Floor, not a cap — needs LangChain/LangGraph agentic instrumentation (GA'd in 11.4.0);
 # 13.6.1 is the version confirmed working live in sandbox.
 newrelic>=13.6.1
 gunicorn>=23.0.0,<24
-openai>=1.108.0
+openai>=3.46.0
 # fastmcp>=2.11.3  # Removed - using only Azure agents
-langgraph>=1.0.8
-langchain-core>=1.2.13
-langchain-openai>=1.1.10
-langchain>=1.2.10
+langgraph>=1.2.20
+langchain-core>=1.7.6
+langchain-openai>=1.7.4
+langchain>=1.4.9
