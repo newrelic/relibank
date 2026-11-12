@@ -142,6 +142,7 @@ This is a map, not an exhaustive list. Each service's own `CLAUDE.md` documents 
 | DB lock contention / slow queries | `transaction_service/` | request-triggered endpoints | [transaction_service/CLAUDE.md](transaction_service/CLAUDE.md) |
 | Blocking request handling + HTTP error injection | shared `utils/process_headers.py` | `extra-transaction-time` / `error` request headers | see below |
 | Frontend perf (LCP delay, blocking INP, broken toggle) | `frontend_service/` | backend-driven + keyword-triggered | [frontend_service/CLAUDE.md](frontend_service/CLAUDE.md) |
+| Archive throttling → telemetry gateway backpressure (export failures, full queue, dropped and refused logs) | `compliance_archive/`, `otel_collector_gateway/` | scenario-service `archive-throttling` | [compliance_archive/CLAUDE.md](compliance_archive/CLAUDE.md), [docs/TELEMETRY_PIPELINE_SCENARIO.md](docs/TELEMETRY_PIPELINE_SCENARIO.md) |
 | Chaos experiments (pod-kill, CPU/mem stress) + db-360 load | `scenario_service/` control plane | scenario-service API + `flow-*.yml` | [scenario_service/CLAUDE.md](scenario_service/CLAUDE.md) |
 | Tight resource limits (e.g. MSSQL memory, CPU-only limits) | `k8s/base/` | always-on | per-service CLAUDE.md |
 
@@ -177,8 +178,10 @@ Each service has its own `CLAUDE.md` with its specific demo behaviors and local-
 - [`accounts_service/`](accounts_service/CLAUDE.md) — accounts (FastAPI + PostgreSQL); LCP A/B + DB pool stress
 - [`auth_service/`](auth_service/CLAUDE.md) — authentication (FastAPI)
 - [`bill_pay/`](bill_pay/CLAUDE.md) — bill payments (FastAPI); payment failure scenarios
+- [`compliance_archive/`](compliance_archive/CLAUDE.md) — stand-in archive vendor (FastAPI); throttling → gateway backpressure
 - [`frontend_service/`](frontend_service/CLAUDE.md) — React Router v7 SPA; browser RUM demo behaviors
 - [`notifications_service/`](notifications_service/CLAUDE.md) — Kafka notifications; chaos target
+- [`otel_collector_gateway/`](otel_collector_gateway/CLAUDE.md) — telemetry gateway collector; tuned queue and retry settings
 - [`risk_assessment_service/`](risk_assessment_service/CLAUDE.md) — AI payment risk; rogue-agent path
 - [`scenario_service/`](scenario_service/CLAUDE.md) — **the demo control plane** (injects everything)
 - [`scheduler_service/`](scheduler_service/CLAUDE.md) — scheduled payments via Kafka; chaos target

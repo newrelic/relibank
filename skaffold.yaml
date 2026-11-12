@@ -164,6 +164,21 @@ build:
     context: otel_collector_mssql
     docker:
       dockerfile: Dockerfile
+  - image: compliance-archive
+    context: compliance_archive
+    docker:
+      dockerfile: Dockerfile
+      buildArgs:
+        NEW_RELIC_USER_API_KEY: "{{.NEW_RELIC_USER_API_KEY}}"
+        NEW_RELIC_ACCOUNT_ID: "{{.NEW_RELIC_ACCOUNT_ID}}"
+        NEW_RELIC_LICENSE_KEY: "{{.NEW_RELIC_LICENSE_KEY}}"
+        APP_NAME: "{{.APP_NAME}}"
+  - image: relibank-telemetry-gateway
+    context: otel_collector_gateway
+    docker:
+      dockerfile: Dockerfile
+      buildArgs:
+        NEW_RELIC_LICENSE_KEY: "{{.NEW_RELIC_LICENSE_KEY}}"
 
 # Manifests configuration - use Kustomize to handle image name mapping and resources
 manifests:

@@ -25,6 +25,14 @@ endpoints (plus the `index.html` UI):
   between `gpt-4o` (normal) and `gpt-4o-mini` (rogue). See [`support_service/CLAUDE.md`](../support_service/CLAUDE.md).
 - **A/B tests** (`AB_TEST_SCENARIOS`, ~line 70): LCP slowness (percentage + cohort) and DB pool
   stress — consumed by `accounts-service`. See [`accounts_service/CLAUDE.md`](../accounts_service/CLAUDE.md).
+- **Archive throttling** (`ARCHIVE_THROTTLING`, ~line 81; endpoints `GET .../archive-throttling/config`,
+  `POST .../toggle`, `POST .../reset`, ~lines 1098–1150): makes `compliance-archive` answer 429/503 plus
+  `Retry-After`, which backs up the telemetry gateway's archive queue. Settings: `retry_after` (0–60 s) and
+  `share_503` (0–1); bad values return `{"status": "error"}` and change nothing. The state is **in memory**
+  and keeps `enabled_at` / `reset_at` (epoch seconds, kept after a reset) as the start and end of the last
+  run, which `tests/telemetry_gateway_validation/` reads. It has a "Telemetry Pipeline" card in `index.html`.
+  It deliberately does **not** use `CHAOS_RATE_LIMIT`. See [`compliance_archive/CLAUDE.md`](../compliance_archive/CLAUDE.md)
+  and [`docs/TELEMETRY_PIPELINE_SCENARIO.md`](../docs/TELEMETRY_PIPELINE_SCENARIO.md).
 - **Chaos Mesh experiments** (`CHAOS_EXPERIMENTS` / `STRESS_EXPERIMENTS`, loaded from
   `chaos_mesh/experiments/*.yaml`): pod-kill, pod-failure, CPU/memory/combined stress. Each YAML's
   `namespace: relibank` is overridden at startup with the pod's actual namespace (`get_current_namespace()`),
@@ -42,7 +50,9 @@ These are toggled interactively (UI/API) and on schedules by `.github/workflows/
 
 **Don't:** "harden" the injection logic, add safety rails that neuter scenarios, disable the chaos
 triggers, or treat the rate limiter / experiment loading as defects. `dry_run` is opt-in and only
-reports pod counts — it must never become the default or gate the real trigger path.
+reports pod counts — it must never become the default or gate the real trigger path. Don't put the
+archive-throttling switch behind the chaos rate limiter, and don't make it persist across a restart
+(a restart switching it off is the safe default).
 
 ---
 
