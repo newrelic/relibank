@@ -34,6 +34,7 @@ on:
           - ai_monitoring
           - azure_function
           - mssql_stored_procedures
+          - telemetry-gateway-validation
       target_color:
         description: 'Color to direct scenario-UI checks at (sends X-Test-Env). Empty = active color.'
         required: false
@@ -72,7 +73,7 @@ jobs:
   python-tests:
     runs-on: ubuntu-latest
     environment: ${{ inputs.target_environment || 'prod' }}
-    if: ${{ inputs.test_suite == 'all' || inputs.test_suite == 'e2e' || inputs.test_suite == 'scenario' || inputs.test_suite == 'payment' || inputs.test_suite == 'smoke' || inputs.test_suite == 'kafka-zookeeper-resilience' || inputs.test_suite == 'kafka-broker-monitoring' || inputs.test_suite == 'ai_monitoring' || inputs.test_suite == 'azure_function' || inputs.test_suite == 'mssql_stored_procedures' || inputs.test_suite == '' }}
+    if: ${{ inputs.test_suite == 'all' || inputs.test_suite == 'e2e' || inputs.test_suite == 'scenario' || inputs.test_suite == 'payment' || inputs.test_suite == 'smoke' || inputs.test_suite == 'kafka-zookeeper-resilience' || inputs.test_suite == 'kafka-broker-monitoring' || inputs.test_suite == 'ai_monitoring' || inputs.test_suite == 'azure_function' || inputs.test_suite == 'mssql_stored_procedures' || inputs.test_suite == 'telemetry-gateway-validation' || inputs.test_suite == '' }}
     outputs:
       test_ab_testing: ${{ steps.individual-tests.outputs.test_ab_testing }}
       test_apm_user_tracking: ${{ steps.individual-tests.outputs.test_apm_user_tracking }}
@@ -257,6 +258,25 @@ jobs:
         run: |
           cd tests
           pytest test_scenario_service.py --tb=line
+
+      # NR-638736: archive-throttling switch, token-gated /otlp/ entrance and compliance-archive unit tests. They live in
+      # tests/telemetry_gateway_validation/ on purpose, so the `all` suite (which only globs tests/test_*.py) never runs them.
+      # test_otlp_ingest_auth.py needs the OTLP_INGEST_TOKEN secret on the GitHub environment and skips itself without it.
+      # test_gateway_telemetry.py needs the New Relic key and account below and judges the last archive throttling run, so
+      # run this option after a run has finished, not during one (the scenario API tests reset the switch).
+      - name: Run telemetry gateway validation tests only
+        if: ${{ inputs.test_suite == 'telemetry-gateway-validation' }}
+        env:
+          RELIBANK_URL: ${{ vars.BASE_URL }}
+          BASE_URL: ${{ vars.BASE_URL }}
+          SCENARIO_SERVICE_URL: ${{ vars.BASE_URL }}
+          OTLP_INGEST_TOKEN: ${{ secrets.OTLP_INGEST_TOKEN }}
+          NEW_RELIC_USER_API_KEY: ${{ secrets.NR_USER_API_KEY }}
+          NEW_RELIC_ACCOUNT_ID: ${{ vars.NR_ACCOUNT_ID }}
+          TARGET_COLOR: ${{ env.EFFECTIVE_COLOR || inputs.target_color }}
+        run: |
+          cd tests
+          pytest telemetry_gateway_validation --tb=line
 
       - name: Run payment scenario tests only
         if: ${{ inputs.test_suite == 'payment' }}

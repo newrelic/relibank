@@ -37,6 +37,8 @@ class HealthCheckFilter(logging.Filter):
                 return False
             if 'GET /scenario-runner/api/payment-scenarios/config' in message:
                 return False
+            if "GET /scenario-runner/api/archive-throttling/config" in message:
+                return False
         return True
 
 # Apply the filter to uvicorn's access logger
@@ -72,6 +74,16 @@ PAYMENT_SCENARIOS = {
 RISK_ASSESSMENT_SCENARIOS = {
     "rogue_agent_enabled": False,  # When true, uses gpt-4o-mini (stringent), when false uses gpt-4o (normal)
     "agent_name": "gpt-4o",  # Current agent: "gpt-4o" or "gpt-4o-mini"
+}
+
+# Archive throttling scenario configuration (runtime toggleable)
+# compliance-archive reads this and answers 429/503 + Retry-After while it is enabled.
+ARCHIVE_THROTTLING = {
+    "enabled": False,
+    "retry_after_seconds": 2,  # 0-60, sent as the Retry-After header
+    "share_503": 0.3,  # 0-1, share of 503 answers; the rest are 429
+    "enabled_at": None,  # epoch seconds when throttling last went from off to on (T0 for the gateway tests)
+    "reset_at": None,  # epoch seconds when throttling last went from on to off
 }
 
 # A/B Testing scenario configuration (runtime toggleable)
@@ -365,6 +377,19 @@ async def get_scenarios():
         "enabled": RISK_ASSESSMENT_SCENARIOS["rogue_agent_enabled"],
         "config": {"agent_name": RISK_ASSESSMENT_SCENARIOS["agent_name"]}
     })
+    # Archive throttling (telemetry pipeline)
+    scenarios_list.append(
+        {
+            "name": "archive_throttling",
+            "description": "Archive Throttling (compliance archive answers 429/503)",
+            "type": "archive_throttling",
+            "enabled": ARCHIVE_THROTTLING["enabled"],
+            "config": {
+                "retry_after": ARCHIVE_THROTTLING["retry_after_seconds"],
+                "share_503": ARCHIVE_THROTTLING["share_503"],
+            },
+        }
+    )
     # A/B Testing scenarios
     scenarios_list.append({
         "name": "lcp_slowness_percentage",
@@ -1062,6 +1087,66 @@ async def reset_risk_assessment_scenarios():
         "status": "success",
         "message": "Risk assessment scenarios reset to defaults (gpt-4o)",
         "scenarios": RISK_ASSESSMENT_SCENARIOS
+    }
+
+
+# ============================================================================
+# Archive Throttling Scenario Control Endpoints
+# ============================================================================
+
+
+@app.get("/scenario-runner/api/archive-throttling/config")
+async def get_archive_throttling_config():
+    """Get current archive throttling configuration"""
+    return {"status": "success", "scenarios": ARCHIVE_THROTTLING}
+
+
+@app.post("/scenario-runner/api/archive-throttling/toggle")
+async def toggle_archive_throttling(enabled: bool, retry_after: int = 2, share_503: float = 0.3):
+    """
+    Enable/disable archive throttling.
+
+    While enabled, compliance-archive answers every export with 429 or 503 plus a Retry-After header,
+    so the telemetry gateway's archive queue backs up. Turning it off lets the gateway recover.
+    """
+    if retry_after < 0 or retry_after > 60:
+        return {"status": "error", "message": "Retry-After must be between 0 and 60 seconds"}
+    if share_503 < 0 or share_503 > 1:
+        return {"status": "error", "message": "share_503 must be between 0 and 1"}
+
+    was_enabled = ARCHIVE_THROTTLING["enabled"]
+    ARCHIVE_THROTTLING["enabled"] = enabled
+    ARCHIVE_THROTTLING["retry_after_seconds"] = retry_after
+    ARCHIVE_THROTTLING["share_503"] = share_503
+    # Only a real off->on or on->off change moves the timestamps, so changing the settings of a run in progress keeps its T0
+    if enabled and not was_enabled:
+        ARCHIVE_THROTTLING["enabled_at"] = time.time()
+        ARCHIVE_THROTTLING["reset_at"] = None
+    elif was_enabled and not enabled:
+        ARCHIVE_THROTTLING["reset_at"] = time.time()
+
+    status_msg = "enabled" if enabled else "disabled"
+    return {
+        "status": "success",
+        "message": f"Archive throttling {status_msg} (Retry-After {retry_after}s, {share_503 * 100:.0f}% 503)",
+        "scenarios": ARCHIVE_THROTTLING,
+    }
+
+
+@app.post("/scenario-runner/api/archive-throttling/reset")
+async def reset_archive_throttling():
+    """Reset archive throttling to default values (off)"""
+    if ARCHIVE_THROTTLING["enabled"]:
+        ARCHIVE_THROTTLING["reset_at"] = time.time()
+    ARCHIVE_THROTTLING["enabled"] = False
+    ARCHIVE_THROTTLING["retry_after_seconds"] = 2
+    ARCHIVE_THROTTLING["share_503"] = 0.3
+    # enabled_at/reset_at are kept on purpose: they describe the last run, which the gateway tests read after the reset
+
+    return {
+        "status": "success",
+        "message": "Archive throttling reset to defaults (off)",
+        "scenarios": ARCHIVE_THROTTLING,
     }
 
 

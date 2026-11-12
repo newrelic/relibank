@@ -1,0 +1,93 @@
+# relibank-telemetry-gateway: pipeline config (NR-638736).
+#
+# External producers send logs here (through the token-gated /otlp/ proxy). Audit logs go to the
+# compliance-archive service AND to New Relic; everything else goes to New Relic only.
+#
+#   producer -> otlp receiver -> memory_limiter -> routing connector
+#                                   |-- audit logs -> logs/archive  -> otlphttp/archive   (no batch step, on purpose)
+#                                   |                 logs/newrelic -> batch -> otlphttp/newrelic
+#                                   '-- everything else ------------> logs/newrelic
+#
+# The collector's own telemetry (service::telemetry) is NOT configured here. It comes from the shared
+# internal-telemetry-config, loaded as a second --config (same as otel-collector-kafka), with
+# INTERNAL_TELEMETRY_SERVICE_NAME=relibank-telemetry-gateway. That file is not edited.
+#
+# Values marked "spike" were measured in the NR-638736 Phase 0 spike (1,200 logs/min: 15 audit + 5 other logs/s).
+# Anything marked "calibrate" still has to be confirmed in sandbox against the real producer.
+
+receivers:
+  otlp:
+    protocols:
+      http:
+        endpoint: 0.0.0.0:4318
+      grpc:
+        endpoint: 0.0.0.0:4317
+
+processors:
+  # Refuses incoming data when memory is high, which would also starve the New Relic-bound logs.
+  # Kept below the container memory limit (512Mi) so refusals come from the limiter, not an OOM kill.
+  memory_limiter:
+    check_interval: 1s
+    limit_mib: 256
+    spike_limit_mib: 64
+  batch/newrelic:
+    send_batch_size: 500
+    timeout: 1s
+
+connectors:
+  routing:
+    default_pipelines: [logs/newrelic]
+    error_mode: ignore
+    table:
+      # Placeholder attribute: the real name comes from the producer contract (open item on NR-638736).
+      - context: log
+        condition: attributes["log.type"] == "audit"
+        pipelines: [logs/archive, logs/newrelic]
+
+extensions:
+  health_check:
+    endpoint: 0.0.0.0:13133
+
+exporters:
+  # The collector accepts the deprecated "otlphttp" name on 0.145.0 and logs a warning. It is kept because the
+  # NRDOT builds the ticket recommends may be older and not know "otlp_http" yet. Revisit when the image is final.
+  otlphttp/archive:
+    endpoint: http://compliance-archive:5008
+    timeout: 5s
+    # The exporter honors Retry-After from 429/503 (spike: retries came exactly Retry-After seconds apart).
+    retry_on_failure:
+      enabled: true
+      initial_interval: 1s
+      max_interval: 5s
+      # Export failures are first counted when this window runs out (spike: 90 s gave T+1.5 min). 180 s targets T+3. Calibrate.
+      max_elapsed_time: 180s
+    # `items` counts log records, so the size does not depend on how the producer groups them into requests.
+    # With no batch step in front, a full queue fails the enqueue and the receiver refuses the request: queue
+    # drops and receiver refusals start together (spike: both at T+6.8 min with 6000 items). Calibrate.
+    sending_queue:
+      enabled: true
+      num_consumers: 2
+      queue_size: 6000
+      sizer: items
+      block_on_overflow: false
+  otlphttp/newrelic:
+    endpoint: https://otlp.nr-data.net
+    headers:
+      api-key: "${env:NEW_RELIC_LICENSE_KEY}"
+
+service:
+  extensions: [health_check]
+  pipelines:
+    logs/ingest:
+      receivers: [otlp]
+      processors: [memory_limiter]
+      exporters: [routing]
+    # No batch step here on purpose: a batch step is asynchronous, so a full archive queue could never push back on
+    # the receiver. Without it, a full queue becomes a receiver refusal and starves the New Relic copy of audit logs.
+    logs/archive:
+      receivers: [routing]
+      exporters: [otlphttp/archive]
+    logs/newrelic:
+      receivers: [routing]
+      processors: [batch/newrelic]
+      exporters: [otlphttp/newrelic]
