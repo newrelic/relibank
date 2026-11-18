@@ -32,6 +32,23 @@ breaks scheduled/recurring payment dispatch.
 > `check_for_due_payments()`'s every-1-minute poll) exist purely to keep
 > `sp_CalculateSpendingVelocity`/`sp_RebuildAccountLedgerBalance` showing continuous activity in
 > New Relic's QPM panels — real operational code, not a planted behavior.
+>
+> **Why `@Months=6` and `fetchmany()`, not `3` and `fetchall()`:** New Relic's wait-time-by-category
+> chart (`DbServerQuerySample`) only gets data when NRDOT's DMV poll happens to land while a query
+> is still executing. At `@Months=3` the query finished in ~4s and the poll essentially never
+> caught it, so the chart stayed empty on every environment except sandbox (which got incidental,
+> unrelated traffic to this procedure). At `@Months=6` it runs ~10s, scanning the full 2M-row
+> `BankTransactions` table — long enough to be caught reliably. That query also returns ~460K rows,
+> and `cursor.fetchall()` buffers the entire result in process memory at once (measured ~745MB
+> peak) — well past this service's 256Mi container limit, which OOM-killed the pod every ~5
+> minutes the first time this shipped. Draining with `fetchmany()` in 2000-row batches keeps peak
+> memory flat (~27MB measured) regardless of `@Months`, with no change to the server-side
+> suspended/`ASYNC_NETWORK_IO` wait state NRDOT's poll actually keys off — confirmed live via
+> `sys.dm_exec_requests` mid-execution. No `@Months` value above `3` fits in 256Mi with
+> `fetchall()`, so this needed the `fetchmany()` fix, not a smaller parameter.
+> `run_ledger_rebuild_sample()` got the same `fetchmany()` loop preemptively — `Transactions` is
+> small today so it's a no-op there now, but it would hit the identical OOM the moment that
+> table's row count grows.
 
 ---
 

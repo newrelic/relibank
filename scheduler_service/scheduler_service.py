@@ -140,16 +140,9 @@ async def check_for_due_payments():
 
 @newrelic.agent.background_task()
 async def run_spending_velocity_sample():
-    """
-    Periodically exercises sp_CalculateSpendingVelocity so it keeps showing recent
-    activity in New Relic's QPM/Stored Procedures panels, the same way the due-payments
-    poll above already does for sp_ProcessDueRecurringPayments.
-
-    @Months=6 (not 3) is load-bearing: at 6 months over the full 2M-row BankTransactions
-    table this runs ~25s, long enough for NRDOT's DMV poll to catch it mid-execution and
-    populate the wait-time-by-category chart (DbServerQuerySample). At 3 months it finished
-    in under a second and the poll essentially never caught it, so that chart stayed empty.
-    """
+    """Periodically exercises sp_CalculateSpendingVelocity so it keeps showing recent
+    activity in New Relic's QPM/Stored Procedures panels. @Months and the fetchmany loop
+    are both load-bearing -- see scheduler_service/CLAUDE.md."""
     global db_connection
     try:
         if not db_connection:
@@ -157,7 +150,8 @@ async def run_spending_velocity_sample():
 
         cursor = db_connection.cursor()
         cursor.execute("{CALL dbo.sp_CalculateSpendingVelocity (?)}", 6)
-        cursor.fetchall()
+        while cursor.fetchmany(2000):
+            pass
         db_connection.commit()
         logging.info("Ran sp_CalculateSpendingVelocity sample.")
     except Exception as e:
@@ -174,7 +168,8 @@ async def run_ledger_rebuild_sample():
 
         cursor = db_connection.cursor()
         cursor.execute("{CALL dbo.sp_RebuildAccountLedgerBalance (?)}", None)
-        cursor.fetchall()
+        while cursor.fetchmany(2000):
+            pass
         db_connection.commit()
         logging.info("Ran sp_RebuildAccountLedgerBalance sample.")
     except Exception as e:
