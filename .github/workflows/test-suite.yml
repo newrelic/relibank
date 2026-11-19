@@ -35,6 +35,8 @@ on:
           - azure_function
           - mssql_stored_procedures
           - telemetry-gateway-validation
+          - competing_query
+          - plan_regression
       target_color:
         description: 'Color to direct scenario-UI checks at (sends X-Test-Env). Empty = active color.'
         required: false
@@ -73,7 +75,7 @@ jobs:
   python-tests:
     runs-on: ubuntu-latest
     environment: ${{ inputs.target_environment || 'prod' }}
-    if: ${{ inputs.test_suite == 'all' || inputs.test_suite == 'e2e' || inputs.test_suite == 'scenario' || inputs.test_suite == 'payment' || inputs.test_suite == 'smoke' || inputs.test_suite == 'kafka-zookeeper-resilience' || inputs.test_suite == 'kafka-broker-monitoring' || inputs.test_suite == 'ai_monitoring' || inputs.test_suite == 'azure_function' || inputs.test_suite == 'mssql_stored_procedures' || inputs.test_suite == 'telemetry-gateway-validation' || inputs.test_suite == '' }}
+    if: ${{ inputs.test_suite == 'all' || inputs.test_suite == 'e2e' || inputs.test_suite == 'scenario' || inputs.test_suite == 'payment' || inputs.test_suite == 'smoke' || inputs.test_suite == 'kafka-zookeeper-resilience' || inputs.test_suite == 'kafka-broker-monitoring' || inputs.test_suite == 'ai_monitoring' || inputs.test_suite == 'azure_function' || inputs.test_suite == 'mssql_stored_procedures' || inputs.test_suite == 'telemetry-gateway-validation' || inputs.test_suite == 'competing_query' || inputs.test_suite == 'plan_regression' || inputs.test_suite == '' }}
     outputs:
       test_ab_testing: ${{ steps.individual-tests.outputs.test_ab_testing }}
       test_apm_user_tracking: ${{ steps.individual-tests.outputs.test_apm_user_tracking }}
@@ -364,6 +366,27 @@ jobs:
         run: |
           cd tests
           pytest test_mssql_stored_procedures.py --tb=line
+
+      - name: Run Competing Query scenario tests only
+        if: ${{ inputs.test_suite == 'competing_query' }}
+        env:
+          SCENARIO_SERVICE_URL: ${{ vars.BASE_URL }}
+          TARGET_COLOR: ${{ env.EFFECTIVE_COLOR || inputs.target_color }}
+        run: |
+          cd tests
+          pytest test_competing_query.py --tb=line
+
+      - name: Run Plan Regression scenario tests only
+        if: ${{ inputs.test_suite == 'plan_regression' }}
+        env:
+          SCENARIO_SERVICE_URL: ${{ vars.BASE_URL }}
+          TARGET_COLOR: ${{ env.EFFECTIVE_COLOR || inputs.target_color }}
+          DB_SERVER: ${{ secrets.DB_SERVER || '127.0.0.1' }}
+          DB_USERNAME: ${{ secrets.DB_USERNAME || secrets.MSSQL_SA_USER }}
+          DB_PASSWORD: ${{ secrets.DB_PASSWORD || secrets.MSSQL_SA_PASSWORD }}
+        run: |
+          cd tests
+          pytest test_plan_regression.py --tb=line
 
   frontend-tests:
     runs-on: ubuntu-latest
