@@ -45,6 +45,9 @@ def setup_driver(color=None):
     options.add_argument("--no-sandbox")
     options.add_argument("--disable-dev-shm-usage")
     options.add_argument("--disable-gpu")
+    # The deployed sites are plain http, but their https port serves an untrusted certificate. Chrome tries
+    # https first and then shows a blank page, so keep it on the http address the tests ask for.
+    options.add_argument("--disable-features=HttpsUpgrades,HttpsFirstBalancedModeAutoEnable")
     # Enable browser console logs
     options.set_capability('goog:loggingPrefs', {'browser': 'ALL'})
     driver = webdriver.Chrome(options=options)
