@@ -1,0 +1,85 @@
+# relibank-telemetry-gateway (NR-638736): receives logs from external producers and fans them out to New Relic and
+# compliance-archive. Local development only: this lives in the dev overlay on purpose, so k8s/base and the
+# azure-prod render stay unchanged (AKS gets it from Terraform).
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: relibank-telemetry-gateway
+  namespace: relibank
+  labels:
+    app: relibank-telemetry-gateway
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: relibank-telemetry-gateway
+  template:
+    metadata:
+      labels:
+        app: relibank-telemetry-gateway
+    spec:
+      containers:
+      - name: relibank-telemetry-gateway
+        image: relibank-telemetry-gateway
+        imagePullPolicy: IfNotPresent
+        # The pipeline config is baked into the image; the shared internal telemetry config is loaded second,
+        # exactly like otel-collector-kafka does (that file is only mounted here, never edited).
+        args:
+          - --config=/etc/otelcol/config.yaml
+          - --config=/conf/internal-telemetry-config.yaml
+        env:
+        # NEW_RELIC_LICENSE_KEY is baked into the image at build time via Dockerfile ARG/ENV (same as otel-collector-kafka)
+        - name: INTERNAL_TELEMETRY_SERVICE_NAME
+          value: "relibank-telemetry-gateway"
+        - name: INTERNAL_TELEMETRY_OTLP_ENDPOINT
+          value: "https://otlp.nr-data.net"
+        ports:
+        - containerPort: 4317
+          protocol: TCP
+        - containerPort: 4318
+          protocol: TCP
+        - containerPort: 13133
+          protocol: TCP
+        readinessProbe:
+          httpGet:
+            path: /
+            port: 13133
+        # The memory limit stays above the memory_limiter limit_mib (256) in the config, so refusals come from the limiter, not an OOM kill
+        resources:
+          requests:
+            memory: 256Mi
+            cpu: 100m
+          limits:
+            memory: 512Mi
+            cpu: 500m
+        volumeMounts:
+        - name: internal-telemetry-config
+          mountPath: /conf/internal-telemetry-config.yaml
+          subPath: internal-telemetry-config.yaml
+          readOnly: true
+      volumes:
+      - name: internal-telemetry-config
+        configMap:
+          name: internal-telemetry-config
+          items:
+          - key: internal-telemetry-config.yaml
+            path: internal-telemetry-config.yaml
+      restartPolicy: Always
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: relibank-telemetry-gateway
+  namespace: relibank
+  labels:
+    app: relibank-telemetry-gateway
+spec:
+  ports:
+  - name: otlp-http
+    port: 4318
+    targetPort: 4318
+  - name: otlp-grpc
+    port: 4317
+    targetPort: 4317
+  selector:
+    app: relibank-telemetry-gateway

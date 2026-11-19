@@ -43,6 +43,7 @@ export RELIBANK_URL="http://your-server.example.com"
 | `test_stress_scenarios.py` | Stress chaos experiments | CPU stress, memory stress, combined stress testing with Chaos Mesh |
 | `test_kafka_broker_monitoring.py` | Kafka broker/cluster/topic telemetry freshness | Post-deploy checks that `kafka.broker.uptime`, `kafka.brokers`, `kafka.prod.msg.count` are flowing within the last few minutes, not just present historically |
 | `test_mssql_stored_procedures.py` | MSSQL stored procedure QPM visibility | `sp_CalculateSpendingVelocity`, `sp_RebuildAccountLedgerBalance`, `sp_ProcessDueRecurringPayments` appear in `DbServerTopProcedure`; execution-plan collection (`DbServerQueryPlan`) is populated |
+| `telemetry_gateway_validation/` | Telemetry gateway path (NR-638736), run with the `telemetry-gateway-validation` option of the test-suite workflow | Archive-throttling API, compliance-archive 200/429/503 and events, `/otlp/` token check, and a read-only New Relic check of a throttling run (baseline, each failure stage by its deadline, recovery, negative control). Left out of the workflow's `all` option, but a local `./run_tests.sh -t all` does collect it. See `../docs/TELEMETRY_PIPELINE_SCENARIO.md` |
 | `../frontend_service/app/**/*.test.tsx` | Frontend functional tests (Vitest) | Login, transfers, bill payment (Stripe), support, form validation, API integration |
 
 ## Prerequisites

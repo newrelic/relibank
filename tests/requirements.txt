@@ -15,3 +15,9 @@ pyodbc>=5.0.0
 selenium>=4.0.0
 # Kubernetes API client (for infra resilience tests, e.g. test_kafka_zookeeper_resilience.py)
 kubernetes>=28.1.0
+
+# In-process tests of compliance-archive (test_compliance_archive.py); the test skips itself if these are missing
+fastapi>=0.141.1
+httpx>=0.28.1
+newrelic>=13.4.0
+opentelemetry-proto>=1.27.0

@@ -1,0 +1,5 @@
+fastapi>=0.141.1
+uvicorn[standard]>=0.52.1
+httpx>=0.28.1
+newrelic==13.4.0
+opentelemetry-proto>=1.27.0

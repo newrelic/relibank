@@ -1,0 +1,58 @@
+# compliance-archive (NR-638736): stand-in for a third-party audit-log archive. Local development only: this lives in
+# the dev overlay on purpose, so k8s/base and the azure-prod render stay unchanged (AKS gets it from Terraform).
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    app: compliance-archive
+  name: compliance-archive
+  namespace: relibank
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: compliance-archive
+  template:
+    metadata:
+      labels:
+        app: compliance-archive
+    spec:
+      containers:
+        - env:
+            - name: SCENARIO_SERVICE_URL
+              valueFrom:
+                configMapKeyRef:
+                  key: SCENARIO_RUNNER_SERVICE_URL
+                  name: infrastructure-config
+          image: compliance-archive
+          name: compliance-archive
+          ports:
+            - containerPort: 5008
+              protocol: TCP
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: 5008
+          resources:
+            requests:
+              memory: 128Mi
+              cpu: 100m
+            limits:
+              memory: 256Mi
+              cpu: 500m
+      restartPolicy: Always
+---
+apiVersion: v1
+kind: Service
+metadata:
+  labels:
+    app: compliance-archive
+  name: compliance-archive
+  namespace: relibank
+spec:
+  ports:
+  - name: "5008"
+    port: 5008
+    targetPort: 5008
+  selector:
+    app: compliance-archive

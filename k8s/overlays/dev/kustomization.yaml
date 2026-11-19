@@ -5,6 +5,8 @@ resources:
   - ../../base
   - scenario-runner-rbac.yaml
   - relibank-ingress.yaml
+  - compliance-archive.yaml
+  - relibank-telemetry-gateway.yaml
 
 patches:
   - path: persistentvolumeclaim-patch.yaml
