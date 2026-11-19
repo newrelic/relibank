@@ -43,6 +43,18 @@ endpoints (plus the `index.html` UI):
   touching the rate limiter — an opt-in read that doesn't change default trigger behavior, used by
   `tests/test_scenario_service.py::test_all_chaos_scenarios_have_matching_pods` to catch
   selector/namespace drift in CI.
+- **DB Performance Matrix acts 3-4** (`/scenario-runner/api/db-matrix/{competing-query|plan-regression}/start|stop|status`,
+  plus `GET /db-matrix/status` and `POST /db-matrix/reset`). Time-boxed runner-side SQL against MSSQL: an unindexed analytics
+  scan joining `BankTransactions`/`Merchants` (max 5 min), and `IX_BankTxn_Account` dropped with an account-lookup driver
+  (default 7 min, max 10 min). One at a time, never alongside db-360. The index is always recreated on stop, expiry, and
+  shutdown; `reset` recreates it even when nothing is running (recovery if the pod was killed mid-run). `plan-regression`
+  retries the `DROP INDEX` (5 s lock timeout per attempt, every ~3 s) until its window ends, because other queries scanning
+  `BankTransactions` can hold the schema lock; check `stats.index_dropped`, `drop_attempts`, `drop_lock_timeouts` in status
+  (never dropped = nothing ran). It first runs the lookup once a second for up to 150 s (New Relic's top-query collector
+  reports 60 s deltas, so the plan needs two scrapes) with the index in place, so monitoring records the index-seek plan
+  before the drop and shows the later scan as a plan-hash change (`stats.phase`: baseline, dropping, regression;
+  `baseline_iterations`). Act 2 (Ledger lock-contention) and act 1 (network/DNS chaos) are tracked on other tickets and are
+  not part of this service yet.
 - **db-360 load generation**: sustained MSSQL workers (velocity / blocker / contender) to populate
   Query Plan Manager. `POST /scenario-runner/api/db-360/start|stop|status`.
 
