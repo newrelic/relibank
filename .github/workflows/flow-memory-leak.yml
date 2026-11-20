@@ -18,7 +18,7 @@ on:
 
   schedule:
   # Run once a day at 9am UTC
-  - cron: '0 9 * * *'
+  - cron: '13 9 * * *'
 
 permissions: {}
 

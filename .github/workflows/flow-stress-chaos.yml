@@ -4,7 +4,7 @@ name: Flow - Random Stress Chaos (iRCA)
 on:
   schedule:
   # Run every 2 hours
-  - cron: '0 */2 * * *'
+  - cron: '29 */2 * * *'
   workflow_dispatch:
     inputs:
       scenario:
