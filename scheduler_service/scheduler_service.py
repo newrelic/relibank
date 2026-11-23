@@ -2,6 +2,7 @@ import asyncio
 import os
 import json
 import logging
+import threading
 import pyodbc
 from aiokafka import AIOKafkaProducer
 from datetime import date, timedelta
@@ -63,18 +64,39 @@ def add_nr_event_attributes(model: BaseModel) -> None:
 # Global Kafka producer and database connection
 producer = None
 db_connection = None
+_db_connection_lock = threading.Lock()  # see CLAUDE.md: serializes access to the shared connection
 
 def get_db_connection():
     """
     Returns a new database connection.
     """
     try:
-        cnxn = pyodbc.connect(CONNECTION_STRING)
+        cnxn = pyodbc.connect(CONNECTION_STRING, timeout=10)
         logging.info("Successfully connected to MSSQL database.")
         return cnxn
     except Exception as e:
         logging.error(f"Database connection error: {e}")
         raise
+
+
+def _ensure_db_connection():
+    global db_connection
+    if db_connection is None:
+        db_connection = get_db_connection()
+    return db_connection
+
+
+def _reset_db_connection():
+    """Drop the shared connection so the next call reconnects, instead of reusing a
+    connection left in a bad state by a dropped network/MSSQL restart/query failure."""
+    global db_connection
+    with _db_connection_lock:
+        if db_connection is not None:
+            try:
+                db_connection.close()
+            except Exception:
+                pass
+        db_connection = None
 
 @newrelic.agent.background_task()
 async def send_event(topic: str, event: dict):
@@ -91,17 +113,12 @@ async def send_event(topic: str, event: dict):
     else:
         logging.warning("Kafka producer not initialized. Skipping event.")
 
-@newrelic.agent.background_task()
-async def check_for_due_payments():
-    """
-    Checks the database for recurring payments due today and triggers events.
-    """
-    global db_connection
-    try:
-        if not db_connection:
-            db_connection = get_db_connection()
-            
-        cursor = db_connection.cursor()
+def _fetch_due_payments() -> list:
+    """Synchronous DB work for check_for_due_payments -- run off the event loop via
+    asyncio.to_thread so a slow/stuck query doesn't block every other scheduled job."""
+    with _db_connection_lock:
+        conn = _ensure_db_connection()
+        cursor = conn.cursor()
 
         today_date = date.today().strftime('%Y-%m-%d')
         logging.info(f"Checking for recurring payments due today: {today_date}")
@@ -113,67 +130,86 @@ async def check_for_due_payments():
         # paid) the same due schedule every minute all day.
         cursor.execute("{CALL dbo.sp_ProcessDueRecurringPayments (?)}", today_date)
         due_payments = cursor.fetchall()
-        db_connection.commit()
-        newrelic.agent.add_custom_attribute("due_payments_count", len(due_payments))
+        conn.commit()
+        return due_payments
 
-        if not due_payments:
-            logging.info("No recurring payments due today.")
-            return
 
-        for payment in due_payments:
-            _schedule_id, bill_id, account_id, amount, currency = payment
-            logging.info(f"Payment for bill {bill_id} is due. Triggering event.")
-
-            event_model = PaymentDueNotificationEvent(
-                transactionId=str(uuid.uuid4()),
-                billId=bill_id,
-                accountId=account_id,
-                amount=float(amount),
-                currency=currency,
-                timestamp=time.time()
-            )
-            add_nr_event_attributes(event_model)
-            await send_event("payment_due_notifications", event_model.model_dump())
-
+@newrelic.agent.background_task()
+async def check_for_due_payments():
+    """
+    Checks the database for recurring payments due today and triggers events.
+    """
+    try:
+        due_payments = await asyncio.to_thread(_fetch_due_payments)
     except Exception as e:
         logging.error(f"Error checking for due payments: {e}")
+        _reset_db_connection()
+        return
+
+    newrelic.agent.add_custom_attribute("due_payments_count", len(due_payments))
+
+    if not due_payments:
+        logging.info("No recurring payments due today.")
+        return
+
+    for payment in due_payments:
+        _schedule_id, bill_id, account_id, amount, currency = payment
+        logging.info(f"Payment for bill {bill_id} is due. Triggering event.")
+
+        event_model = PaymentDueNotificationEvent(
+            transactionId=str(uuid.uuid4()),
+            billId=bill_id,
+            accountId=account_id,
+            amount=float(amount),
+            currency=currency,
+            timestamp=time.time()
+        )
+        add_nr_event_attributes(event_model)
+        await send_event("payment_due_notifications", event_model.model_dump())
+
+def _run_spending_velocity_sample_sync() -> None:
+    with _db_connection_lock:
+        conn = _ensure_db_connection()
+        cursor = conn.cursor()
+        cursor.execute("{CALL dbo.sp_CalculateSpendingVelocity (?)}", 6)
+        while cursor.fetchmany(2000):
+            pass
+        conn.commit()
+
 
 @newrelic.agent.background_task()
 async def run_spending_velocity_sample():
     """Periodically exercises sp_CalculateSpendingVelocity so it keeps showing recent
     activity in New Relic's QPM/Stored Procedures panels. @Months and the fetchmany loop
     are both load-bearing -- see scheduler_service/CLAUDE.md."""
-    global db_connection
     try:
-        if not db_connection:
-            db_connection = get_db_connection()
-
-        cursor = db_connection.cursor()
-        cursor.execute("{CALL dbo.sp_CalculateSpendingVelocity (?)}", 6)
-        while cursor.fetchmany(2000):
-            pass
-        db_connection.commit()
+        await asyncio.to_thread(_run_spending_velocity_sample_sync)
         logging.info("Ran sp_CalculateSpendingVelocity sample.")
     except Exception as e:
         logging.error(f"Error running spending velocity sample: {e}")
+        _reset_db_connection()
+
+
+def _run_ledger_rebuild_sample_sync() -> None:
+    with _db_connection_lock:
+        conn = _ensure_db_connection()
+        cursor = conn.cursor()
+        cursor.execute("{CALL dbo.sp_RebuildAccountLedgerBalance (?)}", None)
+        while cursor.fetchmany(2000):
+            pass
+        conn.commit()
+
 
 @newrelic.agent.background_task()
 async def run_ledger_rebuild_sample():
     """Periodically exercises sp_RebuildAccountLedgerBalance across all accounts, same
     rationale as run_spending_velocity_sample above."""
-    global db_connection
     try:
-        if not db_connection:
-            db_connection = get_db_connection()
-
-        cursor = db_connection.cursor()
-        cursor.execute("{CALL dbo.sp_RebuildAccountLedgerBalance (?)}", None)
-        while cursor.fetchmany(2000):
-            pass
-        db_connection.commit()
+        await asyncio.to_thread(_run_ledger_rebuild_sample_sync)
         logging.info("Ran sp_RebuildAccountLedgerBalance sample.")
     except Exception as e:
         logging.error(f"Error running ledger rebuild sample: {e}")
+        _reset_db_connection()
 
 async def scheduler_loop():
     while True:

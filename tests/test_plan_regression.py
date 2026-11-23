@@ -40,6 +40,7 @@ def test_plan_regression_listed_in_status():
     snap = data["plan-regression"]
     assert snap["scenario"] == "plan-regression"
     assert "running" in snap and "seconds_remaining" in snap and "stats" in snap
+    assert "preflight_orphan_check" in snap and "postflight_orphan_check" in snap
 
 
 def test_plan_regression_idle_when_nothing_running():
@@ -54,6 +55,10 @@ def test_plan_regression_idle_when_nothing_running():
         "IX_BankTxn_Account is missing while plan-regression is idle; "
         "POST /scenario-runner/api/db-matrix/reset restores it"
     )
+    if snap["postflight_orphan_check"] is not None:
+        assert not snap["postflight_orphan_check"]["kill_errors"], (
+            f"plan-regression's last post-flight orphan clear had kill errors: {snap['postflight_orphan_check']}"
+        )
 
 
 @pytest.mark.parametrize("duration", [5, 601])
@@ -99,3 +104,43 @@ def test_plan_regression_retries_when_drop_blocked():
         blocker.rollback()
         blocker.close()
     _wait_until_idle()
+
+
+@_live
+def test_dbmatrix_orphan_guard_detects_and_clears_stuck_session():
+    """Exercises the orphan-session find/kill logic directly against a real stuck session,
+    reproducing the actual incident profile (ASYNC_NETWORK_IO + an OBJECT lock on
+    BankTransactions, from an undrained result set). Calls the service's own functions
+    in-process rather than through the HTTP API: the deployed service runs in a separate
+    process/pod this test can't threshold-patch from here, so this verifies the DMV
+    query/KILL logic itself, not the HTTP wiring (covered by the status-field checks above).
+    """
+    try:
+        from scenario_service import scenario_service as svc
+    except ImportError:
+        pytest.skip("scenario_service module not importable from this test environment")
+
+    original_threshold = svc.DBMATRIX_ORPHAN_WAIT_THRESHOLD_SECONDS
+    svc.DBMATRIX_ORPHAN_WAIT_THRESHOLD_SECONDS = 2  # don't wait the real 5 minutes in CI
+
+    orphan = pyodbc.connect(CONNECTION_STRING, autocommit=True, timeout=10)
+    orphan_cursor = orphan.cursor()
+    try:
+        orphan_cursor.execute("BEGIN TRAN; SELECT * FROM BankTransactions WITH (HOLDLOCK);")
+        # Deliberately never fetch -- the undrained result set is what puts the session into
+        # ASYNC_NETWORK_IO, same as the real leaked connections that caused this.
+        time.sleep(5)  # longer than the patched 2s threshold
+
+        found = svc._dbmatrix_find_orphan_sessions()
+        assert found, "expected the stuck session to be detected"
+
+        cleared = svc._dbmatrix_clear_orphan_sessions()
+        assert cleared["killed"], cleared
+        assert not cleared["kill_errors"], cleared
+    finally:
+        svc.DBMATRIX_ORPHAN_WAIT_THRESHOLD_SECONDS = original_threshold
+        try:
+            orphan_cursor.close()
+            orphan.close()
+        except Exception:
+            pass  # likely already severed by the KILL above

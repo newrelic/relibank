@@ -1733,6 +1733,8 @@ DBMATRIX_STATE: Dict[str, Dict[str, Any]] = {
         "stop_event": threading.Event(), "thread": None, "conn": None,
         "stats": {"iterations": 0, "errors": 0, "last_error": None},
         "restore_error": None,
+        "preflight_orphan_check": None,
+        "postflight_orphan_check": None,
     }
     for name in DBMATRIX_SCENARIOS
 }
@@ -1772,6 +1774,50 @@ def _dbmatrix_restore_index() -> Optional[str]:
         return None
     except Exception as exc:
         return type(exc).__name__
+
+
+DBMATRIX_ORPHAN_WAIT_THRESHOLD_SECONDS = 300  # see CLAUDE.md: incidents observed at 10min-4hr+
+
+
+def _dbmatrix_find_orphan_sessions() -> Optional[List[int]]:
+    """Session IDs stuck in ASYNC_NETWORK_IO holding an OBJECT lock on BankTransactions/Merchants
+    for at least DBMATRIX_ORPHAN_WAIT_THRESHOLD_SECONDS. None if the database can't be reached.
+    Built fresh per call (not a module-level constant) so the threshold stays patchable in tests."""
+    # Uses r.start_time (not wait_time) and OBJECT_ID() (not OBJECT_NAME()) -- see CLAUDE.md.
+    sql = f"""
+        SELECT DISTINCT r.session_id
+        FROM sys.dm_exec_requests AS r
+        INNER JOIN sys.dm_tran_locks AS l ON l.request_session_id = r.session_id
+        WHERE r.wait_type = 'ASYNC_NETWORK_IO'
+          AND DATEDIFF(SECOND, r.start_time, GETDATE()) >= {DBMATRIX_ORPHAN_WAIT_THRESHOLD_SECONDS}
+          AND l.resource_type = 'OBJECT'
+          AND l.resource_database_id = DB_ID()
+          AND l.resource_associated_entity_id IN (OBJECT_ID('dbo.BankTransactions'), OBJECT_ID('dbo.Merchants'));
+    """
+    try:
+        with _dbmatrix_connect(autocommit=True) as conn:
+            return [int(row[0]) for row in conn.execute(sql).fetchall()]
+    except Exception as exc:
+        logging.warning(f"_dbmatrix_find_orphan_sessions failed: {type(exc).__name__}: {exc}")
+        return None
+
+
+def _dbmatrix_clear_orphan_sessions() -> Dict[str, Any]:
+    """Find and KILL orphaned sessions per _dbmatrix_find_orphan_sessions's profile. Never raises."""
+    result: Dict[str, Any] = {"found": [], "killed": [], "kill_errors": {}, "error": None}
+    sessions = _dbmatrix_find_orphan_sessions()
+    if sessions is None:
+        result["error"] = "orphan session check failed (database unreachable)"
+        return result
+    result["found"] = sessions
+    for session_id in sessions:
+        try:
+            with _dbmatrix_connect(autocommit=True) as conn:
+                conn.execute(f"KILL {session_id};")
+            result["killed"].append(session_id)
+        except Exception as exc:
+            result["kill_errors"][session_id] = type(exc).__name__
+    return result
 
 
 def _dbmatrix_worker(name: str) -> None:
@@ -1861,6 +1907,8 @@ def _dbmatrix_worker(name: str) -> None:
     except Exception as exc:
         _dbmatrix_record_error(name, exc)
     finally:
+        # Clear anything left blocking the next run before reporting idle; see CLAUDE.md.
+        st["postflight_orphan_check"] = _dbmatrix_clear_orphan_sessions()
         st["running"] = False
 
 
@@ -1904,6 +1952,8 @@ def _dbmatrix_snapshot(name: str) -> Dict[str, Any]:
         "duration_seconds": st["duration"],
         "seconds_remaining": max(0, int(deadline - time.monotonic())) if (st["running"] and deadline) else 0,
         "stats": dict(st["stats"]),
+        "preflight_orphan_check": st["preflight_orphan_check"],
+        "postflight_orphan_check": st["postflight_orphan_check"],
     }
     if name == "plan-regression":
         out["index_present"] = _dbmatrix_index_present()
@@ -1913,16 +1963,19 @@ def _dbmatrix_snapshot(name: str) -> Dict[str, Any]:
 
 @app.post("/scenario-runner/api/db-matrix/reset")
 async def reset_db_matrix():
-    """Stop every matrix scenario and make sure IX_BankTxn_Account exists (recovery path)."""
+    """Stop every matrix scenario, clear stuck orphaned sessions, and make sure
+    IX_BankTxn_Account exists (recovery path)."""
     with DBMATRIX_LOCK:
         for name in DBMATRIX_SCENARIOS:
             _dbmatrix_stop(name)
+        orphan_clear = _dbmatrix_clear_orphan_sessions()
         restore_error = _dbmatrix_restore_index()
     return {
         "status": "success" if restore_error is None else "error",
         "message": "db-matrix scenarios stopped; index ensured" if restore_error is None
                    else f"stopped, but index restore failed: {restore_error}",
         "index_present": _dbmatrix_index_present(),
+        "orphan_sessions_cleared": orphan_clear,
     }
 
 
@@ -1954,6 +2007,10 @@ async def start_db_matrix(scenario: str, duration: Optional[int] = None):
             raise HTTPException(status_code=409, detail={
                 "message": f"{DBMATRIX_INDEX_NAME} is already missing; call /db-matrix/reset to restore it first"})
 
+        # An unreachable DB here isn't evidence of a bad state, just a failed diagnostic -- let
+        # the scenario's own first query fail the same way instead of 409'ing on it; see CLAUDE.md.
+        orphan_clear = _dbmatrix_clear_orphan_sessions()
+
         st = DBMATRIX_STATE[scenario]
         st["stop_event"] = threading.Event()
         st["started_at"] = datetime.utcnow().isoformat() + "Z"
@@ -1964,6 +2021,8 @@ async def start_db_matrix(scenario: str, duration: Optional[int] = None):
             st["stats"].update({"phase": "starting", "baseline_iterations": 0, "drop_attempts": 0,
                                 "drop_lock_timeouts": 0, "index_dropped": False})
         st["restore_error"] = None
+        st["preflight_orphan_check"] = orphan_clear
+        st["postflight_orphan_check"] = None
         st["running"] = True
         st["thread"] = threading.Thread(target=_dbmatrix_worker, args=(scenario,),
                                         name=f"dbmatrix-{scenario}", daemon=True)
