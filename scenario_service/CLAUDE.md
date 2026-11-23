@@ -54,7 +54,18 @@ endpoints (plus the `index.html` UI):
   reports 60 s deltas, so the plan needs two scrapes) with the index in place, so monitoring records the index-seek plan
   before the drop and shows the later scan as a plan-hash change (`stats.phase`: baseline, dropping, regression;
   `baseline_iterations`). Act 2 (Ledger lock-contention) and act 1 (network/DNS chaos) are tracked on other tickets and are
-  not part of this service yet.
+  not part of this service yet. Both scenarios also run an orphan-session guard before start and after stop/expiry/exception
+  (`_dbmatrix_clear_orphan_sessions`, `DBMATRIX_ORPHAN_WAIT_THRESHOLD_SECONDS = 300`): it `KILL`s any session stuck in
+  `ASYNC_NETWORK_IO` for 5+ minutes while holding an `OBJECT` lock on `BankTransactions`/`Merchants` — the exact profile
+  behind 3 real incidents where an unrelated leaked session silently blocked every `DROP INDEX` retry for the whole run —
+  and records what it found/killed in `preflight_orphan_check`/`postflight_orphan_check` in `/status`. `/db-matrix/reset`
+  runs the same clear before restoring the index. Detection query notes, both confirmed live against real stuck sessions
+  in sandbox: `sys.dm_exec_requests.wait_time` is the *current* wait instance's duration, not the request's total age — it
+  cycles in the 100-2000ms range even for a session stuck over an hour, so the threshold check uses `start_time` instead.
+  And `OBJECT_NAME(resource_associated_entity_id)` isn't safe inside the `WHERE` clause even with a `resource_type =
+  'OBJECT'` filter alongside it — SQL Server doesn't guarantee that filter runs first, so the function still gets called
+  on PAGE/KEY rows whose id is a hobt_id too large for `OBJECT_NAME`'s int parameter, raising an arithmetic-overflow
+  error; comparing against `OBJECT_ID('dbo.BankTransactions')`/`OBJECT_ID('dbo.Merchants')` directly avoids it.
 - **db-360 load generation**: sustained MSSQL workers (velocity / blocker / contender) to populate
   Query Plan Manager. `POST /scenario-runner/api/db-360/start|stop|status`.
 
@@ -64,7 +75,10 @@ These are toggled interactively (UI/API) and on schedules by `.github/workflows/
 triggers, or treat the rate limiter / experiment loading as defects. `dry_run` is opt-in and only
 reports pod counts — it must never become the default or gate the real trigger path. Don't put the
 archive-throttling switch behind the chaos rate limiter, and don't make it persist across a restart
-(a restart switching it off is the safe default).
+(a restart switching it off is the safe default). The orphan-session guard is scoped tightly to the
+exact `ASYNC_NETWORK_IO` + `OBJECT`-lock-on-`BankTransactions`/`Merchants` profile from real incidents —
+don't widen its filters to other wait types or tables, and never point it at db-360's own blocker
+(an intentional exclusivity mechanism, not a leak).
 
 ---
 

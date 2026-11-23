@@ -21,6 +21,7 @@ def test_competing_query_listed_in_status():
     snap = data["competing-query"]
     assert snap["scenario"] == "competing-query"
     assert "running" in snap and "seconds_remaining" in snap and "stats" in snap
+    assert "preflight_orphan_check" in snap and "postflight_orphan_check" in snap
 
 
 def test_competing_query_idle_when_nothing_running():
@@ -28,6 +29,10 @@ def test_competing_query_idle_when_nothing_running():
     if snap["running"]:
         pytest.skip("competing-query is running right now; idle assertions don't apply")
     assert not snap["running"]
+    if snap["postflight_orphan_check"] is not None:
+        assert not snap["postflight_orphan_check"]["kill_errors"], (
+            f"competing-query's last post-flight orphan clear had kill errors: {snap['postflight_orphan_check']}"
+        )
 
 
 @pytest.mark.parametrize("duration", [5, 301])

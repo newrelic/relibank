@@ -52,6 +52,22 @@ breaks scheduled/recurring payment dispatch.
 
 ---
 
+## Connection resilience
+
+`get_db_connection()`/the shared `db_connection` global had three gaps fixed alongside NR-654694
+(relibank's `scenario_service` orphan-session guard): no connect timeout, no reconnect-on-failure
+(a broken connection stayed in the global forever and kept getting reused), and the three
+scheduled jobs called pyodbc synchronously inside `async def`, blocking the whole event loop for
+each query's duration. Fixed: `pyodbc.connect(..., timeout=10)`; `_reset_db_connection()` closes
+and clears the global on any exception so the next scheduled run reconnects fresh; each job's DB
+work now runs via `asyncio.to_thread(...)`. This is the same `ASYNC_NETWORK_IO` wait state noted
+above for `sp_CalculateSpendingVelocity` — a stale/half-drained connection left over from an
+interrupted run here is a plausible root cause of the orphaned sessions NR-654694 guards against
+symptomatically in `scenario_service`. `_db_connection_lock` exists because `run_spending_velocity_sample`
+and `run_ledger_rebuild_sample` share the same 5-minute tick, and `asyncio.to_thread` means their DB work
+can now genuinely run on two threads at once — pyodbc connections aren't safe for concurrent use, so
+every access to `db_connection` is serialized through the lock.
+
 ## Local dev / debug
 
 ```bash
