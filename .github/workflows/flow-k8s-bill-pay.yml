@@ -30,7 +30,7 @@ on:
 
   schedule:
   # Run every 4 hours
-  - cron: "0 */4 * * *"
+  - cron: "21 */4 * * *"
 
 permissions:
   contents: read

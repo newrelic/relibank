@@ -3,7 +3,7 @@ name: Relibank Test Suite
 on:
   schedule:
     # Run daily at 5 AM PST (6pm UTC)
-    - cron: '0 13 * * *'
+    - cron: '31 13 * * *'
   workflow_dispatch:  # Allow manual trigger
     inputs:
       target_environment:

@@ -3,7 +3,7 @@ name: Flow - Cycle Payment Scenarios
 on:
   schedule:
     # Run every 3 hours
-    - cron: '0 */3 * * *'
+    - cron: '25 */3 * * *'
   workflow_dispatch:
     inputs:
       environment:

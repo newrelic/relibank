@@ -23,7 +23,7 @@ on:
         default: false
 
   schedule:
-  - cron: "*/10 * * * *"
+  - cron: "13-33/4 * * * *"
 
 permissions:
   contents: read
