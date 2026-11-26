@@ -1,6 +1,6 @@
 name: ReliBank Infra
 
-run-name: ${{ inputs.action_type }} ReliBank Infra in ${{ inputs.environment }} by @${{ github.actor }}
+run-name: ${{ inputs.action_type }}${{ inputs.plan_only && ' (PLAN ONLY)' || '' }} ReliBank Infra in ${{ inputs.environment }} by @${{ github.actor }}
 
 on:
   workflow_dispatch:
@@ -32,6 +32,11 @@ on:
           - all
           - ai_services
           - notifications
+      plan_only:
+        description: "Destroy only: show what WOULD be destroyed (terraform plan -destroy) and change nothing. Ignored for deploy."
+        type: boolean
+        required: false
+        default: false
 
 permissions:
   contents: read
@@ -72,6 +77,11 @@ jobs:
           GREEN=$(kubectl get deployments -n relibank-green --no-headers --ignore-not-found 2>/dev/null | wc -l | tr -d ' ')
           echo "Found blue=$BLUE green=$GREEN deployments"
           if [[ "$BLUE" -gt 0 || "$GREEN" -gt 0 ]]; then
+            if [[ "${{ github.event.inputs.plan_only }}" == "true" ]]; then
+              echo "::warning::App deployments are still running. Plan-only run, so continuing. A real destroy would stop here."
+              echo "safe_to_destroy=true" >> "$GITHUB_OUTPUT"
+              exit 0
+            fi
             echo "App deployments still running. Run 'Deploy ReliBank' destroy first."
             echo "safe_to_destroy=false" >> "$GITHUB_OUTPUT"
             exit 1
@@ -333,14 +343,14 @@ jobs:
       - name: "Terraform Destroy (Stage 4 notifications)"
         working-directory: terraform/aks/notifications
         run: |
-          terraform destroy \
+          terraform ${{ github.event.inputs.plan_only == 'true' && 'plan -destroy -no-color -lock=false -input=false' || 'destroy' }} \
             -var="demo_environment=${{ github.event.inputs.environment }}" \
             -var="location=${{ vars.AZURE_LOCATION }}" \
             -var="aks_resource_group=${{ vars.AKS_RESOURCE_GROUP }}" \
             -var="sms_sender_phone=${{ secrets.AZURE_ACS_SMS_PHONE_NUMBER }}" \
             -var="sms_throttle_percentage=${{ vars.SMS_THROTTLE_PERCENTAGE || 5 }}" \
             -var="simulate_notifications=${{ vars.SIMULATE_NOTIFICATIONS || 'true' }}" \
-            --auto-approve
+            ${{ github.event.inputs.plan_only != 'true' && '--auto-approve' || '' }}
 
       # Stage 3 — ai_services (AOAI account + model deployments)
       - name: "Terraform Init (Stage 3 ai_services)"
@@ -356,11 +366,11 @@ jobs:
       - name: "Terraform Destroy (Stage 3 ai_services)"
         working-directory: terraform/aks/ai_services
         run: |
-          terraform destroy \
+          terraform ${{ github.event.inputs.plan_only == 'true' && 'plan -destroy -no-color -lock=false -input=false' || 'destroy' }} \
             -var="demo_environment=${{ github.event.inputs.environment }}" \
             -var="location=${{ vars.AZURE_LOCATION }}" \
             -var="aks_resource_group=${{ vars.AKS_RESOURCE_GROUP }}" \
-            --auto-approve
+            ${{ github.event.inputs.plan_only != 'true' && '--auto-approve' || '' }}
 
       # Stage 2 — cluster-wide infra
       #
@@ -372,6 +382,7 @@ jobs:
       # "context deadline exceeded"). Delete CRs while the controller is still
       # running, then force-clear any stragglers.
       - name: "Pre Stage 2 destroy — clean chaos-mesh CRs"
+        if: ${{ github.event.inputs.plan_only != 'true' }}
         run: |
           set +e
           kinds=$(kubectl api-resources --api-group=chaos-mesh.org -o name 2>/dev/null | tr '\n' ' ')
@@ -423,11 +434,11 @@ jobs:
       - name: "Terraform Destroy (Stage 2 infra)"
         working-directory: terraform/aks/infra
         run: |
-          terraform destroy \
+          terraform ${{ github.event.inputs.plan_only == 'true' && 'plan -destroy -no-color -lock=false -input=false' || 'destroy' }} \
             -var="demo_environment=${{ github.event.inputs.environment }}" \
             -var="aks_cluster_name=${{ vars.AKS_CLUSTER_NAME }}" \
             -var="aks_resource_group=${{ vars.AKS_RESOURCE_GROUP }}" \
-            --auto-approve
+            ${{ github.event.inputs.plan_only != 'true' && '--auto-approve' || '' }}
 
       # Stage 1 last — AKS cluster
       - name: "Terraform Init (Stage 1 cluster)"
@@ -443,10 +454,10 @@ jobs:
       - name: "Terraform Destroy (Stage 1 cluster)"
         working-directory: terraform/aks/cluster
         run: |
-          terraform destroy \
+          terraform ${{ github.event.inputs.plan_only == 'true' && 'plan -destroy -no-color -lock=false -input=false' || 'destroy' }} \
             -var="demo_environment=${{ github.event.inputs.environment }}" \
             -var="aks_cluster_name=${{ vars.AKS_CLUSTER_NAME }}" \
             -var="resource_group_name=${{ vars.AKS_RESOURCE_GROUP }}" \
             -var="acr_name=${{ vars.ACR_NAME }}" \
             -var="location=${{ vars.AZURE_LOCATION }}" \
-            --auto-approve
+            ${{ github.event.inputs.plan_only != 'true' && '--auto-approve' || '' }}

@@ -1,6 +1,6 @@
 name: ReliBank NR
 
-run-name: ${{ inputs.action_type }} ReliBank NR entities in ${{ inputs.environment }} by @${{ github.actor }}
+run-name: ${{ inputs.action_type }}${{ inputs.plan_only && ' (PLAN ONLY)' || '' }} ReliBank NR entities in ${{ inputs.environment }} by @${{ github.actor }}
 
 on:
   workflow_dispatch:
@@ -25,6 +25,11 @@ on:
           - analysts
       skip_propagation_wait:
         description: "Skip the 600s wait for NR entity propagation between Terraform passes (safe for sandbox/staging test runs; leave unchecked for a live/prod deploy)"
+        type: boolean
+        required: false
+        default: false
+      plan_only:
+        description: "Destroy only: show what WOULD be destroyed (terraform plan -destroy) and change nothing. Ignored for deploy."
         type: boolean
         required: false
         default: false
@@ -236,7 +241,7 @@ jobs:
       - name: "Terraform Destroy"
         working-directory: terraform/aks/newrelic
         run: |
-          terraform destroy \
+          terraform ${{ github.event.inputs.plan_only == 'true' && 'plan -destroy -no-color -lock=false -input=false' || 'destroy' }} \
             -var="new_relic_account_id=${{ vars.NR_ACCOUNT_ID }}" \
             -var="new_relic_user_api_key=${{ secrets.NR_USER_API_KEY }}" \
             -var="new_relic_license_key=${{ secrets.NR_LICENSE_KEY }}" \
@@ -252,4 +257,4 @@ jobs:
             -var="azure_subscription_id=${{ secrets.AZURE_SUBSCRIPTION_ID }}" \
             -var="postgres_user=${{ secrets.POSTGRES_USER }}" \
             -var="postgres_password=${{ secrets.POSTGRES_PASSWORD }}" \
-            --auto-approve
+            ${{ github.event.inputs.plan_only != 'true' && '--auto-approve' || '' }}

@@ -1,6 +1,6 @@
 name: Deploy ReliBank
 
-run-name: ${{ inputs.action_type }} ReliBank (${{ inputs.target_color }}) in ${{ inputs.environment }} by @${{ github.actor }}
+run-name: ${{ inputs.action_type }}${{ inputs.plan_only && ' (PLAN ONLY)' || '' }} ReliBank (${{ inputs.target_color }}) in ${{ inputs.environment }} by @${{ github.actor }}
 
 on:
   workflow_dispatch:
@@ -43,6 +43,12 @@ on:
 
       force_rebuild:
         description: "Force a full rebuild of all images (ignore source-hash cache). Use when build-args change but source didn't."
+        type: boolean
+        required: false
+        default: false
+
+      plan_only:
+        description: "Destroy only: show what WOULD be destroyed (terraform plan -destroy) and change nothing. Ignored for deploy and direct_traffic."
         type: boolean
         required: false
         default: false
@@ -200,7 +206,7 @@ jobs:
       - name: "Terraform Destroy (relibank-${{ github.event.inputs.target_color }})"
         working-directory: terraform/aks/relibank-${{ github.event.inputs.target_color }}
         run: |
-          terraform destroy \
+          terraform ${{ github.event.inputs.plan_only == 'true' && 'plan -destroy -no-color -lock=false -input=false' || 'destroy' }} \
             -var="demo_environment=${{ github.event.inputs.environment }}" \
             -var="aks_cluster_name=${{ vars.AKS_CLUSTER_NAME }}" \
             -var="aks_resource_group=${{ vars.AKS_RESOURCE_GROUP }}" \
@@ -214,7 +220,7 @@ jobs:
             -var="tf_state_storage_account=${{ vars.TF_STATE_STORAGE_ACCOUNT }}" \
             -var="tf_state_container=${{ vars.TF_STATE_CONTAINER }}" \
             -var="assistant_b_delay_seconds=${{ github.event.inputs.assistant_b_delay_seconds }}" \
-            --auto-approve
+            ${{ github.event.inputs.plan_only != 'true' && '--auto-approve' || '' }}
 
   # ---------------------------------------------------------------------------
   # Direct traffic — terraform apply on traffic_management/
